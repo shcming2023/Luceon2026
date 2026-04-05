@@ -608,7 +608,7 @@ export const initialAiConfig: AiConfig = {
 export const initialMinerUConfig: MinerUConfig = {
   apiMode: 'precise',
   apiEndpoint: 'https://mineru.net/api/v4/extract/task',
-  apiKey: 'eyJ0eXBlIjoiSldUIiwiYWxnIjoiSFM1MTIifQ.eyJqdGkiOiI1MDIwNzE4MyIsInJvbCI6IlJPTEVfUkVHSVNURVIiLCJpc3MiOiJPcGVuWExhYiIsImlhdCI6MTc3NTE4Nzc3NiwiY2xpZW50SWQiOiJsa3pkeDU3bnZ5MjJqa3BxOXgydyIsInBob25lIjoiMTg5MTczNjA2ODgiLCJvcGVuSWQiOm51bGwsInV1aWQiOiJiODM2MWQwYy01M2U2LTRhMTctOGI5NS02MTA4MDhjYTI0ZDgiLCJlbWFpbCI6IiIsImV4cCI6MTc4Mjk2Mzc3Nn0.xo400HYAUAtnl4vfeUQ1M8-yPWnyXlZcUIGm4-vzy0K-k1MjMceO377B9WJz4p9BQSkSSpvQ_tyIBRhWLVQTNQ',
+  apiKey: '',  // 请在系统设置页面配置 MinerU API Key，或通过环境变量注入
   timeout: 1200,
   modelVersion: 'vlm',
   enableOcr: false,

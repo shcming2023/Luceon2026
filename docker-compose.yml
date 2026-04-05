@@ -1,0 +1,119 @@
+# ============================================================
+# EduAsset CMS — Docker Compose 编排文件
+#
+# 服务架构：
+#   cms-frontend    ── Nginx 静态文件服务 + 反向代理（端口 8080）
+#   upload-server   ── 文件上传代理服务（内部端口 8788）
+#
+# Overleaf 备份后端（backup-backend）说明：
+#   该后端是一个独立的 Node.js 服务，不在本仓库中。
+#   有两种接入方式：
+#     A. 在 Mac Mini 上独立运行后端（推荐）：
+#        修改 docker/nginx.conf 中 /api/ 的 proxy_pass 为
+#        http://host.docker.internal:3001/
+#     B. 将后端作为 Docker 服务加入本 compose（取消注释下方 backup-backend 块）
+#
+# 快速启动（仅前端 + 上传服务）：
+#   1. cp .env.example .env  并填写必要配置
+#   2. docker compose up -d --build
+#   3. 访问 http://localhost:8080/cms/
+#
+# 完整启动（含 Overleaf 备份后端）：
+#   参见 DEPLOY.md 第四节
+# ============================================================
+
+services:
+
+  # ── 前端静态文件 + Nginx 代理 ────────────────────────────
+  cms-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cms-frontend
+    restart: unless-stopped
+    ports:
+      # 宿主机端口:容器端口
+      # 修改左侧端口号以适配 Mac Mini 的实际监听端口
+      - "${CMS_PORT:-8080}:80"
+    depends_on:
+      upload-server:
+        condition: service_healthy
+    networks:
+      - cms-network
+    environment:
+      - TZ=Asia/Shanghai
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/cms/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ── 文件上传代理服务 ─────────────────────────────────────
+  # 接收前端上传的文件，转发到 tmpfiles.org 获取公开 URL
+  # 供 MinerU URL 模式解析使用
+  upload-server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: cms-upload-server
+    restart: unless-stopped
+    # 不对外暴露端口，仅在内部网络中供 Nginx 代理访问
+    expose:
+      - "8788"
+    networks:
+      - cms-network
+    environment:
+      - UPLOAD_PORT=8788
+      - TZ=Asia/Shanghai
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8788/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ── Overleaf 备份后端（方式B：Docker 内联部署，可选） ────
+  #
+  # 如果你的备份后端与本项目在同一台 Mac Mini 上，
+  # 且希望用 Docker 统一管理，请：
+  #   1. 取消注释此 service 块
+  #   2. 将 build.context 修改为你的后端代码路径
+  #   3. 确保 docker/nginx.conf 中 /api/ 仍指向 backup-backend:3001
+  #
+  # 如果后端已在 Mac Mini 上独立运行（非 Docker），请：
+  #   1. 保持此块注释
+  #   2. 修改 docker/nginx.conf 中 /api/ 的 proxy_pass 为：
+  #      proxy_pass http://host.docker.internal:3001/;
+  #
+  # backup-backend:
+  #   build:
+  #     context: ../backup-backend   # ← 修改为实际后端代码路径
+  #     dockerfile: Dockerfile
+  #   container_name: cms-backup-backend
+  #   restart: unless-stopped
+  #   expose:
+  #     - "3001"
+  #   networks:
+  #     - cms-network
+  #   environment:
+  #     - PORT=3001
+  #     - OVERLEAF_BASE_URL=${OVERLEAF_BASE_URL}
+  #     - OVERLEAF_ADMIN_EMAIL=${OVERLEAF_ADMIN_EMAIL}
+  #     - OVERLEAF_ADMIN_PASSWORD=${OVERLEAF_ADMIN_PASSWORD}
+  #     - HOST_BACKUP_PATH=/data/backups
+  #     - TZ=Asia/Shanghai
+  #   volumes:
+  #     # 将宿主机备份目录挂载到容器内
+  #     - ${HOST_BACKUP_PATH:-./data/backups}:/data/backups
+  #   healthcheck:
+  #     test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+  #     interval: 30s
+  #     timeout: 5s
+  #     retries: 3
+
+# ── 内部网络 ──────────────────────────────────────────────
+networks:
+  cms-network:
+    driver: bridge
+    name: cms-network

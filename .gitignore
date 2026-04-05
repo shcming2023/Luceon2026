@@ -6,7 +6,7 @@ node_modules/
 dist/
 build/
 
-# Environment
+# Environment（含敏感 API Key，绝不提交）
 .env
 .env.local
 .env.*.local
@@ -28,3 +28,12 @@ pnpm-debug.log*
 
 # TypeScript
 *.tsbuildinfo
+
+# Vite 缓存
+.vite/
+
+# 测试目录中的 PDF 文件（体积大，不应入库）
+test/*.pdf
+
+# ⚠️ API 配置文件含有明文密钥，强烈建议删除或加入忽略
+# test/api config.md

@@ -94,6 +94,15 @@ export default defineConfig({
         secure: true,
         rewrite: (path) => path.replace('/__proxy/tmpfiles', ''),
       },
+      // Overleaf 备份后端 API 代理（开发环境）
+      // 生产环境（Docker）由 nginx.conf 中的 /api/ 代理规则处理
+      // 请将 BACKUP_API_TARGET 设置为实际后端地址，如 http://localhost:3001
+      '/api': {
+        target: process.env.BACKUP_API_TARGET || 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false,
+        // 不 rewrite，保持 /api/xxx 路径原样转发
+      },
     },
   },
 })
