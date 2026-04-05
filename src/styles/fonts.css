@@ -1,0 +1,6 @@
+/* 自定义字体配置 */
+@layer base {
+  * {
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  }
+}
