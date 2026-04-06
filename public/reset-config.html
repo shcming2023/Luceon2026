@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>重置配置</title>
+</head>
+<body>
+  <h1>正在清除配置...</h1>
+  <script>
+    try {
+      localStorage.removeItem('app_ai_config');
+      localStorage.removeItem('app_mineru_config');
+      console.log('配置已清除');
+      document.body.innerHTML = '<h1>✅ 配置已清除，正在跳转...</h1>';
+      setTimeout(() => {
+        window.location.href = '/cms/source-materials';
+      }, 1000);
+    } catch (e) {
+      document.body.innerHTML = '<h1>❌ 清除失败: ' + e.message + '</h1>';
+    }
+  </script>
+</body>
+</html>

@@ -35,5 +35,7 @@ pnpm-debug.log*
 # 测试目录中的 PDF 文件（体积大，不应入库）
 test/*.pdf
 
-# ⚠️ API 配置文件含有明文密钥，强烈建议删除或加入忽略
-# test/api config.md
+# Playwright E2E 测试产物
+test-results/
+playwright-report/
+blob-report/

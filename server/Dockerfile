@@ -1,13 +1,21 @@
 # ============================================================
-# EduAsset CMS — 上传代理服务 Dockerfile
+# EduAsset CMS — 服务端 Dockerfile（共用镜像）
 #
-# 负责接收前端上传的文件并转发到 tmpfiles.org
-# 对外暴露 8788 端口（可通过 UPLOAD_PORT 环境变量覆盖）
+# 支持的服务：
+#   upload-server.mjs  ── 文件上传代理（端口 8788）
+#   db-server.mjs      ── SQLite REST API（端口 8789）
+#
+# 通过 docker-compose 的 command 字段选择启动哪个服务：
+#   command: ["node", "server/upload-server.mjs"]
+#   command: ["node", "server/db-server.mjs"]
 # ============================================================
 
 FROM node:20-alpine
 
 WORKDIR /app
+
+# 安装 better-sqlite3 需要的原生编译工具
+RUN apk add --no-cache python3 make g++
 
 # 仅复制服务端依赖声明（避免复制整个前端项目）
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -16,14 +24,14 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN corepack enable && corepack prepare pnpm@latest --activate \
   && pnpm install --frozen-lockfile --prod
 
-# 复制上传服务源码
+# 复制服务端源码
 COPY server/upload-server.mjs ./server/
+COPY server/db-server.mjs ./server/
 
-# 暴露上传服务端口
-EXPOSE 8788
+# 默认启动上传服务（db-server 通过 docker-compose command 覆盖）
+EXPOSE 8788 8789
 
-# 健康检查
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://localhost:8788/health || exit 1
+  CMD wget -qO- http://localhost:8788/health || wget -qO- http://localhost:8789/health || exit 1
 
 CMD ["node", "server/upload-server.mjs"]

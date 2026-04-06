@@ -4,6 +4,7 @@
 # 服务架构：
 #   cms-frontend    ── Nginx 静态文件服务 + 反向代理（端口 8080）
 #   upload-server   ── 文件上传代理服务（内部端口 8788）
+#   db-server       ── SQLite REST API 持久化服务（内部端口 8789）
 #
 # Overleaf 备份后端（backup-backend）说明：
 #   该后端是一个独立的 Node.js 服务，不在本仓库中。
@@ -37,6 +38,8 @@ services:
       - "${CMS_PORT:-8080}:80"
     depends_on:
       upload-server:
+        condition: service_healthy
+      db-server:
         condition: service_healthy
     networks:
       - cms-network
@@ -75,6 +78,8 @@ services:
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadmin}
       - MINIO_BUCKET=${MINIO_BUCKET:-eduassets}
+      # Presigned URL 有效期（秒），默认 1 小时；生产环境建议适当延长
+      - MINIO_PRESIGNED_EXPIRY=${MINIO_PRESIGNED_EXPIRY:-3600}
       - TZ=Asia/Shanghai
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8788/health"]
@@ -83,8 +88,33 @@ services:
       retries: 3
       start_period: 10s
 
-  # ── MinIO 对象存储服务 ───────────────────────────────────
-  # 提供持久化文件存储，替代 tmpfiles.org 临时存储
+  # ── SQLite 持久化 REST API 服务 ──────────────────────────
+  # 提供 CMS 业务数据的持久化存储，替代浏览器 localStorage
+  db-server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: cms-db-server
+    restart: unless-stopped
+    command: ["node", "server/db-server.mjs"]
+    expose:
+      - "8789"
+    networks:
+      - cms-network
+    environment:
+      - DB_PORT=8789
+      - DB_PATH=/data/cms.db
+      - TZ=Asia/Shanghai
+    volumes:
+      - cms-db-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8789/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ── MinIO 对象存储服务 ───────────────────────────────────  # 提供持久化文件存储，替代 tmpfiles.org 临时存储
   # ⚠️ 生产环境安全建议：将 ports 注释掉，仅通过内部网络访问
   # 如需外部访问控制台，使用 Nginx 反向代理而非直接暴露端口
   # 控制台访问（开发环境）：http://localhost:9001
@@ -165,3 +195,5 @@ networks:
 volumes:
   minio-data:
     name: cms-minio-data
+  cms-db-data:
+    name: cms-db-data

@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Upload, Grid, List, Filter, SortAsc } from 'lucide-react';
+import { Search, Upload, Grid, List, Filter, SortAsc, AlertTriangle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore } from '../../store/appContext';
 import { StatusBadge } from '../components/StatusBadge';
@@ -56,12 +56,41 @@ export function SourceMaterialsPage() {
 
   const pageNumbers = getPageNumbers(currentPage, totalPages);
 
+  // 文件大小限制检查（仅校验大小，不阻止特定类型上传）
+  const validateFile = (file: File): { valid: boolean; error?: string } => {
+    const { mineruConfig } = state;
+    const MAX_SIZE = (mineruConfig.maxFileSize || 0) > 0
+      ? mineruConfig.maxFileSize
+      : 200 * 1024 * 1024; // 默认 200MB
+
+    if (file.size > MAX_SIZE) {
+      const maxSizeMB = Math.round(MAX_SIZE / (1024 * 1024));
+      return {
+        valid: false,
+        error: `文件 "${file.name}" 超过上传限制 (最大 ${maxSizeMB}MB)`,
+      };
+    }
+    return { valid: true };
+  };
+
   // 上传文件处理
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     if (files.length === 0) return;
-    files.forEach((file) => {
+
+    const validationResults = files.map(f => ({ file: f, validation: validateFile(f) }));
+    const invalidFiles = validationResults.filter(({ validation }) => !validation.valid);
+
+    if (invalidFiles.length > 0) {
+      invalidFiles.forEach(({ validation }) => {
+        toast.error(validation.error, { icon: <AlertTriangle size={16} /> });
+      });
+      e.target.value = '';
+      return;
+    }
+    for (const file of files) {
       const newId = Date.now() + Math.random();
+      
       dispatch({
         type: 'ADD_MATERIAL',
         payload: {
@@ -70,9 +99,9 @@ export function SourceMaterialsPage() {
           type: file.name.split('.').pop()?.toUpperCase() ?? 'FILE',
           size: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
           sizeBytes: file.size,
-          uploadTime: '刚刚',
+          uploadTime: '上传中...',
           uploadTimestamp: Date.now(),
-          status: 'pending',
+          status: 'processing',
           mineruStatus: 'pending',
           aiStatus: 'pending',
           tags: [],
@@ -80,9 +109,78 @@ export function SourceMaterialsPage() {
           uploader: '当前用户',
         },
       });
-    });
-    toast.success(`已上传 ${files.length} 个文件`);
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('/__proxy/upload/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`上传失败: HTTP ${response.status} - ${errorText}`);
+        }
+
+        const result = await response.json();
+        
+        // 更新资料记录，添加文件 URL 并标记为待处理
+        dispatch({
+          type: 'UPDATE_MATERIAL',
+          payload: {
+            id: newId,
+            updates: {
+              status: 'pending',
+              uploadTime: '刚刚',
+              metadata: {
+                ...{},
+                fileUrl: result.url,
+                objectName: result.objectName || '',  // MinIO 对象路径（持久引用）
+                fileName: result.fileName,
+                provider: result.provider,
+                mimeType: result.mimeType,
+              },
+            },
+          },
+        });
+        
+        if (result.provider === 'minio' && result.objectName) {
+          toast.success(`"${file.name}" 已上传至 MinIO，可在详情页启动解析`);
+        } else {
+          toast.success(`"${file.name}" 上传成功`);
+        }
+      } catch (error) {
+        console.error('上传失败:', error);
+        // 标记为失败状态
+        dispatch({
+          type: 'UPDATE_MATERIAL',
+          payload: {
+            id: newId,
+            updates: {
+              status: 'failed',
+              uploadTime: '上传失败',
+            },
+          },
+        });
+        toast.error(`"${file.name}" 上传失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      }
+    }
+    
     e.target.value = '';
+  };
+
+  // 重置配置
+  const handleResetConfig = () => {
+    try {
+      localStorage.removeItem('app_ai_config');
+      localStorage.removeItem('app_mineru_config');
+      toast.success('配置已重置，页面将刷新');
+      setTimeout(() => window.location.reload(), 1000);
+    } catch (error) {
+      toast.error('重置配置失败');
+    }
   };
 
   // 选择切换
@@ -119,8 +217,18 @@ export function SourceMaterialsPage() {
               删除选中 ({selectedIds.size})
             </button>
           )}
+          <button
+            data-testid="reset-config-btn"
+            onClick={handleResetConfig}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50"
+            title="重置配置解决上传问题"
+          >
+            <RefreshCw size={16} />
+            重置配置
+          </button>
           <input
             ref={fileInputRef}
+            data-testid="file-input"
             type="file"
             multiple
             className="hidden"
@@ -128,6 +236,7 @@ export function SourceMaterialsPage() {
             accept=".pdf,.docx,.doc,.pptx,.ppt,.jpg,.jpeg,.png"
           />
           <button
+            data-testid="upload-button"
             onClick={() => fileInputRef.current?.click()}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
           >

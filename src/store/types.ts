@@ -238,6 +238,8 @@ export interface AiConfig {
   model: string;
   timeout: number;
   prompts: AiPromptConfig;
+  maxFileSize: number; // AI 分析最大文件大小（字节），默认 50MB
+  enabledFileTypes: string[]; // 支持的文件类型
 }
 
 /**
@@ -253,6 +255,8 @@ export interface MinerUConfig {
   enableFormula: boolean;
   enableTable: boolean;
   language: string;
+  maxFileSize: number; // MinerU 解析最大文件大小（字节），默认 100MB
+  maxPages: number; // 最大页数限制，默认 500 页
 }
 
 /**
@@ -274,9 +278,12 @@ export interface AppState {
 // ==================== Action 类型 ====================
 
 export type AppAction =
+  // 数据库 hydration（启动时从 SQLite 加载）
+  | { type: 'HYDRATE_FROM_DB'; payload: Partial<AppState> }
   // 资料操作
   | { type: 'ADD_MATERIAL'; payload: Material }
   | { type: 'DELETE_MATERIAL'; payload: number[] }
+  | { type: 'UPDATE_MATERIAL'; payload: { id: number; updates: Partial<Material> } }
   | { type: 'BATCH_ADD_TAGS'; payload: { ids: number[]; tags: string[] } }
   | { type: 'UPDATE_MATERIAL_TAGS'; payload: { id: number; tags: string[] } }
   | { type: 'UPDATE_MATERIAL_AI_STATUS'; payload: { id: number; aiStatus: AiStatus; status?: AssetStatus; tags?: string[]; metadata?: Record<string, string>; title?: string } }

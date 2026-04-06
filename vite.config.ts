@@ -86,7 +86,13 @@ export default defineConfig({
         target: process.env.UPLOAD_PROXY_TARGET || 'http://localhost:8788',
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path.replace('/__proxy/upload', ''),
+        rewrite: (path) => path.replace(/^\/__proxy\/upload/, ''),
+      },
+      '/__proxy/db': {
+        target: process.env.DB_PROXY_TARGET || 'http://localhost:8789',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/__proxy\/db/, ''),
       },
       '/__proxy/tmpfiles': {
         target: 'https://tmpfiles.org',

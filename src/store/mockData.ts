@@ -594,6 +594,8 @@ export const initialAiConfig: AiConfig = {
   apiKey: '',
   model: 'moonshot-v1-32k',
   timeout: 300, // 默认 5 分钟，适应大文本识别需求
+  maxFileSize: 50 * 1024 * 1024, // AI 分析最大 50MB
+  enabledFileTypes: ['.pdf', '.docx', '.doc', '.txt', '.md'],
   prompts: {
     title: '根据以下教育资料的内容，生成一个简洁准确的中文资料名称。要求：包含学科、年级、内容类型等关键信息，长度不超过30字。',
     subject: '分析以下教育资料的内容，识别其所属学科。返回值仅限：数学、语文、英语、物理、化学、生物、历史、地理、政治、其他。',
@@ -615,6 +617,8 @@ export const initialMinerUConfig: MinerUConfig = {
   enableFormula: true,
   enableTable: true,
   language: 'ch',
+  maxFileSize: 100 * 1024 * 1024, // MinerU 解析最大 100MB
+  maxPages: 500, // 最大 500 页
 };
 
 // ==================== 资产详情 ====================

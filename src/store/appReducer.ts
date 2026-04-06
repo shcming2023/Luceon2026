@@ -14,6 +14,29 @@ import type { AppState, AppAction } from './types';
  */
 export function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
+    // ==================== DB Hydration ====================
+
+    /**
+     * 从 SQLite 全量覆盖内存状态（仅在应用启动时触发一次）
+     * 只覆盖 payload 中非 undefined 的字段
+     */
+    case 'HYDRATE_FROM_DB': {
+      const p = action.payload;
+      return {
+        ...state,
+        ...(p.materials      !== undefined ? { materials:      p.materials }      : {}),
+        ...(p.assetDetails   !== undefined ? { assetDetails:   p.assetDetails }   : {}),
+        ...(p.processTasks   !== undefined ? { processTasks:   p.processTasks }   : {}),
+        ...(p.tasks          !== undefined ? { tasks:          p.tasks }          : {}),
+        ...(p.products       !== undefined ? { products:       p.products }       : {}),
+        ...(p.flexibleTags   !== undefined ? { flexibleTags:   p.flexibleTags }   : {}),
+        ...(p.aiRules        !== undefined ? { aiRules:        p.aiRules }        : {}),
+        ...(p.aiRuleSettings !== undefined ? { aiRuleSettings: p.aiRuleSettings } : {}),
+        ...(p.aiConfig       !== undefined ? { aiConfig:       p.aiConfig }       : {}),
+        ...(p.mineruConfig   !== undefined ? { mineruConfig:   p.mineruConfig }   : {}),
+      };
+    }
+
     // ==================== 资料操作 ====================
 
     /**
@@ -76,6 +99,19 @@ export function appReducer(state: AppState, action: AppAction): AppState {
           ...state.assetDetails,
           [m.id]: newAssetDetail,
         },
+      };
+    }
+
+    /**
+     * 更新单个资料信息（支持部分更新）
+     */
+    case 'UPDATE_MATERIAL': {
+      const { id, updates } = action.payload;
+      return {
+        ...state,
+        materials: state.materials.map((m) =>
+          m.id === id ? { ...m, ...updates } : m,
+        ),
       };
     }
 
