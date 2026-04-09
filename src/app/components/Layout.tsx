@@ -1,18 +1,12 @@
 import type { ReactNode } from 'react';
-import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   FolderOpen,
   Tag,
   Settings,
   ChevronRight,
-  Archive,
-  Database,
   FileText,
-  Files,
-  Clock,
 } from 'lucide-react';
-import { setBackupToken } from '../../utils/backupApi';
 
 interface NavItem {
   label: string;
@@ -37,11 +31,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: 'Overleaf 备份',
     items: [
-      { label: '项目备份',   path: '/backup',            icon: <Archive size={18} /> },
-      { label: '灾备备份',   path: '/backup/database',   icon: <Database size={18} /> },
       { label: 'LaTeX 工具', path: '/backup/latex',      icon: <FileText size={18} /> },
-      { label: '文件浏览',   path: '/backup/files',      icon: <Files size={18} /> },
-      { label: '定时调度',   path: '/backup/scheduler',  icon: <Clock size={18} /> },
     ],
   },
 ];
@@ -53,19 +43,6 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
-
-  // SPA 内部跳转时同步 Token（支持 ?token=xxx 参数）
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const token = params.get('token');
-    if (token) {
-      setBackupToken(token);
-      // 清除 URL 中的 token 参数
-      const newSearch = new URLSearchParams(location.search);
-      newSearch.delete('token');
-      navigate({ search: newSearch.toString() }, { replace: true });
-    }
-  }, [location.search, navigate]);
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/';
