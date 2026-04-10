@@ -18,6 +18,7 @@
  */
 
 import type { MinerUConfig } from '../store/types';
+import { submitLocalMinerUTask } from './mineruLocalApi';
 
 const PROXY_BASE = '/__proxy/mineru';
 
@@ -31,6 +32,9 @@ export interface MinerUTaskResult {
   totalPages?: number;
   markdown?: string;       // 解析后的 Markdown 文本
   zipUrl?: string;         // 完整结果 ZIP 下载链接
+  markdownObjectName?: string;
+  markdownUrl?: string;
+  parsedFilesCount?: number;
   errMsg?: string;
 }
 
@@ -243,10 +247,10 @@ export async function queryMinerUTask(
     } catch (err) {
       lastErr = err;
       const msg = err instanceof Error ? err.message : String(err);
-      // 精确匹配网络层错误码，避免误匹配业务错误（#14）
-      const causeCode = (err instanceof Error && (err as NodeJS.ErrnoException).cause)
-        ? ((err as NodeJS.ErrnoException).cause as NodeJS.ErrnoException).code ?? ''
-        : '';
+      const cause = err instanceof Error && typeof (err as Error & { cause?: unknown }).cause === 'object'
+        ? (err as Error & { cause?: { code?: string } }).cause
+        : undefined;
+      const causeCode = cause?.code ?? '';
       const isNetworkErr = err instanceof Error && err.name === 'TimeoutError'
         || ['EAI_AGAIN', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'ECONNREFUSED'].includes(causeCode)
         || msg.includes('EAI_AGAIN') || msg.includes('ECONNRESET') || msg.includes('ETIMEDOUT');
@@ -314,6 +318,7 @@ export async function runMinerUPipeline(
   file: File,
   config: MinerUConfig,
   onProgress?: (progress: number, state: string) => void,
+  materialId?: number | string,
 ): Promise<MinerUTaskResult>;
 
 /**
@@ -330,22 +335,49 @@ export async function runMinerUPipeline(
   fileName: string,
   config: MinerUConfig,
   onProgress?: (progress: number, state: string) => void,
+  materialId?: number | string,
 ): Promise<MinerUTaskResult>;
 
 export async function runMinerUPipeline(
   fileOrUrl: File | string,
   fileNameOrConfig: string | MinerUConfig,
   configOrProgress?: MinerUConfig | ((progress: number, state: string) => void),
-  onProgressArg?: (progress: number, state: string) => void,
+  onProgressArg?: ((progress: number, state: string) => void) | number | string,
+  materialIdArg?: number | string,
 ): Promise<MinerUTaskResult> {
-  // 判断调用模式
   const isFileMode = fileOrUrl instanceof File;
   const config = (isFileMode ? fileNameOrConfig : configOrProgress) as MinerUConfig;
   const onProgress = (isFileMode
     ? configOrProgress
     : onProgressArg) as ((p: number, s: string) => void) | undefined;
+  const materialId = isFileMode ? onProgressArg as number | string | undefined : materialIdArg;
 
-  // 重试参数：最多 3 次，指数退避（10s / 30s / 60s）
+  if (config.engine === 'local') {
+    const file = isFileMode
+      ? fileOrUrl as File
+      : await (async () => {
+          onProgress?.(5, '从远程地址下载文件...');
+          const response = await fetch(fileOrUrl as string, {
+            signal: AbortSignal.timeout(Math.max((config.localTimeout || 300) * 1000, 30_000)),
+          });
+          if (!response.ok) {
+            throw new Error(`下载文件失败: HTTP ${response.status}`);
+          }
+          const blob = await response.blob();
+          return new File(
+            [blob],
+            fileNameOrConfig as string,
+            { type: blob.type || 'application/octet-stream' },
+          );
+        })();
+
+    const localResult = await submitLocalMinerUTask(file, materialId || Date.now(), config, onProgress);
+    if (localResult.state === 'failed') {
+      throw new Error(localResult.errMsg || '本地 MinerU 解析失败');
+    }
+    return localResult;
+  }
+
   const MAX_RETRIES = 3;
   const RETRY_DELAYS = [10_000, 30_000, 60_000];
 

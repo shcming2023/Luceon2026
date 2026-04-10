@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Tag, FileText, Play, Cpu, CheckCircle, XCircle, Loader, Save, Database, ExternalLink, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Tag, FileText, Play, Cpu, CheckCircle, XCircle, Loader, Save, Database, ExternalLink, RefreshCw, ChevronDown, ChevronRight, Pencil, Copy, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore } from '../../store/appContext';
 import { StatusBadge } from '../components/StatusBadge';
@@ -362,6 +362,8 @@ export function AssetDetailPage() {
   const [tagInput, setTagInput] = useState('');
   const [editingTags, setEditingTags] = useState(false);
   const [localTags, setLocalTags] = useState<string[]>(detail?.tags ?? []);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(detail?.title ?? '');
 
   // MinerU 解析状态
   const [mineruRunning, setMineruRunning] = useState(false);
@@ -383,14 +385,111 @@ export function AssetDetailPage() {
     summary:     material?.metadata?.summary || '',
   });
 
+  useEffect(() => {
+    if (!material) return;
+    setMetaForm({
+      language: material.metadata?.language || '',
+      grade: material.metadata?.grade || '',
+      subject: material.metadata?.subject || '',
+      country: material.metadata?.country || '',
+      type: material.metadata?.type || '',
+      summary: material.metadata?.summary || '',
+    });
+  }, [
+    material?.id,
+    material?.metadata?.language,
+    material?.metadata?.grade,
+    material?.metadata?.subject,
+    material?.metadata?.country,
+    material?.metadata?.type,
+    material?.metadata?.summary,
+  ]);
+
+  useEffect(() => {
+    setTitleDraft(detail?.title ?? '');
+  }, [detail?.title]);
+
   const updateMeta = (key: keyof typeof metaForm, val: string) =>
     setMetaForm((prev) => ({ ...prev, [key]: val }));
+
+  const isDirty = !!material && (
+    metaForm.language !== (material.metadata?.language || '')
+    || metaForm.grade !== (material.metadata?.grade || '')
+    || metaForm.subject !== (material.metadata?.subject || '')
+    || metaForm.country !== (material.metadata?.country || '')
+    || metaForm.type !== (material.metadata?.type || '')
+    || metaForm.summary !== (material.metadata?.summary || '')
+  );
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+
+  const handleBackToList = () => {
+    if (isDirty && !window.confirm('当前元数据尚未保存，确定离开此页面吗？')) {
+      return;
+    }
+    navigate('/source-materials');
+  };
+
+  const handleSaveTitle = () => {
+    const nextTitle = titleDraft.trim();
+    if (!material) return;
+    if (!nextTitle) {
+      setTitleDraft(detail?.title ?? '');
+      setEditingTitle(false);
+      toast.error('标题不能为空');
+      return;
+    }
+    if (nextTitle === detail?.title) {
+      setEditingTitle(false);
+      return;
+    }
+    dispatch({
+      type: 'UPDATE_MATERIAL',
+      payload: {
+        id: numId,
+        updates: { title: nextTitle },
+      },
+    });
+    setEditingTitle(false);
+    toast.success('标题已更新');
+  };
+
+  const handleCopyMarkdown = async () => {
+    if (!mineruMarkdown) return;
+    try {
+      await navigator.clipboard.writeText(mineruMarkdown);
+      toast.success('Markdown 已复制');
+    } catch (error) {
+      toast.error(`复制失败：${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
+  const handleDownloadMarkdown = () => {
+    if (!mineruMarkdown) return;
+    const blob = new Blob([mineruMarkdown], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${(material?.title || 'material').replace(/[\\/:*?"<>|]+/g, '_')}-full.md`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
 
   if (!detail) {
     return (
       <div className="p-6">
         <button
-          onClick={() => navigate('/source-materials')}
+          onClick={handleBackToList}
           className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 mb-4"
         >
           <ArrowLeft size={16} /> 返回资料库
@@ -426,7 +525,7 @@ export function AssetDetailPage() {
 
   const handleMineruParse = async () => {
     if (!material) { toast.error('找不到资料信息'); return; }
-    if (!state.mineruConfig.apiKey?.trim()) {
+    if (state.mineruConfig.engine === 'cloud' && !state.mineruConfig.apiKey?.trim()) {
       toast.error('请先在「系统设置」中配置 MinerU API Key');
       return;
     }
@@ -443,6 +542,22 @@ export function AssetDetailPage() {
     setMineruProgress(0);
     setMineruMarkdown('');
     setMineruRetryCount(0);
+    dispatch({
+      type: 'UPDATE_MATERIAL',
+      payload: {
+        id: numId,
+        updates: {
+          mineruZipUrl: undefined,
+          metadata: {
+            ...material.metadata,
+            markdownObjectName: undefined,
+            markdownUrl: undefined,
+            parsedFilesCount: undefined,
+            parsedAt: undefined,
+          },
+        },
+      },
+    });
     dispatch({ type: 'UPDATE_MATERIAL_MINERU_STATUS', payload: { id: numId, mineruStatus: 'processing' } });
 
     try {
@@ -467,11 +582,33 @@ export function AssetDetailPage() {
         const fileName = `${material.title}.${material.type.toLowerCase()}`;
         const file = new File([blob], fileName, { type: blob.type || 'application/octet-stream' });
 
-        result = await runMinerUPipeline(file, state.mineruConfig, handleProgress);
+        result = await runMinerUPipeline(file, state.mineruConfig, handleProgress, numId);
       } else {
         // tmpfiles 等公网可访问 URL：走模式 A（URL 直接提交）
         if (!fileUrl) throw new Error('无法获取文件访问地址');
-        result = await runMinerUPipeline(fileUrl, `${material.title}.${material.type.toLowerCase()}`, state.mineruConfig, handleProgress);
+        result = await runMinerUPipeline(fileUrl, `${material.title}.${material.type.toLowerCase()}`, state.mineruConfig, handleProgress, numId);
+      }
+
+      if (result.markdown) {
+        setMineruMarkdown(result.markdown);
+      }
+
+      if (result.markdownObjectName || result.markdownUrl) {
+        dispatch({
+          type: 'UPDATE_MATERIAL',
+          payload: {
+            id: numId,
+            updates: {
+              metadata: {
+                ...material.metadata,
+                ...(result.markdownObjectName ? { markdownObjectName: result.markdownObjectName } : {}),
+                ...(result.markdownUrl ? { markdownUrl: result.markdownUrl } : {}),
+                ...(result.parsedFilesCount != null ? { parsedFilesCount: String(result.parsedFilesCount) } : {}),
+                parsedAt: new Date().toISOString(),
+              },
+            },
+          },
+        });
       }
 
       if (result.zipUrl) {
@@ -704,14 +841,40 @@ export function AssetDetailPage() {
       {/* 返回 + 标题 */}
       <div>
         <button
-          onClick={() => navigate('/source-materials')}
+          onClick={handleBackToList}
           className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 mb-3"
         >
           <ArrowLeft size={15} /> 返回资料库
         </button>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">{detail.title}</h1>
+            {editingTitle ? (
+              <input
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onBlur={handleSaveTitle}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveTitle();
+                  if (e.key === 'Escape') {
+                    setTitleDraft(detail.title);
+                    setEditingTitle(false);
+                  }
+                }}
+                autoFocus
+                className="w-full max-w-xl text-xl font-bold text-gray-900 border border-blue-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300"
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-gray-900">{detail.title}</h1>
+                <button
+                  onClick={() => setEditingTitle(true)}
+                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                  title="编辑标题"
+                >
+                  <Pencil size={14} />
+                </button>
+              </div>
+            )}
             <p className="text-xs text-gray-400 mt-1">资产 ID：{detail.assetId}</p>
           </div>
           <div className="flex items-center gap-2">
@@ -739,6 +902,9 @@ export function AssetDetailPage() {
                 <Cpu size={16} className="text-orange-500" /> MinerU 解析
               </h2>
               <div className="flex items-center gap-3">
+                <span className={`px-2 py-1 rounded-full text-[11px] font-medium ${state.mineruConfig.engine === 'local' ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700'}`}>
+                  {state.mineruConfig.engine === 'local' ? '本地 Gradio' : '官方 API'}
+                </span>
                 {material?.mineruStatus === 'completed' && (
                   <span className="flex items-center gap-1 text-xs text-green-600">
                     <CheckCircle size={13} /> 解析完成
@@ -831,7 +997,23 @@ export function AssetDetailPage() {
             {/* Markdown 预览 */}
             {mineruMarkdown && (
               <div className="mt-4">
-                <p className="text-xs font-semibold text-gray-600 mb-2">解析内容预览（Markdown）</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-gray-600">解析内容预览（Markdown）</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleCopyMarkdown}
+                      className="flex items-center gap-1 text-xs px-2.5 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"
+                    >
+                      <Copy size={12} /> 复制全文
+                    </button>
+                    <button
+                      onClick={handleDownloadMarkdown}
+                      className="flex items-center gap-1 text-xs px-2.5 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"
+                    >
+                      <Download size={12} /> 下载 .md
+                    </button>
+                  </div>
+                </div>
                 <pre className="bg-gray-50 rounded-lg p-3 text-xs text-gray-700 overflow-auto max-h-64 whitespace-pre-wrap">
                   {mineruMarkdown.slice(0, 3000)}{mineruMarkdown.length > 3000 ? '\n\n...(内容已截断)' : ''}
                 </pre>
@@ -866,8 +1048,8 @@ export function AssetDetailPage() {
                 )}
                 <button
                   onClick={handleAiAnalyze}
-                  disabled={aiAnalyzing || (!material?.metadata?.markdownObjectName && !material?.metadata?.markdownUrl && !material?.mineruZipUrl)}
-                  title={(!material?.metadata?.markdownObjectName && !material?.metadata?.markdownUrl && !material?.mineruZipUrl) ? '请先完成 MinerU 解析' : ''}
+                  disabled={aiAnalyzing || (!material?.metadata?.markdownObjectName && !material?.metadata?.markdownUrl && !material?.mineruZipUrl && !mineruMarkdown)}
+                  title={(!material?.metadata?.markdownObjectName && !material?.metadata?.markdownUrl && !material?.mineruZipUrl && !mineruMarkdown) ? '请先完成 MinerU 解析' : ''}
                   className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {aiAnalyzing
@@ -951,7 +1133,7 @@ export function AssetDetailPage() {
 
             {/* 保存按钮 */}
             <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
-              {!material?.metadata?.markdownObjectName && !material?.metadata?.markdownUrl && !material?.mineruZipUrl && (
+              {!material?.metadata?.markdownObjectName && !material?.metadata?.markdownUrl && !material?.mineruZipUrl && !mineruMarkdown && (
                 <p className="text-xs text-yellow-600">⚠ 请先完成 MinerU 解析，AI 分析将基于解析出的 Markdown 内容</p>
               )}
               <div className="ml-auto">

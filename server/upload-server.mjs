@@ -144,6 +144,34 @@ function detectFormat(mimeType, fileName) {
   return '未知';
 }
 
+function normalizeEndpoint(endpoint) {
+  return String(endpoint || '').trim().replace(/\/+$/, '');
+}
+
+function isEnabledFlag(value) {
+  return value === true || value === 'true' || value === '1' || value === 1;
+}
+
+function extractLocalMarkdown(payload) {
+  if (typeof payload === 'string') return payload.trim();
+  if (!payload || typeof payload !== 'object') return '';
+
+  const candidates = [
+    payload.md_text,
+    payload.markdown,
+    payload.text,
+    payload.data?.md_text,
+    payload.data?.markdown,
+    payload.data?.text,
+    payload.output?.md_text,
+    payload.output?.markdown,
+    Array.isArray(payload.data) ? payload.data.find((item) => typeof item === 'string') : '',
+  ];
+
+  const value = candidates.find((item) => typeof item === 'string' && item.trim() !== '');
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 /** 确保 MinIO Bucket 存在 */
 async function ensureBucket(client = minioClient, bucket = getMinioBucket()) {
   const exists = await client.bucketExists(bucket);
@@ -481,6 +509,118 @@ app.post('/parse/download', async (req, res) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error('[upload-server] /parse/download failed:', message);
+    res.status(500).json({ error: message });
+  }
+});
+
+app.post('/parse/local-mineru/health', async (req, res) => {
+  const localEndpoint = normalizeEndpoint(req.body?.localEndpoint);
+  if (!localEndpoint) {
+    res.status(400).json({ ok: false, message: '缺少 localEndpoint' });
+    return;
+  }
+
+  const candidates = [
+    localEndpoint,
+    `${localEndpoint}/gradio_api/info`,
+    `${localEndpoint}/gradio_api/to_markdown`,
+  ];
+
+  let lastMessage = '连接失败';
+  for (const target of candidates) {
+    try {
+      const response = await fetch(target, { signal: AbortSignal.timeout(5000) });
+      if (response.status < 500) {
+        res.json({ ok: true, message: `本地 MinerU 在线：${target}（HTTP ${response.status}）` });
+        return;
+      }
+      lastMessage = `${target} 返回 HTTP ${response.status}`;
+    } catch (error) {
+      lastMessage = error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  res.json({ ok: false, message: `本地 MinerU 不可达：${lastMessage}` });
+});
+
+app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
+  const localEndpoint = normalizeEndpoint(req.body?.localEndpoint);
+  const materialId = String(req.body?.materialId || '').trim();
+  const localTimeout = Number(req.body?.localTimeout || 300);
+
+  if (!req.file) {
+    res.status(400).json({ error: '缺少文件字段 `file`' });
+    return;
+  }
+  if (!localEndpoint) {
+    res.status(400).json({ error: '缺少 localEndpoint' });
+    return;
+  }
+
+  try {
+    const form = new FormData();
+    form.append(
+      'file',
+      new Blob([req.file.buffer], { type: req.file.mimetype || 'application/octet-stream' }),
+      req.file.originalname,
+    );
+    form.append('language', req.body?.language || 'ch');
+    form.append('enableOcr', String(isEnabledFlag(req.body?.enableOcr)));
+    form.append('enableFormula', String(isEnabledFlag(req.body?.enableFormula)));
+    form.append('enableTable', String(isEnabledFlag(req.body?.enableTable)));
+    form.append('enable_ocr', String(isEnabledFlag(req.body?.enableOcr)));
+    form.append('enable_formula', String(isEnabledFlag(req.body?.enableFormula)));
+    form.append('enable_table', String(isEnabledFlag(req.body?.enableTable)));
+
+    const response = await fetch(`${localEndpoint}/gradio_api/to_markdown`, {
+      method: 'POST',
+      body: form,
+      signal: AbortSignal.timeout(Math.max(localTimeout * 1000, 30_000)),
+    });
+
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error(`本地 MinerU 返回 HTTP ${response.status}: ${detail.slice(0, 300)}`);
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    const payload = contentType.includes('application/json')
+      ? await response.json()
+      : await response.text();
+    const markdown = extractLocalMarkdown(payload);
+
+    if (!markdown) {
+      throw new Error('本地 MinerU 未返回 Markdown 内容');
+    }
+
+    const taskId = `local-${Date.now()}`;
+    const objectName = materialId ? `parsed/${materialId}/full.md` : `parsed/${taskId}/full.md`;
+    let markdownObjectName = '';
+    let markdownUrl = '';
+
+    try {
+      const bucket = getParsedBucket();
+      const client = getMinioClient();
+      await ensureBucket(client, bucket);
+      const markdownBuffer = Buffer.from(markdown, 'utf-8');
+      await client.putObject(bucket, objectName, markdownBuffer, markdownBuffer.length, { 'Content-Type': 'text/markdown; charset=utf-8' });
+      markdownObjectName = objectName;
+      markdownUrl = await client.presignedGetObject(bucket, objectName, getPresignedExpiry());
+    } catch (storageError) {
+      console.warn('[upload-server] local MinerU markdown store failed:', storageError.message);
+    }
+
+    res.json({
+      taskId,
+      state: 'done',
+      markdown,
+      markdownObjectName: markdownObjectName || undefined,
+      markdownUrl: markdownUrl || undefined,
+      parsedFilesCount: markdownObjectName ? 1 : 0,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[upload-server] /parse/local-mineru failed:', message);
     res.status(500).json({ error: message });
   }
 });
@@ -889,6 +1029,45 @@ app.get('/list', async (req, res) => {
     console.warn('[upload-server] /list failed (returning empty):', message);
     // MinIO 不可用时返回空列表，防止前端溯源卡片崩溃
     res.json({ objects: [], total: 0 });
+  }
+});
+
+app.get('/storage-stats', async (_req, res) => {
+  if (getStorageBackend() !== 'minio') {
+    res.json({
+      ok: true,
+      backend: getStorageBackend(),
+      buckets: [],
+      totalObjects: 0,
+      totalSize: 0,
+    });
+    return;
+  }
+
+  try {
+    const rawBucket = getMinioBucket();
+    const parsedBucket = getParsedBucket();
+    const [rawObjects, parsedObjects] = await Promise.all([
+      listAllObjects(rawBucket, ''),
+      listAllObjects(parsedBucket, ''),
+    ]);
+
+    const rawSize = rawObjects.reduce((sum, item) => sum + (item.size || 0), 0);
+    const parsedSize = parsedObjects.reduce((sum, item) => sum + (item.size || 0), 0);
+
+    res.json({
+      ok: true,
+      backend: getStorageBackend(),
+      buckets: [
+        { name: rawBucket, objectCount: rawObjects.length, totalSize: rawSize },
+        { name: parsedBucket, objectCount: parsedObjects.length, totalSize: parsedSize },
+      ],
+      totalObjects: rawObjects.length + parsedObjects.length,
+      totalSize: rawSize + parsedSize,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ ok: false, error: message });
   }
 });
 

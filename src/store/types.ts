@@ -262,6 +262,9 @@ export interface AiConfig {
  * MinerU API 配置
  */
 export interface MinerUConfig {
+  engine: 'local' | 'cloud';
+  localEndpoint: string;
+  localTimeout: number;
   apiMode: 'precise' | 'agent';
   apiEndpoint: string;
   apiKey: string;

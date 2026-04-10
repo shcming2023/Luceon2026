@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Upload, Grid, List, SortAsc, AlertTriangle, RefreshCw, Trash2 } from 'lucide-react';
+import { Search, Upload, Grid, List, SortAsc, AlertTriangle, RefreshCw, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 /** 删除确认弹窗（始终使用 toast，避免 window.confirm 在各类环境中被屏蔽） */
@@ -43,6 +43,32 @@ const SORT_OPTIONS: { key: SortOption; label: string }[] = [
   { key: 'size',   label: '文件大小' },
 ];
 
+const MINERU_STATUS_OPTIONS = [
+  { key: 'all', label: '全部 MinerU 状态' },
+  { key: 'pending', label: '待解析' },
+  { key: 'processing', label: '解析中' },
+  { key: 'completed', label: '解析完成' },
+  { key: 'failed', label: '解析失败' },
+] as const;
+
+const AI_STATUS_OPTIONS = [
+  { key: 'all', label: '全部 AI 状态' },
+  { key: 'pending', label: '待分析' },
+  { key: 'analyzing', label: '分析中' },
+  { key: 'analyzed', label: '已分析' },
+  { key: 'failed', label: '分析失败' },
+] as const;
+
+let uploadIdCounter = 0;
+
+function formatBytes(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
 export function SourceMaterialsPage() {
   const { state, dispatch } = useAppStore();
   const navigate = useNavigate();
@@ -53,8 +79,24 @@ export function SourceMaterialsPage() {
   const [sort, setSort] = useState<SortOption>('newest');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [advancedExpanded, setAdvancedExpanded] = useState(false);
+  const [subjectFilter, setSubjectFilter] = useState('all');
+  const [gradeFilter, setGradeFilter] = useState('all');
+  const [languageFilter, setLanguageFilter] = useState('all');
+  const [mineruStatusFilter, setMineruStatusFilter] = useState<(typeof MINERU_STATUS_OPTIONS)[number]['key']>('all');
+  const [aiStatusFilter, setAiStatusFilter] = useState<(typeof AI_STATUS_OPTIONS)[number]['key']>('all');
 
-  // 筛选 + 搜索 + 排序
+  const advancedOptions = useMemo(() => {
+    const unique = (values: (string | undefined)[]) =>
+      [...new Set(values.map((value) => value?.trim()).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+
+    return {
+      subjects: unique(state.materials.map((item) => item.metadata?.subject)),
+      grades: unique(state.materials.map((item) => item.metadata?.grade)),
+      languages: unique(state.materials.map((item) => item.metadata?.language)),
+    };
+  }, [state.materials]);
+
   const filtered = useMemo(() => {
     let list = state.materials;
     if (tab !== 'all') list = list.filter((m) => m.status === tab);
@@ -67,15 +109,49 @@ export function SourceMaterialsPage() {
           m.uploader.toLowerCase().includes(q),
       );
     }
+    if (subjectFilter !== 'all') list = list.filter((m) => m.metadata?.subject === subjectFilter);
+    if (gradeFilter !== 'all') list = list.filter((m) => m.metadata?.grade === gradeFilter);
+    if (languageFilter !== 'all') list = list.filter((m) => m.metadata?.language === languageFilter);
+    if (mineruStatusFilter !== 'all') list = list.filter((m) => m.mineruStatus === mineruStatusFilter);
+    if (aiStatusFilter !== 'all') list = list.filter((m) => m.aiStatus === aiStatusFilter);
     return sortMaterials(list, sort);
-  }, [state.materials, tab, search, sort]);
+  }, [state.materials, tab, search, sort, subjectFilter, gradeFilter, languageFilter, mineruStatusFilter, aiStatusFilter]);
 
   const { currentItems, currentPage, totalPages, goToPage, hasPrev, hasNext, prevPage, nextPage } =
     usePagination(filtered);
 
   const pageNumbers = getPageNumbers(currentPage, totalPages);
 
-  // 文件大小限制检查（仅校验大小，不阻止特定类型上传）
+  const summary = useMemo(() => {
+    const statusCounts = filtered.reduce<Record<TabFilter, number>>((acc, item) => {
+      acc[item.status] += 1;
+      return acc;
+    }, { all: filtered.length, pending: 0, processing: 0, reviewing: 0, failed: 0, completed: 0 });
+
+    const totalSizeBytes = filtered.reduce((sum, item) => sum + (item.sizeBytes || 0), 0);
+    const subjectCoverage = new Set(filtered.map((item) => item.metadata?.subject).filter(Boolean)).size;
+
+    return {
+      statusCounts,
+      totalSizeBytes,
+      subjectCoverage,
+    };
+  }, [filtered]);
+
+  const isCurrentPageFullySelected = currentItems.length > 0 && currentItems.every((item) => selectedIds.has(item.id));
+
+  const handleSelectCurrentPage = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (isCurrentPageFullySelected) {
+        currentItems.forEach((item) => next.delete(item.id));
+      } else {
+        currentItems.forEach((item) => next.add(item.id));
+      }
+      return next;
+    });
+  };
+
   const validateFile = (file: File): { valid: boolean; error?: string } => {
     const { mineruConfig } = state;
     const MAX_SIZE = (mineruConfig.maxFileSize || 0) > 0
@@ -107,11 +183,10 @@ export function SourceMaterialsPage() {
       e.target.value = '';
       return;
     }
-    // 使用递增计数器确保同一毫秒内多文件 ID 严格唯一（#11）
-    const baseTime = Date.now();
     for (let fileIdx = 0; fileIdx < files.length; fileIdx++) {
       const file = files[fileIdx];
-      const newId = baseTime * 1000 + fileIdx;
+      uploadIdCounter = (uploadIdCounter + 1) % 1000;
+      const newId = Date.now() * 1000 + uploadIdCounter + fileIdx;
       
       dispatch({
         type: 'ADD_MATERIAL',
@@ -300,6 +375,14 @@ export function SourceMaterialsPage() {
               删除选中 ({selectedIds.size})
             </button>
           )}
+          {currentItems.length > 0 && (
+            <button
+              onClick={handleSelectCurrentPage}
+              className="px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50"
+            >
+              {isCurrentPageFullySelected ? '取消当前页' : '全选当前页'}
+            </button>
+          )}
           <button
             onClick={handleClearAll}
             className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50"
@@ -333,6 +416,29 @@ export function SourceMaterialsPage() {
             <Upload size={16} />
             上传资料
           </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <p className="text-xs text-gray-500">当前结果</p>
+          <p className="mt-1 text-2xl font-semibold text-gray-900">{filtered.length}</p>
+          <p className="mt-1 text-xs text-gray-400">待处理 {summary.statusCounts.pending} · 完成 {summary.statusCounts.completed}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <p className="text-xs text-gray-500">处理中 / 审核中</p>
+          <p className="mt-1 text-2xl font-semibold text-gray-900">{summary.statusCounts.processing + summary.statusCounts.reviewing}</p>
+          <p className="mt-1 text-xs text-gray-400">失败 {summary.statusCounts.failed}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <p className="text-xs text-gray-500">总存储占用</p>
+          <p className="mt-1 text-2xl font-semibold text-gray-900">{formatBytes(summary.totalSizeBytes)}</p>
+          <p className="mt-1 text-xs text-gray-400">按当前筛选结果汇总</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <p className="text-xs text-gray-500">学科覆盖</p>
+          <p className="mt-1 text-2xl font-semibold text-gray-900">{summary.subjectCoverage}</p>
+          <p className="mt-1 text-xs text-gray-400">已识别学科数</p>
         </div>
       </div>
 
@@ -395,7 +501,70 @@ export function SourceMaterialsPage() {
             <Grid size={16} />
           </button>
         </div>
+
+        <button
+          onClick={() => setAdvancedExpanded((prev) => !prev)}
+          className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50"
+        >
+          {advancedExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+          高级筛选
+        </button>
       </div>
+
+      {advancedExpanded && (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+            <select
+              value={subjectFilter}
+              onChange={(e) => setSubjectFilter(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+            >
+              <option value="all">全部学科</option>
+              {advancedOptions.subjects.map((item) => (
+                <option key={item} value={item}>{item}</option>
+              ))}
+            </select>
+            <select
+              value={gradeFilter}
+              onChange={(e) => setGradeFilter(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+            >
+              <option value="all">全部年级</option>
+              {advancedOptions.grades.map((item) => (
+                <option key={item} value={item}>{item}</option>
+              ))}
+            </select>
+            <select
+              value={languageFilter}
+              onChange={(e) => setLanguageFilter(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+            >
+              <option value="all">全部语言</option>
+              {advancedOptions.languages.map((item) => (
+                <option key={item} value={item}>{item}</option>
+              ))}
+            </select>
+            <select
+              value={mineruStatusFilter}
+              onChange={(e) => setMineruStatusFilter(e.target.value as (typeof MINERU_STATUS_OPTIONS)[number]['key'])}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+            >
+              {MINERU_STATUS_OPTIONS.map((item) => (
+                <option key={item.key} value={item.key}>{item.label}</option>
+              ))}
+            </select>
+            <select
+              value={aiStatusFilter}
+              onChange={(e) => setAiStatusFilter(e.target.value as (typeof AI_STATUS_OPTIONS)[number]['key'])}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+            >
+              {AI_STATUS_OPTIONS.map((item) => (
+                <option key={item.key} value={item.key}>{item.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
 
       {/* 结果数量 */}
       {search && (
@@ -497,13 +666,31 @@ export function SourceMaterialsPage() {
             <div
               key={m.id}
               onClick={() => navigate(`/asset/${m.id}`)}
-              className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:shadow-md transition-shadow"
+              className="relative bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:shadow-md transition-shadow"
             >
               <div className="flex items-start justify-between mb-2">
-                <span className="text-xs font-medium bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                  {m.type}
-                </span>
-                <StatusBadge status={m.status} />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(m.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={() => toggleSelect(m.id)}
+                    className="rounded"
+                  />
+                  <span className="text-xs font-medium bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                    {m.type}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={m.status} />
+                  <button
+                    onClick={(e) => handleDelete(e, m.id)}
+                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    title="删除"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
               <p className="text-sm font-semibold text-gray-800 line-clamp-2 mb-2">{m.title}</p>
               <p className="text-xs text-gray-400">{m.size} · {m.uploadTime}</p>

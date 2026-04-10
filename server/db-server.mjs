@@ -93,8 +93,38 @@ function writeDB() {
   }, 100);
 }
 
+function flushDBSync() {
+  if (writeTimer) {
+    clearTimeout(writeTimer);
+    writeTimer = null;
+  }
+  const dir = path.dirname(DATA_PATH);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  const tmpPath = DATA_PATH + '.tmp';
+  writeFileSync(tmpPath, JSON.stringify(dbCache, null, 2), 'utf-8');
+  renameSync(tmpPath, DATA_PATH);
+}
+
 app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'db-server', dataPath: DATA_PATH });
+});
+
+app.get('/stats', (_req, res) => {
+  res.json({
+    ok: true,
+    dataPath: DATA_PATH,
+    fileSize: Buffer.byteLength(JSON.stringify(dbCache, null, 2), 'utf-8'),
+    counts: {
+      materials: Object.keys(dbCache.materials).length,
+      assetDetails: Object.keys(dbCache.assetDetails).length,
+      processTasks: Object.keys(dbCache.processTasks).length,
+      tasks: Object.keys(dbCache.tasks).length,
+      products: Object.keys(dbCache.products).length,
+      flexibleTags: Object.keys(dbCache.flexibleTags).length,
+      aiRules: Object.keys(dbCache.aiRules).length,
+      settings: Object.keys(dbCache.settings).length,
+    },
+  });
 });
 
 // ─── Materials ────────────────────────────────────────────────
@@ -331,6 +361,40 @@ app.put('/settings/:key', (req, res) => {
   dbCache.settings[key] = req.body;
   writeDB();
   res.json({ ok: true, key });
+});
+
+app.get('/backup/export', (_req, res) => {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="db-backup-${Date.now()}.json"`);
+  res.send(JSON.stringify(dbCache, null, 2));
+});
+
+app.post('/backup/import', (req, res) => {
+  const { confirm, data } = req.body || {};
+  if (confirm !== true) {
+    res.status(400).json({ error: '导入前必须传入 confirm=true' });
+    return;
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    res.status(400).json({ error: '缺少有效的 data 对象' });
+    return;
+  }
+
+  const backupPath = `${DATA_PATH}.${Date.now()}.bak`;
+
+  try {
+    writeFileSync(backupPath, JSON.stringify(dbCache, null, 2), 'utf-8');
+    dbCache = {
+      ...structuredClone(EMPTY_DB),
+      ...data,
+      settings: { ...EMPTY_DB.settings, ...(data.settings || {}) },
+    };
+    flushDBSync();
+    res.json({ ok: true, backupPath, message: '数据库已导入，原数据已备份' });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: message });
+  }
 });
 
 // ─── Bulk Restore ─────────────────────────────────────────────

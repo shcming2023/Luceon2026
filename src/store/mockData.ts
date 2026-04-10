@@ -80,6 +80,9 @@ export const initialAiConfig: AiConfig = {
 
 /** MinerU API 配置（默认值） */
 export const initialMinerUConfig: MinerUConfig = {
+  engine: 'local',
+  localEndpoint: 'http://192.168.31.33:8083',
+  localTimeout: 300,
   apiMode: 'precise',
   apiEndpoint: 'https://mineru.net/api/v4/extract/task',
   apiKey: '',  // 请在系统设置页面配置 MinerU API Key，或通过环境变量注入
