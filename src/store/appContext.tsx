@@ -294,6 +294,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const prevTagIds        = useRef<Set<number>>(new Set(state.flexibleTags.map((t) => t.id)));
   const prevAiRuleIds     = useRef<Set<number>>(new Set(state.aiRules.map((r) => r.id)));
 
+  // ── 差量指纹：仅对内容变化的记录执行 upsert（#7）──────────
+  const materialFingerprintsRef  = useRef<Map<number, string>>(new Map());
+  const assetDetailFingerprintsRef = useRef<Map<string, string>>(new Map());
+
   // ── 持久化：localStorage（同步）+ SQLite（异步）────────────
 
   useEffect(() => {
@@ -307,9 +311,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (deletedIds.length > 0) {
         dbDelete('/materials', { ids: deletedIds });
       }
-      // upsert 当前所有 materials
+      // 差量 upsert：仅对内容指纹变化的记录执行 POST（#7）
       for (const m of state.materials) {
-        dbPost('/materials', m);
+        const fingerprint = JSON.stringify(m);
+        if (materialFingerprintsRef.current.get(m.id) !== fingerprint) {
+          materialFingerprintsRef.current.set(m.id, fingerprint);
+          dbPost('/materials', m);
+        }
       }
     }
 
@@ -323,8 +331,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const currentIds = new Set(Object.keys(state.assetDetails).map(Number));
 
     if (hydratedRef.current) {
+      // 差量 upsert：仅对内容指纹变化的记录执行 PUT（#7）
       for (const [id, detail] of Object.entries(state.assetDetails)) {
-        dbPut(`/asset-details/${id}`, detail);
+        const fingerprint = JSON.stringify(detail);
+        if (assetDetailFingerprintsRef.current.get(id) !== fingerprint) {
+          assetDetailFingerprintsRef.current.set(id, fingerprint);
+          dbPut(`/asset-details/${id}`, detail);
+        }
       }
     }
 

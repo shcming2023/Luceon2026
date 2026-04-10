@@ -160,6 +160,7 @@ export async function submitMinerUTaskByFile(
   const putRes = await fetch('/__proxy/upload/parse/oss-put', {
     method: 'POST',
     body: formData,
+    signal: AbortSignal.timeout(120_000), // 2分钟上传超时（#8）
   });
 
   if (!putRes.ok) {
@@ -242,9 +243,13 @@ export async function queryMinerUTask(
     } catch (err) {
       lastErr = err;
       const msg = err instanceof Error ? err.message : String(err);
-      // 网络层错误（DNS/超时/连接拒绝）可重试
-      const isNetworkErr = msg.includes('EAI_AGAIN') || msg.includes('ECONNRESET')
-        || msg.includes('ETIMEDOUT') || msg.includes('fetch') || msg.includes('abort');
+      // 精确匹配网络层错误码，避免误匹配业务错误（#14）
+      const causeCode = (err instanceof Error && (err as NodeJS.ErrnoException).cause)
+        ? ((err as NodeJS.ErrnoException).cause as NodeJS.ErrnoException).code ?? ''
+        : '';
+      const isNetworkErr = err instanceof Error && err.name === 'TimeoutError'
+        || ['EAI_AGAIN', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'ECONNREFUSED'].includes(causeCode)
+        || msg.includes('EAI_AGAIN') || msg.includes('ECONNRESET') || msg.includes('ETIMEDOUT');
       if (isNetworkErr && i < 2) {
         console.warn(`[MinerU] queryMinerUTask 网络错误 (${i + 1}/3):`, msg);
         await new Promise((r) => setTimeout(r, 3000));

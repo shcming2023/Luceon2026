@@ -14,9 +14,6 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# 安装 better-sqlite3 需要的原生编译工具
-RUN apk add --no-cache python3 make g++
-
 # 仅复制服务端依赖声明（避免复制整个前端项目）
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 

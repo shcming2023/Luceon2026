@@ -115,8 +115,11 @@ export function SourceMaterialsPage() {
       e.target.value = '';
       return;
     }
-    for (const file of files) {
-      const newId = Date.now();
+    // 使用递增计数器确保同一毫秒内多文件 ID 严格唯一（#11）
+    const baseTime = Date.now();
+    for (let fileIdx = 0; fileIdx < files.length; fileIdx++) {
+      const file = files[fileIdx];
+      const newId = baseTime * 1000 + fileIdx;
       
       dispatch({
         type: 'ADD_MATERIAL',

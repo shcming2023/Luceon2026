@@ -43,10 +43,11 @@ export function usePagination<T>(
 ): UsePaginationReturn<T> {
   const [currentPage, setCurrentPage] = useState(1);
 
-  // 数据源变化时重置为第一页（如筛选条件变化）
+  // 数据源变化时重置为第一页（依赖数组引用，确保内容替换也能触发重置）（#4）
   useEffect(() => {
     setCurrentPage(1);
-  }, [data.length]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(data.length / itemsPerPage)),

@@ -68,17 +68,17 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         assetId: `MAT-${m.id}`,
         tags: m.tags,
         metadata: {
-          subject: m.metadata.subject || '-',
-          grade: m.metadata.grade || '-',
-          standard: m.metadata.standard || '-',
-          region: m.metadata.region || '-',
+          subject: m.metadata?.subject || '-',
+          grade: m.metadata?.grade || '-',
+          standard: m.metadata?.standard || '-',
+          region: m.metadata?.region || '-',
           format: m.type || '-',
           size: m.size || '-',
           pages: '-',
           language: '中文',
           uploadTime: m.uploadTime || '刚刚',
           uploader: m.uploader || '管理员',
-          summary: m.metadata.summary || '',
+          summary: m.metadata?.summary || '',
           previewUrl: m.previewUrl || '',
         },
         relatedAssets: [],
@@ -95,41 +95,69 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
     /**
      * 更新单个资料信息（支持部分更新）
+     * 同步更新 assetDetails 中的对应记录（#2）
      */
     case 'UPDATE_MATERIAL': {
       const { id, updates } = action.payload;
-      return {
-        ...state,
-        materials: state.materials.map((m) =>
-          m.id === id ? { ...m, ...updates } : m,
-        ),
-      };
+      const newMaterials = state.materials.map((m) =>
+        m.id === id ? { ...m, ...updates } : m,
+      );
+
+      // 同步更新 assetDetails（参照 UPDATE_MATERIAL_AI_STATUS 的联动写法）
+      const existingDetail = state.assetDetails[id];
+      const updatedDetails = existingDetail
+        ? {
+            ...state.assetDetails,
+            [id]: {
+              ...existingDetail,
+              ...(updates.title !== undefined ? { title: updates.title } : {}),
+              ...(updates.status !== undefined ? { status: updates.status } : {}),
+              ...(updates.tags !== undefined ? { tags: updates.tags } : {}),
+              ...(updates.metadata
+                ? { metadata: { ...existingDetail.metadata, ...updates.metadata } }
+                : {}),
+            },
+          }
+        : state.assetDetails;
+
+      return { ...state, materials: newMaterials, assetDetails: updatedDetails };
     }
 
     /**
      * 批量为资料添加标签
      * 对指定 ID 列表中的资料，合并去重后追加新标签
+     * 同步更新 assetDetails[id].tags（#3）
      */
-    case 'BATCH_ADD_TAGS':
-      return {
-        ...state,
-        materials: state.materials.map((m) => {
-          if (!action.payload.ids.includes(m.id)) return m;
-          const newTags = [...new Set([...m.tags, ...action.payload.tags])];
-          return { ...m, tags: newTags };
-        }),
-      };
+    case 'BATCH_ADD_TAGS': {
+      const newAssetDetails = { ...state.assetDetails };
+      const newMaterials = state.materials.map((m) => {
+        if (!action.payload.ids.includes(m.id)) return m;
+        const newTags = [...new Set([...m.tags, ...action.payload.tags])];
+        if (newAssetDetails[m.id]) {
+          newAssetDetails[m.id] = { ...newAssetDetails[m.id], tags: newTags };
+        }
+        return { ...m, tags: newTags };
+      });
+      return { ...state, materials: newMaterials, assetDetails: newAssetDetails };
+    }
 
     /**
      * 更新单个资料的标签列表
+     * 同步更新 assetDetails[id].tags（#3）
      */
-    case 'UPDATE_MATERIAL_TAGS':
+    case 'UPDATE_MATERIAL_TAGS': {
+      const { id, tags } = action.payload;
+      const existingDetail = state.assetDetails[id];
       return {
         ...state,
         materials: state.materials.map((m) =>
-          m.id === action.payload.id ? { ...m, tags: action.payload.tags } : m,
+          m.id === id ? { ...m, tags } : m,
         ),
+        assetDetails: existingDetail
+          ? { ...state.assetDetails, [id]: { ...existingDetail, tags } }
+          : state.assetDetails,
       };
+    }
 
     /**
      * 更新单个资料 AI 分析状态（可选同步更新主状态 + 回填 AI 识别结果）
@@ -339,18 +367,22 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
     /**
      * 更新资产标签列表
+     * 若 assetDetails[id] 不存在则直接返回原 state，不创建残缺对象（#10）
      */
-    case 'UPDATE_ASSET_TAGS':
+    case 'UPDATE_ASSET_TAGS': {
+      const { id, tags } = action.payload;
+      if (!state.assetDetails[id]) return state;
       return {
         ...state,
         assetDetails: {
           ...state.assetDetails,
-          [action.payload.id]: {
-            ...state.assetDetails[action.payload.id],
-            tags: action.payload.tags,
+          [id]: {
+            ...state.assetDetails[id],
+            tags,
           },
         },
       };
+    }
 
     /**
      * 更新资料预览 URL（本地 blob URL 或远程公开 URL）
