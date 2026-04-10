@@ -425,6 +425,15 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     // ==================== 删除操作 ====================
 
     /**
+     * 新增成品
+     */
+    case 'ADD_PRODUCT':
+      return {
+        ...state,
+        products: [action.payload, ...state.products],
+      };
+
+    /**
      * 删除成品（支持批量）
      */
     case 'DELETE_PRODUCT': {

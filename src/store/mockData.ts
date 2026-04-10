@@ -83,6 +83,9 @@ export const initialMinerUConfig: MinerUConfig = {
   engine: 'local',
   localEndpoint: 'http://192.168.31.33:8083',
   localTimeout: 300,
+  localBackend: 'hybrid-auto-engine',
+  localMaxPages: 1000,
+  localOcrLanguage: 'ch',
   apiMode: 'precise',
   apiEndpoint: 'https://mineru.net/api/v4/extract/task',
   apiKey: '',  // 请在系统设置页面配置 MinerU API Key，或通过环境变量注入

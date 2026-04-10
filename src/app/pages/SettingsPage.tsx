@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Save, Eye, EyeOff, Bot, ScanLine, Database, CheckCircle, XCircle, Loader, Download, Upload, HardDrive } from 'lucide-react';
+import { Save, Eye, EyeOff, Bot, ScanLine, Database, CheckCircle, XCircle, Loader, Download, Upload, HardDrive, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore } from '../../store/appContext';
 import type { AiConfig, MinerUConfig, MinioConfig } from '../../store/types';
@@ -18,6 +18,31 @@ const PROMPT_LABELS: Record<string, string> = {
   tags:         '标签提取',
   summary:      '内容摘要',
 };
+
+const LOCAL_STORAGE_KEYS = [
+  'app_ai_config',
+  'app_mineru_config',
+  'app_minio_config',
+  'app_materials',
+  'app_process_tasks',
+  'app_tasks',
+  'app_products',
+  'app_asset_details',
+  'app_flexible_tags',
+  'app_ai_rules',
+  'app_ai_rule_settings',
+];
+
+const DEFAULT_CAPACITY_LIMITS = {
+  dbSoftLimitMB: 100,
+  storageSoftLimitGB: 20,
+};
+
+type CapacityLimits = typeof DEFAULT_CAPACITY_LIMITS;
+
+type BackupConfirmState =
+  | { kind: 'json'; fileName: string; data: unknown }
+  | { kind: 'full'; fileName: string; file: File; mode: 'replace' | 'merge' };
 
 function FieldRow({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -88,12 +113,25 @@ function formatBytes(bytes: number) {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
+function getUsageTone(ratio: number) {
+  if (ratio >= 0.9) return 'bg-red-500';
+  if (ratio >= 0.7) return 'bg-yellow-500';
+  return 'bg-green-500';
+}
+
+function getUsageTextTone(ratio: number) {
+  if (ratio >= 0.9) return 'text-red-600';
+  if (ratio >= 0.7) return 'text-yellow-600';
+  return 'text-green-600';
+}
+
 export function SettingsPage() {
   const { state, dispatch } = useAppStore();
   const [activeTab, setActiveTab] = useState<ActiveTab>('ai');
   const [showKey, setShowKey] = useState(false);
   const [showMinioKeys, setShowMinioKeys] = useState({ access: false, secret: false });
-  const importInputRef = useRef<HTMLInputElement>(null);
+  const jsonImportInputRef = useRef<HTMLInputElement>(null);
+  const fullImportInputRef = useRef<HTMLInputElement>(null);
 
   // 本地副本（保存前不 dispatch）
   const [aiForm, setAiForm] = useState<AiConfig>({ ...state.aiConfig });
@@ -111,6 +149,9 @@ export function SettingsPage() {
   const [dbStats, setDbStats] = useState<{
     fileSize: number;
     counts: Record<string, number>;
+    materialsTotalSizeBytes: number;
+    materialsByStatus: Record<string, number>;
+    materialsBySubject: Record<string, number>;
   } | null>(null);
   const [storageStats, setStorageStats] = useState<{
     backend: string;
@@ -118,6 +159,10 @@ export function SettingsPage() {
     totalSize: number;
     buckets: { name: string; objectCount: number; totalSize: number }[];
   } | null>(null);
+  const [capacityLimits, setCapacityLimits] = useState<CapacityLimits>(DEFAULT_CAPACITY_LIMITS);
+  const [savingCapacity, setSavingCapacity] = useState(false);
+  const [fullImportMode, setFullImportMode] = useState<'replace' | 'merge'>('replace');
+  const [confirmState, setConfirmState] = useState<BackupConfirmState | null>(null);
 
   // 切换到 storage tab 时从 upload-server 读取最新配置
   useEffect(() => {
@@ -162,25 +207,35 @@ export function SettingsPage() {
   const refreshBackupStats = async () => {
     setBackupLoading(true);
     try {
-      const [dbResp, storageResp] = await Promise.all([
+      const [dbResp, storageResp, settingsResp] = await Promise.all([
         fetch('/__proxy/db/stats'),
         fetch('/__proxy/upload/storage-stats'),
+        fetch('/__proxy/db/settings'),
       ]);
-      const [dbData, storageData] = await Promise.all([
+      const [dbData, storageData, settingsData] = await Promise.all([
         dbResp.json(),
         storageResp.json(),
+        settingsResp.json(),
       ]);
       if (!dbResp.ok) throw new Error(dbData.error || `DB HTTP ${dbResp.status}`);
       if (!storageResp.ok) throw new Error(storageData.error || `Storage HTTP ${storageResp.status}`);
+      if (!settingsResp.ok) throw new Error(settingsData.error || `Settings HTTP ${settingsResp.status}`);
       setDbStats({
         fileSize: Number(dbData.fileSize || 0),
         counts: dbData.counts || {},
+        materialsTotalSizeBytes: Number(dbData.materialsTotalSizeBytes || 0),
+        materialsByStatus: dbData.materialsByStatus || {},
+        materialsBySubject: dbData.materialsBySubject || {},
       });
       setStorageStats({
         backend: String(storageData.backend || 'unknown'),
         totalObjects: Number(storageData.totalObjects || 0),
         totalSize: Number(storageData.totalSize || 0),
         buckets: Array.isArray(storageData.buckets) ? storageData.buckets : [],
+      });
+      setCapacityLimits({
+        dbSoftLimitMB: Number(settingsData?.capacityLimits?.dbSoftLimitMB || DEFAULT_CAPACITY_LIMITS.dbSoftLimitMB),
+        storageSoftLimitGB: Number(settingsData?.capacityLimits?.storageSoftLimitGB || DEFAULT_CAPACITY_LIMITS.storageSoftLimitGB),
       });
     } catch (error) {
       toast.error(`刷新监控失败：${error instanceof Error ? error.message : String(error)}`);
@@ -250,6 +305,39 @@ export function SettingsPage() {
     }
   };
 
+  const handleSaveCapacity = async () => {
+    setSavingCapacity(true);
+    try {
+      const payload = {
+        dbSoftLimitMB: Math.max(1, Number(capacityLimits.dbSoftLimitMB || DEFAULT_CAPACITY_LIMITS.dbSoftLimitMB)),
+        storageSoftLimitGB: Math.max(1, Number(capacityLimits.storageSoftLimitGB || DEFAULT_CAPACITY_LIMITS.storageSoftLimitGB)),
+      };
+      const response = await fetch('/__proxy/db/settings/capacityLimits', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+        throw new Error(data.error || `HTTP ${response.status}`);
+      }
+      setCapacityLimits(payload);
+      toast.success('容量阈值已保存');
+    } catch (error) {
+      toast.error(`保存失败：${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setSavingCapacity(false);
+    }
+  };
+
+  const clearLocalStateAndReload = () => {
+    for (const key of LOCAL_STORAGE_KEYS) {
+      localStorage.removeItem(key);
+    }
+    toast.success('导入成功，页面即将刷新以加载最新数据');
+    window.setTimeout(() => window.location.reload(), 1200);
+  };
+
   const handleExportBackup = async () => {
     try {
       const response = await fetch('/__proxy/db/backup/export');
@@ -261,12 +349,12 @@ export function SettingsPage() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `db-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+      link.download = `db-metadata-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-      toast.success('备份导出成功');
+      toast.success('元数据备份导出成功');
     } catch (error) {
       toast.error(`导出失败：${error instanceof Error ? error.message : String(error)}`);
     }
@@ -279,22 +367,7 @@ export function SettingsPage() {
     try {
       const text = await file.text();
       const data = JSON.parse(text);
-      if (!window.confirm('导入会覆盖当前 JSON 数据库，并在服务端自动创建 .bak 备份，确定继续吗？')) {
-        event.target.value = '';
-        return;
-      }
-
-      const response = await fetch('/__proxy/db/backup/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ confirm: true, data }),
-      });
-      const result = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(result?.error || `HTTP ${response.status}`);
-      }
-      toast.success('备份导入成功');
-      await refreshBackupStats();
+      setConfirmState({ kind: 'json', fileName: file.name, data });
     } catch (error) {
       toast.error(`导入失败：${error instanceof Error ? error.message : String(error)}`);
     } finally {
@@ -302,7 +375,74 @@ export function SettingsPage() {
     }
   };
 
+  const handleFullExportBackup = async () => {
+    try {
+      const response = await fetch('/__proxy/upload/backup/full-export', { method: 'POST' });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+        throw new Error(data.error || `HTTP ${response.status}`);
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `luceon2026-full-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast.success('完整资产备份导出成功');
+    } catch (error) {
+      toast.error(`导出失败：${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
+  const handleSelectFullImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setConfirmState({ kind: 'full', fileName: file.name, file, mode: fullImportMode });
+    event.target.value = '';
+  };
+
+  const handleConfirmImport = async () => {
+    if (!confirmState) return;
+
+    try {
+      if (confirmState.kind === 'json') {
+        const response = await fetch('/__proxy/db/backup/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ confirm: true, data: confirmState.data }),
+        });
+        const result = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(result?.error || `HTTP ${response.status}`);
+        }
+      } else {
+        const formData = new FormData();
+        formData.append('file', confirmState.file);
+        formData.append('mode', confirmState.mode);
+        const response = await fetch('/__proxy/upload/backup/full-import', {
+          method: 'POST',
+          body: formData,
+        });
+        const result = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(result?.error || `HTTP ${response.status}`);
+        }
+      }
+      setConfirmState(null);
+      clearLocalStateAndReload();
+    } catch (error) {
+      toast.error(`导入失败：${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
   const totalUsage = (dbStats?.fileSize || 0) + (storageStats?.totalSize || 0);
+  const dbLimitBytes = capacityLimits.dbSoftLimitMB * 1024 * 1024;
+  const storageLimitBytes = capacityLimits.storageSoftLimitGB * 1024 * 1024 * 1024;
+  const dbUsageRatio = dbLimitBytes > 0 ? (dbStats?.fileSize || 0) / dbLimitBytes : 0;
+  const storageUsageRatio = storageLimitBytes > 0 ? (storageStats?.totalSize || 0) / storageLimitBytes : 0;
 
   return (
     <div className="p-6 space-y-5 max-w-3xl">
@@ -475,6 +615,27 @@ export function SettingsPage() {
                     type="number"
                     value={mineruForm.localTimeout}
                     onChange={(v) => updateMineru({ localTimeout: Number(v) })}
+                  />
+                </FieldRow>
+                <FieldRow label="backend">
+                  <Input
+                    value={mineruForm.localBackend}
+                    onChange={(v) => updateMineru({ localBackend: v })}
+                    placeholder="hybrid-auto-engine"
+                  />
+                </FieldRow>
+                <FieldRow label="max_pages">
+                  <Input
+                    type="number"
+                    value={mineruForm.localMaxPages}
+                    onChange={(v) => updateMineru({ localMaxPages: Number(v) })}
+                  />
+                </FieldRow>
+                <FieldRow label="OCR 语言">
+                  <Input
+                    value={mineruForm.localOcrLanguage}
+                    onChange={(v) => updateMineru({ localOcrLanguage: v })}
+                    placeholder="ch"
                   />
                 </FieldRow>
                 {localTestResult && (
@@ -761,11 +922,18 @@ export function SettingsPage() {
       {activeTab === 'backup' && (
         <div className="space-y-5">
           <input
-            ref={importInputRef}
+            ref={jsonImportInputRef}
             type="file"
             accept="application/json,.json"
             className="hidden"
             onChange={handleImportBackup}
+          />
+          <input
+            ref={fullImportInputRef}
+            type="file"
+            accept=".zip,application/zip"
+            className="hidden"
+            onChange={handleSelectFullImport}
           />
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -788,7 +956,7 @@ export function SettingsPage() {
 
           <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-gray-800">容量可视化</h2>
+              <h2 className="font-semibold text-gray-800">容量管理</h2>
               <button
                 onClick={refreshBackupStats}
                 disabled={backupLoading}
@@ -798,25 +966,67 @@ export function SettingsPage() {
                 {backupLoading ? '刷新中...' : '刷新统计'}
               </button>
             </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <FieldRow label="数据库软上限">
+                <Input
+                  type="number"
+                  value={capacityLimits.dbSoftLimitMB}
+                  onChange={(v) => setCapacityLimits((prev) => ({ ...prev, dbSoftLimitMB: Number(v) }))}
+                />
+              </FieldRow>
+              <FieldRow label="对象存储软上限">
+                <Input
+                  type="number"
+                  value={capacityLimits.storageSoftLimitGB}
+                  onChange={(v) => setCapacityLimits((prev) => ({ ...prev, storageSoftLimitGB: Number(v) }))}
+                />
+              </FieldRow>
+            </div>
             <div className="space-y-3">
               <div>
                 <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
                   <span>JSON 数据库</span>
-                  <span>{formatBytes(dbStats?.fileSize || 0)}</span>
+                  <span className={getUsageTextTone(dbUsageRatio)}>
+                    {formatBytes(dbStats?.fileSize || 0)} / {formatBytes(dbLimitBytes)}
+                  </span>
                 </div>
                 <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-                  <div className="h-full bg-blue-500" style={{ width: `${totalUsage > 0 ? ((dbStats?.fileSize || 0) / totalUsage) * 100 : 0}%` }} />
+                  <div className={`h-full ${getUsageTone(dbUsageRatio)}`} style={{ width: `${Math.min(dbUsageRatio * 100, 100)}%` }} />
                 </div>
+                <p className={`mt-1 text-xs ${getUsageTextTone(dbUsageRatio)}`}>
+                  使用率 {(dbUsageRatio * 100).toFixed(1)}% · 剩余 {formatBytes(Math.max(dbLimitBytes - (dbStats?.fileSize || 0), 0))}
+                </p>
               </div>
               <div>
                 <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
                   <span>对象存储</span>
-                  <span>{formatBytes(storageStats?.totalSize || 0)}</span>
+                  <span className={getUsageTextTone(storageUsageRatio)}>
+                    {formatBytes(storageStats?.totalSize || 0)} / {formatBytes(storageLimitBytes)}
+                  </span>
                 </div>
                 <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-                  <div className="h-full bg-green-500" style={{ width: `${totalUsage > 0 ? ((storageStats?.totalSize || 0) / totalUsage) * 100 : 0}%` }} />
+                  <div className={`h-full ${getUsageTone(storageUsageRatio)}`} style={{ width: `${Math.min(storageUsageRatio * 100, 100)}%` }} />
                 </div>
+                <p className={`mt-1 text-xs ${getUsageTextTone(storageUsageRatio)}`}>
+                  使用率 {(storageUsageRatio * 100).toFixed(1)}% · 剩余 {formatBytes(Math.max(storageLimitBytes - (storageStats?.totalSize || 0), 0))}
+                </p>
               </div>
+            </div>
+            {(dbUsageRatio >= 0.7 || storageUsageRatio >= 0.7) && (
+              <div className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm ${dbUsageRatio >= 0.9 || storageUsageRatio >= 0.9 ? 'border-red-200 bg-red-50 text-red-700' : 'border-yellow-200 bg-yellow-50 text-yellow-700'}`}>
+                <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />
+                <span>接近容量上限，建议清理或扩容。</span>
+              </div>
+            )}
+            <div className="flex justify-end">
+              <button
+                onClick={handleSaveCapacity}
+                disabled={savingCapacity}
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {savingCapacity ? <Loader size={14} className="animate-spin" /> : <Save size={14} />}
+                {savingCapacity ? '保存中...' : '保存容量阈值'}
+              </button>
             </div>
           </div>
 
@@ -838,23 +1048,133 @@ export function SettingsPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="font-semibold text-gray-800 mb-4">备份与恢复</h2>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleExportBackup}
-                className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50"
-              >
-                <Download size={14} /> 导出 JSON
-              </button>
-              <button
-                onClick={() => importInputRef.current?.click()}
-                className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50"
-              >
-                <Upload size={14} /> 导入 JSON
-              </button>
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+            <h2 className="font-semibold text-gray-800">容量画像</h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="rounded-lg bg-gray-50 p-4">
+                <p className="text-xs text-gray-500">资料总字节数</p>
+                <p className="mt-1 text-lg font-semibold text-gray-900">{formatBytes(dbStats?.materialsTotalSizeBytes || 0)}</p>
+              </div>
+              <div className="rounded-lg bg-gray-50 p-4">
+                <p className="text-xs text-gray-500">学科覆盖</p>
+                <p className="mt-1 text-lg font-semibold text-gray-900">{Object.keys(dbStats?.materialsBySubject || {}).length} 个学科</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700">按状态分布</p>
+                {Object.entries(dbStats?.materialsByStatus || {}).map(([key, value]) => (
+                  <div key={key} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                    <span>{key}</span>
+                    <span>{value}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700">按学科分布</p>
+                {Object.entries(dbStats?.materialsBySubject || {}).map(([key, value]) => (
+                  <div key={key} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                    <span>{key}</span>
+                    <span>{value}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+            <h2 className="font-semibold text-gray-800">备份与恢复</h2>
+            <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+              导出元数据 JSON 仅恢复数据库记录，不恢复 MinIO 文件。完整资产备份会同时包含原始资料、解析产物与数据库快照。
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="rounded-lg border border-gray-200 p-4 space-y-3">
+                <p className="font-medium text-gray-800">JSON 元数据备份</p>
+                <p className="text-xs text-gray-500">适合快速迁移数据库记录，不包含 MinIO 原始文件与解析产物。</p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleExportBackup}
+                    className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50"
+                  >
+                    <Download size={14} /> 导出元数据 JSON
+                  </button>
+                  <button
+                    onClick={() => jsonImportInputRef.current?.click()}
+                    className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50"
+                  >
+                    <Upload size={14} /> 导入元数据 JSON
+                  </button>
+                </div>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-4 space-y-3">
+                <p className="font-medium text-gray-800">完整资产备份</p>
+                <p className="text-xs text-gray-500">包含 JSON 数据库、MinIO 原始资料文件与 MinerU 解析产物。</p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleFullExportBackup}
+                    className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50"
+                  >
+                    <Download size={14} /> 导出完整资产
+                  </button>
+                  <button
+                    onClick={() => fullImportInputRef.current?.click()}
+                    className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50"
+                  >
+                    <Upload size={14} /> 导入完整资产
+                  </button>
+                </div>
+                <div className="flex gap-4 text-sm text-gray-600">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      checked={fullImportMode === 'replace'}
+                      onChange={() => setFullImportMode('replace')}
+                    />
+                    <span>replace 覆盖恢复</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      checked={fullImportMode === 'merge'}
+                      onChange={() => setFullImportMode('merge')}
+                    />
+                    <span>merge 仅补缺失</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {confirmState && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-5 space-y-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={18} className="mt-0.5 text-red-600" />
+                <div className="space-y-1">
+                  <p className="font-semibold text-red-700">危险操作确认</p>
+                  <p className="text-sm text-red-700">
+                    {confirmState.kind === 'json'
+                      ? '导入元数据 JSON 会覆盖当前数据库，并自动创建 .bak 备份。MinIO 文件不会被恢复。'
+                      : `导入完整资产会${confirmState.mode === 'replace' ? '覆盖数据库与 MinIO 文件' : '补充数据库与 MinIO 中缺失对象'}，导入后页面将自动刷新。`}
+                  </p>
+                  <p className="text-xs text-red-600">待导入文件：{confirmState.fileName}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleConfirmImport}
+                  className="flex items-center gap-2 px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700"
+                >
+                  <Upload size={14} /> 确认导入
+                </button>
+                <button
+                  onClick={() => setConfirmState(null)}
+                  className="px-4 py-2 text-sm border border-red-200 text-red-700 rounded-lg hover:bg-white"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

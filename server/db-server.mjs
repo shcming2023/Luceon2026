@@ -110,10 +110,26 @@ app.get('/health', (_req, res) => {
 });
 
 app.get('/stats', (_req, res) => {
+  const materials = Object.values(dbCache.materials);
+  const materialsByStatus = {};
+  const materialsBySubject = {};
+  let materialsTotalSizeBytes = 0;
+
+  for (const material of materials) {
+    const status = material?.status || 'unknown';
+    const subject = material?.metadata?.subject || '未标注';
+    materialsByStatus[status] = (materialsByStatus[status] || 0) + 1;
+    materialsBySubject[subject] = (materialsBySubject[subject] || 0) + 1;
+    materialsTotalSizeBytes += Number(material?.sizeBytes || 0);
+  }
+
   res.json({
     ok: true,
     dataPath: DATA_PATH,
     fileSize: Buffer.byteLength(JSON.stringify(dbCache, null, 2), 'utf-8'),
+    materialsTotalSizeBytes,
+    materialsByStatus,
+    materialsBySubject,
     counts: {
       materials: Object.keys(dbCache.materials).length,
       assetDetails: Object.keys(dbCache.assetDetails).length,
@@ -365,7 +381,7 @@ app.put('/settings/:key', (req, res) => {
 
 app.get('/backup/export', (_req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="db-backup-${Date.now()}.json"`);
+  res.setHeader('Content-Disposition', `attachment; filename="db-metadata-backup-${Date.now()}.json"`);
   res.send(JSON.stringify(dbCache, null, 2));
 });
 
@@ -403,7 +419,7 @@ app.post('/bulk-restore', (req, res) => {
   const {
     materials, assetDetails, processTasks, tasks,
     products, flexibleTags, aiRules,
-    aiRuleSettings, aiConfig, mineruConfig, minioConfig,
+    aiRuleSettings, aiConfig, mineruConfig, minioConfig, settings,
   } = req.body;
 
   for (const m of (materials || [])) {
@@ -431,6 +447,9 @@ app.post('/bulk-restore', (req, res) => {
   if (aiConfig && !dbCache.settings.aiConfig) dbCache.settings.aiConfig = aiConfig;
   if (mineruConfig && !dbCache.settings.mineruConfig) dbCache.settings.mineruConfig = mineruConfig;
   if (minioConfig && !dbCache.settings.minioConfig) dbCache.settings.minioConfig = minioConfig;
+  for (const [key, value] of Object.entries(settings || {})) {
+    if (dbCache.settings[key] === undefined) dbCache.settings[key] = value;
+  }
 
   writeDB();
   res.json({ ok: true, message: 'bulk restore completed (existing rows skipped)' });

@@ -7,7 +7,8 @@
     "build": "vite build",
     "dev": "vite",
     "upload:server": "node server/upload-server.mjs",
-    "db:server": "node server/db-server.mjs"
+    "db:server": "node server/db-server.mjs",
+    "test:local-mineru": "node server/test-local-mineru.mjs"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

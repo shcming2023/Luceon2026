@@ -265,6 +265,9 @@ export interface MinerUConfig {
   engine: 'local' | 'cloud';
   localEndpoint: string;
   localTimeout: number;
+  localBackend: string;
+  localMaxPages: number;
+  localOcrLanguage: string;
   apiMode: 'precise' | 'agent';
   apiEndpoint: string;
   apiKey: string;
@@ -325,6 +328,7 @@ export type AppAction =
   // 资产详情操作
   | { type: 'UPDATE_ASSET_TAGS'; payload: { id: number; tags: string[] } }
   // 删除操作
+  | { type: 'ADD_PRODUCT'; payload: Product }
   | { type: 'DELETE_PRODUCT'; payload: number[] }
   | { type: 'DELETE_FLEXIBLE_TAG'; payload: number[] }
   | { type: 'DELETE_AI_RULE'; payload: number[] };

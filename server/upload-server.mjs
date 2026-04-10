@@ -85,6 +85,11 @@ const upload = multer({
   limits: { fileSize: 200 * 1024 * 1024 },
 });
 
+const backupUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 500 * 1024 * 1024 },
+});
+
 // ─── 工具函数 ─────────────────────────────────────────────────
 
 app.get('/health', (_req, res) => {
@@ -156,6 +161,10 @@ function extractLocalMarkdown(payload) {
   if (typeof payload === 'string') return payload.trim();
   if (!payload || typeof payload !== 'object') return '';
 
+  if (Array.isArray(payload) && payload.length > 0 && typeof payload[0]?.text === 'string') {
+    return payload[0].text.trim();
+  }
+
   const candidates = [
     payload.md_text,
     payload.markdown,
@@ -179,6 +188,60 @@ async function ensureBucket(client = minioClient, bucket = getMinioBucket()) {
     await client.makeBucket(bucket, 'us-east-1');
     console.log(`[upload-server] Bucket "${bucket}" created`);
   }
+}
+
+async function streamToBuffer(stream) {
+  const chunks = [];
+  for await (const chunk of stream) chunks.push(chunk);
+  return Buffer.concat(chunks);
+}
+
+async function getObjectBuffer(bucket, objectName) {
+  const stream = await getMinioClient().getObject(bucket, objectName);
+  return streamToBuffer(stream);
+}
+
+async function objectExists(bucket, objectName) {
+  try {
+    await getMinioClient().statObject(bucket, objectName);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function fetchDbBackupSnapshot() {
+  const response = await fetch(`${DB_BASE_URL}/backup/export`, {
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new Error(`读取数据库快照失败: HTTP ${response.status} ${detail.slice(0, 200)}`);
+  }
+  return response.json();
+}
+
+function normalizeDbDataForBulkRestore(data) {
+  return {
+    materials: Object.values(data?.materials || {}),
+    assetDetails: data?.assetDetails || {},
+    processTasks: Object.values(data?.processTasks || {}),
+    tasks: Object.values(data?.tasks || {}),
+    products: Object.values(data?.products || {}),
+    flexibleTags: Object.values(data?.flexibleTags || {}),
+    aiRules: Object.values(data?.aiRules || {}),
+    aiRuleSettings: data?.settings?.aiRuleSettings,
+    aiConfig: data?.settings?.aiConfig,
+    mineruConfig: data?.settings?.mineruConfig,
+    minioConfig: data?.settings?.minioConfig,
+    settings: data?.settings || {},
+  };
+}
+
+function getBackupRelativePath(name) {
+  const parts = String(name || '').split('/').filter(Boolean);
+  if (parts.length <= 1) return '';
+  return parts.slice(1).join('/');
 }
 
 /**
@@ -523,15 +586,14 @@ app.post('/parse/local-mineru/health', async (req, res) => {
   const candidates = [
     localEndpoint,
     `${localEndpoint}/gradio_api/info`,
-    `${localEndpoint}/gradio_api/to_markdown`,
   ];
 
   let lastMessage = '连接失败';
   for (const target of candidates) {
     try {
       const response = await fetch(target, { signal: AbortSignal.timeout(5000) });
-      if (response.status < 500) {
-        res.json({ ok: true, message: `本地 MinerU 在线：${target}（HTTP ${response.status}）` });
+      if (response.status === 200) {
+        res.json({ ok: true, message: `本地 MinerU 在线：${target}` });
         return;
       }
       lastMessage = `${target} 返回 HTTP ${response.status}`;
@@ -541,6 +603,169 @@ app.post('/parse/local-mineru/health', async (req, res) => {
   }
 
   res.json({ ok: false, message: `本地 MinerU 不可达：${lastMessage}` });
+});
+
+app.post('/backup/full-export', async (_req, res) => {
+  if (getStorageBackend() !== 'minio') {
+    res.status(400).json({ error: '完整资产备份仅支持 MinIO 存储后端' });
+    return;
+  }
+
+  try {
+    const dbData = await fetchDbBackupSnapshot();
+    const rawBucket = getMinioBucket();
+    const parsedBucket = getParsedBucket();
+    const materials = Object.values(dbData?.materials || {});
+    const rawObjectMap = new Map();
+    const parsedObjectMap = new Map();
+
+    for (const material of materials) {
+      const materialId = String(material?.id || '').trim();
+      if (material?.metadata?.provider !== 'minio') continue;
+      if (material?.metadata?.objectName) {
+        rawObjectMap.set(material.metadata.objectName, { bucket: rawBucket, objectName: material.metadata.objectName });
+      }
+      if (material?.metadata?.markdownObjectName) {
+        parsedObjectMap.set(material.metadata.markdownObjectName, { bucket: parsedBucket, objectName: material.metadata.markdownObjectName });
+      }
+      if (materialId) {
+        const [rawObjects, parsedObjects] = await Promise.all([
+          listAllObjects(rawBucket, `originals/${materialId}/`),
+          listAllObjects(parsedBucket, `parsed/${materialId}/`),
+        ]);
+        for (const item of rawObjects) {
+          rawObjectMap.set(item.name, { bucket: rawBucket, objectName: item.name });
+        }
+        for (const item of parsedObjects) {
+          parsedObjectMap.set(item.name, { bucket: parsedBucket, objectName: item.name });
+        }
+      }
+    }
+
+    const createdAt = new Date().toISOString();
+    const folderName = `luceon2026-full-backup-${createdAt.replace(/[:.]/g, '-')}`;
+    const zip = new JSZip();
+
+    zip.file(`${folderName}/db/db-data.json`, JSON.stringify(dbData, null, 2));
+
+    await Promise.all([
+      ...Array.from(rawObjectMap.values()).map(async ({ bucket, objectName }) => {
+        const buffer = await getObjectBuffer(bucket, objectName);
+        zip.file(`${folderName}/${objectName}`, buffer);
+      }),
+      ...Array.from(parsedObjectMap.values()).map(async ({ bucket, objectName }) => {
+        const buffer = await getObjectBuffer(bucket, objectName);
+        zip.file(`${folderName}/${objectName}`, buffer);
+      }),
+    ]);
+
+    const manifest = {
+      version: '1.0.0',
+      createdAt,
+      materialsCount: materials.length,
+      rawObjectCount: rawObjectMap.size,
+      parsedObjectCount: parsedObjectMap.size,
+      dbFile: 'db/db-data.json',
+    };
+
+    zip.file(`${folderName}/manifest.json`, JSON.stringify(manifest, null, 2));
+
+    const buffer = await zip.generateAsync({
+      type: 'nodebuffer',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 },
+    });
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${folderName}.zip"`);
+    res.send(buffer);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[upload-server] /backup/full-export failed:', message);
+    res.status(500).json({ error: message });
+  }
+});
+
+app.post('/backup/full-import', backupUpload.single('file'), async (req, res) => {
+  if (getStorageBackend() !== 'minio') {
+    res.status(400).json({ error: '完整资产恢复仅支持 MinIO 存储后端' });
+    return;
+  }
+  if (!req.file) {
+    res.status(400).json({ error: '缺少备份文件' });
+    return;
+  }
+
+  const mode = req.body?.mode === 'merge' ? 'merge' : 'replace';
+
+  try {
+    const zip = await JSZip.loadAsync(req.file.buffer);
+    const manifestEntry = Object.values(zip.files).find((entry) => entry.name.endsWith('/manifest.json') || entry.name === 'manifest.json');
+    if (!manifestEntry) {
+      throw new Error('备份包缺少 manifest.json');
+    }
+    const manifest = JSON.parse(await manifestEntry.async('string'));
+    const dbEntryPath = manifest?.dbFile
+      ? Object.values(zip.files).find((entry) => entry.name.endsWith(`/${manifest.dbFile}`) || entry.name === manifest.dbFile)?.name
+      : Object.values(zip.files).find((entry) => entry.name.endsWith('/db/db-data.json') || entry.name === 'db/db-data.json')?.name;
+    if (!dbEntryPath) {
+      throw new Error('备份包缺少 db/db-data.json');
+    }
+
+    const dbData = JSON.parse(await zip.file(dbEntryPath).async('string'));
+    const rawBucket = getMinioBucket();
+    const parsedBucket = getParsedBucket();
+    await Promise.all([ensureBucket(getMinioClient(), rawBucket), ensureBucket(getMinioClient(), parsedBucket)]);
+
+    let importedObjects = 0;
+    let skippedObjects = 0;
+
+    for (const entry of Object.values(zip.files)) {
+      if (entry.dir) continue;
+      const relativePath = getBackupRelativePath(entry.name);
+      if (!relativePath || relativePath === 'manifest.json' || relativePath === 'db/db-data.json') continue;
+      const bucket = relativePath.startsWith('originals/') ? rawBucket : relativePath.startsWith('parsed/') ? parsedBucket : '';
+      if (!bucket) continue;
+      if (mode === 'merge' && await objectExists(bucket, relativePath)) {
+        skippedObjects += 1;
+        continue;
+      }
+      const buffer = await entry.async('nodebuffer');
+      await getMinioClient().putObject(bucket, relativePath, buffer, buffer.length);
+      importedObjects += 1;
+    }
+
+    const dbResponse = await fetch(
+      `${DB_BASE_URL}${mode === 'replace' ? '/backup/import' : '/bulk-restore'}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          mode === 'replace'
+            ? { confirm: true, data: dbData }
+            : normalizeDbDataForBulkRestore(dbData),
+        ),
+        signal: AbortSignal.timeout(30_000),
+      },
+    );
+    const dbResult = await dbResponse.json().catch(() => null);
+    if (!dbResponse.ok) {
+      throw new Error(dbResult?.error || `数据库恢复失败: HTTP ${dbResponse.status}`);
+    }
+
+    res.json({
+      ok: true,
+      mode,
+      importedObjects,
+      skippedObjects,
+      materialsCount: Object.keys(dbData?.materials || {}).length,
+      backupPath: dbResult?.backupPath,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[upload-server] /backup/full-import failed:', message);
+    res.status(500).json({ error: message });
+  }
 });
 
 app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
@@ -559,18 +784,30 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
 
   try {
     const form = new FormData();
+    const backend = String(req.body?.backend || 'hybrid-auto-engine');
+    const maxPages = Number(req.body?.maxPages || 1000);
+    const ocrLanguage = String(req.body?.ocrLanguage || req.body?.language || 'ch');
+    const enableOcr = isEnabledFlag(req.body?.enableOcr);
+    const enableFormula = isEnabledFlag(req.body?.enableFormula);
+    const enableTable = isEnabledFlag(req.body?.enableTable);
+
     form.append(
       'file',
       new Blob([req.file.buffer], { type: req.file.mimetype || 'application/octet-stream' }),
       req.file.originalname,
     );
-    form.append('language', req.body?.language || 'ch');
-    form.append('enableOcr', String(isEnabledFlag(req.body?.enableOcr)));
-    form.append('enableFormula', String(isEnabledFlag(req.body?.enableFormula)));
-    form.append('enableTable', String(isEnabledFlag(req.body?.enableTable)));
-    form.append('enable_ocr', String(isEnabledFlag(req.body?.enableOcr)));
-    form.append('enable_formula', String(isEnabledFlag(req.body?.enableFormula)));
-    form.append('enable_table', String(isEnabledFlag(req.body?.enableTable)));
+    form.append('backend', backend);
+    form.append('max_pages', String(maxPages));
+    form.append('ocr_language', ocrLanguage);
+    form.append('table_enable', String(enableTable));
+    form.append('formula_enable', String(enableFormula));
+    form.append('language', req.body?.language || ocrLanguage);
+    form.append('enableOcr', String(enableOcr));
+    form.append('enableFormula', String(enableFormula));
+    form.append('enableTable', String(enableTable));
+    form.append('enable_ocr', String(enableOcr));
+    form.append('enable_formula', String(enableFormula));
+    form.append('enable_table', String(enableTable));
 
     const response = await fetch(`${localEndpoint}/gradio_api/to_markdown`, {
       method: 'POST',

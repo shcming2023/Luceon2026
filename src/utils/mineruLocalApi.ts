@@ -61,6 +61,9 @@ export async function submitLocalMinerUTask(
   formData.append('materialId', String(materialId));
   formData.append('localEndpoint', localEndpoint);
   formData.append('localTimeout', String(config.localTimeout || 300));
+  formData.append('backend', config.localBackend || 'hybrid-auto-engine');
+  formData.append('maxPages', String(config.localMaxPages || 1000));
+  formData.append('ocrLanguage', config.localOcrLanguage || config.language || 'ch');
   formData.append('language', config.language || 'ch');
   formData.append('enableOcr', String(config.enableOcr ?? false));
   formData.append('enableFormula', String(config.enableFormula ?? true));
