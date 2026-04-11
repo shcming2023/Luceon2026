@@ -1012,6 +1012,9 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
     const enableFormula = isEnabledFlag(req.body?.enableFormula);
     const enableTable = isEnabledFlag(req.body?.enableTable);
     const timeoutMs = Math.max(localTimeout * 1000, 30_000);
+    const parseMethod = String(req.body?.parseMethod || req.body?.parse_method || '').trim();
+    const rawServerUrl = String(req.body?.serverUrl || req.body?.server_url || req.body?.url || '').trim();
+    const serverUrl = rawServerUrl || (/vlm|hybrid/i.test(backend) ? 'http://localhost:30000' : '');
 
     let markdown = '';
 
@@ -1025,8 +1028,10 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
     for (const lang of String(ocrLanguage || 'ch').split(',').map((item) => item.trim()).filter(Boolean)) {
       fastApiForm.append('lang_list', lang);
     }
+    if (parseMethod) fastApiForm.append('parse_method', parseMethod);
     fastApiForm.append('formula_enable', String(enableFormula));
     fastApiForm.append('table_enable', String(enableTable));
+    if (serverUrl) fastApiForm.append('server_url', serverUrl);
     fastApiForm.append('return_md', 'true');
     fastApiForm.append('response_format_zip', 'false');
     fastApiForm.append('is_ocr', String(enableOcr));
