@@ -7,21 +7,32 @@ interface Props {
 interface State {
   hasError: boolean;
   error?: Error;
+  errorInfo?: ErrorInfo;
 }
 
+/**
+ * 全局错误边界组件。
+ * 捕获子组件树中的 JS 运行时错误，展示友好的错误页面，
+ * 提供"重试"（不刷新页面）和"刷新页面"两种恢复方式。
+ */
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
     this.state = { hasError: false };
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    console.error('[ErrorBoundary] Uncaught error:', error, errorInfo);
+    this.setState({ errorInfo });
   }
+
+  handleRetry = () => {
+    this.setState({ hasError: false, error: undefined, errorInfo: undefined });
+  };
 
   render(): ReactNode {
     if (this.state.hasError) {
@@ -56,26 +67,47 @@ export class ErrorBoundary extends Component<Props, State> {
               <pre style={{
                 overflow: 'auto',
                 fontSize: '12px',
-                color: '#666'
+                color: '#666',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
               }}>
                 {this.state.error.toString()}
+                {this.state.errorInfo?.componentStack && (
+                  `\n\nComponent Stack:${this.state.errorInfo.componentStack}`
+                )}
               </pre>
             </details>
           )}
-          <button
-            onClick={() => window.location.reload()}
-            style={{
-              padding: '12px 24px',
-              backgroundColor: '#1976d2',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px'
-            }}
-          >
-            刷新页面
-          </button>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button
+              onClick={this.handleRetry}
+              style={{
+                padding: '12px 24px',
+                backgroundColor: '#388e3c',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+            >
+              重试
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              style={{
+                padding: '12px 24px',
+                backgroundColor: '#1976d2',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+            >
+              刷新页面
+            </button>
+          </div>
         </div>
       );
     }

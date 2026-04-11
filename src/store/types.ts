@@ -237,6 +237,7 @@ export interface AiPromptConfig {
  * MinIO 存储配置
  */
 export interface MinioConfig {
+  [key: string]: unknown;  // 允许作为 Record<string, unknown> 使用
   storageBackend: 'minio' | 'tmpfiles'; // 存储后端
   endpoint: string;        // MinIO 端点（IP 或域名）
   port: number;            // MinIO API 端口
@@ -249,6 +250,7 @@ export interface MinioConfig {
 }
 
 export interface AiConfig {
+  [key: string]: unknown;  // 允许作为 Record<string, unknown> 使用
   apiEndpoint: string;
   apiKey: string;
   model: string;
@@ -262,6 +264,7 @@ export interface AiConfig {
  * MinerU API 配置
  */
 export interface MinerUConfig {
+  [key: string]: unknown;  // 允许作为 Record<string, unknown> 使用
   engine: 'local' | 'cloud';
   localEndpoint: string;
   localTimeout: number;

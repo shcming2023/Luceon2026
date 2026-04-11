@@ -21,7 +21,8 @@
 import React, {
   createContext, useContext, useReducer, useEffect, useRef, useState,
 } from 'react';
-import type { AppState, AppAction, AiConfig, MinerUConfig, MinioConfig, Material } from './types';
+import { toast } from 'sonner';
+import type { AppState, AppAction, AiConfig, MinerUConfig, MinioConfig, Material, AssetDetail, ProcessTask, Task, Product, FlexibleTag, AiRule, AiRuleSettings } from './types';
 import { appReducer } from './appReducer';
 import {
   initialMaterials,
@@ -108,7 +109,34 @@ function loadConfigFromStorage<T extends Record<string, unknown>>(key: string, f
   }
 }
 
-// ─── db-server API 工具 ────────────────────────────────────────
+// ─── db-server API 工具（带失败提示与重试）───────────────────────
+
+// 连续失败计数器，避免频繁弹窗骚扰用户
+let dbFailCount = 0;
+const DB_FAIL_TOAST_THRESHOLD = 3; // 连续失败 N 次后才弹窗提示
+let dbFailToastShown = false;
+
+function handleDbWriteError(operation: string, err: unknown) {
+  dbFailCount++;
+  const msg = err instanceof Error ? err.message : String(err);
+  console.warn(`[db-sync] ${operation} failed (count=${dbFailCount}):`, msg);
+  if (dbFailCount >= DB_FAIL_TOAST_THRESHOLD && !dbFailToastShown) {
+    dbFailToastShown = true;
+    toast.error('数据同步服务连接异常，数据已保存到本地缓存，但服务端可能未同步。', { duration: 8000 });
+    // 30 秒后重置弹窗状态，允许再次提示
+    setTimeout(() => { dbFailToastShown = false; }, 30000);
+  }
+}
+
+function handleDbWriteSuccess() {
+  if (dbFailCount > 0) {
+    dbFailCount = 0;
+    if (dbFailToastShown) {
+      dbFailToastShown = false;
+      toast.success('数据同步服务已恢复连接。', { duration: 3000 });
+    }
+  }
+}
 
 async function dbGet<T>(path: string): Promise<T | null> {
   try {
@@ -122,46 +150,54 @@ async function dbGet<T>(path: string): Promise<T | null> {
 
 async function dbPut(path: string, body: unknown): Promise<void> {
   try {
-    await fetch(`${DB_BASE}${path}`, {
+    const res = await fetch(`${DB_BASE}${path}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(5000),
     });
-  } catch { /* fire-and-forget，忽略网络错误 */ }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    handleDbWriteSuccess();
+  } catch (err) { handleDbWriteError(`PUT ${path}`, err); }
 }
 
 async function dbPatch(path: string, body: unknown): Promise<void> {
   try {
-    await fetch(`${DB_BASE}${path}`, {
+    const res = await fetch(`${DB_BASE}${path}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(5000),
     });
-  } catch { /* fire-and-forget */ }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    handleDbWriteSuccess();
+  } catch (err) { handleDbWriteError(`PATCH ${path}`, err); }
 }
 
 async function dbPost(path: string, body: unknown): Promise<void> {
   try {
-    await fetch(`${DB_BASE}${path}`, {
+    const res = await fetch(`${DB_BASE}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(5000),
     });
-  } catch { /* fire-and-forget */ }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    handleDbWriteSuccess();
+  } catch (err) { handleDbWriteError(`POST ${path}`, err); }
 }
 
 async function dbDelete(path: string, body: unknown): Promise<void> {
   try {
-    await fetch(`${DB_BASE}${path}`, {
+    const res = await fetch(`${DB_BASE}${path}`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(5000),
     });
-  } catch { /* fire-and-forget */ }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    handleDbWriteSuccess();
+  } catch (err) { handleDbWriteError(`DELETE ${path}`, err); }
 }
 
 // ─── 初始状态（先用 localStorage，等 SQLite 加载完再覆盖）─────
@@ -218,12 +254,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           settings,
         ] = await Promise.all([
           dbGet<Material[]>('/materials'),
-          dbGet<Record<number, object>>('/asset-details'),
-          dbGet<object[]>('/process-tasks'),
-          dbGet<object[]>('/tasks'),
-          dbGet<object[]>('/products'),
-          dbGet<object[]>('/flexible-tags'),
-          dbGet<object[]>('/ai-rules'),
+          dbGet<Record<number, AssetDetail>>('/asset-details'),
+          dbGet<ProcessTask[]>('/process-tasks'),
+          dbGet<Task[]>('/tasks'),
+          dbGet<Product[]>('/products'),
+          dbGet<FlexibleTag[]>('/flexible-tags'),
+          dbGet<AiRule[]>('/ai-rules'),
           dbGet<Record<string, unknown>>('/settings'),
         ]);
 
@@ -245,7 +281,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               products:       products ?? undefined,
               flexibleTags:   flexibleTags ?? undefined,
               aiRules:        aiRules ?? undefined,
-              aiRuleSettings: settings?.aiRuleSettings ?? undefined,
+              aiRuleSettings: (settings?.aiRuleSettings as AiRuleSettings | undefined) ?? undefined,
               aiConfig:       settings?.aiConfig ? mergeConfigWithFallback(initialAiConfig, settings.aiConfig) : undefined,
               mineruConfig:   settings?.mineruConfig ? mergeConfigWithFallback(initialMinerUConfig, settings.mineruConfig) : undefined,
               minioConfig:    settings?.minioConfig ? mergeConfigWithFallback(initialMinioConfig, settings.minioConfig) : undefined,

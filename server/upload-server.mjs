@@ -37,6 +37,9 @@ import multer from 'multer';
 import { Client } from 'minio';
 import JSZip from 'jszip';
 import { PDFDocument } from 'pdf-lib';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
 const app = express();
 const port = Number(process.env.UPLOAD_PORT || 8788);
@@ -79,16 +82,41 @@ function getParsedBucket() { return minioState.parsedBucket || minioState.bucket
 function getPresignedExpiry() { return minioState.presignedExpiry; }
 function getStorageBackend() { return minioState.storageBackend; }
 
-// ─── multer（仅内存存储，限 200MB）────────────────────────────
+//// ─── multer（磁盘存储，避免大文件 OOM）──────────────────
+const UPLOAD_TMP_DIR = path.join(os.tmpdir(), 'upload-server-tmp');
+fs.mkdirSync(UPLOAD_TMP_DIR, { recursive: true });
+
+const diskStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOAD_TMP_DIR),
+  filename: (_req, file, cb) => cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}-${file.originalname}`),
+});
+
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: diskStorage,
   limits: { fileSize: 200 * 1024 * 1024 },
 });
 
 const backupUpload = multer({
-  storage: multer.memoryStorage(),
+  storage: diskStorage,
   limits: { fileSize: 500 * 1024 * 1024 },
 });
+
+/**
+ * 读取 multer 磁盘文件为 Buffer，读取完成后自动删除临时文件。
+ * 兼容原有 req.file.buffer 的使用方式，最小化代码变动。
+ */
+function getFileBuffer(file) {
+  if (file.buffer) return file.buffer; // 兼容内存存储模式
+  const buf = fs.readFileSync(file.path);
+  // 异步删除临时文件，不阻塞请求
+  fs.unlink(file.path, () => {});
+  return buf;
+}
+
+/** 安全清理 multer 临时文件（用于错误路径或提前返回场景） */
+function cleanupTempFile(file) {
+  if (file?.path) fs.unlink(file.path, () => {});
+}
 
 // ─── 工具函数 ─────────────────────────────────────────────────
 
@@ -553,8 +581,9 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     const safeFileName = normalizeFileName(req.file.originalname);
 
     // 并行计算 pages 和 format（不阻塞上传流程）
+    const fileBuffer = getFileBuffer(req.file);
     const [pages, format] = await Promise.all([
-      calcPages(req.file.buffer, req.file.mimetype),
+      calcPages(fileBuffer, req.file.mimetype),
       Promise.resolve(detectFormat(req.file.mimetype, req.file.originalname)),
     ]);
 
@@ -566,7 +595,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     if (getStorageBackend() === 'minio') {
       try {
         const { objectName, presignedUrl } = await uploadBufferToMinIO(
-          req.file.buffer,
+          fileBuffer,
           req.file.mimetype,
           'originals',
           safeFileName,
@@ -580,11 +609,11 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         };
       } catch (minioError) {
         console.error('[upload-server] MinIO failed, fallback to tmpfiles:', minioError.message);
-        result = await uploadToTmpfiles(req.file.buffer, req.file.mimetype, safeFileName);
+        result = await uploadToTmpfiles(fileBuffer, req.file.mimetype, safeFileName);
         result.objectName = null;
       }
     } else {
-      result = await uploadToTmpfiles(req.file.buffer, req.file.mimetype, safeFileName);
+      result = await uploadToTmpfiles(fileBuffer, req.file.mimetype, safeFileName);
       result.objectName = null;
     }
 
@@ -651,7 +680,7 @@ app.post('/parse/oss-put', upload.single('file'), async (req, res) => {
     // 额外传这些 header 会导致 SignatureDoesNotMatch (403)，所以只发送裸 body
     const putRes = await fetch(ossUrl, {
       method: 'PUT',
-      body: req.file.buffer,
+      body: getFileBuffer(req.file),
       signal: controller.signal,
     });
     clearTimeout(timer);
@@ -911,7 +940,7 @@ app.post('/backup/full-import', backupUpload.single('file'), async (req, res) =>
   const mode = req.body?.mode === 'merge' ? 'merge' : 'replace';
 
   try {
-    const zip = await JSZip.loadAsync(req.file.buffer);
+    const zip = await JSZip.loadAsync(getFileBuffer(req.file));
     const manifestEntry = Object.values(zip.files).find((entry) => entry.name.endsWith('/manifest.json') || entry.name === 'manifest.json');
     if (!manifestEntry) {
       throw new Error('备份包缺少 manifest.json');
@@ -1019,9 +1048,10 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
     let markdown = '';
 
     const fastApiForm = new FormData();
+    const localFileBuffer = getFileBuffer(req.file);
     fastApiForm.append(
       'files',
-      new Blob([req.file.buffer], { type: req.file.mimetype || 'application/octet-stream' }),
+      new Blob([localFileBuffer], { type: req.file.mimetype || 'application/octet-stream' }),
       req.file.originalname,
     );
     fastApiForm.append('backend', backend);
@@ -1083,7 +1113,7 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
       const form = new FormData();
       form.append(
         'file',
-        new Blob([req.file.buffer], { type: req.file.mimetype || 'application/octet-stream' }),
+        new Blob([localFileBuffer], { type: req.file.mimetype || 'application/octet-stream' }),
         req.file.originalname,
       );
       form.append('backend', backend);
@@ -1117,7 +1147,7 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
           : await response.text();
         markdown = extractLocalMarkdown(payload);
       } else {
-        markdown = await callGradioToMarkdown(localEndpoint, req.file.buffer, req.file.originalname, req.file.mimetype, {
+        markdown = await callGradioToMarkdown(localEndpoint, localFileBuffer, req.file.originalname, req.file.mimetype, {
           backend,
           maxPages,
           ocrLanguage,
@@ -1734,11 +1764,36 @@ app.post('/delete-material', async (req, res) => {
   res.json({ ok: true, results, errors });
 });
 
-app.listen(port, async () => {
+const server = app.listen(port, async () => {
   console.log(`[upload-server] listening on http://localhost:${port}`);
   await loadPersistedConfig();
   console.log(`[upload-server] storage backend: ${getStorageBackend()}`);
   if (getStorageBackend() === 'minio') {
     console.log(`[upload-server] MinIO: ${minioState.endpoint}:${minioState.port}`);
   }
+});
+
+// ─── 优雅停机 ─────────────────────────────────────────────────
+
+function gracefulShutdown(signal) {
+  console.log(`[upload-server] Received ${signal}, shutting down...`);
+  server.close(() => {
+    console.log(`[upload-server] Server closed after ${signal}.`);
+    process.exit(0);
+  });
+  setTimeout(() => {
+    console.error('[upload-server] Forced exit after timeout.');
+    process.exit(1);
+  }, 10000);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
+
+process.on('uncaughtException', (err) => {
+  console.error('[upload-server] Uncaught exception:', err);
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[upload-server] Unhandled rejection:', reason);
 });

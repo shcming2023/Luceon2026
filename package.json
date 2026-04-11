@@ -11,10 +11,6 @@
     "test:local-mineru": "node server/test-local-mineru.mjs"
   },
   "dependencies": {
-    "@emotion/react": "11.14.0",
-    "@emotion/styled": "11.14.1",
-    "@mui/icons-material": "7.3.5",
-    "@mui/material": "7.3.5",
     "@popperjs/core": "2.11.8",
     "@radix-ui/react-accordion": "1.2.3",
     "@radix-ui/react-alert-dialog": "1.1.6",
@@ -42,7 +38,6 @@
     "@radix-ui/react-toggle": "1.1.2",
     "@radix-ui/react-toggle-group": "1.1.2",
     "@radix-ui/react-tooltip": "1.1.8",
-    "better-sqlite3": "^11.10.0",
     "canvas-confetti": "1.9.4",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",

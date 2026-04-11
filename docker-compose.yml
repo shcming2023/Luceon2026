@@ -4,7 +4,7 @@
 # 服务架构：
 #   cms-frontend    ── Nginx 静态文件服务 + 反向代理（端口 8080）
 #   upload-server   ── 文件上传代理服务（内部端口 8788）
-#   db-server       ── SQLite REST API 持久化服务（内部端口 8789）
+#   db-server       ── JSON 文件 REST API 持久化服务（内部端口 8789）
 #
 # Overleaf 备份后端（backup-backend）说明：
 #   该后端是一个独立的 Node.js 服务，不在本仓库中。
@@ -88,7 +88,7 @@ services:
       retries: 3
       start_period: 10s
 
-  # ── SQLite 持久化 REST API 服务 ──────────────────────────
+  # ── JSON 文件持久化 REST API 服务 ──────────────────
   # 提供 CMS 业务数据的持久化存储，替代浏览器 localStorage
   db-server:
     build:
@@ -103,7 +103,7 @@ services:
       - cms-network
     environment:
       - DB_PORT=8789
-      - DB_PATH=/data/cms.db
+      - DB_PATH=/data/db-data.json
       - TZ=Asia/Shanghai
     volumes:
       - cms-db-data:/data
@@ -133,6 +133,7 @@ services:
     networks:
       - cms-network
     environment:
+      # ❗ 生产环境必须在 .env 中设置强密码，切勿使用默认值 minioadmin
       - MINIO_ROOT_USER=${MINIO_ACCESS_KEY:-minioadmin}
       - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY:-minioadmin}
       - TZ=Asia/Shanghai

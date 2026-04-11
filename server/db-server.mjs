@@ -143,6 +143,41 @@ app.get('/stats', (_req, res) => {
   });
 });
 
+// ─── 输入验证工具 ─────────────────────────────────────────
+
+/**
+ * 基础请求体验证：确保写入操作的 body 是合法对象，防止脏数据污染内存缓存。
+ * 不做字段级验证（避免破坏前端灵活性），仅拒绝明显非法的请求体。
+ */
+function requireBody(req, res, next) {
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+    res.status(400).json({ error: '请求体必须是 JSON 对象' });
+    return;
+  }
+  next();
+}
+
+/**
+ * 防止原型链污染：拒绝包含 __proto__、constructor、prototype 等危险键的请求体。
+ */
+function rejectProtoPollution(req, res, next) {
+  const raw = JSON.stringify(req.body);
+  if (raw && (raw.includes('"__proto__"') || raw.includes('"constructor"') || raw.includes('"prototype"'))) {
+    res.status(400).json({ error: '请求体包含不允许的属性名' });
+    return;
+  }
+  next();
+}
+
+// 对所有写入操作应用基础验证
+app.use((req, res, next) => {
+  if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
+    requireBody(req, res, () => rejectProtoPollution(req, res, next));
+  } else {
+    next();
+  }
+});
+
 // ─── Materials ────────────────────────────────────────────────
 
 app.get('/materials', (_req, res) => {
@@ -465,7 +500,41 @@ app.use((err, _req, res, _next) => {
 
 // ─── 启动 ─────────────────────────────────────────────────────
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`[db-server] listening on http://localhost:${port}`);
   console.log(`[db-server] Data file: ${DATA_PATH}`);
+});
+
+// ─── 优雅停机：确保进程退出前内存数据落盘 ─────────────────────
+
+function gracefulShutdown(signal) {
+  console.log(`[db-server] Received ${signal}, flushing data to disk...`);
+  try {
+    flushDBSync();
+    console.log('[db-server] Data flushed successfully.');
+  } catch (e) {
+    console.error('[db-server] Flush on shutdown failed:', e.message);
+  }
+  server.close(() => {
+    console.log(`[db-server] Server closed after ${signal}.`);
+    process.exit(0);
+  });
+  // 如果 server.close 超时 5 秒仍未完成，强制退出
+  setTimeout(() => {
+    console.error('[db-server] Forced exit after timeout.');
+    process.exit(1);
+  }, 5000);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
+
+// 捕获未处理异常，尝试落盘后退出
+process.on('uncaughtException', (err) => {
+  console.error('[db-server] Uncaught exception:', err);
+  try { flushDBSync(); } catch { /* best effort */ }
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[db-server] Unhandled rejection:', reason);
 });
