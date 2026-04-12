@@ -306,16 +306,39 @@ export function BatchProcessingController() {
         updateMaterialProgress('mineru', '正在解析文件（MinerU）...', 40);
         dispatch({ type: 'UPDATE_MATERIAL_MINERU_STATUS', payload: { id: newId, mineruStatus: 'processing' } });
 
+        let mineruTaskId = '';
+        const onMinerUTaskId = (taskId: string) => {
+          mineruTaskId = taskId;
+          const msg = `MinerU 任务已提交（任务ID: ${taskId}）`;
+          updateItem(item.id, { message: msg });
+          updateMaterialProgress('mineru', msg, 40);
+          dispatch({
+            type: 'UPDATE_MATERIAL',
+            payload: {
+              id: newId,
+              updates: {
+                metadata: {
+                  mineruTaskId: taskId,
+                  processingStage: 'mineru',
+                  processingMsg: msg,
+                  processingUpdatedAt: new Date().toISOString(),
+                },
+              },
+            },
+          });
+        };
+
         const onMinerUProgress = (progress: number, msg: string) => {
           const normalized = normalizePctInput(progress);
           const pct = 40 + (normalized / 100) * 30;
-          updateItem(item.id, { progress: pct, message: msg });
-          updateMaterialProgress('mineru', msg, pct);
+          const displayMsg = mineruTaskId ? `${msg}（任务ID: ${mineruTaskId}）` : msg;
+          updateItem(item.id, { progress: pct, message: displayMsg });
+          updateMaterialProgress('mineru', displayMsg, pct);
         };
 
         let mineruResult: Awaited<ReturnType<typeof runMinerUPipeline>>;
         try {
-          mineruResult = await runMinerUPipeline(f, state.mineruConfig, onMinerUProgress, newId);
+          mineruResult = await runMinerUPipeline(f, state.mineruConfig, onMinerUProgress, newId, onMinerUTaskId);
         } catch (e) {
           const raw = e instanceof Error ? e.message : String(e);
           const lower = raw.toLowerCase();
@@ -332,6 +355,7 @@ export function BatchProcessingController() {
               { ...state.mineruConfig, engine: 'cloud' },
               onMinerUProgress,
               newId,
+              onMinerUTaskId,
             );
           } else {
             throw e;

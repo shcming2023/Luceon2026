@@ -33,10 +33,25 @@ const DATA_PATH = (() => {
 app.use(cors());
 app.use(express.json({ limit: '20mb' }));
 
+function redactSensitive(value) {
+  if (Array.isArray(value)) return value.map(redactSensitive);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        /apiKey|accessKey|secretKey|token|authorization/i.test(key)
+          ? '<redacted>'
+          : redactSensitive(item),
+      ]),
+    );
+  }
+  return value;
+}
+
 // 请求日志（方便排查）
 app.use((req, _res, next) => {
   if (req.method !== 'GET') {
-    console.log(`[db-server] ${req.method} ${req.path}`, req.method !== 'GET' ? JSON.stringify(req.body).slice(0, 200) : '');
+    console.log(`[db-server] ${req.method} ${req.path}`, JSON.stringify(redactSensitive(req.body)).slice(0, 200));
   }
   next();
 });
@@ -70,6 +85,10 @@ let dbCache = (() => {
 
 // ─── writeDB debounce 计时器 ──────────────────────────────────
 let writeTimer = null;
+let maxWriteTimer = null;
+let writeQueuedAt = 0;
+const WRITE_DEBOUNCE_MS = 100;
+const WRITE_MAX_WAIT_MS = 5000;
 
 /**
  * 将内存缓存原子写入磁盘（debounce 100ms）
@@ -77,32 +96,37 @@ let writeTimer = null;
  * - 真正的磁盘 I/O 在 100ms 后触发，期间重复调用重置计时器
  * - 磁盘错误在回调内 console.error 记录，不向请求方返回 500
  */
-function writeDB() {
+function flushDB() {
   if (writeTimer) clearTimeout(writeTimer);
-  writeTimer = setTimeout(() => {
-    const dir = path.dirname(DATA_PATH);
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-    const tmpPath = DATA_PATH + '.tmp';
-    try {
-      writeFileSync(tmpPath, JSON.stringify(dbCache, null, 2), 'utf-8');
-      renameSync(tmpPath, DATA_PATH);
-    } catch (e) {
-      console.error('[db-server] writeDB flush failed:', e.message);
-    }
-    writeTimer = null;
-  }, 100);
-}
+  if (maxWriteTimer) clearTimeout(maxWriteTimer);
+  writeTimer = null;
+  maxWriteTimer = null;
+  writeQueuedAt = 0;
 
-function flushDBSync() {
-  if (writeTimer) {
-    clearTimeout(writeTimer);
-    writeTimer = null;
-  }
   const dir = path.dirname(DATA_PATH);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   const tmpPath = DATA_PATH + '.tmp';
-  writeFileSync(tmpPath, JSON.stringify(dbCache, null, 2), 'utf-8');
-  renameSync(tmpPath, DATA_PATH);
+  try {
+    writeFileSync(tmpPath, JSON.stringify(dbCache, null, 2), 'utf-8');
+    renameSync(tmpPath, DATA_PATH);
+  } catch (e) {
+    console.error('[db-server] writeDB flush failed:', e.message);
+  }
+}
+
+function writeDB() {
+  const now = Date.now();
+  if (!writeQueuedAt) {
+    writeQueuedAt = now;
+    maxWriteTimer = setTimeout(flushDB, WRITE_MAX_WAIT_MS);
+  }
+  if (writeTimer) clearTimeout(writeTimer);
+  const remaining = Math.max(0, WRITE_MAX_WAIT_MS - (now - writeQueuedAt));
+  writeTimer = setTimeout(flushDB, Math.min(WRITE_DEBOUNCE_MS, remaining));
+}
+
+function flushDBSync() {
+  flushDB();
 }
 
 app.get('/health', (_req, res) => {

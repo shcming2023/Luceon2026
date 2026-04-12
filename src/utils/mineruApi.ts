@@ -38,6 +38,18 @@ export interface MinerUTaskResult {
   errMsg?: string;
 }
 
+function formatDuration(ms: number) {
+  if (!Number.isFinite(ms) || ms <= 0) return '0s';
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return `${sec}s`;
+  const min = Math.floor(sec / 60);
+  const rem = sec % 60;
+  if (min < 60) return `${min}m ${rem}s`;
+  const hr = Math.floor(min / 60);
+  const minRem = min % 60;
+  return `${hr}h ${minRem}m`;
+}
+
 // ─── 模式 A：URL 提交 ─────────────────────────────────────────
 
 /** 提交解析任务（通过文件公开 URL）*/
@@ -172,7 +184,7 @@ export async function submitMinerUTaskByFile(
     throw new Error(`文件上传到解析服务失败: HTTP ${putRes.status} — ${errText.slice(0, 200)}`);
   }
 
-  onProgress?.(25, '文件已提交，等待解析...');
+  onProgress?.(25, `文件已提交，等待解析...（任务ID: ${batchId}）`);
   return batchId;
 }
 
@@ -319,6 +331,7 @@ export async function runMinerUPipeline(
   config: MinerUConfig,
   onProgress?: (progress: number, state: string) => void,
   materialId?: number | string,
+  onTaskId?: (taskId: string) => void,
 ): Promise<MinerUTaskResult>;
 
 /**
@@ -336,6 +349,7 @@ export async function runMinerUPipeline(
   config: MinerUConfig,
   onProgress?: (progress: number, state: string) => void,
   materialId?: number | string,
+  onTaskId?: (taskId: string) => void,
 ): Promise<MinerUTaskResult>;
 
 export async function runMinerUPipeline(
@@ -343,14 +357,16 @@ export async function runMinerUPipeline(
   fileNameOrConfig: string | MinerUConfig,
   configOrProgress?: MinerUConfig | ((progress: number, state: string) => void),
   onProgressArg?: ((progress: number, state: string) => void) | number | string,
-  materialIdArg?: number | string,
+  materialIdArg?: number | string | ((taskId: string) => void),
+  onTaskIdArg?: (taskId: string) => void,
 ): Promise<MinerUTaskResult> {
   const isFileMode = fileOrUrl instanceof File;
   const config = (isFileMode ? fileNameOrConfig : configOrProgress) as MinerUConfig;
   const onProgress = (isFileMode
     ? configOrProgress
     : onProgressArg) as ((p: number, s: string) => void) | undefined;
-  const materialId = isFileMode ? onProgressArg as number | string | undefined : materialIdArg;
+  const materialId = (isFileMode ? onProgressArg : materialIdArg) as number | string | undefined;
+  const onTaskId = (isFileMode ? materialIdArg : onTaskIdArg) as ((taskId: string) => void) | undefined;
 
   if (config.engine === 'local') {
     const file = isFileMode
@@ -375,6 +391,7 @@ export async function runMinerUPipeline(
     if (localResult.state === 'failed') {
       throw new Error(localResult.errMsg || '本地 MinerU 解析失败');
     }
+    onTaskId?.(localResult.taskId);
     return localResult;
   }
 
@@ -385,6 +402,9 @@ export async function runMinerUPipeline(
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     const retryLabel = MAX_RETRIES > 1 ? ` (第 ${attempt}/${MAX_RETRIES} 次)` : '';
+    const startedAt = Date.now();
+    let lastProgressAt = startedAt;
+    let lastExtractedPages: number | null = null;
 
     try {
       let batchId: string;
@@ -405,9 +425,12 @@ export async function runMinerUPipeline(
         );
       }
 
+      onTaskId?.(batchId);
+
       // 轮询状态
       const maxAttempts = Math.ceil((config.timeout || 1200) / 5);
       let pollAttempt = 0;
+      const stallRetryMs = 120_000;
 
       while (pollAttempt < maxAttempts) {
         await new Promise((r) => setTimeout(r, 5000));
@@ -424,11 +447,27 @@ export async function runMinerUPipeline(
           displayPct = Math.min(Math.round(25 + (pollAttempt / maxAttempts) * 70), 95);
         }
 
+        const now = Date.now();
+        const elapsed = now - startedAt;
         const pageInfo = (result.extractedPages != null && result.totalPages != null)
           ? ` (${result.extractedPages}/${result.totalPages} 页)`
           : ` (${pollAttempt}/${maxAttempts})`;
+        const waitInfo = `（已等待 ${formatDuration(elapsed)} / 超时 ${config.timeout || 1200}s）`;
 
-        onProgress?.(displayPct, `解析中${retryLabel}${pageInfo}`);
+        if (result.extractedPages != null && result.totalPages != null) {
+          if (result.extractedPages !== lastExtractedPages) {
+            lastExtractedPages = result.extractedPages;
+            lastProgressAt = now;
+          }
+          if (result.state !== 'done' && result.totalPages > 0 && result.extractedPages >= result.totalPages) {
+            displayPct = Math.max(displayPct, 97);
+            onProgress?.(displayPct, `解析完成，等待结果生成...${retryLabel}${pageInfo}${waitInfo}`);
+          } else {
+            onProgress?.(displayPct, `解析中${retryLabel}${pageInfo}${waitInfo}`);
+          }
+        } else {
+          onProgress?.(displayPct, `解析中${retryLabel}${pageInfo}${waitInfo}`);
+        }
 
         if (result.state === 'done') {
           onProgress?.(100, '解析完成');
@@ -437,6 +476,10 @@ export async function runMinerUPipeline(
 
         if (result.state === 'failed') {
           throw new Error(`MinerU 解析失败: ${result.errMsg || '未知错误'}`);
+        }
+
+        if (Date.now() - lastProgressAt > stallRetryMs) {
+          throw new Error('MinerU 长时间无进度，自动重试');
         }
       }
 

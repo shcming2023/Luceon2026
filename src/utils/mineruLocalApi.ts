@@ -68,6 +68,12 @@ export async function submitLocalMinerUTask(
 
   const timeoutSec = config.localTimeout || 300;
   const startAt = Date.now();
+
+  const health = await checkLocalMinerUHealth(localEndpoint);
+  if (!health.ok) {
+    throw new Error(`本地 MinerU 不可用：${health.message}（请检查本地 MinerU 地址/端口与服务是否在线）`);
+  }
+
   onProgress?.(20, `上传文件到本地解析引擎...（超时 ${timeoutSec}s）`);
 
   const formData = new FormData();
@@ -94,7 +100,7 @@ export async function submitLocalMinerUTask(
     resp = await fetch('/__proxy/upload/parse/local-mineru', {
       method: 'POST',
       body: formData,
-      signal: AbortSignal.timeout(Math.max(timeoutSec * 1000 + 30_000, 30_000)),
+      signal: AbortSignal.timeout(Math.max(timeoutSec * 1000 + 5_000, 30_000)),
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);

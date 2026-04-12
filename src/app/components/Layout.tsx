@@ -6,6 +6,7 @@ import {
   Settings,
   ChevronRight,
   FileText,
+  Package,
 } from 'lucide-react';
 import { BatchProcessingController, BatchProgressFab, BatchUploadModal } from './BatchUploadModal';
 
@@ -25,6 +26,7 @@ const NAV_GROUPS: NavGroup[] = [
     title: '内容管理',
     items: [
       { label: '原始资料',   path: '/source-materials',  icon: <FolderOpen size={18} /> },
+      { label: '成品库',     path: '/products',          icon: <Package size={18} /> },
       { label: '元数据管理', path: '/metadata',           icon: <Tag size={18} /> },
       { label: '系统设置',   path: '/settings',           icon: <Settings size={18} /> },
     ],

@@ -39,3 +39,6 @@ test/*.pdf
 test-results/
 playwright-report/
 blob-report/
+
+# 本地运行时数据
+server/db-data.json

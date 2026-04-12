@@ -84,6 +84,66 @@ function saveToStorage<T>(key: string, value: T) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
 }
 
+function sanitizeMaterialMetadataForPersistence(metadata: Material['metadata']): Material['metadata'] {
+  const next = { ...metadata };
+  if (next.provider === 'minio' && next.objectName) delete next.fileUrl;
+  if (next.markdownObjectName) delete next.markdownUrl;
+  return next;
+}
+
+function sanitizeMaterialForPersistence(material: Material): Material {
+  return {
+    ...material,
+    metadata: sanitizeMaterialMetadataForPersistence(material.metadata),
+    ...(material.previewUrl?.startsWith('blob:') ? { previewUrl: '' } : {}),
+  };
+}
+
+function sanitizeAssetDetailForPersistence(detail: AssetDetail): AssetDetail {
+  const metadata = { ...detail.metadata };
+  if (metadata.provider === 'minio' && typeof metadata.objectName === 'string' && metadata.objectName) {
+    delete metadata.fileUrl;
+  }
+  if (typeof metadata.markdownObjectName === 'string' && metadata.markdownObjectName) {
+    delete metadata.markdownUrl;
+  }
+  if (typeof metadata.previewUrl === 'string' && metadata.previewUrl.startsWith('blob:')) {
+    delete metadata.previewUrl;
+  }
+  return {
+    ...detail,
+    metadata,
+  };
+}
+
+function sanitizeAssetDetailsForPersistence(details: Record<number, AssetDetail>) {
+  return Object.fromEntries(
+    Object.entries(details).map(([id, detail]) => [id, sanitizeAssetDetailForPersistence(detail)]),
+  ) as Record<number, AssetDetail>;
+}
+
+function sanitizeAiConfigForLocalStorage(config: AiConfig): AiConfig {
+  return {
+    ...config,
+    apiKey: '',
+  };
+}
+
+function sanitizeMinerUConfigForLocalStorage(config: MinerUConfig): MinerUConfig {
+  return {
+    ...config,
+    apiKey: '',
+  };
+}
+
+function sanitizeMinioConfigForLocalStorage(config: MinioConfig): MinioConfig {
+  return {
+    ...config,
+    accessKey: '',
+    secretKey: '',
+  };
+}
+
 function mergeConfigWithFallback<T extends Record<string, unknown>>(fallback: T, value: unknown): T {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return fallback;
   const result: Record<string, unknown> = { ...fallback };
@@ -296,8 +356,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // DB 从未初始化过（全新部署）：将当前内存数据 seed 写入 DB，并打标记
           console.log('[appContext] DB not initialized, seeding from current state...');
           await dbPost('/bulk-restore', {
-            materials:      state.materials,
-            assetDetails:   state.assetDetails,
+            materials:      state.materials.map(sanitizeMaterialForPersistence),
+            assetDetails:   sanitizeAssetDetailsForPersistence(state.assetDetails),
             processTasks:   state.processTasks,
             tasks:          state.tasks,
             products:       state.products,
@@ -352,7 +412,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── 持久化：localStorage（同步）+ db-server（异步）────────────
 
   useEffect(() => {
-    saveToStorage(LS.MATERIALS, state.materials);
+    const materialsForPersistence = state.materials.map(sanitizeMaterialForPersistence);
+    saveToStorage(LS.MATERIALS, materialsForPersistence);
 
     const currentIds = new Set(state.materials.map((m) => m.id));
 
@@ -376,10 +437,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       // 差量 upsert：仅对内容指纹变化的记录执行 POST（#7）
       for (const m of state.materials) {
-        const fingerprint = JSON.stringify(m);
+        const sanitized = sanitizeMaterialForPersistence(m);
+        const fingerprint = JSON.stringify(sanitized);
         if (materialFingerprintsRef.current.get(m.id) !== fingerprint) {
           materialFingerprintsRef.current.set(m.id, fingerprint);
-          dbPost('/materials', m);
+          dbPost('/materials', sanitized);
         }
       }
     }
@@ -390,13 +452,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [state.materials]);
 
   useEffect(() => {
-    saveToStorage(LS.ASSET_DETAILS, state.assetDetails);
+    const assetDetailsForPersistence = sanitizeAssetDetailsForPersistence(state.assetDetails);
+    saveToStorage(LS.ASSET_DETAILS, assetDetailsForPersistence);
 
     const currentIds = new Set(Object.keys(state.assetDetails).map(Number));
 
     if (hydratedRef.current) {
       // 差量 upsert：仅对内容指纹变化的记录执行 PUT（#7）
-      for (const [id, detail] of Object.entries(state.assetDetails)) {
+      for (const [id, detail] of Object.entries(assetDetailsForPersistence)) {
         const fingerprint = JSON.stringify(detail);
         if (assetDetailFingerprintsRef.current.get(id) !== fingerprint) {
           assetDetailFingerprintsRef.current.set(id, fingerprint);
@@ -521,19 +584,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [state.aiRuleSettings]);
 
   useEffect(() => {
-    saveToStorage(LS.AI, state.aiConfig);
+    saveToStorage(LS.AI, sanitizeAiConfigForLocalStorage(state.aiConfig));
     if (!hydratedRef.current) return;
     dbPut('/settings/aiConfig', state.aiConfig);
   }, [state.aiConfig]);
 
   useEffect(() => {
-    saveToStorage(LS.MINERU, state.mineruConfig);
+    saveToStorage(LS.MINERU, sanitizeMinerUConfigForLocalStorage(state.mineruConfig));
     if (!hydratedRef.current) return;
     dbPut('/settings/mineruConfig', state.mineruConfig);
   }, [state.mineruConfig]);
 
   useEffect(() => {
-    saveToStorage(LS.MINIO, state.minioConfig);
+    saveToStorage(LS.MINIO, sanitizeMinioConfigForLocalStorage(state.minioConfig));
     if (!hydratedRef.current) return;
     dbPut('/settings/minioConfig', state.minioConfig);
   }, [state.minioConfig]);

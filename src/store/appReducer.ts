@@ -219,7 +219,13 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     case 'UPDATE_MATERIAL': {
       const { id, updates } = action.payload;
       const newMaterials = state.materials.map((m) =>
-        m.id === id ? { ...m, ...updates } : m,
+        m.id === id
+          ? {
+              ...m,
+              ...updates,
+              ...(updates.metadata ? { metadata: { ...m.metadata, ...updates.metadata } } : {}),
+            }
+          : m,
       );
 
       // 同步更新 assetDetails（参照 UPDATE_MATERIAL_AI_STATUS 的联动写法）

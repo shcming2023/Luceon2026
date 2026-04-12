@@ -49,6 +49,12 @@ const DB_BASE_URL = process.env.DB_BASE_URL || 'http://localhost:8789';
 
 app.use(cors());
 app.use(express.json());
+app.use((req, res, next) => {
+  const requestId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  req.requestId = requestId;
+  res.setHeader('X-Request-Id', requestId);
+  next();
+});
 
 // ─── MinIO 动态配置（可在运行时通过 /settings/storage 接口更新）─
 let minioState = {
@@ -1046,6 +1052,29 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
     const rawServerUrl = String(req.body?.serverUrl || req.body?.server_url || req.body?.url || '').trim();
     const serverUrl = rawServerUrl || (/vlm|hybrid/i.test(backend) ? 'http://localhost:30000' : '');
 
+    const candidates = [
+      `${localEndpoint}/health`,
+      localEndpoint,
+      `${localEndpoint}/gradio_api/info`,
+    ];
+    let lastMessage = '连接失败';
+    let reachableTarget = '';
+    for (const target of candidates) {
+      try {
+        const response = await fetch(target, { signal: AbortSignal.timeout(5000) });
+        if (response.status === 200) {
+          reachableTarget = target;
+          break;
+        }
+        lastMessage = `${target} 返回 HTTP ${response.status}`;
+      } catch (error) {
+        lastMessage = error instanceof Error ? error.message : String(error);
+      }
+    }
+    if (!reachableTarget) {
+      throw new Error(`本地 MinerU 不可达：${lastMessage}`);
+    }
+
     console.log(`[upload-server] /parse/local-mineru start materialId=${materialId || '-'} file=${req.file.originalname} size=${req.file.size}B endpoint=${localEndpoint} timeout=${localTimeout}s backend=${backend}`);
 
     let markdown = '';
@@ -1767,6 +1796,23 @@ app.post('/delete-material', async (req, res) => {
   res.json({ ok: true, results, errors });
 });
 
+app.use((err, req, res, _next) => {
+  const requestId = req.requestId || '-';
+  if (err instanceof multer.MulterError) {
+    const message = err.code === 'LIMIT_FILE_SIZE'
+      ? '上传文件过大，单文件上限为 200MB'
+      : `上传请求无效：${err.message}`;
+    console.error(`[upload-server] multer error [${requestId}] ${req.method} ${req.path}:`, message);
+    if (!res.headersSent) res.status(400).json({ error: message, requestId });
+    return;
+  }
+
+  const status = Number(err?.statusCode || err?.status || 500);
+  const message = err instanceof Error ? err.message : String(err || '未知错误');
+  console.error(`[upload-server] unhandled route error [${requestId}] ${req.method} ${req.path}:`, message);
+  if (!res.headersSent) res.status(status).json({ error: message, requestId });
+});
+
 const server = app.listen(port, async () => {
   console.log(`[upload-server] listening on http://localhost:${port}`);
   await loadPersistedConfig();
@@ -1799,4 +1845,5 @@ process.on('uncaughtException', (err) => {
 });
 process.on('unhandledRejection', (reason) => {
   console.error('[upload-server] Unhandled rejection:', reason);
+  process.exit(1);
 });

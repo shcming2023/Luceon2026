@@ -4,6 +4,7 @@ import { AppProvider } from '../store/appContext';
 import { Layout } from './components/Layout';
 import { SourceMaterialsPage } from './pages/SourceMaterialsPage';
 import { AssetDetailPage } from './pages/AssetDetailPage';
+import { ProductsPage } from './pages/ProductsPage';
 import { MetadataManagementPage } from './pages/MetadataManagementPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -25,6 +26,8 @@ export default function App() {
                 <Route path="/source-materials" element={<SourceMaterialsPage />} />
                 {/* 资产详情：解析结果查看、字段编辑、AI 规则配置（完成） */}
                 <Route path="/asset/:id" element={<AssetDetailPage />} />
+                {/* 成品库：查看由资料生成的成品资产（完成） */}
+                <Route path="/products" element={<ProductsPage />} />
                 {/* 元数据管理：灵活标签/AI规则/成品分类管理（完成） */}
                 <Route path="/metadata" element={<MetadataManagementPage />} />
                 {/* 系统设置：API Key 配置、存储设置（完成） */}

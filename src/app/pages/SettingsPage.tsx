@@ -27,6 +27,7 @@ const LOCAL_STORAGE_KEYS = [
   'app_process_tasks',
   'app_tasks',
   'app_products',
+  'app_batch_processing',
   'app_asset_details',
   'app_flexible_tags',
   'app_ai_rules',
