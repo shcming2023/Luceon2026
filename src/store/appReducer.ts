@@ -29,12 +29,122 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         ...(p.processTasks   !== undefined ? { processTasks:   p.processTasks }   : {}),
         ...(p.tasks          !== undefined ? { tasks:          p.tasks }          : {}),
         ...(p.products       !== undefined ? { products:       p.products }       : {}),
+        ...(p.batchProcessing !== undefined ? {
+          batchProcessing: {
+            ...p.batchProcessing,
+            items: (p.batchProcessing.items ?? []).map((it) => ({
+              ...it,
+              updatedAt: (it as { updatedAt?: number }).updatedAt ?? it.createdAt ?? Date.now(),
+            })),
+          },
+        } : {}),
         ...(p.flexibleTags   !== undefined ? { flexibleTags:   p.flexibleTags }   : {}),
         ...(p.aiRules        !== undefined ? { aiRules:        p.aiRules }        : {}),
         ...(p.aiRuleSettings !== undefined ? { aiRuleSettings: p.aiRuleSettings } : {}),
         ...(p.aiConfig       !== undefined ? { aiConfig:       p.aiConfig }       : {}),
         ...(p.mineruConfig   !== undefined ? { mineruConfig:   p.mineruConfig }   : {}),
         ...(p.minioConfig    !== undefined ? { minioConfig:    p.minioConfig }    : {}),
+      };
+    }
+
+    // ==================== 批处理队列 ====================
+
+    case 'BATCH_ADD_FILES': {
+      const now = Date.now();
+      const nextItems = action.payload.items.map((i) => ({
+        id: i.id,
+        fileName: i.fileName,
+        fileSize: i.fileSize,
+        path: i.path,
+        status: 'pending' as const,
+        progress: 0,
+        createdAt: now,
+        updatedAt: now,
+      }));
+      return {
+        ...state,
+        batchProcessing: {
+          ...state.batchProcessing,
+          items: [...state.batchProcessing.items, ...nextItems],
+          ...(action.payload.openUi !== undefined ? { uiOpen: action.payload.openUi } : {}),
+        },
+      };
+    }
+
+    case 'BATCH_UPDATE_ITEM': {
+      const { id, updates } = action.payload;
+      const now = Date.now();
+      return {
+        ...state,
+        batchProcessing: {
+          ...state.batchProcessing,
+          items: state.batchProcessing.items.map((item) =>
+            item.id === id ? { ...item, ...updates, updatedAt: updates.updatedAt ?? now } : item,
+          ),
+        },
+      };
+    }
+
+    case 'BATCH_REMOVE_ITEM': {
+      const id = action.payload.id;
+      return {
+        ...state,
+        batchProcessing: {
+          ...state.batchProcessing,
+          items: state.batchProcessing.items.filter((i) => i.id !== id),
+        },
+      };
+    }
+
+    case 'BATCH_CLEAR': {
+      return {
+        ...state,
+        batchProcessing: {
+          ...state.batchProcessing,
+          items: [],
+          running: false,
+          paused: false,
+        },
+      };
+    }
+
+    case 'BATCH_SET_RUNNING': {
+      return {
+        ...state,
+        batchProcessing: {
+          ...state.batchProcessing,
+          running: action.payload.running,
+        },
+      };
+    }
+
+    case 'BATCH_SET_PAUSED': {
+      return {
+        ...state,
+        batchProcessing: {
+          ...state.batchProcessing,
+          paused: action.payload.paused,
+        },
+      };
+    }
+
+    case 'BATCH_SET_UI_OPEN': {
+      return {
+        ...state,
+        batchProcessing: {
+          ...state.batchProcessing,
+          uiOpen: action.payload.uiOpen,
+        },
+      };
+    }
+
+    case 'BATCH_SET_OPTIONS': {
+      return {
+        ...state,
+        batchProcessing: {
+          ...state.batchProcessing,
+          ...action.payload,
+        },
       };
     }
 

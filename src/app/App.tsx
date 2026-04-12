@@ -6,7 +6,6 @@ import { SourceMaterialsPage } from './pages/SourceMaterialsPage';
 import { AssetDetailPage } from './pages/AssetDetailPage';
 import { MetadataManagementPage } from './pages/MetadataManagementPage';
 import { SettingsPage } from './pages/SettingsPage';
-import { ProductsPage } from './pages/ProductsPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LatexToolPage } from './pages/backup/LatexToolPage';
 
@@ -28,7 +27,6 @@ export default function App() {
                 <Route path="/asset/:id" element={<AssetDetailPage />} />
                 {/* 元数据管理：灵活标签/AI规则/成品分类管理（完成） */}
                 <Route path="/metadata" element={<MetadataManagementPage />} />
-                <Route path="/products" element={<ProductsPage />} />
                 {/* 系统设置：API Key 配置、存储设置（完成） */}
                 <Route path="/settings" element={<SettingsPage />} />
 

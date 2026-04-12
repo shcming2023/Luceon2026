@@ -22,13 +22,14 @@ import React, {
   createContext, useContext, useReducer, useEffect, useRef, useState,
 } from 'react';
 import { toast } from 'sonner';
-import type { AppState, AppAction, AiConfig, MinerUConfig, MinioConfig, Material, AssetDetail, ProcessTask, Task, Product, FlexibleTag, AiRule, AiRuleSettings } from './types';
+import type { AppState, AppAction, AiConfig, MinerUConfig, MinioConfig, Material, AssetDetail, ProcessTask, Task, Product, FlexibleTag, AiRule, AiRuleSettings, BatchProcessingState } from './types';
 import { appReducer } from './appReducer';
 import {
   initialMaterials,
   initialProcessTasks,
   initialTasks,
   initialProducts,
+  initialBatchProcessing,
   initialFlexibleTags,
   initialAiRules,
   initialAiRuleSettings,
@@ -50,6 +51,7 @@ const LS = {
   PROCESS_TASKS:  'app_process_tasks',
   TASKS:          'app_tasks',
   PRODUCTS:       'app_products',
+  BATCH_PROCESSING: 'app_batch_processing',
   ASSET_DETAILS:  'app_asset_details',
   FLEXIBLE_TAGS:  'app_flexible_tags',
   AI_RULES:       'app_ai_rules',
@@ -207,6 +209,7 @@ const initialState: AppState = {
   processTasks:     loadFromStorage(LS.PROCESS_TASKS, initialProcessTasks),
   tasks:            loadFromStorage(LS.TASKS, initialTasks),
   products:         loadFromStorage(LS.PRODUCTS, initialProducts),
+  batchProcessing:  loadFromStorage(LS.BATCH_PROCESSING, initialBatchProcessing),
   flexibleTags:     loadFromStorage(LS.FLEXIBLE_TAGS, initialFlexibleTags),
   aiRules:          loadFromStorage(LS.AI_RULES, initialAiRules),
   aiRuleSettings:   loadFromStorage(LS.AI_RULE_SETTINGS, initialAiRuleSettings),
@@ -279,6 +282,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               processTasks:   processTasks ?? undefined,
               tasks:          tasks ?? undefined,
               products:       products ?? undefined,
+              batchProcessing: (settings?.batchProcessing as BatchProcessingState | undefined) ?? undefined,
               flexibleTags:   flexibleTags ?? undefined,
               aiRules:        aiRules ?? undefined,
               aiRuleSettings: (settings?.aiRuleSettings as AiRuleSettings | undefined) ?? undefined,
@@ -297,6 +301,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             processTasks:   state.processTasks,
             tasks:          state.tasks,
             products:       state.products,
+            settings: {
+              batchProcessing: state.batchProcessing,
+            },
             flexibleTags:   state.flexibleTags,
             aiRules:        state.aiRules,
             aiRuleSettings: state.aiRuleSettings,
@@ -530,6 +537,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!hydratedRef.current) return;
     dbPut('/settings/minioConfig', state.minioConfig);
   }, [state.minioConfig]);
+
+  useEffect(() => {
+    saveToStorage(LS.BATCH_PROCESSING, state.batchProcessing);
+    if (!hydratedRef.current) return;
+    dbPut('/settings/batchProcessing', state.batchProcessing);
+  }, [state.batchProcessing]);
 
   return (
     <AppContext.Provider value={{ state, dispatch, dbReady }}>

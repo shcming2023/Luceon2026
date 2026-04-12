@@ -1023,6 +1023,7 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
   const localEndpoint = normalizeEndpoint(req.body?.localEndpoint);
   const materialId = String(req.body?.materialId || '').trim();
   const localTimeout = Number(req.body?.localTimeout || 300);
+  const startedAt = Date.now();
 
   if (!req.file) {
     res.status(400).json({ error: '缺少文件字段 `file`' });
@@ -1044,6 +1045,8 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
     const parseMethod = String(req.body?.parseMethod || req.body?.parse_method || '').trim();
     const rawServerUrl = String(req.body?.serverUrl || req.body?.server_url || req.body?.url || '').trim();
     const serverUrl = rawServerUrl || (/vlm|hybrid/i.test(backend) ? 'http://localhost:30000' : '');
+
+    console.log(`[upload-server] /parse/local-mineru start materialId=${materialId || '-'} file=${req.file.originalname} size=${req.file.size}B endpoint=${localEndpoint} timeout=${localTimeout}s backend=${backend}`);
 
     let markdown = '';
 
@@ -1190,7 +1193,7 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error('[upload-server] /parse/local-mineru failed:', message);
+    console.error('[upload-server] /parse/local-mineru failed:', message, `elapsedMs=${Date.now() - startedAt}`);
     res.status(500).json({ error: message });
   }
 });

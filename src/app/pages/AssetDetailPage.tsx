@@ -4,7 +4,7 @@ import { ArrowLeft, Tag, FileText, Play, Cpu, CheckCircle, XCircle, Loader, Save
 import { toast } from 'sonner';
 import { useAppStore } from '../../store/appContext';
 import { StatusBadge } from '../components/StatusBadge';
-import type { ProcessTask, Product } from '../../store/types';
+import type { ProcessTask } from '../../store/types';
 import { runMinerUPipeline } from '../../utils/mineruApi';
 
 // ─── 枚举选项定义 ──────────────────────────────────────────────
@@ -374,7 +374,6 @@ export function AssetDetailPage() {
 
   // AI 分析状态
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
-  const [creatingProduct, setCreatingProduct] = useState(false);
 
   // 元数据可编辑表单（语言/年级/学科/国家/类型 + 摘要）
   const [metaForm, setMetaForm] = useState({
@@ -814,38 +813,6 @@ export function AssetDetailPage() {
     toast.success('元数据已保存');
   };
 
-  const handleCreateProduct = () => {
-    if (creatingProduct || !material || !detail) return;
-
-    const markdownLength = mineruMarkdown.trim().length;
-    const nextProduct: Product = {
-      id: Date.now(),
-      title: detail.title,
-      type: metaForm.type || material.metadata?.type || '资料成品',
-      description: metaForm.summary || material.metadata?.summary || '由资料详情页直接生成的最小成品记录',
-      items: markdownLength > 0 ? `${markdownLength} 字 Markdown` : `${material.type} 资料`,
-      useCount: 0,
-      rating: 5,
-      status: 'completed',
-      tags: Array.from(new Set([...(material.tags || []), ...(detail.tags || [])])),
-      metadata: {
-        subject: metaForm.subject || material.metadata?.subject || '未标注',
-        grade: metaForm.grade || material.metadata?.grade || '未标注',
-        difficulty: material.metadata?.aiConfidence ? `${material.metadata.aiConfidence}%` : '待评估',
-        standard: material.metadata?.standard || '未标注',
-      },
-      source: `material:${material.id}`,
-      createdAt: new Date().toLocaleString('zh-CN'),
-      lineage: [String(material.id)],
-      color: 'blue',
-    };
-
-    setCreatingProduct(true);
-    dispatch({ type: 'ADD_PRODUCT', payload: nextProduct });
-    toast.success('已生成成品记录');
-    navigate('/products');
-  };
-
   const handleSaveTags = () => {
     dispatch({ type: 'UPDATE_ASSET_TAGS', payload: { id: numId, tags: localTags } });
     dispatch({ type: 'UPDATE_MATERIAL_TAGS', payload: { id: numId, tags: localTags } });
@@ -912,13 +879,6 @@ export function AssetDetailPage() {
           </div>
           <div className="flex items-center gap-2">
             <StatusBadge status={detail.status} />
-            <button
-              onClick={handleCreateProduct}
-              disabled={creatingProduct}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <FileText size={12} /> {creatingProduct ? '生成中...' : '生成成品'}
-            </button>
             {detail.status === 'pending' && (
               <button
                 onClick={handleStartProcessing}

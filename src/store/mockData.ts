@@ -15,6 +15,7 @@ import type {
   AiConfig,
   MinerUConfig,
   MinioConfig,
+  BatchProcessingState,
 } from './types';
 
 // ==================== 原始资料 ====================
@@ -26,6 +27,17 @@ export const initialMaterials: Material[] = [];
 
 /** 处理中心任务列表（初始数据） */
 export const initialProcessTasks: ProcessTask[] = [];
+
+// ==================== 批处理队列 ====================
+
+export const initialBatchProcessing: BatchProcessingState = {
+  items: [],
+  running: false,
+  paused: false,
+  uiOpen: false,
+  autoMinerU: true,
+  autoAI: true,
+};
 
 // ==================== 任务中心 ====================
 

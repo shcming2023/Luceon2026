@@ -1,7 +1,13 @@
 import { useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Upload, Grid, List, SortAsc, AlertTriangle, RefreshCw, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Search, Upload, Grid, List, SortAsc, AlertTriangle, RefreshCw, Trash2, ChevronDown, ChevronRight, FolderPlus } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAppStore } from '../../store/appContext';
+import { batchRegisterFiles } from '../components/BatchUploadModal';
+import { StatusBadge } from '../components/StatusBadge';
+import type { TabFilter, SortOption, ViewMode } from '../../store/types';
+import { sortMaterials } from '../../utils/sort';
+import { usePagination, getPageNumbers } from '../../utils/pagination';
 
 /** 删除确认弹窗（始终使用 toast，避免 window.confirm 在各类环境中被屏蔽） */
 function confirmDelete(message: string): Promise<boolean> {
@@ -21,11 +27,6 @@ function confirmDelete(message: string): Promise<boolean> {
     });
   });
 }
-import { useAppStore } from '../../store/appContext';
-import { StatusBadge } from '../components/StatusBadge';
-import type { TabFilter, SortOption, ViewMode } from '../../store/types';
-import { sortMaterials } from '../../utils/sort';
-import { usePagination, getPageNumbers } from '../../utils/pagination';
 
 const TAB_OPTIONS: { key: TabFilter; label: string }[] = [
   { key: 'all',        label: '全部' },
@@ -59,8 +60,6 @@ const AI_STATUS_OPTIONS = [
   { key: 'failed', label: '分析失败' },
 ] as const;
 
-let uploadIdCounter = 0;
-
 function formatBytes(bytes: number) {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
   if (bytes < 1024) return `${bytes} B`;
@@ -74,7 +73,7 @@ export function SourceMaterialsPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [tab, setTab] = useState<TabFilter>('all');
+  const [tab, setTab] = useState<TabFilter>('completed');
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortOption>('newest');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
@@ -168,106 +167,66 @@ export function SourceMaterialsPage() {
     return { valid: true };
   };
 
-  // 上传文件处理
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const folderInputRef = useRef<HTMLInputElement>(null);
+  const showStatusColumn = tab !== 'completed';
+
+  const getStageSummary = (m: typeof state.materials[number]) => {
+    if (m.status === 'completed') return { label: '完成', detail: '' };
+    if (m.status === 'failed') {
+      const detail =
+        m.aiStatus === 'failed'
+          ? 'AI 分析失败'
+          : m.mineruStatus === 'failed'
+            ? 'MinerU 解析失败'
+            : '处理失败';
+      return { label: '失败', detail };
+    }
+    const stage = String(m.metadata?.processingStage || '').trim();
+    const msg = String(m.metadata?.processingMsg || '').trim();
+    if (stage === 'upload') return { label: '上传中', detail: msg };
+    if (stage === 'mineru') return { label: 'MinerU 解析中', detail: msg };
+    if (stage === 'ai') return { label: 'AI 分析中', detail: msg };
+    if (m.aiStatus === 'analyzing') return { label: 'AI 分析中', detail: msg };
+    if (m.mineruStatus === 'processing') return { label: 'MinerU 解析中', detail: msg };
+    if (m.mineruStatus === 'pending') return { label: '待解析', detail: msg };
+    if (m.aiStatus === 'pending') return { label: '待分析', detail: msg };
+    return { label: '处理中', detail: msg };
+  };
+
+  // 文件/文件夹选择处理
+  const handleBatchFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     if (files.length === 0) return;
 
-    const validationResults = files.map(f => ({ file: f, validation: validateFile(f) }));
-    const invalidFiles = validationResults.filter(({ validation }) => !validation.valid);
-
+    // 前置校验
+    const invalidFiles = files.filter(f => !validateFile(f).valid);
     if (invalidFiles.length > 0) {
-      invalidFiles.forEach(({ validation }) => {
-        toast.error(validation.error, { icon: <AlertTriangle size={16} /> });
-      });
-      e.target.value = '';
-      return;
+      toast.error(`发现 ${invalidFiles.length} 个不符合规范的文件被过滤`, { icon: <AlertTriangle size={16} /> });
     }
-    for (let fileIdx = 0; fileIdx < files.length; fileIdx++) {
-      const file = files[fileIdx];
-      uploadIdCounter = (uploadIdCounter + 1) % 1000;
-      const newId = Date.now() * 1000 + uploadIdCounter + fileIdx;
-      
+
+    const validFiles = files.filter(f => validateFile(f).valid);
+    if (validFiles.length > 0) {
+      const registered = validFiles.map((file) => {
+        const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const path = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+        return {
+          id,
+          file,
+          fileName: file.name,
+          fileSize: file.size,
+          path,
+        };
+      });
+
+      batchRegisterFiles(registered.map((it) => ({ id: it.id, file: it.file })));
+
       dispatch({
-        type: 'ADD_MATERIAL',
+        type: 'BATCH_ADD_FILES',
         payload: {
-          id: newId,
-          title: file.name.replace(/\.[^.]+$/, ''),
-          type: file.name.split('.').pop()?.toUpperCase() ?? 'FILE',
-          size: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
-          sizeBytes: file.size,
-          uploadTime: '上传中...',
-          uploadTimestamp: Date.now(),
-          status: 'processing',
-          mineruStatus: 'pending',
-          aiStatus: 'pending',
-          tags: [],
-          metadata: {},
-          uploader: '当前用户',
+          items: registered.map((it) => ({ id: it.id, fileName: it.fileName, fileSize: it.fileSize, path: it.path })),
+          openUi: true,
         },
       });
-
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('materialId', String(newId));
-
-        // 通过 Vite proxy 路由到 upload-server，兼容所有部署环境
-        const uploadUrl = `/__proxy/upload/upload`;
-        const response = await fetch(uploadUrl, {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`上传失败: HTTP ${response.status} - ${errorText}`);
-        }
-
-        const result = await response.json();
-        
-        // 更新资料记录，添加文件 URL 并标记为待处理
-        dispatch({
-          type: 'UPDATE_MATERIAL',
-          payload: {
-            id: newId,
-            updates: {
-              status: 'pending',
-              uploadTime: '刚刚',
-              metadata: {
-                fileUrl: result.url,
-                objectName: result.objectName || '',  // MinIO 对象路径（持久引用）
-                fileName: result.fileName,
-                provider: result.provider,
-                mimeType: result.mimeType,
-                // 上传时自动计算的字段
-                ...(result.pages != null ? { pages: String(result.pages) } : {}),
-                ...(result.format ? { format: result.format } : {}),
-              },
-            },
-          },
-        });
-        
-        if (result.provider === 'minio' && result.objectName) {
-          toast.success(`"${file.name}" 已上传至 MinIO，可在详情页启动解析`);
-        } else {
-          toast.success(`"${file.name}" 上传成功`);
-        }
-      } catch (error) {
-        console.error('上传失败:', error);
-        // 标记为失败状态
-        dispatch({
-          type: 'UPDATE_MATERIAL',
-          payload: {
-            id: newId,
-            updates: {
-              status: 'failed',
-              uploadTime: '上传失败',
-            },
-          },
-        });
-        toast.error(`"${file.name}" 上传失败: ${error instanceof Error ? error.message : '未知错误'}`);
-      }
     }
     
     e.target.value = '';
@@ -405,17 +364,37 @@ export function SourceMaterialsPage() {
             type="file"
             multiple
             className="hidden"
-            onChange={handleFileChange}
+            onChange={handleBatchFileSelect}
             accept=".pdf,.docx,.doc,.pptx,.ppt,.jpg,.jpeg,.png"
           />
-          <button
-            data-testid="upload-button"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Upload size={16} />
-            上传资料
-          </button>
+          <input
+            ref={folderInputRef}
+            type="file"
+            // @ts-ignore
+            webkitdirectory="true"
+            directory="true"
+            className="hidden"
+            onChange={handleBatchFileSelect}
+          />
+          <div className="flex bg-blue-600 rounded-lg overflow-hidden text-white text-sm hover:bg-blue-700 transition-colors">
+            <button
+              data-testid="upload-button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2 px-4 py-2 hover:bg-blue-700"
+            >
+              <Upload size={16} />
+              文件
+            </button>
+            <div className="w-px bg-blue-500 my-2" />
+            <button
+              onClick={() => folderInputRef.current?.click()}
+              className="flex items-center gap-2 px-4 py-2 hover:bg-blue-700"
+              title="上传整个文件夹"
+            >
+              <FolderPlus size={16} />
+              文件夹
+            </button>
+          </div>
         </div>
       </div>
 
@@ -598,14 +577,16 @@ export function SourceMaterialsPage() {
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">大小</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">上传者</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">上传时间</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">状态</th>
+                {showStatusColumn && (
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700">阶段</th>
+                )}
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {currentItems.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="text-center py-12 text-gray-400">暂无数据</td>
+                  <td colSpan={showStatusColumn ? 8 : 7} className="text-center py-12 text-gray-400">暂无数据</td>
                 </tr>
               )}
               {currentItems.map((m) => (
@@ -643,9 +624,21 @@ export function SourceMaterialsPage() {
                   <td className="px-4 py-3 text-gray-600">{m.size}</td>
                   <td className="px-4 py-3 text-gray-600">{m.uploader}</td>
                   <td className="px-4 py-3 text-gray-500">{m.uploadTime}</td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={m.status} />
-                  </td>
+                  {showStatusColumn && (
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <StatusBadge status={m.status} />
+                          <span className="text-xs text-gray-700">{getStageSummary(m).label}</span>
+                        </div>
+                        {getStageSummary(m).detail && (
+                          <div className="text-xs text-gray-400 truncate max-w-xs" title={getStageSummary(m).detail}>
+                            {getStageSummary(m).detail}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  )}
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={(e) => handleDelete(e, m.id)}
@@ -682,7 +675,7 @@ export function SourceMaterialsPage() {
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <StatusBadge status={m.status} />
+                  {showStatusColumn && <StatusBadge status={m.status} />}
                   <button
                     onClick={(e) => handleDelete(e, m.id)}
                     className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
@@ -695,6 +688,11 @@ export function SourceMaterialsPage() {
               <p className="text-sm font-semibold text-gray-800 line-clamp-2 mb-2">{m.title}</p>
               <p className="text-xs text-gray-400">{m.size} · {m.uploadTime}</p>
               <p className="text-xs text-gray-400 mt-0.5">{m.uploader}</p>
+              {showStatusColumn && (getStageSummary(m).label !== '完成') && (
+                <p className="text-xs text-gray-500 mt-1 truncate" title={getStageSummary(m).detail || getStageSummary(m).label}>
+                  {getStageSummary(m).detail || getStageSummary(m).label}
+                </p>
+              )}
               {m.tags.length > 0 && (
                 <div className="flex gap-1 mt-2 flex-wrap">
                   {m.tags.slice(0, 2).map((tag) => (
@@ -748,6 +746,7 @@ export function SourceMaterialsPage() {
           </button>
         </div>
       )}
+
     </div>
   );
 }

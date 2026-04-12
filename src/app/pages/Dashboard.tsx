@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { FolderOpen, Cpu, Package, CheckSquare, Clock, TrendingUp } from 'lucide-react';
+import { FolderOpen, Cpu, CheckSquare, Clock, TrendingUp } from 'lucide-react';
 import { useAppStore } from '../../store/appContext';
 import { StatCard } from '../components/StatCard';
 import { StatusBadge } from '../components/StatusBadge';
@@ -8,13 +8,12 @@ export function Dashboard() {
   const { state } = useAppStore();
   const navigate = useNavigate();
 
-  const { materials, processTasks, products, tasks } = state;
+  const { materials, processTasks, tasks } = state;
 
   // 统计数据
   const totalMaterials = materials.length;
   const processingCount = materials.filter((m) => m.status === 'processing').length;
   const completedMaterials = materials.filter((m) => m.status === 'completed').length;
-  const totalProducts = products.length;
   const activeTasks = tasks.filter((t) => t.status === 'processing' || t.status === 'pending').length;
 
   // 最近5条资料
@@ -36,7 +35,7 @@ export function Dashboard() {
       </div>
 
       {/* 统计卡片 */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
         <StatCard
           title="原始资料总数"
           value={totalMaterials}
@@ -50,13 +49,6 @@ export function Dashboard() {
           icon={<Cpu size={20} />}
           color="orange"
           subtitle="资料正在处理"
-        />
-        <StatCard
-          title="成品总数"
-          value={totalProducts}
-          icon={<Package size={20} />}
-          color="green"
-          subtitle="可用成品"
         />
         <StatCard
           title="活跃任务"

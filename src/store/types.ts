@@ -14,6 +14,9 @@ export type AiStatus = 'analyzed' | 'analyzing' | 'pending' | 'failed';
 /** MinerU 解析状态 */
 export type MinerUStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
+/** 批处理队列条目状态 */
+export type BatchItemStatus = 'pending' | 'uploading' | 'mineru' | 'ai' | 'completed' | 'error' | 'skipped';
+
 /** 排序选项 */
 export type SortOption = 'newest' | 'oldest' | 'name' | 'size';
 
@@ -89,6 +92,34 @@ export interface Material {
   uploadedAt?: number;       // 上传完成时间（Unix ms）
   mineruCompletedAt?: number; // MinerU 解析完成/失败时间（Unix ms）
   aiCompletedAt?: number;     // AI 分析完成/失败时间（Unix ms）
+}
+
+/**
+ * 批处理队列条目（仅存储可序列化字段；文件二进制由运行时内存维护）
+ */
+export interface BatchQueueItem {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  path: string;
+  status: BatchItemStatus;
+  progress: number;
+  message?: string;
+  materialId?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * 批处理全局状态（用于跨页面查看进度与控制）
+ */
+export interface BatchProcessingState {
+  items: BatchQueueItem[];
+  running: boolean;
+  paused: boolean;
+  uiOpen: boolean;
+  autoMinerU: boolean;
+  autoAI: boolean;
 }
 
 /**
@@ -292,6 +323,7 @@ export interface AppState {
   processTasks: ProcessTask[];
   tasks: Task[];
   products: Product[];
+  batchProcessing: BatchProcessingState;
   flexibleTags: FlexibleTag[];
   aiRules: AiRule[];
   aiRuleSettings: AiRuleSettings;
@@ -306,6 +338,15 @@ export interface AppState {
 export type AppAction =
   // 数据库 hydration（启动时从 db-server 加载）
   | { type: 'HYDRATE_FROM_DB'; payload: Partial<AppState> }
+  // 批处理队列
+  | { type: 'BATCH_ADD_FILES'; payload: { items: Array<Pick<BatchQueueItem, 'id' | 'fileName' | 'fileSize' | 'path'>>; openUi?: boolean } }
+  | { type: 'BATCH_UPDATE_ITEM'; payload: { id: string; updates: Partial<BatchQueueItem> } }
+  | { type: 'BATCH_REMOVE_ITEM'; payload: { id: string } }
+  | { type: 'BATCH_CLEAR' }
+  | { type: 'BATCH_SET_RUNNING'; payload: { running: boolean } }
+  | { type: 'BATCH_SET_PAUSED'; payload: { paused: boolean } }
+  | { type: 'BATCH_SET_UI_OPEN'; payload: { uiOpen: boolean } }
+  | { type: 'BATCH_SET_OPTIONS'; payload: Partial<Pick<BatchProcessingState, 'autoMinerU' | 'autoAI'>> }
   // 资料操作
   | { type: 'ADD_MATERIAL'; payload: Material }
   | { type: 'DELETE_MATERIAL'; payload: number[] }
