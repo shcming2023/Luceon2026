@@ -1078,6 +1078,7 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
     console.log(`[upload-server] /parse/local-mineru start materialId=${materialId || '-'} file=${req.file.originalname} size=${req.file.size}B endpoint=${localEndpoint} timeout=${localTimeout}s backend=${backend}`);
 
     let markdown = '';
+    let mineruTaskId = '';
 
     const fastApiForm = new FormData();
     const localFileBuffer = getFileBuffer(req.file);
@@ -1090,18 +1091,21 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
     for (const lang of String(ocrLanguage || 'ch').split(',').map((item) => item.trim()).filter(Boolean)) {
       fastApiForm.append('lang_list', lang);
     }
-    if (parseMethod) fastApiForm.append('parse_method', parseMethod);
+    let finalParseMethod = parseMethod || 'auto';
+    if (enableOcr && !parseMethod) {
+      finalParseMethod = 'ocr';
+    }
+    fastApiForm.append('parse_method', finalParseMethod);
     fastApiForm.append('formula_enable', String(enableFormula));
     fastApiForm.append('table_enable', String(enableTable));
     if (serverUrl) fastApiForm.append('server_url', serverUrl);
     fastApiForm.append('return_md', 'true');
     fastApiForm.append('response_format_zip', 'false');
-    fastApiForm.append('is_ocr', String(enableOcr));
     if (Number.isFinite(maxPages) && maxPages > 0) {
       fastApiForm.append('end_page_id', String(Math.max(0, Math.floor(maxPages) - 1)));
     }
 
-    const fastApiResponse = await fetch(`${localEndpoint}/file_parse`, {
+    const fastApiResponse = await fetch(`${localEndpoint}/tasks`, {
       method: 'POST',
       body: fastApiForm,
       signal: AbortSignal.timeout(timeoutMs),
@@ -1114,33 +1118,25 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
         : await fastApiResponse.text().catch(() => '');
 
       if (!fastApiResponse.ok) {
-        const taskId = payload?.task_id;
-        const status = String(payload?.status || '').toLowerCase();
         const error = String(payload?.error || payload?.message || payload?.detail || '');
-        if (taskId && (status === 'failed' || status === 'error')) {
-          const message = /hub|snapshot folder|huggingface/i.test(error)
-            ? `本地 MinerU 任务失败（可能无法下载模型，请检查网络/镜像或预下载模型）: ${error}`
-            : `本地 MinerU 任务失败: ${error}`;
-          throw new Error(message.trim());
-        }
-        if (taskId && (status === 'queued' || status === 'processing' || status === 'running')) {
-          const finished = await waitMinerUTask(localEndpoint, taskId, timeoutMs);
-          const resultPayload = await fetchMinerUResult(localEndpoint, taskId, timeoutMs);
-          markdown = extractLocalMarkdown(resultPayload) || extractLocalMarkdown(finished);
-        } else {
-          throw new Error(`本地 MinerU 返回 HTTP ${fastApiResponse.status}: ${error || JSON.stringify(payload).slice(0, 300)}`);
-        }
-      } else if (payload?.task_id) {
-        const taskId = String(payload.task_id);
-        const status = String(payload?.status || '').toLowerCase();
-        if (status && status !== 'done' && status !== 'success' && status !== 'completed') {
-          await waitMinerUTask(localEndpoint, taskId, timeoutMs);
-        }
-        const resultPayload = await fetchMinerUResult(localEndpoint, taskId, timeoutMs);
-        markdown = extractLocalMarkdown(resultPayload) || extractLocalMarkdown(payload);
-      } else {
-        markdown = extractLocalMarkdown(payload);
+        const message = /hub|snapshot folder|huggingface/i.test(error)
+          ? `本地 MinerU 任务提交失败（请检查模型）: ${error}`
+          : `本地 MinerU 任务提交失败: ${error}`;
+        throw new Error(message.trim());
       }
+
+      mineruTaskId = String(payload?.task_id || '').trim();
+      if (!mineruTaskId) {
+        throw new Error(`本地 MinerU 未返回 task_id，响应内容: ${JSON.stringify(payload).slice(0, 300)}`);
+      }
+
+      console.log(`[upload-server] /parse/local-mineru task submitted taskId=${mineruTaskId} parseMethod=${finalParseMethod}`);
+      console.log(`[upload-server] /parse/local-mineru start polling taskId=${mineruTaskId}`);
+
+      await waitMinerUTask(localEndpoint, mineruTaskId, timeoutMs);
+
+      const resultPayload = await fetchMinerUResult(localEndpoint, mineruTaskId, timeoutMs);
+      markdown = extractLocalMarkdown(resultPayload);
     } else {
       const form = new FormData();
       form.append(
@@ -1213,7 +1209,7 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
     }
 
     res.json({
-      taskId,
+      taskId: mineruTaskId || taskId,
       state: 'done',
       markdown,
       markdownObjectName: markdownObjectName || undefined,

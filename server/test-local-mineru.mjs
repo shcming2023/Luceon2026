@@ -8,6 +8,7 @@ const materialId = process.env.TEST_MATERIAL_ID || `${Date.now()}`;
 const backend = process.env.LOCAL_MINERU_BACKEND || 'hybrid-auto-engine';
 const maxPages = Number(process.env.LOCAL_MINERU_MAX_PAGES || 1000);
 const ocrLanguage = process.env.LOCAL_MINERU_OCR_LANGUAGE || 'ch';
+const parseMethod = process.env.LOCAL_MINERU_PARSE_METHOD || '';
 
 if (!filePath) {
   console.error('缺少 TEST_FILE 环境变量');
@@ -37,6 +38,7 @@ formData.append('backend', backend);
 formData.append('maxPages', String(maxPages));
 formData.append('ocrLanguage', ocrLanguage);
 formData.append('language', ocrLanguage);
+if (parseMethod) formData.append('parseMethod', parseMethod);
 formData.append('enableOcr', String(process.env.LOCAL_MINERU_ENABLE_OCR === 'true'));
 formData.append('enableFormula', String(process.env.LOCAL_MINERU_ENABLE_FORMULA !== 'false'));
 formData.append('enableTable', String(process.env.LOCAL_MINERU_ENABLE_TABLE !== 'false'));
