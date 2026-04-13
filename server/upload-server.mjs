@@ -410,8 +410,10 @@ async function callGradioToMarkdown(localEndpoint, fileBuffer, fileName, mimeTyp
   return mdResp.text();
 }
 
-async function waitMinerUTask(localEndpoint, taskId, timeoutMs) {
+async function waitMinerUTask(localEndpoint, taskId, timeoutMs, onProgress) {
   const start = Date.now();
+  let lastStatus = '';
+  let lastPayload = null;
   while (Date.now() - start < timeoutMs) {
     const response = await fetch(`${localEndpoint}/tasks/${encodeURIComponent(taskId)}`, {
       signal: AbortSignal.timeout(Math.min(10_000, timeoutMs)),
@@ -422,15 +424,33 @@ async function waitMinerUTask(localEndpoint, taskId, timeoutMs) {
       throw new Error(`查询任务状态失败: HTTP ${response.status} ${detail}`.trim());
     }
 
-    const status = String(payload?.status || '').toLowerCase();
-    if (status === 'done' || status === 'success' || status === 'completed') return payload;
-    if (status === 'failed' || status === 'error') {
+    lastPayload = payload;
+    const statusValue =
+      payload?.status ??
+      payload?.state ??
+      payload?.task_status ??
+      payload?.data?.status ??
+      payload?.data?.state;
+    const status = String(statusValue || '').toLowerCase();
+    lastStatus = status;
+    if (typeof onProgress === 'function') {
+      onProgress(payload);
+    }
+    if (status === 'done' || status === 'success' || status === 'completed' || status === 'succeeded' || status === 'finished' || status === 'complete') {
+      return payload;
+    }
+    if (status === 'failed' || status === 'error' || status === 'failure' || status === 'canceled' || status === 'cancelled') {
       throw new Error(String(payload?.error || payload?.message || '任务执行失败'));
     }
+    if (!status) {
+      const snippet = JSON.stringify(payload).slice(0, 200);
+      throw new Error(`任务状态字段缺失（taskId=${taskId}）：${snippet}`);
+    }
 
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1500));
   }
-  throw new Error('等待 MinerU 任务超时');
+  const snippet = lastPayload ? JSON.stringify(lastPayload).slice(0, 200) : '';
+  throw new Error(`等待 MinerU 任务超时（taskId=${taskId}，lastStatus=${lastStatus || '-'}）${snippet ? `：${snippet}` : ''}`);
 }
 
 async function fetchMinerUResult(localEndpoint, taskId, timeoutMs) {
@@ -1030,6 +1050,7 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
   const materialId = String(req.body?.materialId || '').trim();
   const localTimeout = Number(req.body?.localTimeout || 300);
   const startedAt = Date.now();
+  const wantsSse = String(req.headers?.accept || '').includes('text/event-stream');
 
   if (!req.file) {
     res.status(400).json({ error: '缺少文件字段 `file`' });
@@ -1041,6 +1062,19 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
   }
 
   try {
+    if (wantsSse) {
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.flushHeaders?.();
+    }
+
+    const sendEvent = (type, data) => {
+      if (!wantsSse || res.writableEnded || res.destroyed) return;
+      res.write(`event: ${type}\n`);
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    };
+
     const backend = String(req.body?.backend || 'hybrid-auto-engine');
     const maxPages = Number(req.body?.maxPages || 1000);
     const ocrLanguage = String(req.body?.ocrLanguage || req.body?.language || 'ch');
@@ -1076,6 +1110,7 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
     }
 
     console.log(`[upload-server] /parse/local-mineru start materialId=${materialId || '-'} file=${req.file.originalname} size=${req.file.size}B endpoint=${localEndpoint} timeout=${localTimeout}s backend=${backend}`);
+    sendEvent('progress', { pct: 5, msg: '已连接本地 MinerU，开始提交任务...' });
 
     let markdown = '';
     let mineruTaskId = '';
@@ -1133,8 +1168,20 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
       console.log(`[upload-server] /parse/local-mineru task submitted taskId=${mineruTaskId} parseMethod=${finalParseMethod}`);
       console.log(`[upload-server] /parse/local-mineru start polling taskId=${mineruTaskId}`);
 
-      await waitMinerUTask(localEndpoint, mineruTaskId, timeoutMs);
+      sendEvent('progress', { pct: 20, msg: `任务已提交，分配ID: ${mineruTaskId}` });
+      await waitMinerUTask(localEndpoint, mineruTaskId, timeoutMs, (statusPayload) => {
+        const status = String(statusPayload?.status || '').toLowerCase();
+        const queued = statusPayload?.queued_ahead || statusPayload?.queue_ahead || 0;
+        let msg = `处理中 (${status})...`;
+        if (status === 'pending' || status === 'queued') {
+          msg = `排队中 (前方还有 ${queued} 个任务等待)`;
+        } else if (status === 'processing') {
+          msg = 'MinerU 正在执行 OCR 与解析...';
+        }
+        sendEvent('progress', { pct: 50, msg });
+      });
 
+      sendEvent('progress', { pct: 80, msg: '解析完成，正在提取结果...' });
       const resultPayload = await fetchMinerUResult(localEndpoint, mineruTaskId, timeoutMs);
       markdown = extractLocalMarkdown(resultPayload);
     } else {
@@ -1162,6 +1209,7 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
         body: form,
         signal: AbortSignal.timeout(timeoutMs),
       });
+      sendEvent('progress', { pct: 50, msg: '使用降级 Gradio 引擎解析中...' });
 
       if (!response.ok && response.status !== 404) {
         const detail = await response.text().catch(() => '');
@@ -1208,17 +1256,32 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
       console.warn('[upload-server] local MinerU markdown store failed:', storageError.message);
     }
 
-    res.json({
+    sendEvent('progress', { pct: 90, msg: '结果已安全存入资源库' });
+
+    const result = {
       taskId: mineruTaskId || taskId,
       state: 'done',
       markdown,
       markdownObjectName: markdownObjectName || undefined,
       markdownUrl: markdownUrl || undefined,
       parsedFilesCount: markdownObjectName ? 1 : 0,
-    });
+    };
+
+    if (wantsSse) {
+      sendEvent('complete', result);
+      res.end();
+      return;
+    }
+
+    res.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error('[upload-server] /parse/local-mineru failed:', message, `elapsedMs=${Date.now() - startedAt}`);
+    if (wantsSse) {
+      res.write(`event: error\ndata: ${JSON.stringify({ error: message })}\n\n`);
+      res.end();
+      return;
+    }
     res.status(500).json({ error: message });
   }
 });

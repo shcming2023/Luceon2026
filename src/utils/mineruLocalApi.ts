@@ -90,15 +90,10 @@ export async function submitLocalMinerUTask(
   formData.append('enableTable', String(config.enableTable ?? true));
 
   let resp: Response;
-  let heartbeat: ReturnType<typeof setInterval> | null = null;
   try {
-    heartbeat = setInterval(() => {
-      const elapsed = Date.now() - startAt;
-      onProgress?.(20, `上传文件到本地解析引擎...（已等待 ${formatDuration(elapsed)} / 超时 ${timeoutSec}s）`);
-    }, 10_000);
-
     resp = await fetch('/__proxy/upload/parse/local-mineru', {
       method: 'POST',
+      headers: { Accept: 'text/event-stream' },
       body: formData,
       signal: AbortSignal.timeout(Math.max(timeoutSec * 1000 + 5_000, 30_000)),
     });
@@ -114,27 +109,92 @@ export async function submitLocalMinerUTask(
       throw new Error(`本地 MinerU 请求超时（${timeoutSec}s）：${localEndpoint}`);
     }
     throw new Error(`本地 MinerU 请求失败：${msg}`);
-  } finally {
-    if (heartbeat) clearInterval(heartbeat);
   }
 
-  const data = await resp.json().catch(() => null);
   if (!resp.ok) {
-    throw new Error(data?.error || `本地 MinerU 调用失败: HTTP ${resp.status}`);
-  }
-  if (!data?.markdown) {
-    throw new Error('本地 MinerU 未返回 Markdown 内容');
+    const errData = await resp.json().catch(() => null);
+    throw new Error(errData?.error || `本地 MinerU 调用失败: HTTP ${resp.status}`);
   }
 
-  onProgress?.(100, '本地解析完成');
+  const contentType = resp.headers.get('content-type') || '';
+  if (!contentType.includes('text/event-stream')) {
+    const data = await resp.json().catch(() => null);
+    if (!data?.markdown) {
+      throw new Error('本地 MinerU 未返回 Markdown 内容');
+    }
+    onProgress?.(100, '本地解析完成');
+    return {
+      taskId: String(data.taskId || `local-${Date.now()}`),
+      state: data.state === 'done' ? 'done' : 'failed',
+      markdown: String(data.markdown),
+      markdownObjectName: data.markdownObjectName ? String(data.markdownObjectName) : undefined,
+      markdownUrl: data.markdownUrl ? String(data.markdownUrl) : undefined,
+      parsedFilesCount: typeof data.parsedFilesCount === 'number' ? data.parsedFilesCount : undefined,
+      errMsg: data.error ? String(data.error) : undefined,
+    };
+  }
 
-  return {
-    taskId: String(data.taskId || `local-${Date.now()}`),
-    state: data.state === 'done' ? 'done' : 'failed',
-    markdown: String(data.markdown),
-    markdownObjectName: data.markdownObjectName ? String(data.markdownObjectName) : undefined,
-    markdownUrl: data.markdownUrl ? String(data.markdownUrl) : undefined,
-    parsedFilesCount: typeof data.parsedFilesCount === 'number' ? data.parsedFilesCount : undefined,
-    errMsg: data.error ? String(data.error) : undefined,
-  };
+  if (!resp.body) {
+    throw new Error('未获取到数据流');
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+
+  return new Promise(async (resolve, reject) => {
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        buffer = buffer.replace(/\r\n/g, '\n');
+
+        let splitIndex: number;
+        while ((splitIndex = buffer.indexOf('\n\n')) >= 0) {
+          const chunk = buffer.slice(0, splitIndex);
+          buffer = buffer.slice(splitIndex + 2);
+
+          const lines = chunk.split('\n');
+          let eventName = 'message';
+          const dataLines: string[] = [];
+
+          for (const line of lines) {
+            if (line.startsWith('event:')) eventName = line.slice(6).trim();
+            else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+          }
+
+          const dataValue = dataLines.join('\n');
+          if (!dataValue) continue;
+
+          if (eventName === 'progress') {
+            const info = JSON.parse(dataValue);
+            onProgress?.(Number(info?.pct ?? 0), String(info?.msg ?? ''));
+          } else if (eventName === 'complete') {
+            const data = JSON.parse(dataValue);
+            onProgress?.(100, '本地解析完成');
+            resolve({
+              taskId: String(data.taskId || `local-${Date.now()}`),
+              state: data.state === 'done' ? 'done' : 'failed',
+              markdown: data.markdown != null ? String(data.markdown) : undefined,
+              markdownObjectName: data.markdownObjectName ? String(data.markdownObjectName) : undefined,
+              markdownUrl: data.markdownUrl ? String(data.markdownUrl) : undefined,
+              parsedFilesCount: typeof data.parsedFilesCount === 'number' ? data.parsedFilesCount : undefined,
+              errMsg: data.error ? String(data.error) : undefined,
+            });
+            return;
+          } else if (eventName === 'error') {
+            const errData = JSON.parse(dataValue);
+            reject(new Error(String(errData?.error || '解析过程发生错误')));
+            return;
+          }
+        }
+      }
+
+      reject(new Error('本地 MinerU 数据流已结束但未收到完成事件'));
+    } catch (err) {
+      reject(err instanceof Error ? err : new Error(String(err)));
+    }
+  });
 }
