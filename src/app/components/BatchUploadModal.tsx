@@ -115,7 +115,7 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit & { 
 
 export function BatchProcessingController() {
   const { state, dispatch } = useAppStore();
-  const workingRef = useRef(false);
+  const [working, setWorking] = useState(false);
   const wasRunningRef = useRef(false);
   const idCounterRef = useRef(0);
   const lastWarnRef = useRef(new Map<string, number>());
@@ -168,7 +168,7 @@ export function BatchProcessingController() {
   }, [activeItem, dispatch, state.aiConfig.timeout, state.batchProcessing.paused, state.batchProcessing.running, state.mineruConfig.timeout]);
 
   useEffect(() => {
-    if (!running || paused || workingRef.current) return;
+    if (!running || paused || working) return;
 
     if (!nextPending) {
       if (wasRunningRef.current) toast.success('批量处理队列已完成');
@@ -542,11 +542,11 @@ export function BatchProcessingController() {
       }
     };
 
-    workingRef.current = true;
+    setWorking(true);
     processOne(nextPending, file).finally(() => {
-      workingRef.current = false;
+      setWorking(false);
     });
-  }, [autoAI, autoMinerU, dispatch, nextPending, paused, running, state.aiConfig, state.mineruConfig]);
+  }, [autoAI, autoMinerU, dispatch, nextPending, paused, running, state.aiConfig, state.mineruConfig, working]);
 
   return null;
 }
