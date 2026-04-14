@@ -83,6 +83,9 @@ services:
       # 局域网/生产部署：设置此变量让浏览器可访问 MinIO 文件
       # 格式：http://<宿主机IP>:<CMS_PORT>/minio
       - MINIO_PUBLIC_ENDPOINT=${MINIO_PUBLIC_ENDPOINT:-}
+      # db-server 地址（Docker 网络内通过服务名访问）
+      # ⚠️ 必须设置此变量，否则 upload-server 默认使用 localhost:8789 无法连通 db-server 容器
+      - DB_BASE_URL=http://db-server:8789
       - TZ=Asia/Shanghai
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8788/health"]
