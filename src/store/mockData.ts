@@ -13,6 +13,7 @@ import type {
   AiRuleSettings,
   AssetDetail,
   AiConfig,
+  AiProvider,
   MinerUConfig,
   MinioConfig,
   BatchProcessingState,
@@ -70,8 +71,53 @@ export const initialAiRuleSettings: AiRuleSettings = {
 
 // ==================== AI 识别配置 ====================
 
+/** AI 多提供商默认配置（按优先级排列） */
+export const initialAiProviders: AiProvider[] = [
+  {
+    id: 'moonshot',
+    name: 'Moonshot',
+    enabled: true,
+    apiEndpoint: 'https://api.moonshot.cn/v1/chat/completions',
+    apiKey: '',
+    model: 'moonshot-v1-32k',
+    timeout: 300,
+    priority: 1,
+  },
+  {
+    id: 'kimi',
+    name: 'Kimi',
+    enabled: false,
+    apiEndpoint: 'https://api.moonshot.cn/v1/chat/completions',
+    apiKey: '',
+    model: 'moonshot-v1-32k',
+    timeout: 300,
+    priority: 2,
+  },
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    enabled: false,
+    apiEndpoint: 'https://api.openai.com/v1/chat/completions',
+    apiKey: '',
+    model: 'gpt-4o-mini',
+    timeout: 300,
+    priority: 3,
+  },
+  {
+    id: 'ollama',
+    name: 'Ollama（本地兜底）',
+    enabled: false,
+    apiEndpoint: 'http://localhost:11434/v1/chat/completions',
+    apiKey: '',
+    model: 'llama3.2',
+    timeout: 600,
+    priority: 4,
+  },
+];
+
 /** AI 识别配置（默认值） */
 export const initialAiConfig: AiConfig = {
+  providers: initialAiProviders,
   apiEndpoint: 'https://api.moonshot.cn/v1/chat/completions',
   apiKey: '',
   model: 'moonshot-v1-32k',

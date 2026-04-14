@@ -252,6 +252,20 @@ export interface AssetDetail {
 // ==================== Store 状态 ====================
 
 /**
+ * 单个 AI 提供商配置（多策略容错用）
+ */
+export interface AiProvider {
+  id: string;           // 唯一标识，如 'moonshot' | 'kimi' | 'openai' | 'ollama'
+  name: string;         // 显示名称
+  enabled: boolean;     // 是否启用此提供商
+  apiEndpoint: string;  // API 端点（Ollama 为本地地址）
+  apiKey: string;       // API Key（Ollama 可为空串）
+  model: string;        // 模型名称
+  timeout: number;      // 单次请求超时秒数
+  priority: number;     // 数值越小优先级越高（1 最优先）
+}
+
+/**
  * AI 识别配置（API + 提示词）
  */
 export interface AiPromptConfig {
@@ -283,6 +297,9 @@ export interface MinioConfig {
 
 export interface AiConfig {
   [key: string]: unknown;  // 允许作为 Record<string, unknown> 使用
+  // === 多提供商（新增）===
+  providers?: AiProvider[];  // 多个 AI 提供商，按 priority 顺序尝试
+  // === 旧单提供商字段（保留向后兼容）===
   apiEndpoint: string;
   apiKey: string;
   model: string;

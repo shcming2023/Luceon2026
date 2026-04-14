@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { Save, Eye, EyeOff, Bot, ScanLine, Database, CheckCircle, XCircle, Loader, Download, Upload, HardDrive, AlertTriangle } from 'lucide-react';
+import { Save, Eye, EyeOff, Bot, ScanLine, Database, CheckCircle, XCircle, Loader, Download, Upload, HardDrive, AlertTriangle, Plus, Trash2, ChevronUp, ChevronDown, ToggleLeft, ToggleRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore } from '../../store/appContext';
-import type { AiConfig, MinerUConfig, MinioConfig } from '../../store/types';
+import type { AiConfig, AiProvider, MinerUConfig, MinioConfig } from '../../store/types';
 import { checkLocalMinerUHealth } from '../../utils/mineruLocalApi';
 
 type ActiveTab = 'ai' | 'mineru' | 'storage' | 'backup';
@@ -533,48 +533,143 @@ export function SettingsPage() {
       {/* ===== AI 配置 ===== */}
       {activeTab === 'ai' && (
         <div className="space-y-5">
-          {/* 接口参数 */}
+          {/* 多提供商列表 */}
           <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-            <h2 className="font-semibold text-gray-800">接口参数</h2>
-            <FieldRow label="API 地址">
-              <Input
-                value={aiForm.apiEndpoint}
-                onChange={(v) => updateAi({ apiEndpoint: v })}
-                placeholder="https://api.example.com/v1/chat/completions"
-              />
-            </FieldRow>
-            <FieldRow label="API Key">
-              <div className="relative">
-                <Input
-                  type={showKey ? 'text' : 'password'}
-                  value={aiForm.apiKey}
-                  onChange={(v) => updateAi({ apiKey: v })}
-                  placeholder="sk-..."
-                  className="pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowKey(!showKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-gray-800">AI 提供商（按优先级依次尝试）</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  const newProvider: AiProvider = {
+                    id: `custom_${Date.now()}`,
+                    name: '自定义',
+                    enabled: true,
+                    apiEndpoint: 'https://api.example.com/v1/chat/completions',
+                    apiKey: '',
+                    model: 'gpt-4o-mini',
+                    timeout: 120,
+                    priority: (aiForm.providers?.length ?? 0) + 1,
+                  };
+                  updateAi({ providers: [...(aiForm.providers ?? []), newProvider] });
+                }}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 border border-blue-200"
+              >
+                <Plus size={13} /> 新增提供商
+              </button>
+            </div>
+
+            {(!aiForm.providers || aiForm.providers.length === 0) && (
+              <p className="text-xs text-gray-400 py-2">暂无提供商，点击「新增提供商」添加</p>
+            )}
+
+            {(aiForm.providers ?? []).map((provider, idx) => {
+              const providers = aiForm.providers ?? [];
+              const updateProvider = (patch: Partial<AiProvider>) => {
+                const next = providers.map((p, i) => i === idx ? { ...p, ...patch } : p);
+                updateAi({ providers: next });
+              };
+              const moveUp = () => {
+                if (idx === 0) return;
+                const next = [...providers];
+                [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                next.forEach((p, i) => { p.priority = i + 1; });
+                updateAi({ providers: next });
+              };
+              const moveDown = () => {
+                if (idx === providers.length - 1) return;
+                const next = [...providers];
+                [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+                next.forEach((p, i) => { p.priority = i + 1; });
+                updateAi({ providers: next });
+              };
+              const remove = () => {
+                const next = providers.filter((_, i) => i !== idx);
+                next.forEach((p, i) => { p.priority = i + 1; });
+                updateAi({ providers: next });
+              };
+
+              return (
+                <div
+                  key={provider.id}
+                  className={`rounded-lg border p-4 space-y-3 transition-colors ${
+                    provider.enabled ? 'border-blue-200 bg-blue-50/30' : 'border-gray-200 bg-gray-50 opacity-60'
+                  }`}
                 >
-                  {showKey ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
-            </FieldRow>
-            <FieldRow label="模型">
-              <Input
-                value={aiForm.model}
-                onChange={(v) => updateAi({ model: v })}
-                placeholder="moonshot-v1-32k"
-              />
-            </FieldRow>
-            <FieldRow label="超时（秒）">
-              <Input
-                type="number"
-                value={aiForm.timeout}
-                onChange={(v) => updateAi({ timeout: Number(v) })}
-              />
-            </FieldRow>
+                  {/* 标题行 */}
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                      {idx + 1}
+                    </span>
+                    <input
+                      className="flex-1 text-sm font-medium bg-transparent border-b border-transparent focus:border-blue-300 outline-none text-gray-800 min-w-0"
+                      value={provider.name}
+                      onChange={(e) => updateProvider({ name: e.target.value })}
+                      placeholder="提供商名称"
+                    />
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button type="button" onClick={moveUp} disabled={idx === 0} className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30" title="上移">
+                        <ChevronUp size={14} />
+                      </button>
+                      <button type="button" onClick={moveDown} disabled={idx === providers.length - 1} className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30" title="下移">
+                        <ChevronDown size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateProvider({ enabled: !provider.enabled })}
+                        className={`p-1 ${provider.enabled ? 'text-blue-500 hover:text-blue-700' : 'text-gray-400 hover:text-gray-600'}`}
+                        title={provider.enabled ? '禁用' : '启用'}
+                      >
+                        {provider.enabled ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
+                      </button>
+                      <button type="button" onClick={remove} className="p-1 text-red-400 hover:text-red-600" title="删除">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 字段 */}
+                  <div className="grid grid-cols-1 gap-2">
+                    <FieldRow label="API 地址">
+                      <Input
+                        value={provider.apiEndpoint}
+                        onChange={(v) => updateProvider({ apiEndpoint: v })}
+                        placeholder="https://api.example.com/v1/chat/completions"
+                      />
+                    </FieldRow>
+                    <div className="grid grid-cols-2 gap-2">
+                      <FieldRow label="API Key">
+                        <div className="relative">
+                          <Input
+                            type="password"
+                            value={provider.apiKey}
+                            onChange={(v) => updateProvider({ apiKey: v })}
+                            placeholder={provider.id === 'ollama' ? '本地无需填写' : 'sk-...'}
+                          />
+                        </div>
+                      </FieldRow>
+                      <FieldRow label="模型名称">
+                        <Input
+                          value={provider.model}
+                          onChange={(v) => updateProvider({ model: v })}
+                          placeholder="moonshot-v1-32k"
+                        />
+                      </FieldRow>
+                    </div>
+                    <FieldRow label="超时（秒）">
+                      <Input
+                        type="number"
+                        value={provider.timeout}
+                        onChange={(v) => updateProvider({ timeout: Number(v) })}
+                      />
+                    </FieldRow>
+                  </div>
+                </div>
+              );
+            })}
+
+            <p className="text-xs text-gray-400">
+              * AI 分析时按优先级顺序依次尝试各提供商，第一个成功即返回结果。429/401 等错误自动跳过到下一个。Ollama 作为本地兜底无需 API Key。
+            </p>
           </div>
 
           {/* 提示词配置 */}

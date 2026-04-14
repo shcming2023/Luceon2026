@@ -58,6 +58,33 @@ function formatAgo(ts: number) {
   return `${hr}h 前`;
 }
 
+// ─── 文件名编码修复函数 ────────────────────────────────────────────
+/**
+ * 修复文件名编码（处理 UTF-8 字节被当作 Latin-1 解析的情况）
+ */
+function fixFilenameEncoding(filename: string | undefined): string {
+  if (!filename) return '';
+
+  // 检测是否包含典型的编码错误字符（连续的 Latin-1 扩展字符）
+  const hasMojiChars = /[\u00C0-\u00FF]{3,}/.test(filename);
+  if (!hasMojiChars) return filename;
+
+  try {
+    // 将 Latin-1 解析的字符串重新编码为 UTF-8
+    const latin1Buffer = new TextEncoder().encode(filename);
+    const utf8String = new TextDecoder('latin1').decode(latin1Buffer);
+
+    // 验证修复后的字符串是否包含中文字符（确认修复成功）
+    if (/[\u4E00-\u9FFF]/.test(utf8String)) {
+      return utf8String;
+    }
+  } catch (error) {
+    console.warn('Failed to fix filename encoding:', error);
+  }
+
+  return filename;
+}
+
 function formatClock(ms: number) {
   if (!Number.isFinite(ms) || ms <= 0) return '00:00';
   const totalSec = Math.floor(ms / 1000);
@@ -154,7 +181,7 @@ export function BatchProcessingController() {
       if (Date.now() - lastWarnAt < 60_000) return;
       lastWarnRef.current.set(activeItem.id, Date.now());
 
-      toast.warning(`长时间无进度：${activeItem.fileName}`, {
+      toast.warning(`长时间无进度：${fixFilenameEncoding(activeItem.fileName)}`, {
         description: `阶段：${activeItem.status}，最后更新：${formatAgo(activeItem.updatedAt)}`,
         action: {
           label: '暂停队列',
@@ -432,9 +459,10 @@ export function BatchProcessingController() {
         }
 
         stage = 'ai';
-        const { apiEndpoint, apiKey, model } = state.aiConfig;
-        if (!apiEndpoint?.trim() || !apiKey?.trim() || !model?.trim()) {
-          throw new Error('未配置 AI 服务');
+        const { apiEndpoint, apiKey, model, providers } = state.aiConfig;
+        const enabledProviders = providers?.filter((p) => p.enabled);
+        if ((!enabledProviders || enabledProviders.length === 0) && (!apiEndpoint?.trim() || !model?.trim())) {
+          throw new Error('未配置 AI 服务（请在系统设置中至少启用一个 AI 提供商）');
         }
 
         updateItem(item.id, { status: 'ai', progress: 80, message: '正在进行 AI 分析...' });
@@ -449,9 +477,15 @@ export function BatchProcessingController() {
             markdownUrl: mineruResult.markdownUrl,
             markdownContent: finalMarkdownContent || undefined,
             materialId: newId,
-            aiApiEndpoint: apiEndpoint.replace(/\/$/, ''),
-            aiApiKey: apiKey,
-            aiModel: model,
+            // 新格式：传递 providers 数组
+            ...(enabledProviders && enabledProviders.length > 0
+              ? { aiProviders: enabledProviders }
+              : {
+                  // 旧格式兜底
+                  aiApiEndpoint: apiEndpoint?.replace(/\/$/, ''),
+                  aiApiKey: apiKey,
+                  aiModel: model,
+                }),
             prompts: state.aiConfig.prompts,
           }),
           timeoutMs: Math.max(60_000, (state.aiConfig.timeout || 300) * 1000 + 30_000),
@@ -589,8 +623,12 @@ export function BatchUploadModal() {
           ? await checkLocalMinerUHealth(String(state.mineruConfig.localEndpoint || ''))
           : { ok: Boolean(String(state.mineruConfig.apiKey || '').trim()), message: String(state.mineruConfig.apiKey ? 'MinerU API Key 已配置' : 'MinerU API Key 未配置') };
 
-      const aiOk = Boolean(String(state.aiConfig.apiEndpoint || '').trim() && String(state.aiConfig.apiKey || '').trim() && String(state.aiConfig.model || '').trim());
-      const aiMsg = aiOk ? 'AI 配置已填写' : 'AI 配置缺失（apiEndpoint / apiKey / model）';
+      const enabledAiProviders = state.aiConfig.providers?.filter((p) => p.enabled) ?? [];
+      const aiOk = enabledAiProviders.length > 0
+        || Boolean(String(state.aiConfig.apiEndpoint || '').trim() && String(state.aiConfig.model || '').trim());
+      const aiMsg = aiOk
+        ? `AI 配置已填写（${enabledAiProviders.length > 0 ? `${enabledAiProviders.length} 个提供商已启用` : '旧格式'}）`
+        : 'AI 配置缺失（请在系统设置中配置至少一个 AI 提供商）';
 
       const lines = [
         uploadHealth.ok ? `✅ ${uploadHealth.message}` : `❌ ${uploadHealth.message}`,

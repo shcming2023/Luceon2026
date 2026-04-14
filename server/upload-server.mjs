@@ -13,7 +13,8 @@
  *   POST   /upload-multiple             → 上传多文件（最多 20 个），返回 results[]
  *   GET    /parse/status/:taskId        → 查询 MinerU 解析任务状态
  *   POST   /parse/download              → 下载 MinerU 解析结果（ZIP）并转存到 MinIO
- *   POST   /parse/analyze               → 解析已上传文件（MinerU OCR + MD 提取）
+ *   POST   /parse/analyze               → 解析已上传文件（MinerU OCR + MD 提取），支持多策略 AI fallback
+ *   POST   /parsed-zip                  → 将 parsed/{materialId}/ 目录打包成 ZIP 返回
  *   GET    /settings/storage            → 读取当前 MinIO 配置（密钥脱敏）
  *   PUT    /settings/storage            → 更新运行时 MinIO 配置并持久化到 db-server
  *   POST   /settings/storage/test       → 测试 MinIO 连接（bucketExists）
@@ -46,6 +47,41 @@ const port = Number(process.env.UPLOAD_PORT || 8788);
 
 // db-server 地址（用于持久化 MinIO 配置）
 const DB_BASE_URL = process.env.DB_BASE_URL || 'http://localhost:8789';
+
+/**
+ * 修复文件名编码（处理 UTF-8 字节被当作 Latin-1 解析的情况）
+ *
+ * 问题描述：当文件名包含中文字符时，如果 UTF-8 编码的字节被错误地当作 Latin-1 解析，
+ * 会出现类似 "2025_2026å­¦å¹´å¯åè¯¾ç¨IGCSE_English__0500__Extract.pdf" 的情况。
+ *
+ * 例如："学年" 的 UTF-8 编码是 \xE5\xAD\xA6，被当作 Latin-1 解析后变成 "å­¦"
+ *
+ * @param {string} filename - 可能存在编码问题的文件名
+ * @returns {string} 修复后的文件名
+ */
+function fixFilenameEncoding(filename) {
+  if (!filename) return filename;
+
+  // 检测是否包含典型的编码错误字符（连续的 Latin-1 扩展字符）
+  const hasMojiChars = /[\u00C0-\u00FF]{3,}/.test(filename);
+  if (!hasMojiChars) return filename;
+
+  try {
+    // 将 Latin-1 解析的字符串重新编码为 UTF-8
+    const latin1Buffer = Buffer.from(filename, 'latin1');
+    const utf8String = latin1Buffer.toString('utf8');
+
+    // 验证修复后的字符串是否包含中文字符（确认修复成功）
+    if (/[\u4E00-\u9FFF]/.test(utf8String)) {
+      console.log(`[upload-server] Fixed filename encoding: "${filename}" → "${utf8String}"`);
+      return utf8String;
+    }
+  } catch (error) {
+    console.warn('[upload-server] Failed to fix filename encoding:', error.message);
+  }
+
+  return filename;
+}
 
 app.use(cors());
 app.use(express.json());
@@ -154,10 +190,13 @@ function toDownloadUrl(url) {
 }
 
 function normalizeFileName(name) {
+  // 移除危险字符，但保留中文等 UTF-8 字符
+  // 使用 NFC（组合形式）而非 NFKD，避免破坏中文字符
   const normalized = (name || 'upload.bin')
-    .normalize('NFKD')
-    .replace(/[^\w.-]+/g, '_')
-    .replace(/^_+|_+$/g, '');
+    .normalize('NFC')
+    .replace(/[<>:"|?*\\\/\x00-\x1F]/g, '_')  // 只移除文件系统不支持的字符
+    .replace(/\s+/g, '_')                      // 空格替换为下划线
+    .replace(/^_+|_+$/g, '');                  // 去除首尾下划线
   return normalized || `upload_${Date.now()}.bin`;
 }
 
@@ -622,7 +661,9 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       return;
     }
 
-    const safeFileName = normalizeFileName(req.file.originalname);
+    // 先修复编码（处理中文文件名被 Latin-1 误解析的问题），再 normalize
+    const fixedOriginalName = fixFilenameEncoding(req.file.originalname);
+    const safeFileName = normalizeFileName(fixedOriginalName);
 
     // 并行计算 pages 和 format（不阻塞上传流程）
     const fileBuffer = getFileBuffer(req.file);
@@ -661,10 +702,12 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       result.objectName = null;
     }
 
+    // 设置 UTF-8 响应头，fileName 使用已修复编码的文件名
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.json({
       url: result.url,
       objectName: result.objectName,
-      fileName: req.file.originalname,
+      fileName: fixedOriginalName,
       size: req.file.size,
       mimeType: req.file.mimetype,
       provider: result.provider,
@@ -1306,30 +1349,176 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
 
 // ─── 接口：POST /parse/analyze ────────────────────────────────
 // 读取 MinIO 中的 full.md，调用大模型 API，提取结构化元数据
-// Body: { markdownObjectName?, markdownUrl?, markdownContent?, materialId, aiApiEndpoint, aiApiKey, aiModel, prompts? }
-// 响应: { title, subject, grade, materialType, language, country, tags, summary, confidence }
+// Body: { markdownObjectName?, markdownUrl?, markdownContent?, materialId,
+//         aiProviders?: AiProvider[],              ← 新格式（多提供商）
+//         aiApiEndpoint?, aiApiKey?, aiModel?,     ← 旧格式（向后兼容）
+//         prompts?, maxRetries?, retryDelay? }
+// 响应: { title, subject, grade, materialType, language, country, tags, summary, confidence, _meta }
+
+/**
+ * 调用单个 AI 提供商
+ * @param {object} provider - 提供商配置 { id, name, apiEndpoint, apiKey, model, timeout }
+ * @param {string} systemPrompt
+ * @param {string} userPrompt
+ * @returns {Promise<object>} 解析后的 JSON 结果
+ */
+async function callAiProvider(provider, systemPrompt, userPrompt) {
+  const trimmedKey = (provider.apiKey || '').trim();
+  const trimmedEndpoint = (provider.apiEndpoint || '').trim();
+  const trimmedModel = (provider.model || '').trim();
+
+  const aiFullUrl = /\/chat\/completions\/?$/.test(trimmedEndpoint)
+    ? trimmedEndpoint
+    : `${trimmedEndpoint.replace(/\/$/, '')}/chat/completions`;
+
+  const timeoutMs = (provider.timeout || 120) * 1000;
+  const aiController = new AbortController();
+  const aiTimer = setTimeout(() => aiController.abort(), timeoutMs);
+
+  let aiResp;
+  try {
+    aiResp = await fetch(aiFullUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // Ollama 本地无需 Authorization，apiKey 为空时跳过
+        ...(trimmedKey ? { Authorization: `Bearer ${trimmedKey}` } : {}),
+      },
+      body: JSON.stringify({
+        model: trimmedModel,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.1,
+        max_tokens: 1024,
+      }),
+      signal: aiController.signal,
+    });
+  } finally {
+    clearTimeout(aiTimer);
+  }
+
+  if (!aiResp.ok) {
+    const errText = await aiResp.text().catch(() => '');
+    const err = new Error(`HTTP ${aiResp.status}: ${errText.slice(0, 200)}`);
+    err.httpStatus = aiResp.status;
+    err.responseBody = errText;
+    throw err;
+  }
+
+  const aiJson = await aiResp.json();
+  const rawContent = aiJson.choices?.[0]?.message?.content ?? '';
+  const jsonStr = rawContent.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+
+  let extracted;
+  try {
+    extracted = JSON.parse(jsonStr);
+  } catch {
+    throw new Error(`AI 返回格式异常，无法解析为 JSON。原始响应：${rawContent.slice(0, 200)}`);
+  }
+  return extracted;
+}
+
+/**
+ * 按优先级顺序尝试多个 AI 提供商，第一个成功立即返回
+ * @param {object[]} providers - 已过滤且按 priority 排序的提供商列表
+ * @param {string} systemPrompt
+ * @param {string} userPrompt
+ * @param {{ maxRetries?: number, retryDelay?: number }} opts
+ * @returns {Promise<{ result: object, providerId: string, providerName: string }>}
+ */
+async function analyzeWithFallback(providers, systemPrompt, userPrompt, opts = {}) {
+  const maxRetries = opts.maxRetries ?? 2;
+  const retryDelay = opts.retryDelay ?? 1000;
+  const errors = [];
+
+  for (const provider of providers) {
+    console.log(`[upload-server] Trying AI provider: ${provider.name} (${provider.apiEndpoint}, model=${provider.model})`);
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await callAiProvider(provider, systemPrompt, userPrompt);
+        console.log(`[upload-server] AI provider ${provider.name} succeeded on attempt ${attempt}`);
+        return { result, providerId: provider.id, providerName: provider.name };
+      } catch (err) {
+        const httpStatus = err.httpStatus;
+        const errMsg = err.message || String(err);
+        console.warn(`[upload-server] AI provider ${provider.name} attempt ${attempt} failed (HTTP ${httpStatus ?? 'network'}):`, errMsg.slice(0, 200));
+
+        // 4xx 错误（限流/认证）不重试，直接跳下一个提供商
+        const isNonRetryable = httpStatus && httpStatus >= 400 && httpStatus < 500;
+        if (isNonRetryable) {
+          errors.push({ providerId: provider.id, providerName: provider.name, error: errMsg, httpStatus });
+          break;
+        }
+
+        // 网络/超时可重试
+        if (attempt < maxRetries) {
+          await new Promise((resolve) => setTimeout(resolve, retryDelay * attempt));
+        } else {
+          errors.push({ providerId: provider.id, providerName: provider.name, error: errMsg });
+        }
+      }
+    }
+  }
+
+  // 全部失败，聚合错误信息
+  const summary = errors.map((e) => `[${e.providerName}${e.httpStatus ? ` HTTP ${e.httpStatus}` : ''}] ${e.error}`).join('\n');
+  throw new Error(`所有 AI 提供商均失败：\n${summary}`);
+}
+
 app.post('/parse/analyze', async (req, res) => {
   const {
     markdownObjectName,
     markdownUrl,
     markdownContent,
     materialId,
+    // 新格式
+    aiProviders,
+    // 旧格式（向后兼容）
     aiApiEndpoint,
     aiApiKey,
     aiModel,
     prompts,
+    maxRetries,
+    retryDelay,
   } = req.body;
-
-  const trimmedKey = (aiApiKey || '').trim();
-  const trimmedEndpoint = (aiApiEndpoint || '').trim();
-  const trimmedModel = (aiModel || '').trim();
 
   if (!materialId) {
     res.status(400).json({ error: '缺少 materialId' });
     return;
   }
-  if (!trimmedEndpoint || !trimmedKey || !trimmedModel) {
-    res.status(400).json({ error: '缺少 AI API 配置（aiApiEndpoint / aiApiKey / aiModel）' });
+
+  // ── 确定提供商列表 ─────────────────────────────────────────
+  let providers;
+  if (Array.isArray(aiProviders) && aiProviders.length > 0) {
+    // 新格式：过滤启用并按 priority 排序
+    providers = aiProviders
+      .filter((p) => p.enabled !== false)
+      .sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999));
+  } else {
+    // 旧格式兼容
+    const trimmedEndpoint = (aiApiEndpoint || '').trim();
+    const trimmedModel = (aiModel || '').trim();
+    if (!trimmedEndpoint || !trimmedModel) {
+      res.status(400).json({ error: '缺少 AI API 配置（aiProviders 或 aiApiEndpoint / aiModel）' });
+      return;
+    }
+    providers = [{
+      id: 'legacy',
+      name: 'API',
+      enabled: true,
+      apiEndpoint: trimmedEndpoint,
+      apiKey: (aiApiKey || '').trim(),
+      model: trimmedModel,
+      timeout: 120,
+      priority: 1,
+    }];
+  }
+
+  if (providers.length === 0) {
+    res.status(400).json({ error: '未启用任何 AI 提供商' });
     return;
   }
 
@@ -1413,93 +1602,15 @@ ${mdSnippet}
 2. confidence 必须是 0-100 的整数
 3. 仅返回 JSON，不要有任何前缀或解释文字`;
 
-    // ── 3. 调用大模型 API ──────────────────────────────────────
-    console.log(`[upload-server] Calling AI API: ${trimmedEndpoint} model=${trimmedModel}`);
+    // ── 3. 多策略调用 AI ───────────────────────────────────────
+    const { result: extracted, providerId, providerName } = await analyzeWithFallback(
+      providers,
+      systemPrompt,
+      userPrompt,
+      { maxRetries: maxRetries ?? 2, retryDelay: retryDelay ?? 1000 },
+    );
 
-    const aiController = new AbortController();
-    const aiTimer = setTimeout(() => aiController.abort(), 120_000);
-
-    const aiFullUrl = /\/chat\/completions\/?$/.test(trimmedEndpoint)
-      ? trimmedEndpoint
-      : `${trimmedEndpoint.replace(/\/$/, '')}/chat/completions`;
-
-    const aiResp = await fetch(aiFullUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${trimmedKey}`,
-      },
-      body: JSON.stringify({
-        model: trimmedModel,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.1,
-        max_tokens: 1024,
-      }),
-      signal: aiController.signal,
-    });
-
-    clearTimeout(aiTimer);
-
-    if (!aiResp.ok) {
-      const retryAfterRaw = aiResp.headers.get('retry-after');
-      const retryAfterSec = retryAfterRaw && Number.isFinite(Number(retryAfterRaw)) ? Number(retryAfterRaw) : undefined;
-      const errText = await aiResp.text().catch(() => '');
-      console.error('[upload-server] AI upstream error:', {
-        status: aiResp.status,
-        retryAfterSec: retryAfterSec ?? null,
-        bodySnippet: errText.slice(0, 300),
-      });
-      const errLower = errText.toLowerCase();
-      const isInsufficient =
-        errLower.includes('insufficient') ||
-        errLower.includes('quota') ||
-        errLower.includes('balance') ||
-        errLower.includes('billing') ||
-        errLower.includes('suspended');
-
-      const errorType =
-        aiResp.status === 429 && isInsufficient
-          ? 'INSUFFICIENT_BALANCE'
-          : aiResp.status === 429
-            ? 'RATE_LIMIT'
-            : aiResp.status === 401 || aiResp.status === 403
-              ? 'AUTH'
-              : 'UPSTREAM_ERROR';
-
-      const message =
-        errorType === 'INSUFFICIENT_BALANCE'
-          ? 'AI 账号余额不足或已被停用，请充值或更换可用的 API Key'
-          : errorType === 'RATE_LIMIT'
-            ? 'AI 服务触发限流（HTTP 429），请稍后重试'
-            : errorType === 'AUTH'
-              ? 'AI API Key 无效或无权限（HTTP 401/403），请检查系统设置'
-              : `AI API 调用失败: HTTP ${aiResp.status}`;
-
-      res.status(aiResp.status).json({
-        error: message,
-        errorType,
-        upstreamStatus: aiResp.status,
-        ...(retryAfterSec != null ? { retryAfterSec } : {}),
-      });
-      return;
-    }
-
-    const aiJson = await aiResp.json();
-    const rawContent = aiJson.choices?.[0]?.message?.content ?? '';
-
-    // ── 4. 解析 AI 返回的 JSON ─────────────────────────────────
-    let extracted;
-    try {
-      const jsonStr = rawContent.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
-      extracted = JSON.parse(jsonStr);
-    } catch {
-      console.error('[upload-server] AI response is not valid JSON:', rawContent.slice(0, 500));
-      throw new Error(`AI 返回格式异常，无法解析为 JSON。原始响应：${rawContent.slice(0, 200)}`);
-    }
-
+    // ── 4. 组装响应 ────────────────────────────────────────────
     const result = {
       title:        String(extracted.title || '').trim(),
       subject:      String(extracted.subject || '').trim(),
@@ -1512,9 +1623,10 @@ ${mdSnippet}
       confidence:   Math.min(100, Math.max(0, Number(extracted.confidence) || 0)),
       materialId,
       analyzedAt:   new Date().toISOString(),
+      _meta: { providerId, providerName },
     };
 
-    console.log(`[upload-server] AI analysis done for material ${materialId}:`, {
+    console.log(`[upload-server] AI analysis done via ${providerName} for material ${materialId}:`, {
       subject: result.subject, grade: result.grade, language: result.language, confidence: result.confidence,
     });
 
@@ -1523,6 +1635,57 @@ ${mdSnippet}
     const message = error instanceof Error ? error.message : String(error);
     console.error('[upload-server] /parse/analyze failed:', message);
     res.status(500).json({ error: message });
+  }
+});
+
+// ─── 接口：POST /parsed-zip ────────────────────────────────────
+// 将指定 materialId 的 MinerU 解析产物（parsed/{materialId}/）打包成 ZIP 返回
+// Body: { materialId: string | number }
+// Response: application/zip 文件流
+app.post('/parsed-zip', async (req, res) => {
+  const { materialId } = req.body;
+  if (!materialId) {
+    res.status(400).json({ error: '缺少 materialId' });
+    return;
+  }
+
+  try {
+    const parsedBucket = getParsedBucket();
+    const prefix = `parsed/${materialId}/`;
+
+    const objects = await listAllObjects(parsedBucket, prefix);
+    if (!objects || objects.length === 0) {
+      res.status(400).json({ error: `parsed/${materialId}/ 目录下暂无文件` });
+      return;
+    }
+
+    console.log(`[upload-server] /parsed-zip: packing ${objects.length} files for material ${materialId}`);
+
+    const zip = new JSZip();
+
+    // 并发读取，每批最多 10 个
+    const BATCH_SIZE = 10;
+    for (let i = 0; i < objects.length; i += BATCH_SIZE) {
+      const batch = objects.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map(async (obj) => {
+        const buffer = await getObjectBuffer(parsedBucket, obj.name);
+        // 去掉 parsed/{materialId}/ 前缀，保留相对路径
+        const relativePath = obj.name.startsWith(prefix) ? obj.name.slice(prefix.length) : obj.name;
+        zip.file(relativePath, buffer);
+      }));
+    }
+
+    const zipBuffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="parsed-${materialId}.zip"`);
+    res.setHeader('Content-Length', String(zipBuffer.length));
+    res.send(zipBuffer);
+    console.log(`[upload-server] /parsed-zip: sent ${(zipBuffer.length / 1024).toFixed(1)} KB for material ${materialId}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[upload-server] /parsed-zip failed:', message);
+    if (!res.headersSent) res.status(500).json({ error: message });
   }
 });
 

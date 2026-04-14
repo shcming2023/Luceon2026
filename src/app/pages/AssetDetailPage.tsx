@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Tag, FileText, Play, Cpu, CheckCircle, XCircle, Loader, Save, Database, ExternalLink, RefreshCw, ChevronDown, ChevronRight, Pencil, Copy, Download } from 'lucide-react';
+import { ArrowLeft, Tag, FileText, Play, Cpu, CheckCircle, XCircle, Loader, Save, Database, ExternalLink, RefreshCw, ChevronDown, ChevronRight, Pencil, Copy, Download, Folder, FolderOpen, Archive } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore } from '../../store/appContext';
 import { StatusBadge } from '../components/StatusBadge';
@@ -36,6 +36,41 @@ function fmtSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }
 
+// ─── 文件名编码修复函数 ────────────────────────────────────────────
+/**
+ * 修复文件名编码（处理 UTF-8 字节被当作 Latin-1 解析的情况）
+ *
+ * 问题描述：当文件名包含中文字符时，如果 UTF-8 编码的字节被错误地当作 Latin-1 解析，
+ * 会出现类似 "2025_2026å­¦å¹´å¯åè¯¾ç¨IGCSE_English__0500__Extract.pdf" 的情况。
+ *
+ * 例如："学年" 的 UTF-8 编码是 \xE5\xAD\xA6，被当作 Latin-1 解析后变成 "å­¦"
+ *
+ * @param filename - 可能存在编码问题的文件名
+ * @returns 修复后的文件名
+ */
+function fixFilenameEncoding(filename: string | undefined): string {
+  if (!filename) return '';
+
+  // 检测是否包含典型的编码错误字符（连续的 Latin-1 扩展字符）
+  const hasMojiChars = /[\u00C0-\u00FF]{3,}/.test(filename);
+  if (!hasMojiChars) return filename;
+
+  try {
+    // 将 Latin-1 解析的字符串重新编码为 UTF-8
+    const latin1Buffer = new TextEncoder().encode(filename);
+    const utf8String = new TextDecoder('latin1').decode(latin1Buffer);
+
+    // 验证修复后的字符串是否包含中文字符（确认修复成功）
+    if (/[\u4E00-\u9FFF]/.test(utf8String)) {
+      return utf8String;
+    }
+  } catch (error) {
+    console.warn('Failed to fix filename encoding:', error);
+  }
+
+  return filename;
+}
+
 // ─── MinIO 对象类型 ────────────────────────────────────────────
 interface MinioObject {
   objectName: string;
@@ -45,6 +80,28 @@ interface MinioObject {
   presignedUrl: string;
 }
 
+// ─── 工具：将扁平文件列表按第一层子目录分组 ──────────────────
+function groupByDirectory(files: MinioObject[], prefix: string): {
+  root: MinioObject[];
+  dirs: Map<string, MinioObject[]>;
+} {
+  const root: MinioObject[] = [];
+  const dirs = new Map<string, MinioObject[]>();
+  for (const f of files) {
+    // 去掉 prefix 前缀，得到相对路径
+    const rel = f.name.startsWith(prefix) ? f.name.slice(prefix.length) : f.name;
+    const slashIdx = rel.indexOf('/');
+    if (slashIdx === -1) {
+      root.push(f);
+    } else {
+      const dirName = rel.slice(0, slashIdx);
+      if (!dirs.has(dirName)) dirs.set(dirName, []);
+      dirs.get(dirName)!.push(f);
+    }
+  }
+  return { root, dirs };
+}
+
 // ─── 文件溯源卡片 ──────────────────────────────────────────────
 function FileLineageCard({
   material,
@@ -52,6 +109,7 @@ function FileLineageCard({
   material: NonNullable<ReturnType<typeof useAppStore>['state']['materials'][0]>;
 }) {
   const objectName = material.metadata?.objectName;
+  const originalFileName = material.metadata?.fileName;
   const provider   = material.metadata?.provider;
   const markdownObjectName = material.metadata?.markdownObjectName;
   const parsedFilesCount   = material.metadata?.parsedFilesCount;
@@ -66,6 +124,9 @@ function FileLineageCard({
   const [listExpanded, setListExpanded] = useState(false);
   const [mdPreview, setMdPreview]       = useState<string | null>(null);
   const [mdLoading, setMdLoading]       = useState(false);
+  const [showObjectPath, setShowObjectPath] = useState(false);
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
+  const [zipDownloading, setZipDownloading] = useState(false);
   const hasFetched = useRef(false);
 
   // 挂载时刷新原始文件预签名 URL
@@ -127,11 +188,52 @@ function FileLineageCard({
     }
   };
 
+  // 下载全部解析产物（ZIP）
+  const handleDownloadZip = async () => {
+    if (!material.id) return;
+    setZipDownloading(true);
+    try {
+      const r = await fetch('/__proxy/upload/parsed-zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ materialId: material.id }),
+      });
+      if (!r.ok) {
+        const errData = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
+        throw new Error(errData.error || `HTTP ${r.status}`);
+      }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `parsed-${material.id}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('解析产物已打包下载');
+    } catch (err) {
+      toast.error(`下载失败: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setZipDownloading(false);
+    }
+  };
+
+  const toggleDir = (dir: string) => {
+    setExpandedDirs((prev) => {
+      const next = new Set(prev);
+      if (next.has(dir)) next.delete(dir); else next.add(dir);
+      return next;
+    });
+  };
+
   const hasOriginal = !!(objectName || material.metadata?.fileUrl);
   const hasParsed   = !!(markdownObjectName || (parsedFilesCount && parsedFilesCount !== '0'));
   const hasAi       = material.aiStatus === 'analyzed';
 
   if (!hasOriginal && !hasParsed && !hasAi) return null;
+
+  // 解析产物目录树分组
+  const parsedPrefix = `parsed/${material.id}/`;
+  const { root: rootFiles, dirs: subDirs } = groupByDirectory(parsedFiles, parsedPrefix);
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">
@@ -148,10 +250,35 @@ function FileLineageCard({
               原始文件上传
             </p>
             <div className="space-y-1 text-xs text-gray-500">
-              {objectName && (
-                <p className="break-all font-mono text-gray-400">
-                  <span className="text-gray-600 not-italic">路径：</span>{objectName}
+              {/* 主显示：原始文件名 */}
+              {originalFileName ? (
+                <p className="flex items-center gap-1.5 text-gray-700 font-medium">
+                  <FileText size={12} className="text-blue-400 flex-shrink-0" />
+                  <span className="break-all">{originalFileName}</span>
                 </p>
+              ) : objectName ? (
+                <p className="flex items-center gap-1.5 text-gray-700 font-medium">
+                  <FileText size={12} className="text-blue-400 flex-shrink-0" />
+                  <span className="break-all">{objectName.split('/').pop() ?? objectName}</span>
+                </p>
+              ) : null}
+              {/* 可折叠的 MinIO 路径 */}
+              {objectName && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowObjectPath((v) => !v)}
+                    className="text-[10px] text-gray-400 hover:text-gray-600 flex items-center gap-0.5"
+                  >
+                    {showObjectPath ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                    {showObjectPath ? '收起路径' : '展开存储路径'}
+                  </button>
+                  {showObjectPath && (
+                    <p className="break-all font-mono text-[10px] text-gray-400 mt-1 pl-3">
+                      {objectName}
+                    </p>
+                  )}
+                </div>
               )}
               <div className="flex items-center gap-3 flex-wrap">
                 {material.size && (
@@ -206,19 +333,22 @@ function FileLineageCard({
         {/* ── 层 2：MinerU 解析产物 ── */}
         {hasParsed && (
           <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
-            <button
-              onClick={handleExpandParsed}
-              className="w-full text-left flex items-center justify-between"
-            >
-              <p className="text-xs font-semibold text-gray-600 flex items-center gap-1.5">
-                <span className="w-4 h-4 rounded-full bg-orange-100 text-orange-600 text-[10px] flex items-center justify-center font-bold">2</span>
-                MinerU 解析产物
-                {parsedFilesCount && (
-                  <span className="ml-1 text-gray-400 font-normal">（{parsedFilesCount} 个文件）</span>
-                )}
-              </p>
-              {listExpanded ? <ChevronDown size={13} className="text-gray-400" /> : <ChevronRight size={13} className="text-gray-400" />}
-            </button>
+            <div className="flex items-center justify-between gap-2">
+              <button
+                onClick={handleExpandParsed}
+                className="flex-1 text-left flex items-center gap-1.5"
+              >
+                <p className="text-xs font-semibold text-gray-600 flex items-center gap-1.5">
+                  <span className="w-4 h-4 rounded-full bg-orange-100 text-orange-600 text-[10px] flex items-center justify-center font-bold">2</span>
+                  MinerU 解析产物
+                  {parsedFilesCount && (
+                    <span className="ml-1 text-gray-400 font-normal">（{parsedFilesCount} 个文件）</span>
+                  )}
+                </p>
+                {listExpanded ? <ChevronDown size={13} className="text-gray-400" /> : <ChevronRight size={13} className="text-gray-400" />}
+              </button>
+
+            </div>
 
             {parsedAt && (
               <p className="text-xs text-gray-500 mt-1">
@@ -241,12 +371,13 @@ function FileLineageCard({
                 ) : parsedFiles.length === 0 ? (
                   <p className="text-xs text-gray-400 py-1">暂无文件记录（MinIO 中可能尚未存储）</p>
                 ) : (
-                  <div className="space-y-1 max-h-52 overflow-auto">
-                    {parsedFiles.map((f) => (
+                  <div className="space-y-1 max-h-72 overflow-auto">
+                    {/* 根目录文件 */}
+                    {rootFiles.map((f) => (
                       <div key={f.objectName} className="flex items-center justify-between text-xs py-1 border-b border-gray-100 last:border-0">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <FileText size={11} className={f.name.endsWith('.md') ? 'text-orange-400' : f.name.endsWith('.json') ? 'text-green-500' : 'text-gray-400'} />
-                          <span className="truncate text-gray-700 font-mono max-w-36" title={f.name}>{f.name}</span>
+                          <span className="truncate text-gray-700 font-mono max-w-40" title={f.name.split('/').pop()}>{f.name.split('/').pop()}</span>
                           <span className="text-gray-400 flex-shrink-0">{fmtSize(f.size)}</span>
                         </div>
                         <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
@@ -261,12 +392,53 @@ function FileLineageCard({
                           {f.presignedUrl && (
                             <a href={f.presignedUrl} target="_blank" rel="noreferrer"
                               className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100">
-                              <ExternalLink size={9} className="inline" /> 下载
+                              <Download size={9} className="inline" /> 下载
                             </a>
                           )}
                         </div>
                       </div>
                     ))}
+                    {/* 子目录（文件夹节点） */}
+                    {Array.from(subDirs.entries()).map(([dirName, dirFiles]) => {
+                      const isOpen = expandedDirs.has(dirName);
+                      return (
+                        <div key={dirName}>
+                          <button
+                            type="button"
+                            onClick={() => toggleDir(dirName)}
+                            className="w-full flex items-center gap-1.5 text-xs py-1 border-b border-gray-100 text-gray-600 hover:text-gray-800"
+                          >
+                            {isOpen ? <FolderOpen size={12} className="text-yellow-500 flex-shrink-0" /> : <Folder size={12} className="text-yellow-500 flex-shrink-0" />}
+                            <span className="font-mono font-medium">{dirName}/</span>
+                            <span className="text-gray-400 font-normal">（{dirFiles.length} 个文件）</span>
+                            {isOpen ? <ChevronDown size={10} className="text-gray-400 ml-auto" /> : <ChevronRight size={10} className="text-gray-400 ml-auto" />}
+                          </button>
+                          {isOpen && (
+                            <div className="pl-4 space-y-0.5">
+                              {dirFiles.map((f) => {
+                                const baseName = f.name.split('/').pop() ?? f.name;
+                                const isImg = /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(baseName);
+                                return (
+                                  <div key={f.objectName} className="flex items-center justify-between text-xs py-1 border-b border-gray-50 last:border-0">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <FileText size={10} className={isImg ? 'text-purple-400' : 'text-gray-300'} />
+                                      <span className="truncate text-gray-600 font-mono max-w-36" title={baseName}>{baseName}</span>
+                                      <span className="text-gray-400 flex-shrink-0">{fmtSize(f.size)}</span>
+                                    </div>
+                                    {f.presignedUrl && (
+                                      <a href={f.presignedUrl} target="_blank" rel="noreferrer"
+                                        className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 ml-2 flex-shrink-0">
+                                        <Download size={9} className="inline" /> 下载
+                                      </a>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -275,8 +447,30 @@ function FileLineageCard({
             {/* Markdown 预览区 */}
             {mdPreview !== null && (
               <div className="mt-2">
-                <pre className="bg-white rounded border border-orange-100 p-2 text-[11px] text-gray-700 overflow-auto max-h-48 whitespace-pre-wrap leading-relaxed">
-                  {mdPreview.slice(0, 2000)}{mdPreview.length > 2000 ? '\n\n...(内容已截断)' : ''}
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] text-gray-500">
+                    {mdPreview.length > 2000 ? `预览（前2000字符，共${mdPreview.length}字符）` : '全文预览'}
+                  </span>
+                  <button
+                    onClick={() => {
+                      if (mdPreview) {
+                        const blob = new Blob([mdPreview], { type: 'text/markdown;charset=utf-8' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `markdown-preview-${Date.now()}.md`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        toast.success('Markdown 已下载');
+                      }
+                    }}
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100"
+                  >
+                    下载全文
+                  </button>
+                </div>
+                <pre className="bg-white rounded border border-orange-100 p-2 text-[11px] text-gray-700 overflow-auto max-h-64 whitespace-pre-wrap leading-relaxed">
+                  {mdPreview.slice(0, 2000)}{mdPreview.length > 2000 ? '\n\n...(内容已截断，点击「下载全文」查看完整内容)' : ''}
                 </pre>
               </div>
             )}
@@ -364,6 +558,8 @@ export function AssetDetailPage() {
   const [localTags, setLocalTags] = useState<string[]>(detail?.tags ?? []);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(detail?.title ?? '');
+  const [editingAiName, setEditingAiName] = useState(false);
+  const [aiNameDraft, setAiNameDraft] = useState(detail?.title ?? '');
 
   // MinerU 解析状态
   const [mineruRunning, setMineruRunning] = useState(false);
@@ -407,6 +603,10 @@ export function AssetDetailPage() {
 
   useEffect(() => {
     setTitleDraft(detail?.title ?? '');
+  }, [detail?.title]);
+
+  useEffect(() => {
+    setAiNameDraft(detail?.title ?? '');
   }, [detail?.title]);
 
   const updateMeta = (key: keyof typeof metaForm, val: string) =>
@@ -460,6 +660,30 @@ export function AssetDetailPage() {
     });
     setEditingTitle(false);
     toast.success('标题已更新');
+  };
+
+  const handleSaveAiName = () => {
+    const nextTitle = aiNameDraft.trim();
+    if (!material) return;
+    if (!nextTitle) {
+      setAiNameDraft(detail?.title ?? '');
+      setEditingAiName(false);
+      toast.error('识别名称不能为空');
+      return;
+    }
+    if (nextTitle === detail?.title) {
+      setEditingAiName(false);
+      return;
+    }
+    dispatch({
+      type: 'UPDATE_MATERIAL',
+      payload: {
+        id: numId,
+        updates: { title: nextTitle },
+      },
+    });
+    setEditingAiName(false);
+    toast.success('识别名称已更新');
   };
 
   const handleCopyMarkdown = async () => {
@@ -715,9 +939,12 @@ export function AssetDetailPage() {
       return;
     }
 
-    const { apiEndpoint, apiKey, model } = state.aiConfig;
-    if (!apiEndpoint?.trim() || !apiKey?.trim() || !model?.trim()) {
-      toast.error('请先在「系统设置」中配置 AI API（接口地址 / Key / 模型名）');
+    const { apiEndpoint, apiKey, model, providers } = state.aiConfig;
+
+    // 优先使用新的多提供商格式
+    const enabledProviders = providers?.filter((p) => p.enabled);
+    if ((!enabledProviders || enabledProviders.length === 0) && (!apiEndpoint?.trim() || !model?.trim())) {
+      toast.error('请先在「系统设置」中配置 AI 提供商（至少启用一个）');
       return;
     }
 
@@ -733,9 +960,15 @@ export function AssetDetailPage() {
           markdownUrl,
           ...(finalInlineContent ? { markdownContent: finalInlineContent } : {}),
           materialId: numId,
-          aiApiEndpoint: apiEndpoint.replace(/\/$/, ''),
-          aiApiKey: apiKey,
-          aiModel: model,
+          // 新格式：传递 providers 数组
+          ...(enabledProviders && enabledProviders.length > 0
+            ? { aiProviders: enabledProviders }
+            : {
+                // 旧格式兜底
+                aiApiEndpoint: apiEndpoint?.replace(/\/$/, ''),
+                aiApiKey: apiKey,
+                aiModel: model,
+              }),
           prompts: state.aiConfig.prompts,
         }),
       });
@@ -974,7 +1207,7 @@ export function AssetDetailPage() {
               )}
               {material?.metadata?.objectName && (
                 <p className="text-gray-400 break-all font-mono">
-                  存储路径：{material.metadata.objectName}
+                  存储路径：{fixFilenameEncoding(material.metadata.objectName)}
                 </p>
               )}
               {material?.metadata?.markdownObjectName && (
@@ -1059,6 +1292,49 @@ export function AssetDetailPage() {
                 </button>
               </div>
             </div>
+
+            {/* B1：原文件名 → 识别名称信息条 */}
+            {(material?.metadata?.fileName || material?.title) && (
+              <div className="flex items-start gap-2 px-3 py-2 bg-purple-50 rounded-lg border border-purple-100 mb-4 text-xs">
+                <div className="flex-1 min-w-0">
+                  <span className="text-purple-400">原文件名：</span>
+                  <span className="text-gray-700 break-all">{fixFilenameEncoding(material?.metadata?.fileName) || '—'}</span>
+                </div>
+                {material?.aiStatus === 'analyzed' && material?.title && (
+                  <>
+                    <span className="text-purple-300 flex-shrink-0 pt-0.5">→</span>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-purple-400">识别名称：</span>
+                      {editingAiName ? (
+                        <input
+                          value={aiNameDraft}
+                          onChange={(e) => setAiNameDraft(e.target.value)}
+                          onBlur={handleSaveAiName}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveAiName();
+                            if (e.key === 'Escape') {
+                              setAiNameDraft(detail.title);
+                              setEditingAiName(false);
+                            }
+                          }}
+                          autoFocus
+                          className="w-full text-xs font-medium text-gray-800 border border-purple-200 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-purple-300"
+                        />
+                      ) : (
+                        <span className="text-gray-800 font-medium break-all">{material.title}</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setEditingAiName(true)}
+                      className="flex-shrink-0 p-0.5 text-purple-400 hover:text-purple-600 hover:bg-purple-100 rounded"
+                      title="编辑识别名称"
+                    >
+                      <Pencil size={11} />
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
 
             {/* 元数据可编辑表单（AI 分析完成后自动填充，用户随时可修改） */}
             <div className="space-y-3">
