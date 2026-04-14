@@ -231,7 +231,49 @@ docker compose restart cms-frontend
 
 ---
 
-## 八、常见问题
+## 八、部署验证里程碑（2026-04-14）
+
+### 里程碑：Docker 部署首次测试通过 ✅
+
+在 Mac Mini 局域网环境下，使用 Docker Compose 部署的完整系统成功通过端到端功能验证。
+
+#### 验证环境
+- **宿主机**：Mac Mini（`192.168.31.33`）
+- **部署方式**：Docker Compose（`docker compose up -d --build`）
+- **前端端口**：`8081`（`CMS_PORT=8081`）
+- **访问地址**：`http://192.168.31.33:8081/cms/`
+- **MinerU 引擎**：云端 API（`mineru.net`）
+- **测试文件**：`FastTest01.pdf`（16.73 KB）
+
+#### 验证结果
+- ✅ 所有容器启动成功（`cms-frontend`、`upload-server`、`db-server`、`minio`）
+- ✅ 前端静态文件正常加载
+- ✅ 文件上传成功（`upload-server` 接收并转存到 MinIO）
+- ✅ MinerU 解析流程完整运行成功
+- ✅ 解析结果正确转存并展示
+
+#### 关键发现
+**问题根因**：MinerU API Key 未正确配置
+
+- 错误现象：`HTTP 401 - {"msgCode":"A0202","msg":"user authenticate failed"}`
+- 根本原因：系统设置页面的 MinerU `API Key` 填写错误或带 `Bearer ` 前缀
+- 修正方法：
+  1. 打开系统设置页面（`/cms/settings`）
+  2. 在 MinerU 配置中填入正确的 API Key（裸 key，**不带 `Bearer ` 前缀**）
+  3. 保存配置
+  4. 重新上传测试文件
+
+**配置注意事项**：
+- MinerU API Key 在系统设置页面配置，**不要在 `.env` 中填写**（当前前端未实现环境变量注入）
+- 填写 API Key 时：
+  - ✅ 正确：`sk-xxxxx-xxxxx-xxxxx`（裸 key）
+  - ❌ 错误：`Bearer sk-xxxxx-xxxxx-xxxxx`（带前缀，会导致双重前缀）
+  - ❌ 错误：`"sk-xxxxx-xxxxx-xxxxx"`（带引号）
+- API Key 会持久化到 `db-server`（`/data/db-data.json`），但为了安全不写入 `localStorage`
+
+---
+
+## 九、常见问题
 
 **Q: 访问 `/cms/` 后页面空白？**
 A: 检查 `docker compose logs cms-frontend`，确认 Nginx 启动正常。打开浏览器 Console 查看 JS 错误。
@@ -254,6 +296,23 @@ A: 修改 `.env` 中 `STORAGE_BACKEND=minio`（MinIO）或 `STORAGE_BACKEND=tmpf
 **Q: MinerU 解析超时？**
 A: 在系统设置页面增大 MinerU 超时时间（默认 1200 秒），或检查宿主机网络是否能访问 `https://mineru.net`。
 
+**Q: MinerU 解析返回 401 "user authenticate failed"？**
+A: 这是 MinerU 鉴权失败，检查以下配置：
+   1. 系统设置页面的 MinerU API Key 是否正确
+   2. API Key 是否带 `Bearer ` 前缀（不应该）
+   3. API Key 是否含引号或空格（不应该）
+   4. 可用 `curl` 直测验证 Key 有效性（见下方命令）
+
+**Q: 如何验证 MinerU API Key 是否有效？**
+A: 在宿主机运行以下命令（替换 `YOUR_KEY` 为真实 key）：
+```bash
+curl -i https://mineru.net/api/v4/file-urls/batch \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer YOUR_KEY' \
+  -d '{"enable_formula":true,"enable_table":true,"language":"ch","is_ocr":false,"model_version":"vlm","files":[{"name":"test.pdf","data_id":"test-1"}]}'
+```
+返回 `200` 则 key 有效，返回 `401` 则 key 无效或错误。
+
 **Q: Overleaf 备份 API 返回 401/403？**
 A: 通过 URL `?token=xxx` 重新注入 Token，或检查备份后端的 Token 配置。
 
@@ -268,7 +327,7 @@ A: LaTeX 工具完全在浏览器本地运行。如果失败，检查上传的 Z
 
 ---
 
-## 九、Mac Mini 局域网部署指南
+## 十、Mac Mini 局域网部署指南
 
 ### 9.1 网络架构
 
