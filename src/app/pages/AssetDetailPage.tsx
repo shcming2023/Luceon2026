@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Tag, FileText, Play, Cpu, CheckCircle, XCircle, Loader, Save, Database, ExternalLink, RefreshCw, ChevronDown, ChevronRight, Pencil, Copy, Download, Folder, FolderOpen, Archive } from 'lucide-react';
+import { ArrowLeft, Tag, FileText, Play, Cpu, CheckCircle, XCircle, Loader, Save, Database, ExternalLink, RefreshCw, ChevronDown, ChevronRight, Pencil, Copy, Download, Folder, FolderOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore } from '../../store/appContext';
 import { StatusBadge } from '../components/StatusBadge';
@@ -14,20 +14,6 @@ const GRADE_OPTIONS = ['G1', 'G2', 'G3', 'G4', 'G5', 'G6', 'G7', 'G8', 'G9', 'G1
 const SUBJECT_OPTIONS = ['语文', '英语', '数学', '物理', '化学', '生物', '历史', '地理', '政治', '科学', '综合', '其他'];
 const COUNTRY_OPTIONS = ['中国', '英国', '美国', '新加坡', '澳大利亚', '加拿大', '其他'];
 const MATERIAL_TYPE_OPTIONS = ['课本', '讲义', '练习册', '试卷', '答案', '教案', '课件', '大纲', '其他'];
-
-// ─── 元数据字段中文标签 ────────────────────────────────────────
-const META_LABELS: Record<string, string> = {
-  language:    '语言',
-  grade:       '年级',
-  subject:     '学科',
-  country:     '国家/地区',
-  format:      '格式',
-  size:        '文件大小',
-  pages:       '页数',
-  type:        '资料类型',
-  summary:     '内容摘要',
-  aiConfidence: '识别置信度',
-};
 
 // ─── 文件大小格式化 ────────────────────────────────────────────
 function fmtSize(bytes: number): string {
@@ -105,8 +91,16 @@ function groupByDirectory(files: MinioObject[], prefix: string): {
 // ─── 文件溯源卡片 ──────────────────────────────────────────────
 function FileLineageCard({
   material,
+  originalUrl,
+  onOriginalUrlReady,
+  onRefreshUrl,
+  onMdLoaded,
 }: {
   material: NonNullable<ReturnType<typeof useAppStore>['state']['materials'][0]>;
+  originalUrl: string | null;
+  onOriginalUrlReady: (url: string) => void;
+  onRefreshUrl: () => Promise<void>;
+  onMdLoaded?: (content: string) => void;
 }) {
   const objectName = material.metadata?.objectName;
   const originalFileName = material.metadata?.fileName;
@@ -117,7 +111,6 @@ function FileLineageCard({
   const aiConfidence       = material.metadata?.aiConfidence;
   const aiAnalyzedAt       = material.metadata?.aiAnalyzedAt;
 
-  const [originalUrl, setOriginalUrl]   = useState<string | null>(null);
   const [refreshing, setRefreshing]     = useState(false);
   const [parsedFiles, setParsedFiles]   = useState<MinioObject[]>([]);
   const [listLoading, setListLoading]   = useState(false);
@@ -129,12 +122,12 @@ function FileLineageCard({
   const [zipDownloading, setZipDownloading] = useState(false);
   const hasFetched = useRef(false);
 
-  // 挂载时刷新原始文件预签名 URL
+  // 挂载时刷新原始文件预签名 URL（结果提升给父组件）
   useEffect(() => {
     if (!objectName) return;
     fetch(`/__proxy/upload/presign?objectName=${encodeURIComponent(objectName)}`)
       .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (d?.url) setOriginalUrl(d.url); })
+      .then((d) => { if (d?.url) onOriginalUrlReady(d.url); })
       .catch(() => {});
   }, [objectName]);
 
@@ -158,16 +151,11 @@ function FileLineageCard({
     }
   };
 
-  // 手动刷新原始文件 URL
+  // 手动刷新原始文件 URL（委托父组件处理）
   const handleRefreshOriginal = async () => {
-    if (!objectName) return;
     setRefreshing(true);
     try {
-      const r = await fetch(`/__proxy/upload/presign?objectName=${encodeURIComponent(objectName)}`);
-      const d = await r.json();
-      if (d?.url) { setOriginalUrl(d.url); toast.success('访问链接已刷新'); }
-    } catch {
-      toast.error('刷新失败，请检查 MinIO 连接');
+      await onRefreshUrl();
     } finally {
       setRefreshing(false);
     }
@@ -179,8 +167,11 @@ function FileLineageCard({
     setMdLoading(true);
     try {
       const r = await fetch(url);
-      if (r.ok) setMdPreview(await r.text());
-      else toast.error('无法读取 Markdown 内容');
+      if (r.ok) {
+        const text = await r.text();
+        setMdPreview(text);
+        onMdLoaded?.(text);
+      } else toast.error('无法读取 Markdown 内容');
     } catch {
       toast.error('读取失败');
     } finally {
@@ -515,6 +506,130 @@ function FileLineageCard({
   );
 }
 
+// ─── Markdown 轻量渲染工具函数 ─────────────────────────────────
+function renderMarkdown(md: string): string {
+  let html = md
+    // 代码块（需在行内代码之前处理）
+    .replace(/```[\w]*\n?([\s\S]*?)```/g, (_, code) =>
+      `<pre class="bg-gray-100 rounded p-3 text-xs overflow-auto my-2 font-mono whitespace-pre-wrap"><code>${code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`)
+    // 行内代码
+    .replace(/`([^`]+)`/g, '<code class="bg-gray-100 rounded px-1 py-0.5 text-xs font-mono text-red-600">$1</code>')
+    // ATX 标题
+    .replace(/^### (.+)$/gm, '<h3 class="text-sm font-bold text-gray-800 mt-4 mb-1">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2 class="text-base font-bold text-gray-800 mt-5 mb-2 border-b border-gray-200 pb-1">$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1 class="text-lg font-bold text-gray-900 mt-6 mb-2 border-b-2 border-gray-300 pb-1">$1</h1>')
+    // 粗体 / 斜体
+    .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em class="italic">$1</em>')
+    // GFM 表格（简单单行）
+    .replace(/^\|(.+)\|$/gm, (line) => {
+      if (/^\|[\s\-:|]+\|$/.test(line)) return ''; // 分隔行
+      const cells = line.split('|').filter((_, i, a) => i > 0 && i < a.length - 1);
+      const tds = cells.map((c) => `<td class="border border-gray-200 px-2 py-1 text-xs">${c.trim()}</td>`).join('');
+      return `<tr>${tds}</tr>`;
+    })
+    // 包裹表格行
+    .replace(/((<tr>.*<\/tr>\n?)+)/g, '<table class="border-collapse w-full my-3 text-xs">$1</table>')
+    // 无序列表
+    .replace(/^[-*+] (.+)$/gm, '<li class="ml-4 list-disc text-xs text-gray-700">$1</li>')
+    .replace(/(<li.*<\/li>\n?)+/g, (m) => `<ul class="my-2 space-y-0.5">${m}</ul>`)
+    // 有序列表
+    .replace(/^\d+\. (.+)$/gm, '<li class="ml-4 list-decimal text-xs text-gray-700">$1</li>')
+    // 分隔线
+    .replace(/^---+$/gm, '<hr class="my-4 border-gray-200" />')
+    // 段落（连续非空行）
+    .replace(/\n{2,}/g, '</p><p class="text-xs text-gray-700 leading-relaxed my-1">')
+    // 换行
+    .replace(/\n/g, '<br />');
+
+  return `<p class="text-xs text-gray-700 leading-relaxed">${html}</p>`;
+}
+
+// ─── PDF 内嵌预览面板 ──────────────────────────────────────────
+function PDFPreviewPanel({ url }: { url: string }) {
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-semibold text-gray-800 flex items-center gap-2">
+          <FileText size={15} className="text-red-500" /> PDF 预览
+        </h2>
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+        >
+          <ExternalLink size={11} /> 新窗口打开
+        </a>
+      </div>
+      <div className="rounded-lg overflow-hidden border border-gray-100 bg-gray-50" style={{ height: 620 }}>
+        {loading && !failed && (
+          <div className="flex items-center justify-center h-full text-gray-400 text-xs gap-2">
+            <Loader size={14} className="animate-spin" /> 加载中...
+          </div>
+        )}
+        {failed ? (
+          <div className="flex flex-col items-center justify-center h-full text-gray-400 text-xs gap-2">
+            <XCircle size={32} className="text-red-300" />
+            <p>预览加载失败</p>
+            <a href={url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+              点击下载查看
+            </a>
+          </div>
+        ) : (
+          <iframe
+            key={url}
+            src={`${url}#toolbar=1&navpanes=0&scrollbar=1`}
+            className="w-full h-full"
+            style={{ display: loading ? 'none' : 'block' }}
+            title="PDF Preview"
+            onLoad={() => setLoading(false)}
+            onError={() => { setLoading(false); setFailed(true); }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Markdown 渲染预览面板 ──────────────────────────────────────
+function MarkdownRenderPanel({ content }: { content: string }) {
+  const [collapsed, setCollapsed] = useState(false);
+  const html = renderMarkdown(content);
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-semibold text-gray-800 flex items-center gap-2">
+          <FileText size={15} className="text-orange-500" /> Markdown 预览
+        </h2>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-400">{content.length.toLocaleString()} 字符</span>
+          <button
+            onClick={() => setCollapsed((v) => !v)}
+            className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-0.5"
+          >
+            {collapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+            {collapsed ? '展开' : '收起'}
+          </button>
+        </div>
+      </div>
+      {!collapsed && (
+        <div
+          className="overflow-auto rounded-lg border border-gray-100 bg-gray-50 p-4"
+          style={{ maxHeight: 620 }}
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── 可编辑 Select 组件 ────────────────────────────────────────
 function MetaSelect({
   label,
@@ -570,6 +685,11 @@ export function AssetDetailPage() {
 
   // AI 分析状态
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
+
+  // 原始文件 presigned URL（从 FileLineageCard 提升）
+  const [originalUrl, setOriginalUrl] = useState<string | null>(null);
+  // 从 FileLineageCard 的 md 列表预览提升的 Markdown 内容
+  const [lineageMdContent, setLineageMdContent] = useState<string>('');
 
   // 元数据可编辑表单（语言/年级/学科/国家/类型 + 摘要）
   const [metaForm, setMetaForm] = useState({
@@ -1061,13 +1181,21 @@ export function AssetDetailPage() {
 
   const removeTag = (tag: string) => setLocalTags((prev) => prev.filter((t) => t !== tag));
 
-  // 右侧元数据卡片展示字段（上传自动填入 + AI 识别）
-  const displayMeta: Record<string, string> = {};
-  const META_DISPLAY_ORDER = ['language', 'grade', 'subject', 'country', 'type', 'format', 'size', 'pages', 'aiConfidence'];
-  for (const key of META_DISPLAY_ORDER) {
-    const val = material?.metadata?.[key];
-    if (val != null && val !== '') displayMeta[key] = String(val);
-  }
+  // 刷新原始文件 presigned URL（供 FileLineageCard 回调使用）
+  const handleRefreshOriginalUrl = async () => {
+    const objectName = material?.metadata?.objectName;
+    if (!objectName) return;
+    try {
+      const r = await fetch(`/__proxy/upload/presign?objectName=${encodeURIComponent(objectName)}`);
+      const d = await r.json();
+      if (d?.url) { setOriginalUrl(d.url); toast.success('访问链接已刷新'); }
+    } catch {
+      toast.error('刷新失败，请检查 MinIO 连接');
+    }
+  };
+
+  // 当前可用的 Markdown 预览内容（优先 MinerU 解析结果，其次溯源面板加载的内容）
+  const previewMdContent = mineruMarkdown || lineageMdContent;
 
   return (
     <div className="p-6 space-y-5">
@@ -1408,17 +1536,69 @@ export function AssetDetailPage() {
             </div>
 
             {/* 保存按钮 */}
-            <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
-              {!material?.metadata?.markdownObjectName && !material?.metadata?.markdownUrl && !material?.mineruZipUrl && !mineruMarkdown && (
-                <p className="text-xs text-yellow-600">⚠ 请先完成 MinerU 解析，AI 分析将基于解析出的 Markdown 内容</p>
-              )}
-              <div className="ml-auto">
-                <button
-                  onClick={handleSaveMeta}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  <Save size={12} /> 保存元数据
-                </button>
+            <div className="mt-4 pt-3 border-t border-gray-100 space-y-3">
+              {/* 标签区域 — 与分类并列，均为 AI 识别输出 */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs text-gray-400 flex items-center gap-1.5">
+                    <Tag size={11} className="text-green-500" /> 标签
+                  </label>
+                  {!editingTags ? (
+                    <button onClick={() => { setEditingTags(true); setLocalTags(detail.tags); }} className="text-xs text-blue-600">
+                      编辑
+                    </button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button onClick={() => setEditingTags(false)} className="text-xs text-gray-400">取消</button>
+                      <button onClick={handleSaveTags} className="text-xs text-blue-600 font-medium">保存</button>
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5 min-h-6">
+                  {(editingTags ? localTags : detail.tags).map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full"
+                    >
+                      {tag}
+                      {editingTags && (
+                        <button onClick={() => removeTag(tag)} className="text-blue-400 hover:text-red-500">×</button>
+                      )}
+                    </span>
+                  ))}
+                  {!editingTags && detail.tags.length === 0 && (
+                    <span className="text-xs text-gray-300">暂无标签</span>
+                  )}
+                </div>
+                {editingTags && (
+                  <div className="flex gap-2 mt-2">
+                    <input
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && addTag()}
+                      placeholder="输入新标签..."
+                      className="flex-1 text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                    />
+                    <button onClick={addTag} className="text-xs px-2 py-1.5 bg-blue-600 text-white rounded">
+                      添加
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* 保存元数据 */}
+              <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                {!material?.metadata?.markdownObjectName && !material?.metadata?.markdownUrl && !material?.mineruZipUrl && !mineruMarkdown && (
+                  <p className="text-xs text-yellow-600">⚠ 请先完成 MinerU 解析，AI 分析将基于解析出的 Markdown 内容</p>
+                )}
+                <div className="ml-auto">
+                  <button
+                    onClick={handleSaveMeta}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    <Save size={12} /> 保存元数据
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1427,76 +1607,25 @@ export function AssetDetailPage() {
         {/* 右侧列 */}
         <div className="space-y-5">
           {/* 文件溯源卡片 */}
-          {material && <FileLineageCard material={material} />}
+          {material && (
+            <FileLineageCard
+              material={material}
+              originalUrl={originalUrl}
+              onOriginalUrlReady={setOriginalUrl}
+              onRefreshUrl={handleRefreshOriginalUrl}
+              onMdLoaded={(content) => setLineageMdContent(content)}
+            />
+          )}
 
-          {/* 元数据概览（上传自动填入 + AI 识别已保存值） */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="font-semibold text-gray-800 mb-4">元数据</h2>
-            {Object.keys(displayMeta).length > 0 ? (
-              <dl className="space-y-2">
-                {Object.entries(displayMeta).map(([k, v]) => (
-                  <div key={k} className="flex justify-between text-sm">
-                    <dt className="text-gray-500">{META_LABELS[k] ?? k}</dt>
-                    <dd className="text-gray-800 font-medium text-right max-w-32 truncate">{v}</dd>
-                  </div>
-                ))}
-              </dl>
-            ) : (
-              <div className="text-center py-2 text-gray-400 text-sm">暂无元数据</div>
-            )}
-            {material?.metadata?.summary && (
-              <div className="mt-3 pt-3 border-t border-gray-100">
-                <p className="text-xs text-gray-400 mb-1">摘要</p>
-                <p className="text-xs text-gray-600 leading-relaxed">{material.metadata.summary}</p>
-              </div>
-            )}
-          </div>
+          {/* PDF 内嵌预览 — 仅当原始文件为 PDF 且已获取到 presigned URL 时显示 */}
+          {originalUrl && material?.type?.toUpperCase() === 'PDF' && (
+            <PDFPreviewPanel url={originalUrl} />
+          )}
 
-          {/* 标签 */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="font-semibold text-gray-800 flex items-center gap-2">
-                <Tag size={15} className="text-green-500" /> 标签
-              </h2>
-              {!editingTags ? (
-                <button onClick={() => { setEditingTags(true); setLocalTags(detail.tags); }} className="text-xs text-blue-600">
-                  编辑
-                </button>
-              ) : (
-                <div className="flex gap-2">
-                  <button onClick={() => setEditingTags(false)} className="text-xs text-gray-400">取消</button>
-                  <button onClick={handleSaveTags} className="text-xs text-blue-600 font-medium">保存</button>
-                </div>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {(editingTags ? localTags : detail.tags).map((tag) => (
-                <span
-                  key={tag}
-                  className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full"
-                >
-                  {tag}
-                  {editingTags && (
-                    <button onClick={() => removeTag(tag)} className="text-blue-400 hover:text-red-500">×</button>
-                  )}
-                </span>
-              ))}
-            </div>
-            {editingTags && (
-              <div className="flex gap-2 mt-3">
-                <input
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && addTag()}
-                  placeholder="输入新标签..."
-                  className="flex-1 text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
-                />
-                <button onClick={addTag} className="text-xs px-2 py-1.5 bg-blue-600 text-white rounded">
-                  添加
-                </button>
-              </div>
-            )}
-          </div>
+          {/* Markdown 渲染预览 — 有解析内容时显示 */}
+          {previewMdContent && (
+            <MarkdownRenderPanel content={previewMdContent} />
+          )}
 
           {/* 相关资产 */}
           {detail.relatedAssets.length > 0 && (
