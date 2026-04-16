@@ -131,6 +131,19 @@ function FileLineageCard({
       .catch(() => {});
   }, [objectName]);
 
+  // 挂载时自动加载 full.md（若已解析完成）
+  useEffect(() => {
+    if (!markdownObjectName || !onMdLoaded) return;
+    fetch(`/__proxy/upload/presign?objectName=${encodeURIComponent(markdownObjectName)}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then(async (d) => {
+        if (!d?.url) return;
+        const r = await fetch(d.url);
+        if (r.ok) onMdLoaded(await r.text());
+      })
+      .catch(() => {});
+  }, [markdownObjectName]);
+
   // 展开解析产物列表时懒加载
   const handleExpandParsed = async () => {
     const next = !listExpanded;
@@ -435,36 +448,7 @@ function FileLineageCard({
               </div>
             )}
 
-            {/* Markdown 预览区 */}
-            {mdPreview !== null && (
-              <div className="mt-2">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px] text-gray-500">
-                    {mdPreview.length > 2000 ? `预览（前2000字符，共${mdPreview.length}字符）` : '全文预览'}
-                  </span>
-                  <button
-                    onClick={() => {
-                      if (mdPreview) {
-                        const blob = new Blob([mdPreview], { type: 'text/markdown;charset=utf-8' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `markdown-preview-${Date.now()}.md`;
-                        a.click();
-                        URL.revokeObjectURL(url);
-                        toast.success('Markdown 已下载');
-                      }
-                    }}
-                    className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100"
-                  >
-                    下载全文
-                  </button>
-                </div>
-                <pre className="bg-white rounded border border-orange-100 p-2 text-[11px] text-gray-700 overflow-auto max-h-64 whitespace-pre-wrap leading-relaxed">
-                  {mdPreview.slice(0, 2000)}{mdPreview.length > 2000 ? '\n\n...(内容已截断，点击「下载全文」查看完整内容)' : ''}
-                </pre>
-              </div>
-            )}
+
           </div>
         )}
 
@@ -547,26 +531,33 @@ function renderMarkdown(md: string): string {
 }
 
 // ─── PDF 内嵌预览面板 ──────────────────────────────────────────
-function PDFPreviewPanel({ url }: { url: string }) {
+function PDFPreviewPanel({ objectName }: { objectName?: string }) {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
 
+  // 使用代理 URL 访问 PDF，避免直接访问内网 MinIO
+  const proxyUrl = objectName
+    ? `/__proxy/upload/proxy-file?objectName=${encodeURIComponent(objectName)}`
+    : null;
+
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
+    <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col h-full">
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-semibold text-gray-800 flex items-center gap-2">
           <FileText size={15} className="text-red-500" /> PDF 预览
         </h2>
-        <a
-          href={url}
-          target="_blank"
-          rel="noreferrer"
-          className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-        >
-          <ExternalLink size={11} /> 新窗口打开
-        </a>
+        {proxyUrl && (
+          <a
+            href={proxyUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+          >
+            <ExternalLink size={11} /> 新窗口打开
+          </a>
+        )}
       </div>
-      <div className="rounded-lg overflow-hidden border border-gray-100 bg-gray-50" style={{ height: 620 }}>
+      <div className="flex-1 rounded-lg overflow-hidden border border-gray-100 bg-gray-50 min-h-[500px]">
         {loading && !failed && (
           <div className="flex items-center justify-center h-full text-gray-400 text-xs gap-2">
             <Loader size={14} className="animate-spin" /> 加载中...
@@ -576,20 +567,24 @@ function PDFPreviewPanel({ url }: { url: string }) {
           <div className="flex flex-col items-center justify-center h-full text-gray-400 text-xs gap-2">
             <XCircle size={32} className="text-red-300" />
             <p>预览加载失败</p>
-            <a href={url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
-              点击下载查看
-            </a>
+            {proxyUrl && (
+              <a href={proxyUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+                点击下载查看
+              </a>
+            )}
           </div>
         ) : (
-          <iframe
-            key={url}
-            src={`${url}#toolbar=1&navpanes=0&scrollbar=1`}
-            className="w-full h-full"
-            style={{ display: loading ? 'none' : 'block' }}
-            title="PDF Preview"
-            onLoad={() => setLoading(false)}
-            onError={() => { setLoading(false); setFailed(true); }}
-          />
+          proxyUrl && (
+            <iframe
+              key={proxyUrl}
+              src={`${proxyUrl}#toolbar=1&navpanes=0&scrollbar=1`}
+              className="w-full h-full"
+              style={{ display: loading ? 'none' : 'block' }}
+              title="PDF Preview"
+              onLoad={() => setLoading(false)}
+              onError={() => { setLoading(false); setFailed(true); }}
+            />
+          )
         )}
       </div>
     </div>
@@ -602,7 +597,7 @@ function MarkdownRenderPanel({ content }: { content: string }) {
   const html = renderMarkdown(content);
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
+    <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col h-full">
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-semibold text-gray-800 flex items-center gap-2">
           <FileText size={15} className="text-orange-500" /> Markdown 预览
@@ -620,8 +615,7 @@ function MarkdownRenderPanel({ content }: { content: string }) {
       </div>
       {!collapsed && (
         <div
-          className="overflow-auto rounded-lg border border-gray-100 bg-gray-50 p-4"
-          style={{ maxHeight: 620 }}
+          className="flex-1 overflow-auto rounded-lg border border-gray-100 bg-gray-50 p-4 min-h-[500px]"
           // eslint-disable-next-line react/no-danger
           dangerouslySetInnerHTML={{ __html: html }}
         />
@@ -688,8 +682,36 @@ export function AssetDetailPage() {
 
   // 原始文件 presigned URL（从 FileLineageCard 提升）
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
+
+  // 原始文件的 MinIO objectName（用于代理访问）
+  const objectName = material?.metadata?.objectName;
+
   // 从 FileLineageCard 的 md 列表预览提升的 Markdown 内容
   const [lineageMdContent, setLineageMdContent] = useState<string>('');
+
+  // 页面加载时自动拉取已有 markdown
+  useEffect(() => {
+    const mdObj = material?.metadata?.markdownObjectName;
+    const mdUrl = material?.metadata?.markdownUrl;
+    if (!material?.id || (!mdObj && !mdUrl)) return;
+
+    (async () => {
+      try {
+        let url = mdUrl;
+        if (!url && mdObj) {
+          const r = await fetch(`/__proxy/upload/presign?objectName=${encodeURIComponent(mdObj)}`);
+          const d = await r.json();
+          url = d?.url;
+        }
+        if (!url) return;
+        const res = await fetch(url);
+        if (!res.ok) return;
+        setMineruMarkdown(await res.text());
+      } catch {
+        // 静默失败，避免打断页面
+      }
+    })();
+  }, [material?.id, material?.metadata?.markdownObjectName, material?.metadata?.markdownUrl]);
 
   // 元数据可编辑表单（语言/年级/学科/国家/类型 + 摘要）
   const [metaForm, setMetaForm] = useState({
@@ -806,27 +828,30 @@ export function AssetDetailPage() {
     toast.success('识别名称已更新');
   };
 
-  const handleCopyMarkdown = async () => {
-    if (!mineruMarkdown) return;
+  const handleDownloadParsedZip = async () => {
+    if (!material?.id) return;
     try {
-      await navigator.clipboard.writeText(mineruMarkdown);
-      toast.success('Markdown 已复制');
-    } catch (error) {
-      toast.error(`复制失败：${error instanceof Error ? error.message : String(error)}`);
+      toast.info('正在打包解析产物...');
+      const r = await fetch('/__proxy/upload/parsed-zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ materialId: numId }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
+        throw new Error(err.error || `HTTP ${r.status}`);
+      }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `parsed-${material.title || numId}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('解析产物 ZIP 已下载');
+    } catch (err) {
+      toast.error(`下载失败: ${err instanceof Error ? err.message : String(err)}`);
     }
-  };
-
-  const handleDownloadMarkdown = () => {
-    if (!mineruMarkdown) return;
-    const blob = new Blob([mineruMarkdown], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${(material?.title || 'material').replace(/[\\/:*?"<>|]+/g, '_')}-full.md`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
   };
 
   if (!detail) {
@@ -1253,220 +1278,287 @@ export function AssetDetailPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-        {/* 左主列 */}
-        <div className="lg:col-span-2 space-y-5">
-
-          {/* MinerU 解析面板 */}
+        {/* 左侧 1/3：整合大卡（三步骤） */}
+        <div className="space-y-5">
           <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-gray-800 flex items-center gap-2">
-                <Cpu size={16} className="text-orange-500" /> MinerU 解析
-              </h2>
-              <div className="flex items-center gap-3">
-                <span className={`px-2 py-1 rounded-full text-[11px] font-medium ${state.mineruConfig.engine === 'local' ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700'}`}>
-                  {state.mineruConfig.engine === 'local' ? '本地 Gradio' : '官方 API'}
-                </span>
-                {material?.mineruStatus === 'completed' && (
-                  <span className="flex items-center gap-1 text-xs text-green-600">
-                    <CheckCircle size={13} /> 解析完成
-                  </span>
-                )}
-                {material?.mineruStatus === 'failed' && (
-                  <span className="flex items-center gap-1 text-xs text-red-500">
-                    <XCircle size={13} /> 解析失败
-                  </span>
-                )}
-                {material?.mineruStatus === 'processing' && (
-                  <span className="flex items-center gap-1 text-xs text-blue-500">
-                    <Loader size={13} className="animate-spin" /> 解析中
-                  </span>
-                )}
-                <button
-                  onClick={handleMineruParse}
-                  disabled={mineruRunning}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {mineruRunning
-                    ? <><Loader size={12} className="animate-spin" /> 解析中...</>
-                    : <><Play size={12} /> {material?.mineruStatus === 'completed' ? '重新解析' : '开始解析'}</>
-                  }
-                </button>
-              </div>
-            </div>
+            <h2 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+              <Database size={15} className="text-blue-500" /> 文件处理流程
+            </h2>
 
-            {/* 进度条 */}
-            {mineruRunning && (
-              <div className="mb-4">
-                <div className="flex justify-between text-xs text-gray-500 mb-1">
-                  <span className="flex items-center gap-1.5">
-                    {mineruProgressMsg}
-                    {mineruRetryCount > 0 && (
-                      <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded text-xs font-medium">
-                        重试 {mineruRetryCount}/3
-                      </span>
+            <div className="space-y-3">
+              {/* ── 步骤 1：原始文件上传 ── */}
+              {material?.metadata?.objectName || material?.metadata?.fileUrl ? (
+                <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                  <p className="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1.5">
+                    <span className="w-4 h-4 rounded-full bg-blue-100 text-blue-600 text-[10px] flex items-center justify-center font-bold">1</span>
+                    原始文件上传
+                  </p>
+                  <div className="space-y-1 text-xs text-gray-500">
+                    {material?.metadata?.fileName ? (
+                      <p className="flex items-center gap-1.5 text-gray-700 font-medium">
+                        <FileText size={12} className="text-blue-400 flex-shrink-0" />
+                        <span className="break-all">{fixFilenameEncoding(material.metadata.fileName)}</span>
+                      </p>
+                    ) : material?.metadata?.objectName ? (
+                      <p className="flex items-center gap-1.5 text-gray-700 font-medium">
+                        <FileText size={12} className="text-blue-400 flex-shrink-0" />
+                        <span className="break-all">{material.metadata.objectName.split('/').pop()}</span>
+                      </p>
+                    ) : null}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {material?.size && (
+                        <span>大小：<span className="text-gray-700">{material.size}</span></span>
+                      )}
+                      {material?.metadata?.format && (
+                        <span>格式：<span className="text-gray-700">{material.metadata.format}</span></span>
+                      )}
+                      {material?.metadata?.provider && (
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${material.metadata.provider === 'minio' ? 'bg-blue-50 text-blue-600' : 'bg-gray-200 text-gray-500'}`}>
+                          {material.metadata.provider === 'minio' ? 'MinIO' : 'tmpfiles'}
+                        </span>
+                      )}
+                    </div>
+                    {material?.uploadedAt && (
+                      <p>上传时间：<span className="text-gray-700">{new Date(material.uploadedAt).toLocaleString('zh-CN')}</span></p>
                     )}
-                  </span>
-                  <span>{mineruProgress}%</span>
-                </div>
-                <div className="w-full bg-gray-100 rounded-full h-2">
-                  <div
-                    className={`h-2 rounded-full transition-all duration-500 ${mineruRetryCount > 0 ? 'bg-yellow-500' : 'bg-orange-500'}`}
-                    style={{ width: `${mineruProgress}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* 文件信息 */}
-            <div className="text-xs text-gray-500 space-y-1">
-              {(material?.metadata?.fileUrl || material?.metadata?.objectName) ? (
-                <p>文件已上传：<span className="text-gray-700 font-medium">{material.title}.{material.type.toLowerCase()}</span>
-                  {material?.metadata?.provider && (
-                    <span className="ml-2 px-1.5 py-0.5 bg-gray-100 rounded text-gray-500">
-                      {String(material.metadata.provider) === 'minio' ? 'MinIO' : 'tmpfiles'}
-                    </span>
+                  </div>
+                  {originalUrl && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <button
+                        onClick={handleRefreshOriginalUrl}
+                        className="flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                      >
+                        <RefreshCw size={10} /> 刷新链接
+                      </button>
+                      <a href={originalUrl} target="_blank" rel="noreferrer"
+                        className="flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100">
+                        <ExternalLink size={10} /> 预览
+                      </a>
+                      <a href={originalUrl} download
+                        className="flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50">
+                        下载
+                      </a>
+                    </div>
                   )}
-                  {material?.metadata?.pages && (
-                    <span className="ml-2 text-gray-400">{material.metadata.pages} 页</span>
-                  )}
-                </p>
+                </div>
               ) : (
-                <p className="text-yellow-600">⚠ 文件尚未上传，请先在资料库上传文件</p>
+                <div className="rounded-lg border border-yellow-100 bg-yellow-50 p-3">
+                  <p className="text-xs font-semibold text-yellow-700 mb-1 flex items-center gap-1.5">
+                    <span className="w-4 h-4 rounded-full bg-yellow-100 text-yellow-600 text-[10px] flex items-center justify-center font-bold">1</span>
+                    原始文件上传
+                  </p>
+                  <p className="text-xs text-yellow-600">⚠ 文件尚未上传，请先在资料库上传文件</p>
+                </div>
               )}
-              {material?.metadata?.objectName && (
-                <p className="text-gray-400 break-all font-mono">
-                  存储路径：{fixFilenameEncoding(material.metadata.objectName)}
-                </p>
-              )}
-              {material?.metadata?.markdownObjectName && (
-                <p className="text-green-600">
-                  ✓ 解析物已存入 MinIO（{material.metadata.parsedFilesCount || '?'} 个文件）
-                </p>
-              )}
-              {material?.mineruZipUrl && (
-                <a
-                  href={material.mineruZipUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-blue-600 hover:underline mt-1"
-                >
-                  <FileText size={12} /> 下载解析结果 ZIP
-                </a>
-              )}
-            </div>
 
-            {/* Markdown 预览 */}
-            {mineruMarkdown && (
-              <div className="mt-4">
+              {/* 连接线 */}
+              <div className="flex justify-center">
+                <div className="w-px h-4 bg-gray-200" />
+              </div>
+
+              {/* ── 步骤 2：MinerU 解析产物 ── */}
+              <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold text-gray-600">解析内容预览（Markdown）</p>
+                  <p className="text-xs font-semibold text-gray-600 flex items-center gap-1.5">
+                    <span className="w-4 h-4 rounded-full bg-orange-100 text-orange-600 text-[10px] flex items-center justify-center font-bold">2</span>
+                    MinerU 解析产物
+                  </p>
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleCopyMarkdown}
-                      className="flex items-center gap-1 text-xs px-2.5 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"
-                    >
-                      <Copy size={12} /> 复制全文
-                    </button>
-                    <button
-                      onClick={handleDownloadMarkdown}
-                      className="flex items-center gap-1 text-xs px-2.5 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"
-                    >
-                      <Download size={12} /> 下载 .md
-                    </button>
+                    <span className={`px-2 py-1 rounded-full text-[10px] font-medium ${state.mineruConfig.engine === 'local' ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700'}`}>
+                      {state.mineruConfig.engine === 'local' ? '本地 Gradio' : '官方 API'}
+                    </span>
                   </div>
                 </div>
-                <pre className="bg-gray-50 rounded-lg p-3 text-xs text-gray-700 overflow-auto max-h-64 whitespace-pre-wrap">
-                  {mineruMarkdown.slice(0, 3000)}{mineruMarkdown.length > 3000 ? '\n\n...(内容已截断)' : ''}
-                </pre>
-              </div>
-            )}
-          </div>
 
-          {/* AI 元数据分析面板 */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-gray-800 flex items-center gap-2">
-                <Cpu size={16} className="text-purple-500" /> AI 元数据分析
-              </h2>
-              <div className="flex items-center gap-3">
-                {material?.aiStatus === 'analyzed' && (
-                  <span className="flex items-center gap-1 text-xs text-green-600">
-                    <CheckCircle size={13} /> 已分析
-                    {material.metadata?.aiConfidence && (
-                      <span className="text-gray-400 ml-1">({material.metadata.aiConfidence}%)</span>
+                {/* 解析状态与操作 */}
+                <div className="space-y-2">
+                  {material?.mineruStatus === 'completed' && (
+                    <p className="text-xs text-green-600 flex items-center gap-1">
+                      <CheckCircle size={12} /> 解析完成
+                      {material.metadata?.parsedFilesCount && (
+                        <span className="text-gray-500">（{material.metadata.parsedFilesCount} 个文件）</span>
+                      )}
+                    </p>
+                  )}
+                  {material?.mineruStatus === 'failed' && (
+                    <p className="text-xs text-red-500 flex items-center gap-1">
+                      <XCircle size={12} /> 解析失败
+                    </p>
+                  )}
+                  {material?.mineruStatus === 'processing' && (
+                    <p className="text-xs text-blue-500 flex items-center gap-1">
+                      <Loader size={12} className="animate-spin" /> 解析中
+                    </p>
+                  )}
+
+                  {/* 进度条 */}
+                  {mineruRunning && (
+                    <div>
+                      <div className="flex justify-between text-xs text-gray-500 mb-1">
+                        <span className="flex items-center gap-1">
+                          {mineruProgressMsg}
+                          {mineruRetryCount > 0 && (
+                            <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded text-[10px] font-medium">
+                              重试 {mineruRetryCount}/3
+                            </span>
+                          )}
+                        </span>
+                        <span>{mineruProgress}%</span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-1.5">
+                        <div
+                          className={`h-1.5 rounded-full transition-all duration-500 ${mineruRetryCount > 0 ? 'bg-yellow-500' : 'bg-orange-500'}`}
+                          style={{ width: `${mineruProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleMineruParse}
+                    disabled={mineruRunning}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors w-full justify-center"
+                  >
+                    {mineruRunning
+                      ? <><Loader size={12} className="animate-spin" /> 解析中...</>
+                      : <><Play size={12} /> {material?.mineruStatus === 'completed' ? '重新解析' : '开始解析'}</>
+                    }
+                  </button>
+
+                  {/* 下载 ZIP */}
+                  {material?.metadata?.markdownObjectName && (
+                    <button
+                      onClick={handleDownloadParsedZip}
+                      className="flex items-center justify-center gap-1.5 text-xs px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 w-full"
+                    >
+                      <Download size={11} /> 下载解析产物 ZIP
+                    </button>
+                  )}
+
+                  {material?.metadata?.parsedAt && (
+                    <p className="text-xs text-gray-400">
+                      解析时间：<span className="text-gray-600">{new Date(material.metadata.parsedAt).toLocaleString('zh-CN')}</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* 连接线 */}
+              <div className="flex justify-center">
+                <div className="w-px h-4 bg-gray-200" />
+              </div>
+
+              {/* ── 步骤 3：AI 元数据分析 ── */}
+              <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-gray-600 flex items-center gap-1.5">
+                    <span className="w-4 h-4 rounded-full bg-purple-100 text-purple-600 text-[10px] flex items-center justify-center font-bold">3</span>
+                    AI 元数据分析
+                  </p>
+                  <div className="flex items-center gap-1">
+                    {material?.aiStatus === 'analyzed' && (
+                      <span className="flex items-center gap-0.5 text-xs text-green-600">
+                        <CheckCircle size={12} />
+                        {material.metadata?.aiConfidence && (
+                          <span className="text-gray-500">({material.metadata.aiConfidence}%)</span>
+                        )}
+                      </span>
                     )}
-                  </span>
-                )}
-                {material?.aiStatus === 'failed' && (
-                  <span className="flex items-center gap-1 text-xs text-red-500">
-                    <XCircle size={13} /> 分析失败
-                  </span>
-                )}
-                {material?.aiStatus === 'analyzing' && (
-                  <span className="flex items-center gap-1 text-xs text-purple-500">
-                    <Loader size={13} className="animate-spin" /> 分析中
-                  </span>
-                )}
+                    {material?.aiStatus === 'failed' && (
+                      <span className="flex items-center gap-0.5 text-xs text-red-500">
+                        <XCircle size={12} />
+                      </span>
+                    )}
+                    {material?.aiStatus === 'analyzing' && (
+                      <span className="flex items-center gap-0.5 text-xs text-purple-500">
+                        <Loader size={12} className="animate-spin" />
+                      </span>
+                    )}
+                  </div>
+                </div>
+
                 <button
                   onClick={handleAiAnalyze}
                   disabled={aiAnalyzing || (!material?.metadata?.markdownObjectName && !material?.metadata?.markdownUrl && !material?.mineruZipUrl && !mineruMarkdown)}
                   title={(!material?.metadata?.markdownObjectName && !material?.metadata?.markdownUrl && !material?.mineruZipUrl && !mineruMarkdown) ? '请先完成 MinerU 解析' : ''}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="flex items-center justify-center gap-1.5 text-xs px-3 py-1.5 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors w-full mb-3"
                 >
                   {aiAnalyzing
                     ? <><Loader size={12} className="animate-spin" /> 分析中...</>
                     : <><Play size={12} /> {material?.aiStatus === 'analyzed' ? '重新分析' : '开始 AI 分析'}</>
                   }
                 </button>
+
+                {/* 原文件名 → 识别名称 */}
+                {(material?.metadata?.fileName || material?.title) && (
+                  <div className="flex items-start gap-2 px-2 py-1.5 bg-purple-50 rounded border border-purple-100 mb-2 text-xs">
+                    <div className="flex-1 min-w-0">
+                      <span className="text-purple-400">原文件名：</span>
+                      <span className="text-gray-700 break-all">{fixFilenameEncoding(material?.metadata?.fileName) || '—'}</span>
+                    </div>
+                    {material?.aiStatus === 'analyzed' && material?.title && (
+                      <>
+                        <span className="text-purple-300 flex-shrink-0 pt-0.5">→</span>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-purple-400">识别名称：</span>
+                          {editingAiName ? (
+                            <input
+                              value={aiNameDraft}
+                              onChange={(e) => setAiNameDraft(e.target.value)}
+                              onBlur={handleSaveAiName}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveAiName();
+                                if (e.key === 'Escape') {
+                                  setAiNameDraft(detail.title);
+                                  setEditingAiName(false);
+                                }
+                              }}
+                              autoFocus
+                              className="w-full text-xs font-medium text-gray-800 border border-purple-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-purple-300"
+                            />
+                          ) : (
+                            <span className="text-gray-800 font-medium break-all">{material.title}</span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => setEditingAiName(true)}
+                          className="flex-shrink-0 p-0.5 text-purple-400 hover:text-purple-600 hover:bg-purple-100 rounded"
+                          title="编辑识别名称"
+                        >
+                          <Pencil size={10} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* AI 分析结果只读显示 */}
+                <div className="space-y-0.5 text-xs text-gray-500 mb-3">
+                  {material?.metadata?.subject && (
+                    <p>学科：<span className="text-gray-700">{material.metadata.subject}</span></p>
+                  )}
+                  {material?.metadata?.grade && (
+                    <p>年级：<span className="text-gray-700">{material.metadata.grade}</span></p>
+                  )}
+                  {material?.metadata?.language && (
+                    <p>语言：<span className="text-gray-700">{material.metadata.language}</span></p>
+                  )}
+                  {material?.metadata?.aiAnalyzedAt && (
+                    <p>分析时间：<span className="text-gray-700">{new Date(material.metadata.aiAnalyzedAt).toLocaleString('zh-CN')}</span></p>
+                  )}
+                </div>
               </div>
             </div>
+          </div>
 
-            {/* B1：原文件名 → 识别名称信息条 */}
-            {(material?.metadata?.fileName || material?.title) && (
-              <div className="flex items-start gap-2 px-3 py-2 bg-purple-50 rounded-lg border border-purple-100 mb-4 text-xs">
-                <div className="flex-1 min-w-0">
-                  <span className="text-purple-400">原文件名：</span>
-                  <span className="text-gray-700 break-all">{fixFilenameEncoding(material?.metadata?.fileName) || '—'}</span>
-                </div>
-                {material?.aiStatus === 'analyzed' && material?.title && (
-                  <>
-                    <span className="text-purple-300 flex-shrink-0 pt-0.5">→</span>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-purple-400">识别名称：</span>
-                      {editingAiName ? (
-                        <input
-                          value={aiNameDraft}
-                          onChange={(e) => setAiNameDraft(e.target.value)}
-                          onBlur={handleSaveAiName}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleSaveAiName();
-                            if (e.key === 'Escape') {
-                              setAiNameDraft(detail.title);
-                              setEditingAiName(false);
-                            }
-                          }}
-                          autoFocus
-                          className="w-full text-xs font-medium text-gray-800 border border-purple-200 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-purple-300"
-                        />
-                      ) : (
-                        <span className="text-gray-800 font-medium break-all">{material.title}</span>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => setEditingAiName(true)}
-                      className="flex-shrink-0 p-0.5 text-purple-400 hover:text-purple-600 hover:bg-purple-100 rounded"
-                      title="编辑识别名称"
-                    >
-                      <Pencil size={11} />
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
+          {/* 元数据可编辑表单 + 标签（延续步骤 3 的编辑能力） */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <h2 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+              <Pencil size={13} className="text-purple-500" /> 编辑元数据
+            </h2>
 
-            {/* 元数据可编辑表单（AI 分析完成后自动填充，用户随时可修改） */}
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 <MetaSelect
                   label="语言"
                   value={metaForm.language}
@@ -1497,7 +1589,6 @@ export function AssetDetailPage() {
                   options={MATERIAL_TYPE_OPTIONS}
                   onChange={(v) => updateMeta('type', v)}
                 />
-                {/* 只读字段：格式（上传时自动填入） */}
                 <div>
                   <label className="block text-xs text-gray-400 mb-1">格式</label>
                   <div className="text-xs text-gray-500 px-2 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
@@ -1506,8 +1597,7 @@ export function AssetDetailPage() {
                 </div>
               </div>
 
-              {/* 只读字段行：文件大小 + 页数 */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs text-gray-400 mb-1">文件大小</label>
                   <div className="text-xs text-gray-500 px-2 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
@@ -1522,7 +1612,6 @@ export function AssetDetailPage() {
                 </div>
               </div>
 
-              {/* 摘要（多行文本） */}
               <div>
                 <label className="block text-xs text-gray-400 mb-1">内容摘要</label>
                 <textarea
@@ -1533,15 +1622,12 @@ export function AssetDetailPage() {
                   className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-purple-300 resize-none text-gray-700 placeholder:text-gray-300"
                 />
               </div>
-            </div>
 
-            {/* 保存按钮 */}
-            <div className="mt-4 pt-3 border-t border-gray-100 space-y-3">
-              {/* 标签区域 — 与分类并列，均为 AI 识别输出 */}
+              {/* 标签 */}
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs text-gray-400 flex items-center gap-1.5">
-                    <Tag size={11} className="text-green-500" /> 标签
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs text-gray-400 flex items-center gap-1">
+                    <Tag size={10} className="text-green-500" /> 标签
                   </label>
                   {!editingTags ? (
                     <button onClick={() => { setEditingTags(true); setLocalTags(detail.tags); }} className="text-xs text-blue-600">
@@ -1554,15 +1640,15 @@ export function AssetDetailPage() {
                     </div>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-1.5 min-h-6">
+                <div className="flex flex-wrap gap-1 min-h-6">
                   {(editingTags ? localTags : detail.tags).map((tag) => (
                     <span
                       key={tag}
-                      className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full"
+                      className="inline-flex items-center gap-0.5 text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded-full"
                     >
                       {tag}
                       {editingTags && (
-                        <button onClick={() => removeTag(tag)} className="text-blue-400 hover:text-red-500">×</button>
+                        <button onClick={() => removeTag(tag)} className="text-blue-400 hover:text-red-500 text-[10px]">×</button>
                       )}
                     </span>
                   ))}
@@ -1571,61 +1657,31 @@ export function AssetDetailPage() {
                   )}
                 </div>
                 {editingTags && (
-                  <div className="flex gap-2 mt-2">
+                  <div className="flex gap-2 mt-1.5">
                     <input
                       value={tagInput}
                       onChange={(e) => setTagInput(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && addTag()}
                       placeholder="输入新标签..."
-                      className="flex-1 text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                      className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300"
                     />
-                    <button onClick={addTag} className="text-xs px-2 py-1.5 bg-blue-600 text-white rounded">
+                    <button onClick={addTag} className="text-xs px-2 py-1 bg-blue-600 text-white rounded">
                       添加
                     </button>
                   </div>
                 )}
               </div>
 
-              {/* 保存元数据 */}
-              <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                {!material?.metadata?.markdownObjectName && !material?.metadata?.markdownUrl && !material?.mineruZipUrl && !mineruMarkdown && (
-                  <p className="text-xs text-yellow-600">⚠ 请先完成 MinerU 解析，AI 分析将基于解析出的 Markdown 内容</p>
-                )}
-                <div className="ml-auto">
-                  <button
-                    onClick={handleSaveMeta}
-                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                  >
-                    <Save size={12} /> 保存元数据
-                  </button>
-                </div>
+              <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                <button
+                  onClick={handleSaveMeta}
+                  className="flex items-center gap-1 text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <Save size={11} /> 保存元数据
+                </button>
               </div>
             </div>
           </div>
-        </div>
-
-        {/* 右侧列 */}
-        <div className="space-y-5">
-          {/* 文件溯源卡片 */}
-          {material && (
-            <FileLineageCard
-              material={material}
-              originalUrl={originalUrl}
-              onOriginalUrlReady={setOriginalUrl}
-              onRefreshUrl={handleRefreshOriginalUrl}
-              onMdLoaded={(content) => setLineageMdContent(content)}
-            />
-          )}
-
-          {/* PDF 内嵌预览 — 仅当原始文件为 PDF 且已获取到 presigned URL 时显示 */}
-          {originalUrl && material?.type?.toUpperCase() === 'PDF' && (
-            <PDFPreviewPanel url={originalUrl} />
-          )}
-
-          {/* Markdown 渲染预览 — 有解析内容时显示 */}
-          {previewMdContent && (
-            <MarkdownRenderPanel content={previewMdContent} />
-          )}
 
           {/* 相关资产 */}
           {detail.relatedAssets.length > 0 && (
@@ -1647,6 +1703,20 @@ export function AssetDetailPage() {
                 ))}
               </div>
             </div>
+          )}
+        </div>
+
+        {/* 中间 1/3：PDF 预览 */}
+        <div className="space-y-5">
+          {objectName && material?.type?.toUpperCase() === 'PDF' && (
+            <PDFPreviewPanel objectName={objectName} />
+          )}
+        </div>
+
+        {/* 右侧 1/3：Markdown 预览 */}
+        <div className="space-y-5">
+          {previewMdContent && (
+            <MarkdownRenderPanel content={previewMdContent} />
           )}
         </div>
       </div>

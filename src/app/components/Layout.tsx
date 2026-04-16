@@ -18,14 +18,14 @@ import { BatchProcessingController, BatchProgressFab, BatchUploadModal } from '.
 const TOP_NAV = [
   { name: '工作台',   href: '/' },
   { name: '资料库',   href: '/source-materials' },
-  { name: '成品库',   href: '/products' },
+  { name: '已处理资料库',   href: '/products' },
 ];
 
 /* ── 侧边栏主导航 ──────────────────────────────────────────── */
 const SIDE_NAV = [
   { name: '工作台',       href: '/',                  icon: LayoutDashboard },
   { name: '原始资料',     href: '/source-materials',  icon: FolderOpen },
-  { name: '成品库',       href: '/products',          icon: GraduationCap },
+  { name: '已处理资料库',       href: '/products',          icon: GraduationCap },
   { name: '元数据管理',   href: '/metadata',          icon: Tag },
 ];
 

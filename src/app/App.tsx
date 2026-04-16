@@ -28,7 +28,7 @@ export default function App() {
                 <Route path="/source-materials" element={<SourceMaterialsPage />} />
                 {/* 资产详情：解析结果查看、字段编辑、AI 规则配置 */}
                 <Route path="/asset/:id" element={<AssetDetailPage />} />
-                {/* 成品库：查看由资料生成的成品资产 */}
+                {/* 已处理资料库：检索已完成 MinerU 解析 + AI 元数据识别的资产 */}
                 <Route path="/products" element={<ProductsPage />} />
                 {/* 元数据管理：灵活标签/AI规则/成品分类管理 */}
                 <Route path="/metadata" element={<MetadataManagementPage />} />

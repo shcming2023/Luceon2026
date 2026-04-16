@@ -1,445 +1,861 @@
-import { useState, useMemo } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+/**
+ * 已处理资料库（原"成品库"）
+ * 数据源：state.materials（已完成 MinerU 解析 + AI 元数据识别的第2类资产）
+ * 功能：多维筛选检索、原始文件预览/下载、Markdown 行内展开预览与下载、ZIP 下载、跳转详情
+ */
+import { useState, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  Star,
-  TrendingUp,
-  Trash2,
-  GitBranch,
   Search,
   FileText,
   Download,
   Eye,
+  EyeOff,
+  ExternalLink,
+  ChevronDown,
+  ChevronRight,
+  SortAsc,
+  Grid,
+  List,
   X,
+  Archive,
 } from 'lucide-react';
-import { toast } from 'sonner';
-import type { Material, Product } from '../../store/types';
 import { useAppStore } from '../../store/appContext';
-import { StatusBadge } from '../components/StatusBadge';
-import { sortProducts } from '../../utils/sort';
+import { sortMaterials } from '../../utils/sort';
+import { usePagination, getPageNumbers } from '../../utils/pagination';
 import { fetchMinerUMarkdown } from '../../utils/mineruApi';
+import type { SortOption, ViewMode } from '../../store/types';
 
-type SortKey = '最新发布' | '使用最多' | '评分最高';
-const SORT_OPTIONS: SortKey[] = ['最新发布', '使用最多', '评分最高'];
+// ── 筛选选项常量 ──────────────────────────────────────────
 
-const PRODUCT_COLORS: Record<string, string> = {
-  blue:   'border-blue-200 bg-blue-50/60',
-  green:  'border-green-200 bg-green-50/60',
-  purple: 'border-purple-200 bg-purple-50/60',
-  orange: 'border-orange-200 bg-orange-50/60',
-  yellow: 'border-yellow-200 bg-yellow-50/60',
-  indigo: 'border-indigo-200 bg-indigo-50/60',
-};
+const SORT_OPTIONS: { key: SortOption; label: string }[] = [
+  { key: 'newest', label: '最新上传' },
+  { key: 'oldest', label: '最早上传' },
+  { key: 'name',   label: '名称' },
+  { key: 'size',   label: '文件大小' },
+];
 
-const ICON_COLORS: Record<string, string> = {
-  blue:   'bg-blue-100 text-blue-600',
-  green:  'bg-green-100 text-green-600',
-  purple: 'bg-purple-100 text-purple-600',
-  orange: 'bg-orange-100 text-orange-600',
-  yellow: 'bg-yellow-100 text-yellow-700',
-  indigo: 'bg-indigo-100 text-indigo-600',
-};
+const MINERU_STATUS_OPTIONS = [
+  { key: 'all',        label: '全部 MinerU 状态' },
+  { key: 'completed',  label: '解析完成' },
+  { key: 'processing', label: '解析中' },
+  { key: 'pending',    label: '待解析' },
+  { key: 'failed',     label: '解析失败' },
+] as const;
 
-const THUMB_GRADIENTS: Record<string, string> = {
-  blue:   'from-blue-100 to-blue-200',
-  green:  'from-green-100 to-green-200',
-  purple: 'from-purple-100 to-purple-200',
-  orange: 'from-orange-100 to-orange-200',
-  yellow: 'from-yellow-100 to-yellow-200',
-  indigo: 'from-indigo-100 to-indigo-200',
-};
+const AI_STATUS_OPTIONS = [
+  { key: 'all',       label: '全部 AI 状态' },
+  { key: 'analyzed',  label: '已分析' },
+  { key: 'analyzing', label: '分析中' },
+  { key: 'pending',   label: '待分析' },
+  { key: 'failed',    label: '分析失败' },
+] as const;
+
+// ── 工具函数 ──────────────────────────────────────────────
+
+function formatBytes(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
+function typeColor(type: string) {
+  if (type === 'PDF') return { bg: 'bg-red-100', text: 'text-red-600', badge: 'bg-red-600' };
+  if (type === 'DOCX' || type === 'DOC') return { bg: 'bg-blue-100', text: 'text-blue-600', badge: 'bg-blue-600' };
+  return { bg: 'bg-orange-100', text: 'text-orange-600', badge: 'bg-orange-600' };
+}
+
+// ── Markdown 加载状态类型 ─────────────────────────────────
+
+interface MdState {
+  loading: boolean;
+  content: string | null;
+  error: string;
+}
+
+// ── 主组件 ────────────────────────────────────────────────
 
 export function ProductsPage() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { state, dispatch } = useAppStore();
-  const [sortKey, setSortKey] = useState<SortKey>('最新发布');
-  const [search, setSearch] = useState('');
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [activeProductId, setActiveProductId] = useState<number | null>(null);
-  const [mdLoading, setMdLoading] = useState(false);
-  const [mdPreview, setMdPreview] = useState<string | null>(null);
-  const [mdError, setMdError] = useState('');
+  const { state } = useAppStore();
 
-  const activeProduct = useMemo(() => {
-    if (activeProductId === null) return null;
-    return state.products.find((p) => p.id === activeProductId) ?? null;
-  }, [activeProductId, state.products]);
+  // 筛选器状态
+  const [search, setSearch]               = useState('');
+  const [sort, setSort]                   = useState<SortOption>('newest');
+  const [viewMode, setViewMode]           = useState<ViewMode>('list');
+  const [advancedExpanded, setAdvancedExpanded] = useState(false);
+  const [subjectFilter, setSubjectFilter] = useState('all');
+  const [gradeFilter, setGradeFilter]     = useState('all');
+  const [languageFilter, setLanguageFilter] = useState('all');
+  const [typeFilter, setTypeFilter]       = useState('all');
+  const [mineruStatusFilter, setMineruStatusFilter] =
+    useState<(typeof MINERU_STATUS_OPTIONS)[number]['key']>('completed');
+  const [aiStatusFilter, setAiStatusFilter] =
+    useState<(typeof AI_STATUS_OPTIONS)[number]['key']>('analyzed');
 
-  const sourceMaterial = useMemo<Material | null>(() => {
-    if (!activeProduct?.source) return null;
-    const m = String(activeProduct.source).match(/^material:(\d+)$/);
-    if (!m) return null;
-    const id = Number(m[1]);
-    if (!Number.isFinite(id)) return null;
-    return state.materials.find((x) => x.id === id) ?? null;
-  }, [activeProduct?.source, state.materials]);
+  // 每个资料的 Markdown 展开状态（Map 不触发 re-render，用 state 存）
+  const [mdStates, setMdStates] = useState<Map<number, MdState>>(new Map());
 
-  const openProduct = (product: Product) => {
-    setActiveProductId(product.id);
-    setMdPreview(null);
-    setMdError('');
-  };
+  // PDF 预览弹窗
+  const [pdfPreviewId, setPdfPreviewId] = useState<number | null>(null);
 
-  const closeProduct = () => {
-    setActiveProductId(null);
-    setMdPreview(null);
-    setMdError('');
-  };
+  // ── 高级筛选选项（动态从数据中提取）──────────────────────
+  const advancedOptions = useMemo(() => {
+    const unique = (values: (string | undefined)[]) =>
+      [...new Set(values.map((v) => v?.trim()).filter(Boolean) as string[])].sort((a, b) =>
+        a.localeCompare(b, 'zh-CN'),
+      );
+    return {
+      subjects:  unique(state.materials.map((m) => m.metadata?.subject)),
+      grades:    unique(state.materials.map((m) => m.metadata?.grade)),
+      languages: unique(state.materials.map((m) => m.metadata?.language)),
+      types:     unique(state.materials.map((m) => m.type)),
+    };
+  }, [state.materials]);
 
-  const handleToggleMarkdown = async () => {
-    if (mdLoading) return;
-    if (mdPreview !== null) { setMdPreview(null); setMdError(''); return; }
-    if (!sourceMaterial) { setMdError('找不到来源资料，无法加载内容'); return; }
-    const { markdownObjectName, markdownUrl } = sourceMaterial.metadata || {};
-    setMdLoading(true);
-    setMdError('');
-    try {
-      let text = '';
-      if (markdownObjectName) {
-        const bucket = String(state.minioConfig.parsedBucket || state.minioConfig.bucket || '');
-        const url = `/__proxy/upload/proxy-file?objectName=${encodeURIComponent(markdownObjectName)}${bucket ? `&bucket=${encodeURIComponent(bucket)}` : ''}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`读取失败: HTTP ${res.status}`);
-        text = await res.text();
-      } else {
-        text = await fetchMinerUMarkdown(markdownUrl, sourceMaterial.mineruZipUrl);
-      }
-      if (!text.trim()) { setMdError('暂无可用的 Markdown 内容'); return; }
-      setMdPreview(text.length > 20000 ? `${text.slice(0, 20000)}\n\n...(内容已截断)` : text);
-    } catch (error) {
-      setMdError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setMdLoading(false);
-    }
-  };
-
-  const handleDownloadMarkdown = () => {
-    if (!mdPreview) return;
-    const blob = new Blob([mdPreview], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${(activeProduct?.title || 'product').replace(/[\\/:*?"<>|]+/g, '_')}.md`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-  };
-
-  const materialIdFilter = useMemo(() => {
-    const sp = new URLSearchParams(location.search);
-    const raw = sp.get('materialId');
-    if (!raw) return null;
-    const n = Number(raw);
-    return Number.isFinite(n) ? n : null;
-  }, [location.search]);
-
-  const filterMaterial = useMemo<Material | null>(() => {
-    if (materialIdFilter === null) return null;
-    return state.materials.find((m) => m.id === materialIdFilter) ?? null;
-  }, [materialIdFilter, state.materials]);
-
-  const baseList = useMemo(() => {
-    if (materialIdFilter === null) return state.products;
-    const source = `material:${materialIdFilter}`;
-    return state.products.filter(
-      (p) => p.source === source || (p.lineage || []).some((id) => Number(id) === materialIdFilter),
-    );
-  }, [materialIdFilter, state.products]);
-
+  // ── 筛选 + 排序 ──────────────────────────────────────────
   const filtered = useMemo(() => {
-    let list = baseList;
+    let list = state.materials;
+    if (mineruStatusFilter !== 'all') list = list.filter((m) => m.mineruStatus === mineruStatusFilter);
+    if (aiStatusFilter !== 'all')     list = list.filter((m) => m.aiStatus === aiStatusFilter);
+    if (subjectFilter !== 'all')      list = list.filter((m) => m.metadata?.subject === subjectFilter);
+    if (gradeFilter !== 'all')        list = list.filter((m) => m.metadata?.grade === gradeFilter);
+    if (languageFilter !== 'all')     list = list.filter((m) => m.metadata?.language === languageFilter);
+    if (typeFilter !== 'all')         list = list.filter((m) => m.type === typeFilter);
     if (search.trim()) {
-      const q = search.toLowerCase();
+      const q = search.trim().toLowerCase();
       list = list.filter(
-        (p) =>
-          p.title.toLowerCase().includes(q) ||
-          p.tags.some((t) => t.toLowerCase().includes(q)) ||
-          p.description.toLowerCase().includes(q),
+        (m) =>
+          m.title.toLowerCase().includes(q) ||
+          m.tags.some((t) => t.toLowerCase().includes(q)) ||
+          (m.metadata?.subject || '').toLowerCase().includes(q) ||
+          (m.metadata?.grade || '').toLowerCase().includes(q),
       );
     }
-    return sortProducts(list, sortKey);
-  }, [baseList, search, sortKey]);
+    return sortMaterials(list, sort);
+  }, [state.materials, mineruStatusFilter, aiStatusFilter, subjectFilter, gradeFilter, languageFilter, typeFilter, search, sort]);
 
-  const toggleSelect = (id: number) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+  const { currentItems, currentPage, totalPages, goToPage, hasPrev, hasNext, prevPage, nextPage } =
+    usePagination(filtered);
+  const pageNumbers = getPageNumbers(currentPage, totalPages);
+
+  // ── 统计摘要 ─────────────────────────────────────────────
+  const totalCount = state.materials.length;
+  const processedCount = useMemo(
+    () => state.materials.filter((m) => m.mineruStatus === 'completed' && m.aiStatus === 'analyzed').length,
+    [state.materials],
+  );
+
+  // ── Markdown 拉取 ─────────────────────────────────────────
+  const handleToggleMarkdown = useCallback(
+    async (id: number) => {
+      const cur = mdStates.get(id);
+
+      // 已有内容则收起
+      if (cur?.content !== undefined && cur.content !== null) {
+        setMdStates((prev) => {
+          const next = new Map(prev);
+          next.set(id, { loading: false, content: null, error: '' });
+          return next;
+        });
+        return;
+      }
+
+      // 正在加载则忽略
+      if (cur?.loading) return;
+
+      const material = state.materials.find((m) => m.id === id);
+      if (!material) return;
+
+      setMdStates((prev) => {
+        const next = new Map(prev);
+        next.set(id, { loading: true, content: null, error: '' });
+        return next;
+      });
+
+      try {
+        let text = '';
+        const { markdownObjectName, markdownUrl } = material.metadata || {};
+        if (markdownObjectName) {
+          const bucket = String(state.minioConfig.parsedBucket || state.minioConfig.bucket || '');
+          const url = `/__proxy/upload/proxy-file?objectName=${encodeURIComponent(markdownObjectName)}${bucket ? `&bucket=${encodeURIComponent(bucket)}` : ''}`;
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(`读取失败: HTTP ${res.status}`);
+          text = await res.text();
+        } else {
+          text = await fetchMinerUMarkdown(markdownUrl, material.mineruZipUrl);
+        }
+        if (!text.trim()) {
+          setMdStates((prev) => {
+            const next = new Map(prev);
+            next.set(id, { loading: false, content: null, error: '暂无可用的 Markdown 内容' });
+            return next;
+          });
+          return;
+        }
+        const content = text.length > 20000 ? `${text.slice(0, 20000)}\n\n...(内容已截断)` : text;
+        setMdStates((prev) => {
+          const next = new Map(prev);
+          next.set(id, { loading: false, content, error: '' });
+          return next;
+        });
+      } catch (err) {
+        setMdStates((prev) => {
+          const next = new Map(prev);
+          next.set(id, { loading: false, content: null, error: err instanceof Error ? err.message : String(err) });
+          return next;
+        });
+      }
+    },
+    [mdStates, state.materials, state.minioConfig],
+  );
+
+  const handleDownloadMarkdown = useCallback(
+    (id: number, title: string) => {
+      const content = mdStates.get(id)?.content;
+      if (!content) return;
+      const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${title.replace(/[\\/:*?"<>|]+/g, '_')}.md`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    },
+    [mdStates],
+  );
+
+  // ── PDF 预览 URL 构造 ─────────────────────────────────────
+  const getPdfPreviewUrl = useCallback(
+    (id: number) => {
+      const m = state.materials.find((mat) => mat.id === id);
+      if (!m) return null;
+      if (m.metadata?.objectName) {
+        const bucket = String(state.minioConfig.bucket || '');
+        return `/__proxy/upload/proxy-file?objectName=${encodeURIComponent(m.metadata.objectName)}${bucket ? `&bucket=${encodeURIComponent(bucket)}` : ''}`;
+      }
+      if (m.previewUrl) return m.previewUrl;
+      return null;
+    },
+    [state.materials, state.minioConfig],
+  );
+
+  const pdfPreviewUrl = pdfPreviewId !== null ? getPdfPreviewUrl(pdfPreviewId) : null;
+  const pdfPreviewMaterial = pdfPreviewId !== null ? state.materials.find((m) => m.id === pdfPreviewId) : null;
+
+  // ── 重置筛选 ─────────────────────────────────────────────
+  const handleResetFilters = () => {
+    setSearch('');
+    setSubjectFilter('all');
+    setGradeFilter('all');
+    setLanguageFilter('all');
+    setTypeFilter('all');
+    setMineruStatusFilter('completed');
+    setAiStatusFilter('analyzed');
   };
 
-  const handleBatchDelete = () => {
-    if (selectedIds.size === 0) return;
-    dispatch({ type: 'DELETE_PRODUCT', payload: Array.from(selectedIds) });
-    setSelectedIds(new Set());
-    toast.success(`已删除 ${selectedIds.size} 件成品`);
-  };
+  const isFiltered =
+    search ||
+    subjectFilter !== 'all' ||
+    gradeFilter !== 'all' ||
+    languageFilter !== 'all' ||
+    typeFilter !== 'all' ||
+    mineruStatusFilter !== 'completed' ||
+    aiStatusFilter !== 'analyzed';
 
+  // ────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
       <div className="max-w-[1400px] mx-auto px-8 py-8">
-        {/* ── 页面头部 ─────────────────────────────────── */}
-        <div className="flex items-start justify-between mb-8">
+
+        {/* ── 页面头部 ────────────────────────────────── */}
+        <div className="flex items-start justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900 mb-1">成品库</h1>
+            <h1 className="text-3xl font-bold text-slate-900 mb-1">已处理资料库</h1>
             <p className="text-slate-500 text-sm">
-              共 {baseList.length} 件成品{materialIdFilter !== null ? ` · 全部 ${state.products.length}` : ''}
+              已完成 MinerU 解析 + AI 元数据识别的资产 · 共 {processedCount} 条
+              {totalCount !== processedCount && (
+                <span className="ml-1 text-slate-400">（全库 {totalCount} 条）</span>
+              )}
             </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {selectedIds.size > 0 && (
-              <button
-                onClick={handleBatchDelete}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm text-red-600 border border-red-200 rounded-xl hover:bg-red-50 font-medium transition-colors"
-              >
-                <Trash2 size={14} /> 删除选中 ({selectedIds.size})
-              </button>
-            )}
           </div>
         </div>
 
-        {/* 来源筛选提示 */}
-        {materialIdFilter !== null && (
-          <div className="flex items-center gap-2 flex-wrap text-sm text-slate-600 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-6">
-            <span className="text-slate-700">
-              当前筛选：来源资料 {filterMaterial ? `"${filterMaterial.title}"` : `ID=${materialIdFilter}`}
-            </span>
-            {filterMaterial && (
-              <button
-                onClick={() => navigate(`/asset/${filterMaterial.id}`)}
-                className="text-xs px-3 py-1.5 rounded-lg bg-white text-blue-700 border border-blue-200 hover:bg-blue-50 font-medium"
-              >
-                打开资料
-              </button>
-            )}
-            <button
-              onClick={() => navigate('/products')}
-              className="text-xs px-3 py-1.5 rounded-lg bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 font-medium"
-            >
-              清除筛选
-            </button>
-          </div>
-        )}
-
-        {/* ── 搜索 + 排序工具栏 ─────────────────────────── */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-6">
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="搜索成品名称、标签、描述..."
-                className="w-full pl-11 pr-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm bg-slate-50"
-              />
-            </div>
-            <div className="flex bg-slate-100 rounded-lg p-0.5 gap-0.5">
-              {SORT_OPTIONS.map((o) => (
-                <button
-                  key={o}
-                  onClick={() => setSortKey(o)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                    sortKey === o
-                      ? 'bg-white text-blue-700 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-900'
-                  }`}
+        {/* ── 筛选工具栏 ─────────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm mb-6">
+          <div className="p-5">
+            {/* 搜索行 */}
+            <div className="flex items-center gap-3 mb-4 flex-wrap">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="搜索资料名称、标签、学科、年级..."
+                  className="w-full pl-11 pr-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm bg-slate-50"
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <SortAsc size={14} className="text-slate-400" />
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value as SortOption)}
+                  className="text-sm border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
                 >
-                  {o}
-                </button>
-              ))}
-            </div>
-          </div>
-          {search && (
-            <p className="text-sm text-slate-500 mt-3">
-              找到 <span className="font-semibold text-slate-800">{filtered.length}</span> 件成品
-            </p>
-          )}
-        </div>
-
-        {/* ── 卡片网格 ─────────────────────────────────── */}
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {filtered.length === 0 && (
-            <div className="col-span-3 text-center py-16 text-slate-400">暂无成品</div>
-          )}
-          {filtered.map((product) => {
-            const colorClass = PRODUCT_COLORS[product.color] ?? 'border-slate-200 bg-slate-50/60';
-            const iconClass = ICON_COLORS[product.color] ?? 'bg-slate-100 text-slate-600';
-            const thumbGrad = THUMB_GRADIENTS[product.color] ?? 'from-slate-100 to-slate-200';
-            const isSelected = selectedIds.has(product.id);
-            return (
-              <div
-                key={product.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => openProduct(product)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openProduct(product); }}
-                className={`bg-white rounded-2xl border overflow-hidden transition-shadow hover:shadow-lg cursor-pointer group ${
-                  isSelected ? 'ring-2 ring-blue-400 border-blue-200' : 'border-slate-200'
-                }`}
-              >
-                {/* 缩略图区域 */}
-                <div className={`relative aspect-[16/9] bg-gradient-to-br ${thumbGrad} flex items-center justify-center`}>
-                  <FileText className="w-12 h-12 text-slate-300" />
-                  <div className="absolute top-3 left-3">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold text-white ${
-                      product.color === 'blue' ? 'bg-blue-600' :
-                      product.color === 'green' ? 'bg-green-600' :
-                      product.color === 'purple' ? 'bg-purple-600' :
-                      product.color === 'orange' ? 'bg-orange-600' :
-                      product.color === 'indigo' ? 'bg-indigo-600' : 'bg-slate-600'
-                    }`}>
-                      {product.type}
-                    </span>
-                  </div>
-                  <div className="absolute top-3 right-3" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleSelect(product.id)}
-                      className="rounded"
-                    />
-                  </div>
-                  <div className="absolute bottom-3 right-3">
-                    <StatusBadge status={product.status} />
-                  </div>
-                </div>
-
-                {/* 内容区 */}
-                <div className="p-5">
-                  <h3 className="font-semibold text-slate-900 line-clamp-1 group-hover:text-blue-600 transition-colors mb-1">
-                    {product.title}
-                  </h3>
-                  <p className="text-xs text-slate-500 line-clamp-2 mb-3">{product.description}</p>
-
-                  {/* 统计行 */}
-                  <div className="flex items-center gap-4 text-xs text-slate-500 mb-3">
-                    <span className="flex items-center gap-1">
-                      <Star size={12} className="text-yellow-500" />
-                      {product.rating}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <TrendingUp size={12} />
-                      {product.useCount} 次
-                    </span>
-                    <span>{product.items}</span>
-                  </div>
-
-                  {/* 标签 */}
-                  {product.tags.length > 0 && (
-                    <div className="flex gap-1 flex-wrap mb-3">
-                      {product.tags.slice(0, 3).map((tag) => (
-                        <span key={tag} className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">
-                          {tag}
-                        </span>
-                      ))}
-                      {product.tags.length > 3 && (
-                        <span className="text-[10px] text-slate-400">+{product.tags.length - 3}</span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* 血缘 + 日期 */}
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-                    {product.lineage.length > 0 ? (
-                      <span className="text-[10px] text-slate-400 flex items-center gap-1 truncate max-w-[60%]">
-                        <GitBranch size={10} />
-                        {product.lineage.join(' → ')}
-                      </span>
-                    ) : (
-                      <span />
-                    )}
-                    <span className="text-[10px] text-slate-400">{product.createdAt}</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ── 详情弹窗 ─────────────────────────────────── */}
-      {activeProduct && (
-        <div
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={closeProduct}
-        >
-          <div
-            className="w-full max-w-3xl bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* 弹窗头部 */}
-            <div className="p-6 border-b border-slate-100 flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <p className="text-xs text-slate-400 mb-1">{activeProduct.type}</p>
-                <h2 className="text-lg font-semibold text-slate-900 truncate">{activeProduct.title}</h2>
+                  {SORT_OPTIONS.map((o) => (
+                    <option key={o.key} value={o.key}>{o.label}</option>
+                  ))}
+                </select>
               </div>
               <button
-                onClick={closeProduct}
-                className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+                onClick={() => setAdvancedExpanded((p) => !p)}
+                className="flex items-center gap-1 px-3 py-2 text-sm text-slate-500 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
               >
-                <X size={18} />
+                {advancedExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                高级筛选
               </button>
+              {isFiltered && (
+                <button
+                  onClick={handleResetFilters}
+                  className="flex items-center gap-1 px-3 py-2 text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
+                >
+                  <X size={12} /> 重置筛选
+                </button>
+              )}
+              {/* 视图切换 */}
+              <div className="ml-auto flex items-center gap-1 p-0.5 bg-slate-100 rounded-lg">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-2 rounded ${viewMode === 'list' ? 'bg-white shadow-sm' : 'hover:bg-slate-50'}`}
+                >
+                  <List className={`w-4 h-4 ${viewMode === 'list' ? 'text-blue-600' : 'text-slate-400'}`} />
+                </button>
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-2 rounded ${viewMode === 'grid' ? 'bg-white shadow-sm' : 'hover:bg-slate-50'}`}
+                >
+                  <Grid className={`w-4 h-4 ${viewMode === 'grid' ? 'text-blue-600' : 'text-slate-400'}`} />
+                </button>
+              </div>
             </div>
 
-            {/* 弹窗内容 */}
-            <div className="p-6">
-              <p className="text-sm text-slate-600 mb-4">{activeProduct.description}</p>
+            {/* 快捷状态筛选行 */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <select
+                value={mineruStatusFilter}
+                onChange={(e) => setMineruStatusFilter(e.target.value as typeof mineruStatusFilter)}
+                className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+              >
+                {MINERU_STATUS_OPTIONS.map((o) => (
+                  <option key={o.key} value={o.key}>{o.label}</option>
+                ))}
+              </select>
+              <select
+                value={aiStatusFilter}
+                onChange={(e) => setAiStatusFilter(e.target.value as typeof aiStatusFilter)}
+                className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+              >
+                {AI_STATUS_OPTIONS.map((o) => (
+                  <option key={o.key} value={o.key}>{o.label}</option>
+                ))}
+              </select>
+              {search && (
+                <span className="text-sm text-slate-500">
+                  找到 <span className="font-semibold text-slate-800">{filtered.length}</span> 条结果
+                </span>
+              )}
+            </div>
+          </div>
 
-              <div className="flex items-center gap-2 flex-wrap mb-4">
-                <StatusBadge status={activeProduct.status} />
-                <span className="text-xs text-slate-400">创建：{activeProduct.createdAt}</span>
-                {sourceMaterial && (
-                  <button
-                    onClick={() => navigate(`/asset/${sourceMaterial.id}`)}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 font-medium"
-                  >
-                    打开来源资料
+          {/* 高级筛选面板 */}
+          {advancedExpanded && (
+            <div className="px-5 pb-5 pt-0">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4 p-4 bg-slate-50 rounded-xl">
+                <select
+                  value={subjectFilter}
+                  onChange={(e) => setSubjectFilter(e.target.value)}
+                  className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+                >
+                  <option value="all">全部学科</option>
+                  {advancedOptions.subjects.map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
+                </select>
+                <select
+                  value={gradeFilter}
+                  onChange={(e) => setGradeFilter(e.target.value)}
+                  className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+                >
+                  <option value="all">全部年级</option>
+                  {advancedOptions.grades.map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
+                </select>
+                <select
+                  value={languageFilter}
+                  onChange={(e) => setLanguageFilter(e.target.value)}
+                  className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+                >
+                  <option value="all">全部语言</option>
+                  {advancedOptions.languages.map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
+                </select>
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+                >
+                  <option value="all">全部文件类型</option>
+                  {advancedOptions.types.map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── 列表视图 ──────────────────────────────── */}
+        {viewMode === 'list' ? (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-600 text-xs uppercase tracking-wide">资料名称</th>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-600 text-xs uppercase tracking-wide">类型</th>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-600 text-xs uppercase tracking-wide">大小</th>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-600 text-xs uppercase tracking-wide">学科 / 年级</th>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-600 text-xs uppercase tracking-wide">上传时间</th>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-600 text-xs uppercase tracking-wide">操作</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {currentItems.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="text-center py-16 text-slate-400">
+                      暂无符合条件的资料
+                      {isFiltered && (
+                        <button
+                          onClick={handleResetFilters}
+                          className="ml-2 text-blue-500 underline text-xs"
+                        >
+                          重置筛选
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                )}
+                {currentItems.map((m) => {
+                  const tc = typeColor(m.type);
+                  const mdSt = mdStates.get(m.id);
+                  const hasMd = !!(m.metadata?.markdownObjectName || m.metadata?.markdownUrl || m.mineruZipUrl);
+                  const hasZip = !!m.mineruZipUrl;
+                  const hasPdf = !!(m.metadata?.objectName || m.previewUrl);
+                  return (
+                    <>
+                      <tr
+                        key={m.id}
+                        className="hover:bg-slate-50 cursor-pointer transition-colors"
+                        onClick={() => navigate(`/asset/${m.id}`)}
+                      >
+                        <td className="px-4 py-3.5">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${tc.bg}`}>
+                              <FileText className={`w-4 h-4 ${tc.text}`} />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-medium text-slate-800 truncate max-w-xs hover:text-blue-600 transition-colors">
+                                {m.title}
+                              </p>
+                              {m.tags.length > 0 && (
+                                <div className="flex gap-1 mt-1 flex-wrap">
+                                  {m.tags.slice(0, 3).map((tag) => (
+                                    <span key={tag} className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">
+                                      {tag}
+                                    </span>
+                                  ))}
+                                  {m.tags.length > 3 && (
+                                    <span className="text-[10px] text-slate-400">+{m.tags.length - 3}</span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-white ${tc.badge}`}>{m.type}</span>
+                        </td>
+                        <td className="px-4 py-3.5 text-slate-500">{m.size || formatBytes(m.sizeBytes)}</td>
+                        <td className="px-4 py-3.5">
+                          <div className="flex flex-col gap-0.5">
+                            {m.metadata?.subject && (
+                              <span className="text-xs text-slate-700 font-medium">{m.metadata.subject}</span>
+                            )}
+                            {m.metadata?.grade && (
+                              <span className="text-xs text-slate-400">{m.metadata.grade}</span>
+                            )}
+                            {!m.metadata?.subject && !m.metadata?.grade && (
+                              <span className="text-xs text-slate-300">—</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3.5 text-slate-400 text-xs">{m.uploadTime}</td>
+                        <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-1">
+                            {/* 查看详情 */}
+                            <button
+                              onClick={() => navigate(`/asset/${m.id}`)}
+                              className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="查看详情"
+                            >
+                              <ExternalLink size={14} />
+                            </button>
+                            {/* 预览原文件 */}
+                            {hasPdf && (
+                              <button
+                                onClick={() => setPdfPreviewId(m.id)}
+                                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                title="预览原文件"
+                              >
+                                <Eye size={14} />
+                              </button>
+                            )}
+                            {/* 预览/收起 Markdown */}
+                            {hasMd && (
+                              <button
+                                onClick={() => handleToggleMarkdown(m.id)}
+                                disabled={mdSt?.loading}
+                                className={`p-1.5 rounded-lg transition-colors disabled:opacity-50 ${
+                                  mdSt?.content
+                                    ? 'text-orange-600 bg-orange-50 hover:bg-orange-100'
+                                    : 'text-slate-400 hover:text-orange-600 hover:bg-orange-50'
+                                }`}
+                                title={mdSt?.content ? '收起 Markdown' : '预览 Markdown'}
+                              >
+                                {mdSt?.content ? <EyeOff size={14} /> : <Eye size={14} />}
+                              </button>
+                            )}
+                            {/* 下载 Markdown */}
+                            {mdSt?.content && (
+                              <button
+                                onClick={() => handleDownloadMarkdown(m.id, m.title)}
+                                className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                title="下载 .md"
+                              >
+                                <Download size={14} />
+                              </button>
+                            )}
+                            {/* 下载 ZIP */}
+                            {hasZip && (
+                              <a
+                                href={m.mineruZipUrl}
+                                download
+                                className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                                title="下载解析 ZIP"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Archive size={14} />
+                              </a>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                      {/* Markdown 行内展开 */}
+                      {(mdSt?.loading || mdSt?.error || mdSt?.content) && (
+                        <tr key={`md-${m.id}`}>
+                          <td colSpan={6} className="px-4 pb-4 pt-0">
+                            {mdSt?.loading && (
+                              <div className="flex items-center gap-2 text-sm text-slate-400 bg-slate-50 rounded-xl px-4 py-3">
+                                <div className="w-4 h-4 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
+                                读取 Markdown 内容中...
+                              </div>
+                            )}
+                            {mdSt?.error && (
+                              <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                                {mdSt.error}
+                              </div>
+                            )}
+                            {mdSt?.content && (
+                              <div className="relative">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs text-slate-500 font-medium">Markdown 预览</span>
+                                  <div className="flex gap-1">
+                                    <button
+                                      onClick={() => handleDownloadMarkdown(m.id, m.title)}
+                                      className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 font-medium"
+                                    >
+                                      <Download size={11} /> 下载 .md
+                                    </button>
+                                    <button
+                                      onClick={() => handleToggleMarkdown(m.id)}
+                                      className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium"
+                                    >
+                                      <EyeOff size={11} /> 收起
+                                    </button>
+                                  </div>
+                                </div>
+                                <pre className="bg-slate-50 rounded-xl border border-slate-200 p-4 text-[12px] text-slate-700 overflow-auto max-h-[40vh] whitespace-pre-wrap leading-relaxed">
+                                  {mdSt.content}
+                                </pre>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          /* ── 卡片视图 ──────────────────────────────── */
+          <div className="grid grid-cols-2 gap-5 md:grid-cols-3 lg:grid-cols-4">
+            {currentItems.length === 0 && (
+              <div className="col-span-4 text-center py-16 text-slate-400">
+                暂无符合条件的资料
+                {isFiltered && (
+                  <button onClick={handleResetFilters} className="ml-2 text-blue-500 underline text-xs">
+                    重置筛选
                   </button>
                 )}
               </div>
+            )}
+            {currentItems.map((m) => {
+              const tc = typeColor(m.type);
+              const hasMd = !!(m.metadata?.markdownObjectName || m.metadata?.markdownUrl || m.mineruZipUrl);
+              const hasZip = !!m.mineruZipUrl;
+              const hasPdf = !!(m.metadata?.objectName || m.previewUrl);
+              const mdSt = mdStates.get(m.id);
+              return (
+                <div
+                  key={m.id}
+                  className="bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow group flex flex-col"
+                >
+                  {/* 缩略图区 */}
+                  <div
+                    className="relative aspect-video bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center cursor-pointer"
+                    onClick={() => navigate(`/asset/${m.id}`)}
+                  >
+                    <FileText className={`w-14 h-14 ${tc.text} opacity-30`} />
+                    <div className="absolute top-3 left-3">
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold text-white ${tc.badge}`}>
+                        {m.type}
+                      </span>
+                    </div>
+                    {m.metadata?.subject && (
+                      <div className="absolute bottom-3 left-3">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/80 text-slate-600 font-medium">
+                          {m.metadata.subject}
+                        </span>
+                      </div>
+                    )}
+                  </div>
 
-              {/* 操作按钮 */}
-              <div className="flex items-center gap-2 mb-4">
+                  {/* 内容区 */}
+                  <div className="p-4 flex-1 flex flex-col">
+                    <h3
+                      className="text-sm font-semibold text-slate-900 line-clamp-2 group-hover:text-blue-600 transition-colors mb-1 cursor-pointer"
+                      onClick={() => navigate(`/asset/${m.id}`)}
+                    >
+                      {m.title}
+                    </h3>
+                    <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+                      <span>{m.size || formatBytes(m.sizeBytes)}</span>
+                      <span>{m.uploadTime}</span>
+                    </div>
+                    {m.metadata?.grade && (
+                      <span className="text-[10px] text-slate-400 mb-2">{m.metadata.grade}</span>
+                    )}
+                    {m.tags.length > 0 && (
+                      <div className="flex gap-1 flex-wrap mb-3">
+                        {m.tags.slice(0, 2).map((tag) => (
+                          <span key={tag} className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">
+                            {tag}
+                          </span>
+                        ))}
+                        {m.tags.length > 2 && (
+                          <span className="text-[10px] text-slate-400">+{m.tags.length - 2}</span>
+                        )}
+                      </div>
+                    )}
+                    {/* 操作按钮 */}
+                    <div className="flex items-center gap-1 mt-auto pt-2 border-t border-slate-100 flex-wrap">
+                      <button
+                        onClick={() => navigate(`/asset/${m.id}`)}
+                        className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg text-blue-600 hover:bg-blue-50 font-medium transition-colors"
+                      >
+                        <ExternalLink size={11} /> 详情
+                      </button>
+                      {hasPdf && (
+                        <button
+                          onClick={() => setPdfPreviewId(m.id)}
+                          className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg text-indigo-600 hover:bg-indigo-50 font-medium transition-colors"
+                        >
+                          <Eye size={11} /> 预览
+                        </button>
+                      )}
+                      {hasMd && (
+                        <button
+                          onClick={() => handleToggleMarkdown(m.id)}
+                          disabled={mdSt?.loading}
+                          className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg font-medium transition-colors disabled:opacity-50 ${
+                            mdSt?.content
+                              ? 'text-orange-600 bg-orange-50 hover:bg-orange-100'
+                              : 'text-orange-600 hover:bg-orange-50'
+                          }`}
+                        >
+                          <Eye size={11} /> {mdSt?.loading ? '加载中' : mdSt?.content ? 'Markdown ▲' : 'Markdown'}
+                        </button>
+                      )}
+                      {hasZip && (
+                        <a
+                          href={m.mineruZipUrl}
+                          download
+                          className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg text-purple-600 hover:bg-purple-50 font-medium transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Archive size={11} /> ZIP
+                        </a>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Markdown 行内展开（卡片模式） */}
+                  {(mdSt?.loading || mdSt?.error || mdSt?.content) && (
+                    <div className="px-4 pb-4 border-t border-slate-100">
+                      {mdSt?.loading && (
+                        <div className="flex items-center gap-2 text-xs text-slate-400 py-3">
+                          <div className="w-3 h-3 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
+                          读取中...
+                        </div>
+                      )}
+                      {mdSt?.error && (
+                        <p className="text-xs text-red-600 py-2">{mdSt.error}</p>
+                      )}
+                      {mdSt?.content && (
+                        <div className="pt-3">
+                          <div className="flex justify-between mb-1.5">
+                            <span className="text-[10px] text-slate-400">Markdown 预览</span>
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => handleDownloadMarkdown(m.id, m.title)}
+                                className="text-[10px] px-1.5 py-0.5 rounded bg-green-50 text-green-700 hover:bg-green-100"
+                              >
+                                下载
+                              </button>
+                              <button
+                                onClick={() => handleToggleMarkdown(m.id)}
+                                className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200"
+                              >
+                                收起
+                              </button>
+                            </div>
+                          </div>
+                          <pre className="bg-slate-50 rounded-lg border border-slate-200 p-3 text-[11px] text-slate-700 overflow-auto max-h-48 whitespace-pre-wrap leading-relaxed">
+                            {mdSt.content}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── 分页 ────────────────────────────────────── */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-1 pt-6">
+            <button
+              onClick={prevPage}
+              disabled={!hasPrev}
+              className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50 transition-colors"
+            >
+              上一页
+            </button>
+            {pageNumbers.map((p, i) =>
+              p === '...' ? (
+                <span key={`ellipsis-${i}`} className="px-2 text-slate-400">…</span>
+              ) : (
                 <button
-                  onClick={handleToggleMarkdown}
-                  className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 font-medium disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-                  disabled={mdLoading}
+                  key={p}
+                  onClick={() => goToPage(p as number)}
+                  className={`w-8 h-8 text-sm rounded-lg transition-colors ${
+                    p === currentPage
+                      ? 'bg-blue-600 text-white'
+                      : 'border border-slate-200 hover:bg-slate-50 text-slate-600'
+                  }`}
                 >
-                  <Eye size={14} />
-                  {mdLoading ? '读取中...' : mdPreview !== null ? '收起内容' : '预览内容'}
+                  {p}
                 </button>
+              ),
+            )}
+            <button
+              onClick={nextPage}
+              disabled={!hasNext}
+              className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50 transition-colors"
+            >
+              下一页
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── PDF 预览弹窗 ─────────────────────────────── */}
+      {pdfPreviewId !== null && pdfPreviewUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setPdfPreviewId(null)}
+        >
+          <div
+            className="w-full max-w-5xl h-[85vh] bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 弹窗头部 */}
+            <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <FileText className="w-5 h-5 text-red-500 flex-shrink-0" />
+                <span className="font-medium text-slate-800 truncate text-sm">
+                  {pdfPreviewMaterial?.title ?? '文件预览'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {pdfPreviewMaterial?.metadata?.objectName && (
+                  <a
+                    href={pdfPreviewUrl}
+                    download={pdfPreviewMaterial?.metadata?.fileName || pdfPreviewMaterial?.title}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 font-medium"
+                  >
+                    <Download size={13} /> 下载
+                  </a>
+                )}
                 <button
-                  onClick={handleDownloadMarkdown}
-                  className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-                  disabled={!mdPreview}
+                  onClick={() => setPdfPreviewId(null)}
+                  className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
                 >
-                  <Download size={14} />
-                  下载 .md
+                  <X size={18} />
                 </button>
               </div>
-
-              {!!activeProduct.source && (
-                <p className="text-xs text-slate-400 mb-3 break-all">
-                  <span className="text-slate-500">来源：</span>
-                  {activeProduct.source}
-                </p>
-              )}
-
-              {mdError && <p className="text-sm text-red-600 mb-3">{mdError}</p>}
-
-              {mdPreview !== null && (
-                <pre className="bg-slate-50 rounded-xl border border-slate-200 p-4 text-[12px] text-slate-700 overflow-auto max-h-[50vh] whitespace-pre-wrap leading-relaxed">
-                  {mdPreview}
-                </pre>
-              )}
-
-              {mdPreview === null && !mdError && (
-                <p className="text-sm text-slate-400">
-                  {sourceMaterial?.metadata?.markdownObjectName || sourceMaterial?.metadata?.markdownUrl || sourceMaterial?.mineruZipUrl
-                    ? '点击"预览内容"加载 Markdown'
-                    : '当前成品未关联可预览内容（请先完成 MinerU 解析）'}
-                </p>
+            </div>
+            {/* iframe */}
+            <div className="flex-1 overflow-hidden">
+              {pdfPreviewMaterial?.type === 'PDF' || pdfPreviewUrl.includes('.pdf') || pdfPreviewMaterial?.metadata?.mimeType === 'application/pdf' ? (
+                <iframe
+                  src={pdfPreviewUrl}
+                  className="w-full h-full border-0"
+                  title="PDF 预览"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-slate-50 overflow-auto p-4">
+                  <img src={pdfPreviewUrl} alt={pdfPreviewMaterial?.title} className="max-w-full max-h-full object-contain rounded-lg" />
+                </div>
               )}
             </div>
           </div>
