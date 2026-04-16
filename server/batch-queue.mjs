@@ -16,6 +16,20 @@
 import fs from 'fs';
 import os from 'os';
 
+// ─── Docker 环境检测与地址重写 ────────────────────────────────────
+const IS_DOCKER = fs.existsSync('/.dockerenv') || (process.env.DB_BASE_URL || '').includes('db-server');
+
+/**
+ * Docker 环境下自动将 localhost/127.0.0.1 替换为 host.docker.internal
+ * Docker 容器内 localhost 指向容器自身，而非宿主机。
+ */
+function dockerRewriteEndpoint(endpoint) {
+  if (!IS_DOCKER || !endpoint) return endpoint;
+  return endpoint
+    .replace(/\/\/localhost([:/])/g, '//host.docker.internal$1')
+    .replace(/\/\/127\.0\.0\.1([:/])/g, '//host.docker.internal$1');
+}
+
 // ─── 常量 ─────────────────────────────────────────────────────
 const BATCH_PERSIST_INTERVAL = 5000;   // 每 5 秒持久化一次
 const BATCH_MAX_RETRIES = 3;
@@ -276,7 +290,7 @@ async function processOneJob(job) {
     return;
   }
 
-  const localEndpoint = String(mineruConfig.localEndpoint || 'http://mineru:8010').trim();
+  const localEndpoint = dockerRewriteEndpoint(String(mineruConfig.localEndpoint || 'http://mineru:8010').trim());
   const localTimeout = Number(mineruConfig.localTimeout || 3600);
   const timeoutMs = Math.max(localTimeout * 1000, 30_000);
   const backend = String(mineruConfig.localBackend || 'hybrid-auto-engine');
@@ -327,7 +341,7 @@ async function processOneJob(job) {
   fastApiForm.append('formula_enable', String(enableFormula));
   fastApiForm.append('table_enable', String(enableTable));
   const rawServerUrl = String(mineruConfig.localServerUrl || '').trim();
-  const serverUrl = rawServerUrl || (/vlm|hybrid/i.test(backend) ? 'http://localhost:30000' : '');
+  const serverUrl = dockerRewriteEndpoint(rawServerUrl || (/vlm|hybrid/i.test(backend) ? 'http://localhost:30000' : ''));
   if (serverUrl) fastApiForm.append('server_url', serverUrl);
   fastApiForm.append('return_md', 'true');
   fastApiForm.append('response_format_zip', 'false');

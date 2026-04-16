@@ -482,6 +482,21 @@ function normalizeEndpoint(endpoint) {
   return String(endpoint || '').trim().replace(/\/+$/, '');
 }
 
+/**
+ * Docker 环境下自动将 localhost/127.0.0.1 替换为 host.docker.internal
+ * Docker 容器内 localhost 指向容器自身，而非宿主机。
+ * 当用户填写 localhost/127.0.0.1 且运行在 Docker 中时，自动替换为 host.docker.internal
+ * 检测方式：/.dockerenv 文件存在，或 DB_BASE_URL 包含 Docker 服务名
+ */
+const IS_DOCKER = fs.existsSync('/.dockerenv') || (process.env.DB_BASE_URL || '').includes('db-server');
+
+function dockerRewriteEndpoint(endpoint) {
+  if (!IS_DOCKER || !endpoint) return endpoint;
+  return endpoint
+    .replace(/\/\/localhost([:/])/g, '//host.docker.internal$1')
+    .replace(/\/\/127\.0\.0\.1([:/])/g, '//host.docker.internal$1');
+}
+
 function isEnabledFlag(value) {
   return value === true || value === 'true' || value === '1' || value === 1;
 }
@@ -657,7 +672,7 @@ async function callGradioToMarkdown(localEndpoint, fileBuffer, fileName, mimeTyp
     Boolean(params?.enableTable),
     language,
     String(params?.backend || 'hybrid-auto-engine'),
-    String(params?.serverUrl || 'http://localhost:30000'),
+    dockerRewriteEndpoint(String(params?.serverUrl || 'http://localhost:30000')),
   ];
 
   const callResp = await fetch(`${localEndpoint}/gradio_api/call/to_markdown`, {
@@ -1169,7 +1184,7 @@ app.post('/parse/download', async (req, res) => {
 });
 
 app.post('/parse/local-mineru/health', async (req, res) => {
-  const localEndpoint = normalizeEndpoint(req.body?.localEndpoint);
+  const localEndpoint = dockerRewriteEndpoint(normalizeEndpoint(req.body?.localEndpoint));
   if (!localEndpoint) {
     res.status(400).json({ ok: false, message: '缺少 localEndpoint' });
     return;
@@ -1402,7 +1417,7 @@ app.post('/backup/full-import', backupUpload.single('file'), async (req, res) =>
 });
 
 app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
-  const localEndpoint = normalizeEndpoint(req.body?.localEndpoint);
+  const localEndpoint = dockerRewriteEndpoint(normalizeEndpoint(req.body?.localEndpoint));
   const materialId = String(req.body?.materialId || '').trim();
   const localTimeout = Number(req.body?.localTimeout || 3600);
   const startedAt = Date.now();
@@ -1440,7 +1455,7 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
     const timeoutMs = Math.max(localTimeout * 1000, 30_000);
     const parseMethod = String(req.body?.parseMethod || req.body?.parse_method || '').trim();
     const rawServerUrl = String(req.body?.serverUrl || req.body?.server_url || req.body?.url || '').trim();
-    const serverUrl = rawServerUrl || (/vlm|hybrid/i.test(backend) ? 'http://localhost:30000' : '');
+    const serverUrl = dockerRewriteEndpoint(rawServerUrl || (/vlm|hybrid/i.test(backend) ? 'http://localhost:30000' : ''));
 
     const candidates = [
       `${localEndpoint}/health`,
@@ -1659,14 +1674,17 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
  */
 async function callAiProvider(provider, systemPrompt, userPrompt) {
   const trimmedKey = (provider.apiKey || '').trim();
-  const trimmedEndpoint = (provider.apiEndpoint || '').trim();
+  let trimmedEndpoint = (provider.apiEndpoint || '').trim();
   const trimmedModel = (provider.model || '').trim();
 
   if (!trimmedEndpoint) {
     throw new Error('AI endpoint 未配置');
   }
 
-  // ── SSRF 校验：aiEndpoint 必须通过安全检查 ────────────────────
+  // Docker 环境自动转换：localhost/127.0.0.1 → host.docker.internal
+  trimmedEndpoint = dockerRewriteEndpoint(trimmedEndpoint);
+
+  // ── SSRF 校验：aiEndpoint 必须通过安全检查 ────────────────
   const endpointCheck = validateAiEndpoint(trimmedEndpoint);
   if (!endpointCheck.ok) {
     const err = new Error(`AI endpoint 校验失败: ${endpointCheck.reason}`);
