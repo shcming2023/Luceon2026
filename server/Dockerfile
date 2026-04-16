@@ -23,6 +23,7 @@ RUN corepack enable && corepack prepare pnpm@latest --activate \
 
 # 复制服务端源码
 COPY server/upload-server.mjs ./server/
+COPY server/batch-queue.mjs ./server/
 COPY server/db-server.mjs ./server/
 
 # 默认启动上传服务（db-server 通过 docker-compose command 覆盖）
