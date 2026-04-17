@@ -45,6 +45,7 @@ import {
   initBatchQueue, restoreBatchQueue, getQueueStatus,
   addJobs, startQueue, pauseQueue, resumeQueue, stopQueue,
   cancelJob, cancelCurrentJob,
+  readAlerts,
   retryFailed, retryJob, removeJob, clearCompleted, clearAll,
   shutdown as shutdownBatchQueue,
 } from './batch-queue.mjs';
@@ -3122,6 +3123,13 @@ app.post('/batch/retry/:jobId', (req, res) => {
 // DELETE /batch/job/:jobId - 移除指定任务
 app.delete('/batch/job/:jobId', (req, res) => {
   res.json(removeJob(req.params.jobId));
+});
+
+// POST /batch/alerts/read - 标记告警已读
+// Body: { ids?: string[] }
+app.post('/batch/alerts/read', (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+  res.json(readAlerts(ids));
 });
 
 // POST /batch/clear-completed - 清空已完成和失败的任务

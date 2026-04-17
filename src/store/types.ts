@@ -30,10 +30,22 @@ export interface ServerBatchJob {
   progress: number;
   message: string;
   error: string;
+  mineruTaskId?: string;
+  mineruSubmittedAt?: number;
   retries: number;
   maxRetries: number;
+  errorType?: string;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface ServerBatchAlert {
+  id: string;
+  ts: number;
+  level: string;
+  message: string;
+  jobId?: string;
+  read: boolean;
 }
 
 /**
@@ -50,6 +62,8 @@ export interface ServerBatchQueueState {
   completed: number;
   errors: number;
   items: ServerBatchJob[];
+  alerts?: ServerBatchAlert[];
+  unreadAlerts?: number;
   memory: { usedRatio: number; freeMB: number; totalMB: number; pressure: boolean };
   updatedAt: number;
 }

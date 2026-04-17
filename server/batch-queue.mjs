@@ -40,6 +40,7 @@ const BATCH_MEMORY_THRESHOLD = 0.85;   // 系统内存使用超过 85% 时暂停
 // ─── 队列状态 ─────────────────────────────────────────────────
 const batchQueue = {
   items: [],        // Array<BatchJob>
+  alerts: [],
   running: false,
   paused: false,
   autoMinerU: true,
@@ -78,6 +79,7 @@ let dbBaseUrl = 'http://localhost:8789';
 let currentJobId = '';
 let currentAbortController = null;
 const cancelRequested = new Set();
+let alertCounter = 0;
 
 // ─── 外部依赖注入（由 upload-server 在初始化时提供）────────────
 let _deps = null;
@@ -127,8 +129,17 @@ async function persistBatchQueue() {
         markdownUrl: j.markdownUrl || '',
         mineruTaskId: j.mineruTaskId || '',
         mineruSubmittedAt: j.mineruSubmittedAt || 0,
+        errorType: j.errorType || '',
         createdAt: j.createdAt, updatedAt: j.updatedAt,
       })),
+      alerts: Array.isArray(batchQueue.alerts) ? batchQueue.alerts.map(a => ({
+        id: a.id,
+        ts: a.ts,
+        level: a.level,
+        message: a.message,
+        jobId: a.jobId || '',
+        read: a.read === true,
+      })) : [],
       running: batchQueue.running,
       paused: batchQueue.paused,
       autoMinerU: batchQueue.autoMinerU,
@@ -164,6 +175,7 @@ export async function restoreBatchQueue() {
         ...j,
         mineruTaskId,
         mineruSubmittedAt: Number(j.mineruSubmittedAt || 0),
+        errorType: String(j.errorType || ''),
         status:
           status === 'mineru' && mineruTaskId
             ? 'mineru'
@@ -174,6 +186,19 @@ export async function restoreBatchQueue() {
         maxRetries: j.maxRetries || BATCH_MAX_RETRIES,
       };
     });
+    batchQueue.alerts = Array.isArray(saved.alerts)
+      ? saved.alerts
+          .map((a) => ({
+            id: String(a?.id || '').trim() || `alert-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            ts: Number(a?.ts || 0) || Date.now(),
+            level: String(a?.level || 'info'),
+            message: String(a?.message || ''),
+            jobId: String(a?.jobId || ''),
+            read: a?.read === true,
+          }))
+          .slice(-200)
+      : [];
+    alertCounter = batchQueue.alerts.length;
     batchQueue.running = saved.running || false;
     batchQueue.paused = saved.paused || false;
     batchQueue.autoMinerU = saved.autoMinerU !== false;
@@ -197,7 +222,7 @@ export async function restoreBatchQueue() {
 function startPersistTimer() {
   if (batchPersistTimer) return;
   batchPersistTimer = setInterval(() => {
-    if (batchQueue.items.length > 0) persistBatchQueue();
+    if (batchQueue.items.length > 0 || (batchQueue.alerts?.length ?? 0) > 0) persistBatchQueue();
   }, BATCH_PERSIST_INTERVAL);
 }
 
@@ -288,6 +313,37 @@ function classifyJobError(message) {
     return 'config';
   }
   return 'transient';
+}
+
+function pushAlert(level, message, jobId = '') {
+  const id = `alert-${Date.now()}-${(alertCounter++).toString(36)}`;
+  const item = {
+    id,
+    ts: Date.now(),
+    level: String(level || 'info'),
+    message: String(message || ''),
+    jobId: String(jobId || ''),
+    read: false,
+  };
+  batchQueue.alerts = Array.isArray(batchQueue.alerts) ? batchQueue.alerts : [];
+  batchQueue.alerts.push(item);
+  if (batchQueue.alerts.length > 200) batchQueue.alerts.splice(0, batchQueue.alerts.length - 200);
+  batchQueue.updatedAt = Date.now();
+}
+
+export function readAlerts(ids = []) {
+  const list = Array.isArray(batchQueue.alerts) ? batchQueue.alerts : [];
+  if (list.length === 0) return { ok: true, read: 0 };
+  const targets = Array.isArray(ids) && ids.length > 0 ? new Set(ids.map(String)) : null;
+  let changed = 0;
+  for (const a of list) {
+    if (a.read === true) continue;
+    if (targets && !targets.has(String(a.id))) continue;
+    a.read = true;
+    changed++;
+  }
+  if (changed > 0) persistBatchQueue();
+  return { ok: true, read: changed };
 }
 
 function checkMemoryPressure() {
@@ -725,6 +781,7 @@ async function batchWorkerLoop() {
     const mem = checkMemoryPressure();
     if (mem.pressure) {
       console.warn(`[batch-queue] Memory pressure detected: ${mem.freeMB}MB free / ${mem.totalMB}MB total (${(mem.usedRatio * 100).toFixed(1)}% used). Pausing...`);
+      pushAlert('warn', `内存压力过大，队列已自动暂停：${mem.freeMB}MB 空闲 / ${mem.totalMB}MB 总计（${(mem.usedRatio * 100).toFixed(1)}% 已用）`);
       batchQueue.paused = true;
       batchQueue.updatedAt = Date.now();
       await persistBatchQueue();
@@ -775,7 +832,9 @@ async function batchWorkerLoop() {
           status: 'error',
           message: `处理失败（需人工处理）: ${message}`,
           error: message,
+          errorType: 'config',
         });
+        pushAlert('error', `任务失败（需人工处理）：${job.fileName} — ${message}`, job.id);
         if (job.materialId) {
           await syncMaterialToDb(job.materialId, {
             status: 'failed',
@@ -815,7 +874,9 @@ async function batchWorkerLoop() {
           status: 'error',
           message: `处理失败（已重试 ${job.retries} 次）: ${message}`,
           error: message,
+          errorType: 'transient',
         });
+        pushAlert('error', `任务失败（已重试 ${job.retries} 次）：${job.fileName} — ${message}`, job.id);
         if (job.materialId) {
           await syncMaterialToDb(job.materialId, {
             status: 'failed',
@@ -863,6 +924,8 @@ export function getQueueStatus() {
   const completed = items.filter(j => j.status === 'completed').length;
   const errors = items.filter(j => j.status === 'error').length;
   const mem = checkMemoryPressure();
+  const alerts = Array.isArray(batchQueue.alerts) ? batchQueue.alerts : [];
+  const unreadAlerts = alerts.filter((a) => a && a.read !== true).length;
 
   return {
     running: batchQueue.running,
@@ -878,9 +941,14 @@ export function getQueueStatus() {
       id: j.id, fileName: j.fileName, fileSize: j.fileSize, path: j.path,
       materialId: j.materialId, status: j.status, progress: j.progress,
       message: j.message || '', error: j.error || '',
+      mineruTaskId: j.mineruTaskId || '',
+      mineruSubmittedAt: j.mineruSubmittedAt || 0,
       retries: j.retries, maxRetries: j.maxRetries,
+      errorType: j.errorType || '',
       createdAt: j.createdAt, updatedAt: j.updatedAt,
     })),
+    alerts: alerts.slice(-20),
+    unreadAlerts,
     memory: mem,
     updatedAt: batchQueue.updatedAt,
   };
@@ -906,6 +974,9 @@ export function addJobs(jobs) {
     lastRetryAt: 0,
     markdownObjectName: '',
     markdownUrl: '',
+    mineruTaskId: '',
+    mineruSubmittedAt: 0,
+    errorType: '',
     createdAt: now,
     updatedAt: now,
   }));

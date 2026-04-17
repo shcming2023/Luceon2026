@@ -658,6 +658,19 @@ function ServerBatchQueuePanel({ queue }: { queue: ServerBatchQueueState }) {
     }
   };
 
+  const handleReadAlerts = async () => {
+    try {
+      await fetch('/__proxy/upload/batch/alerts/read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      await refresh();
+    } catch (e) {
+      toast.error(`标记告警已读失败: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   const handleRetryFailed = async () => {
     try {
       const res = await fetch('/__proxy/upload/batch/retry-failed', { method: 'POST' });
@@ -703,13 +716,20 @@ function ServerBatchQueuePanel({ queue }: { queue: ServerBatchQueueState }) {
   const isRunning = queue.running && !queue.paused;
   const isPaused = queue.running && queue.paused;
   const hasProcessing = queue.items.some((j) => j.status === 'uploaded' || j.status === 'mineru' || j.status === 'ai');
+  const unreadAlerts = queue.unreadAlerts ?? 0;
+  const alerts = queue.alerts ?? [];
 
   return (
     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h4 className="text-sm font-semibold text-blue-900">
+          <h4 className="text-sm font-semibold text-blue-900 flex items-center gap-2">
             后端处理队列
+            {unreadAlerts > 0 && (
+              <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-[10px] leading-5 bg-red-600 text-white rounded-full">
+                {unreadAlerts > 9 ? '9+' : unreadAlerts}
+              </span>
+            )}
             <span className={`ml-2 inline-block w-2 h-2 rounded-full ${
               isRunning ? 'bg-green-500 animate-pulse' : isPaused ? 'bg-yellow-500' : queue.total > 0 ? 'bg-gray-400' : 'bg-gray-300'
             }`} />
@@ -747,6 +767,11 @@ function ServerBatchQueuePanel({ queue }: { queue: ServerBatchQueueState }) {
               终止当前
             </button>
           )}
+          {unreadAlerts > 0 && (
+            <button onClick={handleReadAlerts} className="px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
+              标记告警已读
+            </button>
+          )}
           {queue.errors > 0 && (
             <button onClick={handleRetryFailed} className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50">
               <RotateCcw size={14} /> 重试失败
@@ -764,6 +789,16 @@ function ServerBatchQueuePanel({ queue }: { queue: ServerBatchQueueState }) {
           )}
         </div>
       </div>
+
+      {alerts.length > 0 && (
+        <div className="mb-3 space-y-1">
+          {alerts.slice(-3).reverse().map((a) => (
+            <div key={a.id} className={`text-xs ${a.level === 'error' ? 'text-red-600' : a.level === 'warn' ? 'text-orange-600' : 'text-blue-700'}`}>
+              {a.message}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* 后端队列任务列表 */}
       {queue.items.length > 0 && (
@@ -790,6 +825,9 @@ function ServerBatchQueuePanel({ queue }: { queue: ServerBatchQueueState }) {
                     <span className="text-xs text-gray-500">等待中</span>
                   ) : (
                     <span className="flex items-center gap-1 text-xs text-blue-600"><Loader size={12} className="animate-spin" /> {job.progress}%</span>
+                  )}
+                  {job.errorType === 'config' && (
+                    <span className="text-[10px] px-1.5 h-5 leading-5 rounded bg-red-50 text-red-700 border border-red-200">需人工</span>
                   )}
                   {!(job.status === 'uploaded' || job.status === 'mineru' || job.status === 'ai') && (
                     <button
