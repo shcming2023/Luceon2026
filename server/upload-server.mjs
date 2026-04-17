@@ -54,6 +54,13 @@ const port = Number(process.env.UPLOAD_PORT || 8788);
 // db-server 地址（用于持久化 MinIO 配置）
 const DB_BASE_URL = process.env.DB_BASE_URL || 'http://localhost:8789';
 
+const debugLogs = [];
+
+function pushDebugLog(entry) {
+  debugLogs.push(entry);
+  if (debugLogs.length > 500) debugLogs.splice(0, debugLogs.length - 500);
+}
+
 /**
  * 修复文件名编码（处理 UTF-8 字节被当作 Latin-1 解析的情况）
  *
@@ -113,6 +120,18 @@ app.use((req, res, next) => {
   req.requestId = requestId;
   res.setHeader('X-Request-Id', requestId);
   next();
+});
+
+app.get('/debug/logs', (req, res) => {
+  const limit = Math.max(1, Math.min(500, Number(req.query?.limit || 200)));
+  const since = Number(req.query?.since || 0);
+  const requestId = String(req.query?.requestId || '').trim();
+
+  let logs = debugLogs;
+  if (Number.isFinite(since) && since > 0) logs = logs.filter((l) => Number(l?.ts || 0) >= since);
+  if (requestId) logs = logs.filter((l) => String(l?.requestId || '') === requestId);
+
+  res.json({ logs: logs.slice(-limit) });
 });
 
 // ─── SSRF 防御工具 ────────────────────────────────────────────
@@ -1196,21 +1215,50 @@ app.post('/parse/local-mineru/health', async (req, res) => {
     `${localEndpoint}/gradio_api/info`,
   ];
 
+  pushDebugLog({
+    ts: Date.now(),
+    level: 'info',
+    requestId: req.requestId,
+    route: '/parse/local-mineru/health',
+    message: `health check start: ${localEndpoint}`,
+  });
+
   let lastMessage = '连接失败';
   for (const target of candidates) {
     try {
       const response = await fetch(target, { signal: AbortSignal.timeout(5000) });
       if (response.status === 200) {
-        res.json({ ok: true, message: `本地 MinerU 在线：${target}` });
+        pushDebugLog({
+          ts: Date.now(),
+          level: 'success',
+          requestId: req.requestId,
+          route: '/parse/local-mineru/health',
+          message: `health ok: ${target}`,
+        });
+        res.json({ ok: true, message: `本地 MinerU 在线：${target}`, requestId: req.requestId });
         return;
       }
       lastMessage = `${target} 返回 HTTP ${response.status}`;
+      pushDebugLog({
+        ts: Date.now(),
+        level: 'error',
+        requestId: req.requestId,
+        route: '/parse/local-mineru/health',
+        message: lastMessage,
+      });
     } catch (error) {
       lastMessage = error instanceof Error ? error.message : String(error);
+      pushDebugLog({
+        ts: Date.now(),
+        level: 'error',
+        requestId: req.requestId,
+        route: '/parse/local-mineru/health',
+        message: `health error: ${lastMessage}`,
+      });
     }
   }
 
-  res.json({ ok: false, message: `本地 MinerU 不可达：${lastMessage}` });
+  res.json({ ok: false, message: `本地 MinerU 不可达：${lastMessage}`, requestId: req.requestId });
 });
 
 app.post('/backup/full-export', async (_req, res) => {
@@ -1893,9 +1941,25 @@ app.post('/ai/test', async (req, res) => {
   const name = String(provider?.name || provider?.id || 'AI');
 
   if (!apiEndpoint || !model) {
-    res.status(400).json({ ok: false, message: '缺少 apiEndpoint 或 model' });
+    res.status(400).json({ ok: false, message: '缺少 apiEndpoint 或 model', requestId: req.requestId });
     return;
   }
+
+  const rawTimeoutSec = Number(provider?.timeout || 60);
+  const timeoutSec = Math.max(3, Math.min(30, Number.isFinite(rawTimeoutSec) ? rawTimeoutSec : 60));
+
+  const rewrittenEndpoint = dockerRewriteEndpoint(apiEndpoint);
+  const aiFullUrl = /\/chat\/completions\/?$/.test(rewrittenEndpoint)
+    ? rewrittenEndpoint
+    : `${rewrittenEndpoint.replace(/\/$/, '')}/chat/completions`;
+
+  pushDebugLog({
+    ts: Date.now(),
+    level: 'info',
+    requestId: req.requestId,
+    route: '/ai/test',
+    message: `ai test start: ${name} model=${model} timeoutSec=${timeoutSec} url=${aiFullUrl}`,
+  });
 
   const startedAt = Date.now();
   try {
@@ -1909,7 +1973,7 @@ app.post('/ai/test', async (req, res) => {
         apiEndpoint,
         apiKey: String(provider?.apiKey || ''),
         model,
-        timeout: Number(provider?.timeout || 60),
+        timeout: timeoutSec,
         priority: 1,
       },
       systemPrompt,
@@ -1918,14 +1982,33 @@ app.post('/ai/test', async (req, res) => {
       { enableThinking: false },
     );
     const ok = result && typeof result === 'object' && result.ok === true;
+    const elapsedMs = Date.now() - startedAt;
+    pushDebugLog({
+      ts: Date.now(),
+      level: ok ? 'success' : 'error',
+      requestId: req.requestId,
+      route: '/ai/test',
+      message: `${ok ? 'ai test ok' : 'ai test responded but not ok'} elapsedMs=${elapsedMs}`,
+    });
     res.json({
       ok,
       message: ok ? `连接成功：${name}（${model}）` : `连接成功但返回不符合预期：${name}（${model}）`,
-      elapsedMs: Date.now() - startedAt,
+      elapsedMs,
+      timeoutSec,
+      requestId: req.requestId,
+      url: aiFullUrl,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    res.status(200).json({ ok: false, message, elapsedMs: Date.now() - startedAt });
+    const elapsedMs = Date.now() - startedAt;
+    pushDebugLog({
+      ts: Date.now(),
+      level: 'error',
+      requestId: req.requestId,
+      route: '/ai/test',
+      message: `ai test failed: ${message} elapsedMs=${elapsedMs}`,
+    });
+    res.status(200).json({ ok: false, message, elapsedMs, timeoutSec, requestId: req.requestId, url: aiFullUrl });
   }
 });
 
@@ -2375,6 +2458,103 @@ app.post('/settings/storage/test', async (req, res) => {
     const message = error instanceof Error ? error.message : String(error);
     console.error('[upload-server] MinIO test failed:', message);
     res.status(200).json({ ok: false, message: `连接失败：${message}` });
+  }
+});
+
+app.post('/settings/ai-models', async (req, res) => {
+  try {
+    const endpoint = normalizeEndpoint(req.body?.endpoint);
+    if (!endpoint) {
+      res.status(400).json({ success: false, error: '未提供 API 地址' });
+      return;
+    }
+
+    const rewrittenEndpoint = dockerRewriteEndpoint(endpoint);
+    const endpointCheck = validateAiEndpoint(rewrittenEndpoint);
+    if (!endpointCheck.ok) {
+      res.status(400).json({ success: false, error: `API 地址校验失败: ${endpointCheck.reason}` });
+      return;
+    }
+
+    let parsed;
+    try {
+      parsed = new URL(rewrittenEndpoint);
+    } catch {
+      res.status(400).json({ success: false, error: 'API 地址格式无效' });
+      return;
+    }
+
+    const tagsUrl = `${parsed.protocol}//${parsed.host}/api/tags`;
+    console.log(`[upload-server] Fetching Ollama models: ${tagsUrl}`);
+    pushDebugLog({
+      ts: Date.now(),
+      level: 'info',
+      requestId: req.requestId,
+      route: '/settings/ai-models',
+      message: `models fetch start: ${tagsUrl}`,
+    });
+
+    const response = await fetch(tagsUrl, { signal: AbortSignal.timeout(3000) });
+    const rawText = await response.text();
+    if (!response.ok) {
+      pushDebugLog({
+        ts: Date.now(),
+        level: 'error',
+        requestId: req.requestId,
+        route: '/settings/ai-models',
+        message: `models fetch http ${response.status}`,
+      });
+      res.json({
+        success: false,
+        error: `AI 服务返回 HTTP ${response.status}`,
+        details: rawText.slice(0, 300),
+        requestId: req.requestId,
+      });
+      return;
+    }
+
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      pushDebugLog({
+        ts: Date.now(),
+        level: 'error',
+        requestId: req.requestId,
+        route: '/settings/ai-models',
+        message: 'models fetch non-json response',
+      });
+      res.json({ success: false, error: 'AI 服务返回非 JSON 格式', requestId: req.requestId });
+      return;
+    }
+
+    if (data && data.models && Array.isArray(data.models)) {
+      const modelNames = data.models
+        .map((m) => m?.name)
+        .filter((name) => typeof name === 'string' && name.trim() !== '');
+      pushDebugLog({
+        ts: Date.now(),
+        level: 'success',
+        requestId: req.requestId,
+        route: '/settings/ai-models',
+        message: `models fetch ok: ${modelNames.length} models`,
+      });
+      res.json({ success: true, models: modelNames, requestId: req.requestId });
+      return;
+    }
+
+    res.json({ success: false, error: '返回数据格式非 Ollama 标准格式', requestId: req.requestId });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[upload-server] /settings/ai-models failed:', message);
+    pushDebugLog({
+      ts: Date.now(),
+      level: 'error',
+      requestId: req.requestId,
+      route: '/settings/ai-models',
+      message: `models fetch failed: ${message}`,
+    });
+    res.status(200).json({ success: false, error: `无法连接到 AI 服务: ${message}`, requestId: req.requestId });
   }
 });
 

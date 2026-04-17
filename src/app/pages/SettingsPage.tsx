@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Save, Eye, EyeOff, Bot, ScanLine, Database, CheckCircle, XCircle, Loader, Download, Upload, HardDrive, AlertTriangle, Plus, Trash2, ChevronUp, ChevronDown, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Save, Eye, EyeOff, Bot, ScanLine, Database, CheckCircle, XCircle, Loader, Download, Upload, HardDrive, AlertTriangle, Plus, Trash2, ChevronUp, ChevronDown, ToggleLeft, ToggleRight, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore } from '../../store/appContext';
 import type { AiConfig, AiProvider, MinerUConfig, MinioConfig } from '../../store/types';
@@ -190,6 +190,15 @@ export function SettingsPage() {
   const [localTestResult, setLocalTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [aiTestingId, setAiTestingId] = useState<string | null>(null);
   const [aiTestResult, setAiTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [availableModelsByProvider, setAvailableModelsByProvider] = useState<Record<string, string[]>>({});
+  const [fetchingModelsByProvider, setFetchingModelsByProvider] = useState<Record<string, boolean>>({});
+  const [testLogs, setTestLogs] = useState<Array<{ ts: number; level: 'info' | 'success' | 'error'; message: string }>>([]);
+  const [showTestLogs, setShowTestLogs] = useState(true);
+  const testLogEndRef = useRef<HTMLDivElement>(null);
+  const [serverDebugLogs, setServerDebugLogs] = useState<Array<{ ts: number; level: string; route?: string; requestId?: string; message: string }>>([]);
+  const [serverDebugOpen, setServerDebugOpen] = useState(true);
+  const [serverDebugLoading, setServerDebugLoading] = useState(false);
+  const [serverDebugSince, setServerDebugSince] = useState<number>(Date.now());
   // 保存中状态
   const [savingMinio, setSavingMinio] = useState(false);
   const [backupLoading, setBackupLoading] = useState(false);
@@ -250,6 +259,52 @@ export function SettingsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
+  useEffect(() => {
+    if (!showTestLogs) return;
+    testLogEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [testLogs, showTestLogs]);
+
+  const appendTestLog = (level: 'info' | 'success' | 'error', message: string) => {
+    const safeMessage = String(message || '').replace(/\s+/g, ' ').trim();
+    if (!safeMessage) return;
+    setTestLogs((prev) => {
+      const next = [...prev, { ts: Date.now(), level, message: safeMessage }];
+      return next.length > 200 ? next.slice(next.length - 200) : next;
+    });
+  };
+
+  const pullServerDebugLogs = async () => {
+    setServerDebugLoading(true);
+    try {
+      const resp = await fetch(`/__proxy/upload/debug/logs?since=${serverDebugSince}&limit=200`);
+      const data = await resp.json().catch(() => null);
+      const incoming = Array.isArray(data?.logs) ? data.logs : [];
+      if (incoming.length > 0) {
+        setServerDebugLogs((prev) => {
+          const merged = [...prev, ...incoming];
+          const dedup = new Map<string, { ts: number; level: string; route?: string; requestId?: string; message: string }>();
+          for (const item of merged) {
+            const key = `${item?.ts}-${item?.level}-${item?.route}-${item?.requestId}-${item?.message}`;
+            dedup.set(key, item);
+          }
+          const next = Array.from(dedup.values()).sort((a, b) => Number(a.ts) - Number(b.ts));
+          return next.length > 400 ? next.slice(next.length - 400) : next;
+        });
+        const maxTs = Math.max(...incoming.map((l: any) => Number(l?.ts || 0)));
+        if (Number.isFinite(maxTs) && maxTs > 0) setServerDebugSince(maxTs + 1);
+      }
+    } catch (e) {
+      toast.error(`拉取服务端日志失败：${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setServerDebugLoading(false);
+    }
+  };
+
+  const resetServerDebugLogs = () => {
+    setServerDebugLogs([]);
+    setServerDebugSince(Date.now());
+  };
+
   const updateAi = (patch: Partial<AiConfig>) => setAiForm((prev) => ({ ...prev, ...patch }));
   const updateAiPrompt = (key: keyof AiConfig['prompts'], val: string) =>
     setAiForm((prev) => ({ ...prev, prompts: { ...prev.prompts, [key]: val } }));
@@ -301,12 +356,19 @@ export function SettingsPage() {
 
   const handleSaveAi = () => {
     dispatch({ type: 'UPDATE_AI_CONFIG', payload: aiForm });
+    appendTestLog('success', 'AI 配置已保存');
     toast.success('AI 配置已保存');
   };
 
   const handleTestAiProvider = async (provider: AiProvider) => {
     setAiTestingId(provider.id);
     setAiTestResult(null);
+    const startedAt = Date.now();
+    appendTestLog('info', `开始测试：${provider.name}（model=${provider.model || '(未填)'}）`);
+    appendTestLog('info', '请求已发送：POST /__proxy/upload/ai/test');
+    const waitingTimer = window.setTimeout(() => {
+      appendTestLog('info', `等待响应中...（已等待 ${Math.max(1, Math.round((Date.now() - startedAt) / 1000))}s）`);
+    }, 1200);
     try {
       const resp = await fetch('/__proxy/upload/ai/test', {
         method: 'POST',
@@ -314,16 +376,75 @@ export function SettingsPage() {
         body: JSON.stringify({ provider }),
       });
       const data = await resp.json().catch(() => null);
+      const requestId = String(data?.requestId || resp.headers.get('x-request-id') || '').trim();
+      const elapsedMs = Number(data?.elapsedMs || (Date.now() - startedAt));
+      const url = String(data?.url || '').trim();
+      const timeoutSec = data?.timeoutSec != null ? String(data.timeoutSec) : '';
+      appendTestLog(
+        'info',
+        `响应：HTTP ${resp.status}${requestId ? ` requestId=${requestId}` : ''}${timeoutSec ? ` timeoutSec=${timeoutSec}` : ''}${url ? ` url=${url}` : ''} elapsedMs=${elapsedMs}`,
+      );
       const ok = !!data?.ok;
       const message = String(data?.message || (ok ? '连接成功' : '连接失败'));
       setAiTestResult({ ok, message });
+      appendTestLog(ok ? 'success' : 'error', `测试结果：${message}`);
       if (ok) toast.success(message); else toast.error(message);
     } catch (e) {
       const message = `请求失败：${e instanceof Error ? e.message : String(e)}`;
       setAiTestResult({ ok: false, message });
+      appendTestLog('error', `测试失败：${message}`);
       toast.error(message);
     } finally {
+      window.clearTimeout(waitingTimer);
       setAiTestingId(null);
+      void pullServerDebugLogs();
+      appendTestLog('info', '已拉取服务端请求日志（upload-server）');
+    }
+  };
+
+  const fetchModels = async (provider: AiProvider) => {
+    const endpoint = provider.apiEndpoint?.trim();
+    if (!endpoint) return;
+
+    setFetchingModelsByProvider((prev) => ({ ...prev, [provider.id]: true }));
+    appendTestLog('info', `开始拉取模型：${provider.name}（endpoint=${endpoint}）`);
+    try {
+      const resp = await fetch('/__proxy/upload/settings/ai-models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint }),
+      });
+      const result = await resp.json().catch(() => null);
+      const requestId = String(result?.requestId || resp.headers.get('x-request-id') || '').trim();
+      appendTestLog('info', `响应：HTTP ${resp.status}${requestId ? ` requestId=${requestId}` : ''}`);
+
+      if (result?.success && Array.isArray(result?.models) && result.models.length > 0) {
+        const models = result.models.filter((m: unknown) => typeof m === 'string' && m.trim() !== '');
+        setAvailableModelsByProvider((prev) => ({ ...prev, [provider.id]: models }));
+        appendTestLog('success', `拉取成功：${models.length} 个模型`);
+        toast.success(`成功获取 ${models.length} 个可用模型`);
+        if (!provider.model && models[0]) {
+          const providers = aiForm.providers ?? [];
+          updateAi({
+            providers: providers.map((p) => (p.id === provider.id ? { ...p, model: models[0] } : p)),
+          });
+          appendTestLog('info', `已自动填入模型：${models[0]}`);
+        }
+      } else {
+        const message = String(result?.error || '未获取到模型列表');
+        appendTestLog('error', `拉取失败：${message}`);
+        toast.error(message);
+        setAvailableModelsByProvider((prev) => ({ ...prev, [provider.id]: [] }));
+      }
+    } catch (e) {
+      const message = `拉取模型失败：${e instanceof Error ? e.message : String(e)}`;
+      appendTestLog('error', message);
+      toast.error(message);
+      setAvailableModelsByProvider((prev) => ({ ...prev, [provider.id]: [] }));
+    } finally {
+      setFetchingModelsByProvider((prev) => ({ ...prev, [provider.id]: false }));
+      void pullServerDebugLogs();
+      appendTestLog('info', '已拉取服务端请求日志（upload-server）');
     }
   };
 
@@ -646,6 +767,115 @@ export function SettingsPage() {
       {activeTab === 'ai' && (
         <div className="space-y-5">
           <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-gray-800">测试日志监控</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowTestLogs((v) => !v)}
+                  className="px-2 py-1 text-[11px] rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                >
+                  {showTestLogs ? '收起' : '展开'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTestLogs([])}
+                  disabled={testLogs.length === 0}
+                  className="px-2 py-1 text-[11px] rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  清空
+                </button>
+              </div>
+            </div>
+            {showTestLogs && (
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 h-40 overflow-auto font-mono text-[11px] leading-5">
+                {testLogs.length === 0 ? (
+                  <div className="text-gray-400">暂无日志（点击“测试”或“自动获取”后会在这里记录结果）</div>
+                ) : (
+                  <div className="space-y-0.5">
+                    {testLogs.map((l, idx) => (
+                      <div key={`${l.ts}-${idx}`} className="flex gap-2">
+                        <span className="text-gray-400 flex-shrink-0">
+                          {new Date(l.ts).toLocaleTimeString()}
+                        </span>
+                        <span
+                          className={`flex-1 ${
+                            l.level === 'success' ? 'text-green-700' : l.level === 'error' ? 'text-red-700' : 'text-gray-700'
+                          }`}
+                        >
+                          {l.message}
+                        </span>
+                      </div>
+                    ))}
+                    <div ref={testLogEndRef} />
+                  </div>
+                )}
+              </div>
+            )}
+            <p className="text-xs text-gray-400">
+              这里记录的是页面发起的“测试连接 / 拉取模型”等操作结果，便于排查配置问题（不等同于服务端容器 stdout 日志）。
+            </p>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-gray-800">服务端请求日志（upload-server）</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setServerDebugOpen((v) => !v)}
+                  className="px-2 py-1 text-[11px] rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                >
+                  {serverDebugOpen ? '收起' : '展开'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void pullServerDebugLogs()}
+                  disabled={serverDebugLoading}
+                  className="px-2 py-1 text-[11px] rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {serverDebugLoading ? '拉取中...' : '拉取'}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetServerDebugLogs}
+                  className="px-2 py-1 text-[11px] rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                >
+                  重置
+                </button>
+              </div>
+            </div>
+            {serverDebugOpen && (
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 h-40 overflow-auto font-mono text-[11px] leading-5">
+                {serverDebugLogs.length === 0 ? (
+                  <div className="text-gray-400">暂无日志（执行“测试/拉取模型/本地 MinerU 健康检查”后点“拉取”）</div>
+                ) : (
+                  <div className="space-y-0.5">
+                    {serverDebugLogs.map((l, idx) => (
+                      <div key={`${l.ts}-${idx}`} className="flex gap-2">
+                        <span className="text-gray-400 flex-shrink-0">{new Date(Number(l.ts)).toLocaleTimeString()}</span>
+                        <span className="text-gray-400 flex-shrink-0">{String(l.level || '').padEnd(7, ' ')}</span>
+                        <span className="text-gray-400 flex-shrink-0">{l.route ? `${l.route}` : '-'}</span>
+                        <span className="text-gray-400 flex-shrink-0">{l.requestId ? `#${l.requestId}` : ''}</span>
+                        <span
+                          className={`flex-1 ${
+                            l.level === 'success' ? 'text-green-700' : l.level === 'error' ? 'text-red-700' : 'text-gray-700'
+                          }`}
+                        >
+                          {l.message}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <p className="text-xs text-gray-400">
+              用于区分“客户端发出请求”与“服务端实际转发/校验/超时”的问题。重点关注 requestId 与 route 的对应关系。
+            </p>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
             <h2 className="font-semibold text-gray-800">输入控制</h2>
             <FieldRow
               label="Markdown 最大输入字符数"
@@ -800,11 +1030,51 @@ export function SettingsPage() {
                         </div>
                       </FieldRow>
                       <FieldRow label="模型名称">
-                        <Input
-                          value={provider.model}
-                          onChange={(v) => updateProvider({ model: v })}
-                          placeholder="moonshot-v1-32k"
-                        />
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-xs text-gray-400 truncate">
+                              {provider.id === 'ollama' ? 'Ollama 可自动拉取已安装模型' : '可尝试自动拉取（非 Ollama 可能失败）'}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void fetchModels(provider)}
+                              disabled={!!fetchingModelsByProvider[provider.id] || !provider.apiEndpoint?.trim()}
+                              className="flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-gray-200 bg-white text-blue-600 hover:bg-blue-50 disabled:opacity-50"
+                              title="自动获取本地模型"
+                            >
+                              {fetchingModelsByProvider[provider.id] ? <Loader size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                              自动获取
+                            </button>
+                          </div>
+
+                          {(availableModelsByProvider[provider.id] ?? []).length > 0 ? (
+                            <Select
+                              value={provider.model}
+                              onChange={(v) => updateProvider({ model: v })}
+                              options={[
+                                { value: '', label: '请选择模型' },
+                                ...((availableModelsByProvider[provider.id] ?? []).map((m) => ({ value: m, label: m }))),
+                                ...(provider.model && !(availableModelsByProvider[provider.id] ?? []).includes(provider.model)
+                                  ? [{ value: provider.model, label: `${provider.model}（自定义）` }]
+                                  : []),
+                              ]}
+                            />
+                          ) : (
+                            <Input
+                              value={provider.model}
+                              onChange={(v) => updateProvider({ model: v })}
+                              placeholder="例如: qwen3.5:9b"
+                            />
+                          )}
+
+                          {(availableModelsByProvider[provider.id] ?? []).length > 0 && (
+                            <Input
+                              value={provider.model}
+                              onChange={(v) => updateProvider({ model: v })}
+                              placeholder="也可手动输入（非列表模型）"
+                            />
+                          )}
+                        </div>
                       </FieldRow>
                     </div>
                     <FieldRow label="超时（秒）">
