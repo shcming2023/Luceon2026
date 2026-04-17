@@ -195,10 +195,52 @@ function stopPersistTimer() {
 
 // ─── 内存监控 ─────────────────────────────────────────────────
 
+function readTextFileSafe(path) {
+  try {
+    return fs.readFileSync(path, 'utf8').trim();
+  } catch {
+    return null;
+  }
+}
+
+function parseBytesFromText(text) {
+  if (!text) return null;
+  if (text === 'max') return null;
+  const n = Number.parseInt(text, 10);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
+
+function getCgroupMemoryBytes() {
+  const v2Max = readTextFileSafe('/sys/fs/cgroup/memory.max');
+  const v2Cur = readTextFileSafe('/sys/fs/cgroup/memory.current');
+  const v2Limit = parseBytesFromText(v2Max);
+  const v2Usage = parseBytesFromText(v2Cur);
+  if (v2Limit && v2Usage != null && v2Limit < 2 ** 60) {
+    return { limitBytes: v2Limit, usageBytes: v2Usage };
+  }
+
+  const v1LimitText =
+    readTextFileSafe('/sys/fs/cgroup/memory/memory.limit_in_bytes') ??
+    readTextFileSafe('/sys/fs/cgroup/memory.limit_in_bytes');
+  const v1UsageText =
+    readTextFileSafe('/sys/fs/cgroup/memory/memory.usage_in_bytes') ??
+    readTextFileSafe('/sys/fs/cgroup/memory.usage_in_bytes');
+  const v1Limit = parseBytesFromText(v1LimitText);
+  const v1Usage = parseBytesFromText(v1UsageText);
+  if (v1Limit && v1Usage != null && v1Limit < 2 ** 60) {
+    return { limitBytes: v1Limit, usageBytes: v1Usage };
+  }
+
+  return null;
+}
+
 function checkMemoryPressure() {
-  const totalMem = os.totalmem();
-  const freeMem = os.freemem();
-  const usedRatio = 1 - freeMem / totalMem;
+  const cgroup = getCgroupMemoryBytes();
+  const totalMem = cgroup?.limitBytes ?? os.totalmem();
+  const usedMem = cgroup?.usageBytes ?? Math.max(0, totalMem - os.freemem());
+  const freeMem = Math.max(0, totalMem - usedMem);
+  const usedRatio = totalMem > 0 ? usedMem / totalMem : 0;
   return {
     usedRatio,
     freeMB: Math.round(freeMem / 1024 / 1024),
