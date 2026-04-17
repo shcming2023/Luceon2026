@@ -42,7 +42,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import {
-  initBatchQueue, restoreBatchQueue, getQueueStatus,
+  initBatchQueue, restoreBatchQueue, recoverOrphanMaterials, getQueueStatus,
   addJobs, startQueue, pauseQueue, resumeQueue, stopQueue,
   cancelJob, cancelCurrentJob,
   readAlerts,
@@ -3199,6 +3199,7 @@ const server = app.listen(port, async () => {
     cleanupTempFile,
   });
   await restoreBatchQueue();
+  await recoverOrphanMaterials();
   console.log('[upload-server] Batch queue engine initialized');
 });
 

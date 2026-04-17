@@ -178,13 +178,13 @@ export async function restoreBatchQueue() {
         mineruSubmittedAt: Number(j.mineruSubmittedAt || 0),
         errorType: String(j.errorType || ''),
         status:
-          status === 'mineru' && mineruTaskId
-            ? 'mineru'
+          status === 'mineru'
+            ? (mineruTaskId ? 'mineru' : 'pending')
             : status === 'uploading'
               ? (objectName ? 'pending' : 'error')
-              : status === 'ai'
+              : status === 'uploaded' || status === 'ai'
                 ? 'pending'
-              : status,
+                : status,
         ...(status === 'uploading' && !objectName
           ? { message: '上传已中断，请重新上传', error: 'uploading interrupted' }
           : {}),
@@ -216,16 +216,73 @@ export async function restoreBatchQueue() {
     batchQueue.updatedAt = saved.updatedAt || Date.now();
 
     const pendingCount = batchQueue.items.filter(j => j.status === 'pending').length;
+    const resumableCount = batchQueue.items.filter(
+      j => j.status === 'mineru' && String(j.mineruTaskId || '').trim(),
+    ).length;
     const totalCount = batchQueue.items.length;
-    console.log(`[batch-queue] Restored ${totalCount} jobs (${pendingCount} pending), running=${batchQueue.running}`);
+    console.log(`[batch-queue] Restored ${totalCount} jobs (${pendingCount} pending, ${resumableCount} resumable), running=${batchQueue.running}`);
 
-    // 自动启动 worker：恢复后存在 pending 任务且未暂停
-    if (!batchQueue.paused && pendingCount > 0) {
+    // 自动启动 worker：恢复后存在可处理任务且未暂停
+    if (!batchQueue.paused && (pendingCount > 0 || resumableCount > 0)) {
       console.log('[batch-queue] Auto-resuming worker after restart...');
       startBatchWorker();
     }
   } catch (e) {
     console.warn('[batch-queue] restore failed:', e.message);
+  }
+}
+
+/** 恢复“处理中但未在队列中”的孤儿材料（启动时调用） */
+export async function recoverOrphanMaterials() {
+  try {
+    const res = await fetch(`${dbBaseUrl}/materials`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return;
+
+    const materials = await res.json();
+    if (!Array.isArray(materials) || materials.length === 0) return;
+
+    const queuedMaterialIds = new Set(
+      batchQueue.items
+        .map((j) => Number(j?.materialId || 0))
+        .filter((id) => Number.isFinite(id) && id > 0),
+    );
+
+    const orphanJobs = materials
+      .filter((material) => {
+        const materialId = Number(material?.id || 0);
+        if (!materialId || queuedMaterialIds.has(materialId)) return false;
+
+        const mineruStatus = String(material?.mineruStatus || '').toLowerCase();
+        const aiStatus = String(material?.aiStatus || '').toLowerCase();
+        const status = String(material?.status || '').toLowerCase();
+        const objectName = String(material?.metadata?.objectName || '').trim();
+
+        const isProcessingState =
+          mineruStatus === 'pending' ||
+          mineruStatus === 'parsing' ||
+          aiStatus === 'analyzing' ||
+          status === 'processing';
+
+        return isProcessingState && !!objectName;
+      })
+      .map((material) => ({
+        fileName: String(material?.title || material?.name || `material-${material.id}`),
+        fileSize: Number(material?.sizeBytes || 0),
+        path: String(material?.metadata?.objectName || ''),
+        objectName: String(material?.metadata?.objectName || ''),
+        mimeType: String(material?.mimeType || 'application/pdf'),
+        materialId: Number(material?.id || 0),
+        status: 'pending',
+      }));
+
+    if (orphanJobs.length === 0) return;
+
+    addJobs(orphanJobs);
+    console.log(`[batch-queue] Recovered ${orphanJobs.length} orphan materials`);
+  } catch (e) {
+    console.warn('[batch-queue] recover orphan materials failed:', e.message);
   }
 }
 
