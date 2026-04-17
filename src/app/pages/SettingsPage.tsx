@@ -373,7 +373,7 @@ export function SettingsPage() {
       const resp = await fetch('/__proxy/upload/ai/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider }),
+        body: JSON.stringify({ provider, mode: 'connectivity' }),
       });
       const data = await resp.json().catch(() => null);
       const requestId = String(data?.requestId || resp.headers.get('x-request-id') || '').trim();

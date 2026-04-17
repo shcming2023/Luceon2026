@@ -1795,10 +1795,9 @@ async function callAiProvider(provider, systemPrompt, userPrompt, opts = {}) {
   const aiJson = await aiResp.json();
   // Ollama Qwen3 可能将思考内容放在 content 中，实际回答可能在同一字段或单独字段
   const message = aiJson.choices?.[0]?.message ?? {};
-  const rawContent = message.content ?? '';
-  // 某些 Ollama 版本可能将思考内容放在 reasoning_content 中
-  if (!rawContent && message.reasoning_content) {
-    console.warn('[upload-server] AI response has reasoning_content but empty content, model may need /no_think');
+  const rawContent = (message.content ?? '') || (message.reasoning_content ?? '') || (message.reasoning ?? '');
+  if (!message.content && (message.reasoning_content || message.reasoning)) {
+    console.warn('[upload-server] AI response content empty; using reasoning_content/reasoning as fallback');
   }
 
   // ── 健壮的 JSON 提取：兼容 Qwen3 thinking mode、markdown 代码块等 ──
