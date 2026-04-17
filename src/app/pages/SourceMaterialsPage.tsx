@@ -288,14 +288,14 @@ export function SourceMaterialsPage() {
         });
         if (addRes.ok) {
           toast.success(`已提交 ${serverJobs.length} 个文件到后端处理队列`);
-          // 同时添加到前端队列 UI 以便展示
-          dispatch({
-            type: 'BATCH_ADD_FILES',
-            payload: {
-              items: serverJobs.map((j) => ({ id: j.id, fileName: j.fileName, fileSize: j.fileSize, path: j.path })),
-              openUi: true,
-            },
-          });
+          dispatch({ type: 'BATCH_SET_UI_OPEN', payload: { uiOpen: true } });
+          try {
+            const statusRes = await fetch('/__proxy/upload/batch/status', { signal: AbortSignal.timeout(5000) });
+            if (statusRes.ok) {
+              const data = await statusRes.json();
+              dispatch({ type: 'SERVER_BATCH_SYNC', payload: data });
+            }
+          } catch {}
         } else {
           const errData = await addRes.json().catch(() => ({ error: `HTTP ${addRes.status}` }));
           toast.error(`提交队列失败: ${(errData as { error?: string }).error || '未知错误'}`);
