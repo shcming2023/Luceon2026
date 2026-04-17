@@ -304,15 +304,29 @@ function isAbortError(err) {
 function classifyJobError(message) {
   const msg = String(message || '');
   const lower = msg.toLowerCase();
+  if (/无成功响应/.test(msg) || /状态查询超时/.test(msg) || /silence/.test(lower)) {
+    return 'service_down';
+  }
   if (
-    /hub/.test(lower) ||
-    /huggingface/.test(lower) ||
-    /hf hub/.test(lower) ||
-    /download/.test(lower) && /model/.test(lower)
+    /hub\s*(connection|connect)?\s*(fail|error)/i.test(msg) ||
+    /huggingface/i.test(msg) ||
+    /hf\s*hub/i.test(lower) ||
+    (/download/.test(lower) && /(model|weight)/.test(lower) && /hub/.test(lower))
   ) {
     return 'config';
   }
   return 'transient';
+}
+
+function shouldResetMineruTaskId(message) {
+  const msg = String(message || '');
+  const lower = msg.toLowerCase();
+  return (
+    /http 404/.test(lower) ||
+    /not found/.test(lower) ||
+    /task.*not.*found/.test(lower) ||
+    /任务.*不存在/.test(msg)
+  );
 }
 
 function pushAlert(level, message, jobId = '') {
@@ -371,7 +385,10 @@ function updateJob(id, updates) {
 }
 
 function findNextPending() {
-  return batchQueue.items.find(j => j.status === 'pending');
+  return batchQueue.items.find(j =>
+    j.status === 'pending' ||
+    (j.status === 'mineru' && String(j.mineruTaskId || '').trim())
+  );
 }
 
 // ─── 同步 material 到 db-server ──────────────────────────────
@@ -827,6 +844,17 @@ async function batchWorkerLoop() {
       }
 
       const errType = classifyJobError(message);
+      if (errType === 'service_down') {
+        updateJob(job.id, {
+          status: 'pending',
+          message: 'MinerU 服务无响应，5 分钟后重试...',
+          error: '',
+          errorType: '',
+        });
+        pushAlert('warn', `MinerU 服务无响应：${job.fileName}（5 分钟后重试）`, job.id);
+        await new Promise(r => setTimeout(r, 5 * 60 * 1000));
+        continue;
+      }
       if (errType === 'config') {
         updateJob(job.id, {
           status: 'error',
@@ -850,6 +878,10 @@ async function batchWorkerLoop() {
 
       job.retries = (job.retries || 0) + 1;
       if (job.retries < (job.maxRetries || BATCH_MAX_RETRIES)) {
+        const resetMineruTaskId = String(job.mineruTaskId || '').trim() && shouldResetMineruTaskId(message);
+        if (resetMineruTaskId) {
+          updateJob(job.id, { mineruTaskId: '', mineruSubmittedAt: 0 });
+        }
         // 指数退避重试
         const delay = BATCH_RETRY_BASE_DELAY * Math.pow(2, job.retries - 1);
         console.log(`[batch-queue] Will retry job ${job.id} in ${delay / 1000}s (attempt ${job.retries + 1}/${job.maxRetries || BATCH_MAX_RETRIES})`);
@@ -857,6 +889,7 @@ async function batchWorkerLoop() {
           status: 'pending',
           message: `第 ${job.retries} 次失败，${delay / 1000}s 后重试: ${message}`,
           lastRetryAt: Date.now(),
+          ...(resetMineruTaskId ? { message: `第 ${job.retries} 次失败，${delay / 1000}s 后重试（task_id 已重置）: ${message}` } : {}),
         });
         // 同步失败状态到 material
         if (job.materialId) {
