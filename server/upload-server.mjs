@@ -1939,14 +1939,15 @@ app.post('/ai/test', async (req, res) => {
   const apiEndpoint = String(provider?.apiEndpoint || '').trim();
   const model = String(provider?.model || '').trim();
   const name = String(provider?.name || provider?.id || 'AI');
+  const mode = String(req.body?.mode || provider?.mode || 'json').trim();
 
   if (!apiEndpoint || !model) {
     res.status(400).json({ ok: false, message: '缺少 apiEndpoint 或 model', requestId: req.requestId });
     return;
   }
 
-  const rawTimeoutSec = Number(provider?.timeout || 60);
-  const timeoutSec = Math.max(3, Math.min(30, Number.isFinite(rawTimeoutSec) ? rawTimeoutSec : 60));
+  const rawTimeoutSec = Number(provider?.timeout ?? 120);
+  const timeoutSec = Math.max(3, Math.min(600, Number.isFinite(rawTimeoutSec) ? rawTimeoutSec : 120));
 
   const rewrittenEndpoint = dockerRewriteEndpoint(apiEndpoint);
   const aiFullUrl = /\/chat\/completions\/?$/.test(rewrittenEndpoint)
@@ -1958,11 +1959,62 @@ app.post('/ai/test', async (req, res) => {
     level: 'info',
     requestId: req.requestId,
     route: '/ai/test',
-    message: `ai test start: ${name} model=${model} timeoutSec=${timeoutSec} url=${aiFullUrl}`,
+    message: `ai test start: ${name} mode=${mode} model=${model} timeoutSec=${timeoutSec} url=${aiFullUrl}`,
   });
 
   const startedAt = Date.now();
   try {
+    if (mode === 'connectivity') {
+      const trimmedKey = String(provider?.apiKey || '').trim();
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutSec * 1000);
+      let resp;
+      let respText = '';
+      try {
+        resp = await fetch(aiFullUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(trimmedKey ? { Authorization: `Bearer ${trimmedKey}` } : {}),
+          },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: 'user', content: 'ping' }],
+            temperature: 0,
+            max_tokens: 16,
+            stream: false,
+          }),
+          signal: controller.signal,
+        });
+        respText = await resp.text().catch(() => '');
+      } finally {
+        clearTimeout(timer);
+      }
+
+      const elapsedMs = Date.now() - startedAt;
+      const ok = !!resp?.ok;
+      pushDebugLog({
+        ts: Date.now(),
+        level: ok ? 'success' : 'error',
+        requestId: req.requestId,
+        route: '/ai/test',
+        message: `${ok ? 'ai connectivity ok' : 'ai connectivity failed'} http=${resp?.status ?? 'network'} elapsedMs=${elapsedMs}`,
+      });
+
+      res.status(200).json({
+        ok,
+        message: ok ? `连通性正常：${name}` : `连通性异常：HTTP ${resp?.status ?? 'network'}`,
+        elapsedMs,
+        timeoutSec,
+        requestId: req.requestId,
+        url: aiFullUrl,
+        httpStatus: resp?.status ?? null,
+        contentType: resp?.headers?.get?.('content-type') || '',
+        bodySnippet: respText.slice(0, 300),
+      });
+      return;
+    }
+
     const systemPrompt = '你是一个测试助手，只需要输出 JSON。';
     const userPrompt = '请仅返回：{\"ok\":true}';
     const result = await callAiProvider(
