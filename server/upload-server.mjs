@@ -834,7 +834,7 @@ async function fetchMinerUResult(localEndpoint, taskId, timeoutMs, signal = null
     return controller.signal;
   };
 
-  const resultTimeoutMs = Math.min(120_000, timeoutMs);
+  const resultTimeoutMs = Math.min(300_000, timeoutMs);
 
   for (let attempt = 1; attempt <= 3; attempt++) {
     let response;

@@ -95,6 +95,8 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/__proxy\/upload/, ''),
+        timeout: 3600_000,
+        proxyTimeout: 3600_000,
       },
       '/__proxy/db': {
         target: process.env.DB_PROXY_TARGET || 'http://localhost:8789',

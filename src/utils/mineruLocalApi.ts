@@ -66,7 +66,7 @@ export async function submitLocalMinerUTask(
     throw new Error('未配置本地 MinerU 地址');
   }
 
-  const timeoutSec = config.localTimeout || 300;
+  const timeoutSec = Number(config.localTimeout || 3600);
   const startAt = Date.now();
 
   const health = await checkLocalMinerUHealth(localEndpoint);
@@ -80,7 +80,7 @@ export async function submitLocalMinerUTask(
   formData.append('file', file);
   formData.append('materialId', String(materialId));
   formData.append('localEndpoint', localEndpoint);
-  formData.append('localTimeout', String(config.localTimeout || 300));
+  formData.append('localTimeout', String(timeoutSec));
   formData.append('backend', config.localBackend || 'hybrid-auto-engine');
   formData.append('maxPages', String(config.localMaxPages || 1000));
   formData.append('ocrLanguage', config.localOcrLanguage || config.language || 'ch');
