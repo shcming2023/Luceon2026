@@ -740,13 +740,29 @@ async function callGradioToMarkdown(localEndpoint, fileBuffer, fileName, mimeTyp
 }
 
 async function waitMinerUTask(localEndpoint, taskId, timeoutMs, onProgress) {
+  const isAbortTimeout = (err) => {
+    const name = err && typeof err === 'object' && 'name' in err ? String(err.name || '') : '';
+    const msg = err instanceof Error ? err.message : String(err || '');
+    return name === 'AbortError' || /aborted due to timeout/i.test(msg) || /operation was aborted/i.test(msg);
+  };
+
   const start = Date.now();
   let lastStatus = '';
   let lastPayload = null;
   while (Date.now() - start < timeoutMs) {
-    const response = await fetch(`${localEndpoint}/tasks/${encodeURIComponent(taskId)}`, {
-      signal: AbortSignal.timeout(Math.min(10_000, timeoutMs)),
-    });
+    const pollTimeoutMs = Math.min(30_000, timeoutMs);
+    let response;
+    try {
+      response = await fetch(`${localEndpoint}/tasks/${encodeURIComponent(taskId)}`, {
+        signal: AbortSignal.timeout(pollTimeoutMs),
+      });
+    } catch (err) {
+      if (isAbortTimeout(err)) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        continue;
+      }
+      throw err;
+    }
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
       const detail = typeof payload?.detail === 'string' ? payload.detail : '';
@@ -783,20 +799,45 @@ async function waitMinerUTask(localEndpoint, taskId, timeoutMs, onProgress) {
 }
 
 async function fetchMinerUResult(localEndpoint, taskId, timeoutMs) {
-  const response = await fetch(`${localEndpoint}/tasks/${encodeURIComponent(taskId)}/result`, {
-    signal: AbortSignal.timeout(Math.min(30_000, timeoutMs)),
-  });
-  const contentType = response.headers.get('content-type') || '';
-  const payload = contentType.includes('application/json')
-    ? await response.json().catch(() => null)
-    : await response.text().catch(() => '');
-  if (!response.ok) {
-    const detail = typeof payload === 'string'
-      ? payload
-      : String(payload?.detail || payload?.error || payload?.message || '');
-    throw new Error(`获取任务结果失败: HTTP ${response.status} ${detail}`.trim());
+  const isAbortTimeout = (err) => {
+    const name = err && typeof err === 'object' && 'name' in err ? String(err.name || '') : '';
+    const msg = err instanceof Error ? err.message : String(err || '');
+    return name === 'AbortError' || /aborted due to timeout/i.test(msg) || /operation was aborted/i.test(msg);
+  };
+
+  const resultTimeoutMs = Math.min(120_000, timeoutMs);
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    let response;
+    try {
+      response = await fetch(`${localEndpoint}/tasks/${encodeURIComponent(taskId)}/result`, {
+        signal: AbortSignal.timeout(resultTimeoutMs),
+      });
+    } catch (err) {
+      if (isAbortTimeout(err)) {
+        if (attempt < 3) {
+          await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+          continue;
+        }
+        throw new Error(`获取任务结果超时（${Math.round(resultTimeoutMs / 1000)}s）`);
+      }
+      throw err;
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    const payload = contentType.includes('application/json')
+      ? await response.json().catch(() => null)
+      : await response.text().catch(() => '');
+    if (!response.ok) {
+      const detail = typeof payload === 'string'
+        ? payload
+        : String(payload?.detail || payload?.error || payload?.message || '');
+      throw new Error(`获取任务结果失败: HTTP ${response.status} ${detail}`.trim());
+    }
+    return payload;
   }
-  return payload;
+
+  throw new Error(`获取任务结果超时（${Math.round(resultTimeoutMs / 1000)}s）`);
 }
 
 async function fetchDbBackupSnapshot() {
