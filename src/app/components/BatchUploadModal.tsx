@@ -383,7 +383,7 @@ export function BatchProcessingController() {
 
 // ─── 后端批处理队列控制面板 ────────────────────────────────────
 
-function ServerBatchQueuePanel({ queue }: { queue: ServerBatchQueueState }) {
+export function ServerBatchQueuePanel({ queue }: { queue: ServerBatchQueueState }) {
   const { dispatch } = useAppStore();
 
   const refresh = async () => {

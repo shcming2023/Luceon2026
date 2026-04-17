@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AppProvider } from '../store/appContext';
 import { Layout } from './components/Layout';
-import { Dashboard } from './pages/Dashboard';
 import { SourceMaterialsPage } from './pages/SourceMaterialsPage';
 import { AssetDetailPage } from './pages/AssetDetailPage';
 import { ProductsPage } from './pages/ProductsPage';
@@ -20,8 +19,7 @@ export default function App() {
           <Layout>
             <ErrorBoundary>
               <Routes>
-                {/* ── 默认首页：工作台 Dashboard ─────────────────── */}
-                <Route path="/" element={<Dashboard />} />
+                <Route path="/" element={<Navigate to="/source-materials" replace />} />
 
                 {/* ── 子系统一：EduAsset CMS ─────────────────────── */}
                 {/* 原始资料库：文件上传、MinerU OCR 解析、AI 清洗打标签 */}
@@ -39,7 +37,7 @@ export default function App() {
                 <Route path="/backup/latex" element={<LatexToolPage />} />
 
                 {/* 兜底重定向 */}
-                <Route path="*" element={<Navigate to="/" replace />} />
+                <Route path="*" element={<Navigate to="/source-materials" replace />} />
               </Routes>
             </ErrorBoundary>
           </Layout>

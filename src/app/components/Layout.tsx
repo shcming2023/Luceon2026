@@ -1,30 +1,26 @@
 import type { ReactNode } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import {
-  LayoutDashboard,
   FolderOpen,
   Tag,
   Settings,
   FileText,
-  Package,
   BookOpen,
   Bell,
   GraduationCap,
-  HelpCircle,
 } from 'lucide-react';
 import { BatchProcessingController, BatchProgressFab, BatchUploadModal } from './BatchUploadModal';
 
 /* ── 顶部快捷导航 ──────────────────────────────────────────── */
 const TOP_NAV = [
-  { name: '工作台',   href: '/' },
   { name: '资料库',   href: '/source-materials' },
   { name: '已处理资料库',   href: '/products' },
+  { name: '元数据管理', href: '/metadata' },
 ];
 
 /* ── 侧边栏主导航 ──────────────────────────────────────────── */
 const SIDE_NAV = [
-  { name: '工作台',       href: '/',                  icon: LayoutDashboard },
-  { name: '原始资料',     href: '/source-materials',  icon: FolderOpen },
+  { name: '资料库',     href: '/source-materials',  icon: FolderOpen },
   { name: '已处理资料库',       href: '/products',          icon: GraduationCap },
   { name: '元数据管理',   href: '/metadata',          icon: Tag },
 ];
@@ -55,7 +51,7 @@ export function Layout({ children }: LayoutProps) {
         <div className="h-full px-8 flex items-center justify-between">
           {/* 左侧：品牌 + 快捷导航 */}
           <div className="flex items-center gap-8">
-            <Link to="/" className="font-bold text-lg text-blue-700 whitespace-nowrap">
+            <Link to="/source-materials" className="font-bold text-lg text-blue-700 whitespace-nowrap">
               EduDoc Platform
             </Link>
             <nav className="hidden md:flex items-center gap-6">
@@ -80,12 +76,6 @@ export function Layout({ children }: LayoutProps) {
 
           {/* 右侧：操作按钮 + 通知 + 头像 */}
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/source-materials')}
-              className="hidden sm:flex px-5 py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm hover:shadow-md transition-shadow items-center gap-2"
-            >
-              上传资料
-            </button>
             <button className="relative p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors">
               <Bell className="w-5 h-5" />
             </button>
