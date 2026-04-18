@@ -800,7 +800,7 @@ export function BatchUploadModal() {
           {items.length === 0 && (!serverQueue || serverQueue.total === 0) ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-3 py-12">
               <Folder size={48} className="text-gray-300" />
-              <p>暂无文件，请先在「原始资料」中选择文件或文件夹</p>
+              <p>暂无文件，请先在工作台中上传文件或文件夹</p>
             </div>
           ) : (
             items.map((item) => {

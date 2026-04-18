@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Pause, Play, RefreshCw, RotateCcw, Trash2, Upload } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, Eye, FolderPlus, Pause, Play, RotateCcw, Settings, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore } from '../../store/appContext';
-import type { BatchItemStatus, Material, ServerBatchJob } from '../../store/types';
+import type { BatchItemStatus, Material } from '../../store/types';
+import { Link } from 'react-router-dom';
+import { DropdownMenu } from '../components/DropdownMenu';
+import { useFileUpload } from '../hooks/useFileUpload';
  
 type FilterKey = 'all' | 'pending' | 'processing' | 'failed' | 'completed';
  
@@ -52,6 +55,9 @@ export function WorkspacePage() {
   const [now, setNow] = useState(() => Date.now());
   const pollTimerRef = useRef<number | null>(null);
   const unmountedRef = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
+  const { upload, uploading, progress } = useFileUpload();
  
   const materialById = useMemo(() => {
     const map = new Map<number, Material>();
@@ -92,7 +98,7 @@ export function WorkspacePage() {
   }, [queue?.items]);
  
   const refresh = useCallback(async (opts: { silent?: boolean } = {}) => {
-    const silent = opts.silent !== false;
+    const silent = opts.silent ?? true;
     try {
       const res = await fetch('/__proxy/upload/batch/status', { signal: AbortSignal.timeout(5000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -103,8 +109,18 @@ export function WorkspacePage() {
     }
   }, [dispatch]);
  
-  const openUpload = () => {
-    dispatch({ type: 'BATCH_SET_UI_OPEN', payload: { uiOpen: true } });
+  const handlePickFiles = () => {
+    fileInputRef.current?.click();
+  };
+ 
+  const handlePickFolder = () => {
+    folderInputRef.current?.click();
+  };
+ 
+  const onFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    void upload(files);
   };
  
   const pauseOrResume = async () => {
@@ -263,8 +279,33 @@ export function WorkspacePage() {
     };
   }, [hasActive, refresh]);
  
+  useEffect(() => {
+    const el = folderInputRef.current as unknown as { webkitdirectory?: boolean; directory?: boolean; setAttribute?: (k: string, v: string) => void } | null;
+    if (!el) return;
+    el.webkitdirectory = true;
+    el.directory = true;
+    el.setAttribute?.('webkitdirectory', '');
+    el.setAttribute?.('directory', '');
+  }, []);
+ 
   return (
     <div className="p-6 space-y-5 max-w-[1400px] mx-auto">
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={onFileInputChange}
+        accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png"
+      />
+      <input
+        ref={folderInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={onFileInputChange}
+        accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png"
+      />
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">工作台</h1>
@@ -276,35 +317,92 @@ export function WorkspacePage() {
               </span>
             )}
           </p>
+          {progress && (
+            <div className="text-sm text-gray-500 mt-1">
+              上传进度：{progress.done}/{progress.total}
+              {progress.failed > 0 && <span className="text-red-500">（失败 {progress.failed}）</span>}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={openUpload}
-            className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
-          >
-            <Upload size={16} /> 批量上传
-          </button>
-          <button
-            onClick={pauseOrResume}
-            disabled={!queue}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-50"
-          >
-            {queue?.running && !queue?.paused ? <Pause size={16} /> : <Play size={16} />}
-            {queue?.running ? (queue?.paused ? '恢复' : '暂停') : '启动'}
-          </button>
-          <button
-            onClick={retryFailed}
-            disabled={!queue || (queue?.errors ?? 0) === 0}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-50"
-          >
-            <RotateCcw size={16} /> 重试失败
-          </button>
-          <button
-            onClick={() => refresh({ silent: false })}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white hover:bg-gray-50"
-          >
-            <RefreshCw size={16} /> 刷新
-          </button>
+          <div className="flex bg-blue-600 rounded-lg overflow-hidden text-white text-sm">
+            <button
+              disabled={uploading}
+              onClick={handlePickFiles}
+              className="flex items-center gap-1.5 px-4 py-2 hover:bg-blue-700 disabled:opacity-60"
+              type="button"
+            >
+              <Upload size={16} /> 上传文件
+            </button>
+            <div className="w-px bg-blue-500 my-2" />
+            <button
+              disabled={uploading}
+              onClick={handlePickFolder}
+              className="flex items-center gap-1.5 px-3 py-2 hover:bg-blue-700 disabled:opacity-60"
+              type="button"
+            >
+              <FolderPlus size={16} /> 文件夹
+            </button>
+          </div>
+          <DropdownMenu
+            trigger={({ open, setOpen }) => (
+              <button
+                className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white hover:bg-gray-50"
+                type="button"
+                onClick={() => setOpen(!open)}
+              >
+                <Settings size={16} /> 队列控制 <ChevronDown size={14} />
+              </button>
+            )}
+            items={[
+              {
+                kind: 'item',
+                label: queue?.running ? (queue.paused ? '恢复队列' : '暂停队列') : '启动队列',
+                onClick: pauseOrResume,
+                disabled: !queue,
+              },
+              {
+                kind: 'item',
+                label: `重试失败 (${queue?.errors ?? 0})`,
+                onClick: retryFailed,
+                disabled: !queue || (queue?.errors ?? 0) === 0,
+              },
+              { kind: 'divider' },
+              {
+                kind: 'item',
+                label: `清理已结束 (${(queue?.errors ?? 0) + (queue?.completed ?? 0)})`,
+                onClick: async () => {
+                  try {
+                    const res = await fetch('/__proxy/upload/batch/clear-completed', { method: 'POST' });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`);
+                    toast.success(`已清理 ${(data as { removed?: number }).removed || 0} 个任务`);
+                    await refresh();
+                  } catch (e) {
+                    toast.error(`清理失败：${e instanceof Error ? e.message : String(e)}`);
+                  }
+                },
+                disabled: !queue || (queue?.completed ?? 0) + (queue?.errors ?? 0) === 0,
+              },
+              {
+                kind: 'item',
+                label: '清空全部',
+                danger: true,
+                onClick: async () => {
+                  try {
+                    const res = await fetch('/__proxy/upload/batch/clear-all', { method: 'POST' });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`);
+                    toast.success('已清空后端队列');
+                    await refresh();
+                  } catch (e) {
+                    toast.error(`清空失败：${e instanceof Error ? e.message : String(e)}`);
+                  }
+                },
+                disabled: !queue || (queue?.total ?? 0) === 0,
+              },
+            ]}
+          />
         </div>
       </div>
  
@@ -342,6 +440,25 @@ export function WorkspacePage() {
           ))}
         </div>
         <div className="flex items-center gap-2">
+          {(counts.failed > 0 || counts.completed > 0) && (
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const res = await fetch('/__proxy/upload/batch/clear-completed', { method: 'POST' });
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`);
+                  toast.success(`已清理 ${(data as { removed?: number }).removed || 0} 个任务`);
+                  await refresh();
+                } catch (e) {
+                  toast.error(`清理失败：${e instanceof Error ? e.message : String(e)}`);
+                }
+              }}
+              className="text-xs text-gray-500 hover:text-red-500"
+            >
+              清理已结束 ({counts.failed + counts.completed})
+            </button>
+          )}
           <button
             onClick={removeSelected}
             disabled={selectedIds.size === 0}
@@ -364,32 +481,28 @@ export function WorkspacePage() {
                   className="rounded"
                 />
               </th>
-              <th className="w-12 px-2 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">序号</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">资料名称</th>
               <th className="w-28 px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">类型</th>
-              <th className="w-24 px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">大小</th>
-              <th className="w-24 px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">上传用户</th>
-              <th className="w-44 px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">上传时间</th>
-              <th className="w-28 px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">当前阶段</th>
-              <th className="w-40 px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">操作</th>
+              <th className="w-28 px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">处理阶段</th>
+              <th className="w-56 px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">AI 识别结果</th>
+              <th className="w-44 px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">创建时间</th>
+              <th className="w-44 px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">操作</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {!queue && (
               <tr>
-                <td colSpan={9} className="text-center py-14 text-gray-400">后端队列加载中...</td>
+                <td colSpan={7} className="text-center py-14 text-gray-400">后端队列加载中...</td>
               </tr>
             )}
             {queue && jobs.length === 0 && (
               <tr>
-                <td colSpan={9} className="text-center py-14 text-gray-400">暂无任务</td>
+                <td colSpan={7} className="text-center py-14 text-gray-400">暂无任务</td>
               </tr>
             )}
-            {jobs.map((job, idx) => {
+            {jobs.map((job) => {
               const material = job.materialId ? materialById.get(job.materialId) : undefined;
-              const uploadTs = material?.uploadTimestamp || job.createdAt || 0;
               const type = material?.metadata?.format || material?.type || '-';
-              const uploader = material?.uploader || '-';
               const canMove = job.status === 'pending' && pendingIds.length > 1;
               const canMoveUp = canMove && pendingIds[0] !== job.id;
               const canMoveDown = canMove && pendingIds[pendingIds.length - 1] !== job.id;
@@ -397,6 +510,7 @@ export function WorkspacePage() {
               const lastUpdated = job.updatedAt || 0;
               const elapsedFrom = job.status === 'mineru' && job.mineruSubmittedAt ? job.mineruSubmittedAt : job.createdAt || lastUpdated || 0;
               const showTiming = isCancellable(job.status);
+              const createdAt = job.createdAt || 0;
               return (
                 <tr key={job.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3">
@@ -407,12 +521,22 @@ export function WorkspacePage() {
                       className="rounded"
                     />
                   </td>
-                  <td className="px-2 py-3 text-gray-500">{idx + 1}</td>
                   <td className="px-4 py-3">
                     <div className="min-w-0">
-                      <div className="text-gray-900 font-medium truncate" title={job.path || job.fileName}>
-                        {job.path || job.fileName}
-                      </div>
+                      {job.materialId && job.status === 'completed' ? (
+                        <Link
+                          to={`/asset/${job.materialId}`}
+                          className="text-blue-600 hover:underline font-medium truncate block"
+                          title={job.path || job.fileName}
+                        >
+                          {job.path || job.fileName}
+                        </Link>
+                      ) : (
+                        <div className="text-gray-900 font-medium truncate" title={job.path || job.fileName}>
+                          {job.path || job.fileName}
+                        </div>
+                      )}
+                      <div className="text-xs text-gray-400 mt-0.5">{formatBytes(job.fileSize)}</div>
                       {job.message && (
                         <div className={`text-xs truncate ${job.status === 'error' ? 'text-red-600' : 'text-gray-500'}`} title={job.message}>
                           {job.message}
@@ -421,9 +545,6 @@ export function WorkspacePage() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-gray-600">{type}</td>
-                  <td className="px-4 py-3 text-gray-600">{formatBytes(job.fileSize)}</td>
-                  <td className="px-4 py-3 text-gray-600">{uploader}</td>
-                  <td className="px-4 py-3 text-gray-600">{uploadTs ? new Date(uploadTs).toLocaleString() : '-'}</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-col gap-1">
                       <span className={`text-xs px-2 py-1 rounded-full border w-fit ${
@@ -447,8 +568,39 @@ export function WorkspacePage() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
+                    {(() => {
+                      if (!material) return <span className="text-xs text-gray-300">-</span>;
+                      if (job.status === 'ai') return <span className="text-xs text-blue-500">识别中...</span>;
+                      if (job.status !== 'completed') return <span className="text-xs text-gray-300">-</span>;
+                      const subject = material.metadata?.subject;
+                      const grade = material.metadata?.grade;
+                      const tags = material.tags ?? [];
+                      if (!subject && !grade && tags.length === 0) return <span className="text-xs text-gray-400">无标签</span>;
+                      return (
+                        <div className="flex flex-col gap-1">
+                          {(subject || grade) && (
+                            <span className="text-xs text-gray-600">
+                              {[subject, grade].filter(Boolean).join(' · ')}
+                            </span>
+                          )}
+                          {tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {tags.slice(0, 3).map((tag) => (
+                                <span key={tag} className="text-[11px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                                  {tag}
+                                </span>
+                              ))}
+                              {tags.length > 3 && <span className="text-[11px] text-gray-400">+{tags.length - 3}</span>}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">{createdAt ? new Date(createdAt).toLocaleString() : '-'}</td>
+                  <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5">
-                      {job.status === 'pending' && pendingIds.length > 1 && (
+                      {filter === 'pending' && job.status === 'pending' && pendingIds.length > 1 && (
                         <>
                           <button
                             onClick={() => reorderPendingBySwap(job.id, 'up')}
@@ -469,6 +621,15 @@ export function WorkspacePage() {
                             <ArrowDown size={14} />
                           </button>
                         </>
+                      )}
+                      {job.materialId && job.status === 'completed' && (
+                        <Link
+                          to={`/asset/${job.materialId}`}
+                          className="p-2 rounded border border-gray-200 bg-white hover:bg-blue-50 text-blue-600"
+                          title="查看详情"
+                        >
+                          <Eye size={14} />
+                        </Link>
                       )}
                       <button
                         onClick={async () => {

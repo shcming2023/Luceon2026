@@ -259,17 +259,11 @@ export function SettingsPage() {
 
   useEffect(() => {
     const tab = new URLSearchParams(location.search).get('tab');
-    if (!tab) return;
-    const next =
-      tab === 'dictionary' ? 'dictionary'
-        : tab === 'ai' ? 'ai'
-          : tab === 'mineru' ? 'mineru'
-            : tab === 'storage' ? 'storage'
-              : tab === 'backup' ? 'backup'
-                : null;
-    if (!next) return;
-    if (next !== activeTab) setActiveTab(next);
-  }, [activeTab, location.search]);
+    const valid: ActiveTab[] = ['ai', 'mineru', 'storage', 'backup', 'dictionary'];
+    if (tab && valid.includes(tab as ActiveTab)) {
+      setActiveTab(tab as ActiveTab);
+    }
+  }, [location.search]);
 
   const switchTab = (tab: ActiveTab) => {
     setActiveTab(tab);
