@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { Save, Eye, EyeOff, Bot, ScanLine, Database, CheckCircle, XCircle, Loader, Download, Upload, HardDrive, AlertTriangle, Plus, Trash2, ChevronUp, ChevronDown, ToggleLeft, ToggleRight, RefreshCw } from 'lucide-react';
+import { Save, Eye, EyeOff, Bot, ScanLine, Database, CheckCircle, XCircle, Loader, Download, Upload, HardDrive, AlertTriangle, Plus, Trash2, ChevronUp, ChevronDown, ToggleLeft, ToggleRight, RefreshCw, Tag } from 'lucide-react';
 import { toast } from 'sonner';
+import { useLocation } from 'react-router-dom';
 import { useAppStore } from '../../store/appContext';
 import type { AiConfig, AiProvider, MinerUConfig, MinioConfig } from '../../store/types';
 import { checkLocalMinerUHealth } from '../../utils/mineruLocalApi';
+import { MetadataSettingsPanel } from '../components/MetadataSettingsPanel';
 
-type ActiveTab = 'ai' | 'mineru' | 'storage' | 'backup';
+type ActiveTab = 'ai' | 'mineru' | 'storage' | 'backup' | 'dictionary';
 
 // ─── 提示词字段中文标签映射 ──────────────────────────────────
 const PROMPT_LABELS: Record<string, string> = {
@@ -172,6 +174,7 @@ function getUsageTextTone(ratio: number) {
 
 export function SettingsPage() {
   const { state, dispatch } = useAppStore();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState<ActiveTab>('ai');
   const [showKey, setShowKey] = useState(false);
   const [showMinioKeys, setShowMinioKeys] = useState({ access: false, secret: false });
@@ -252,6 +255,16 @@ export function SettingsPage() {
       .catch(() => {/* upload-server 不可用时静默，使用 store 默认值 */});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+
+  useEffect(() => {
+    const tab = new URLSearchParams(location.search).get('tab');
+    if (!tab) return;
+    if (tab === 'dictionary') setActiveTab('dictionary');
+    else if (tab === 'ai') setActiveTab('ai');
+    else if (tab === 'mineru') setActiveTab('mineru');
+    else if (tab === 'storage') setActiveTab('storage');
+    else if (tab === 'backup') setActiveTab('backup');
+  }, [location.search]);
 
   useEffect(() => {
     if (activeTab !== 'backup') return;
@@ -760,6 +773,16 @@ export function SettingsPage() {
           }`}
         >
           <span className="flex items-center gap-1.5"><HardDrive size={15} /> 备份与监控</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('dictionary')}
+          className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'dictionary'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <span className="flex items-center gap-1.5"><Tag size={15} /> 字典与标签</span>
         </button>
       </div>
 
@@ -1915,6 +1938,10 @@ export function SettingsPage() {
             </div>
           )}
         </div>
+      )}
+
+      {activeTab === 'dictionary' && (
+        <MetadataSettingsPanel />
       )}
     </div>
   );

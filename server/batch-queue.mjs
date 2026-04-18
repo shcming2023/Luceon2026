@@ -1247,6 +1247,29 @@ export function removeJob(jobId) {
   return { ok: true };
 }
 
+export function reorderPending(jobIds = []) {
+  const ids = Array.isArray(jobIds) ? jobIds.map((s) => String(s || '').trim()).filter(Boolean) : [];
+  const unique = new Set(ids);
+  if (ids.length === 0) return { ok: false, error: '缺少 jobIds' };
+  if (unique.size !== ids.length) return { ok: false, error: 'jobIds 存在重复项' };
+
+  const pending = batchQueue.items.filter((j) => j.status === 'pending');
+  if (pending.length === 0) return { ok: false, error: '当前无 pending 任务' };
+  if (ids.length !== pending.length) return { ok: false, error: 'jobIds 数量必须与 pending 任务数量一致' };
+
+  const pendingById = new Map(pending.map((j) => [String(j.id), j]));
+  for (const id of ids) {
+    if (!pendingById.has(id)) return { ok: false, error: `任务不可重排或不存在: ${id}` };
+  }
+
+  const ordered = ids.map((id) => pendingById.get(id));
+  let cursor = 0;
+  batchQueue.items = batchQueue.items.map((j) => (j.status === 'pending' ? ordered[cursor++] : j));
+  batchQueue.updatedAt = Date.now();
+  persistBatchQueue();
+  return { ok: true };
+}
+
 /** 清空已完成和失败的任务 */
 export function clearCompleted() {
   const before = batchQueue.items.length;

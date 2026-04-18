@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   FolderOpen,
-  Tag,
   Settings,
   FileText,
   BookOpen,
@@ -11,18 +10,10 @@ import {
 } from 'lucide-react';
 import { BatchProcessingController, BatchProgressFab, BatchUploadModal } from './BatchUploadModal';
 
-/* ── 顶部快捷导航 ──────────────────────────────────────────── */
-const TOP_NAV = [
-  { name: '资料库',   href: '/source-materials' },
-  { name: '已处理资料库',   href: '/products' },
-  { name: '元数据管理', href: '/metadata' },
-];
-
 /* ── 侧边栏主导航 ──────────────────────────────────────────── */
 const SIDE_NAV = [
-  { name: '资料库',     href: '/source-materials',  icon: FolderOpen },
-  { name: '已处理资料库',       href: '/products',          icon: GraduationCap },
-  { name: '元数据管理',   href: '/metadata',          icon: Tag },
+  { name: '工作台',     href: '/workspace',  icon: FolderOpen },
+  { name: '成果库',     href: '/library',    icon: GraduationCap },
 ];
 
 /* ── 侧边栏底部导航 ──────────────────────────────────────────── */
@@ -49,29 +40,10 @@ export function Layout({ children }: LayoutProps) {
       {/* ── 顶部导航栏 ─────────────────────────────────────── */}
       <header className="h-14 bg-white/60 backdrop-blur-md border-b border-slate-200 flex-shrink-0 z-50">
         <div className="h-full px-8 flex items-center justify-between">
-          {/* 左侧：品牌 + 快捷导航 */}
           <div className="flex items-center gap-8">
-            <Link to="/source-materials" className="font-bold text-lg text-blue-700 whitespace-nowrap">
+            <Link to="/workspace" className="font-bold text-lg text-blue-700 whitespace-nowrap">
               EduDoc Platform
             </Link>
-            <nav className="hidden md:flex items-center gap-6">
-              {TOP_NAV.map((item) => {
-                const active = isActive(item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    to={item.href}
-                    className={`pb-0.5 text-sm font-medium transition-colors ${
-                      active
-                        ? 'text-blue-700 border-b-2 border-blue-600'
-                        : 'text-slate-500 hover:text-slate-900'
-                    }`}
-                  >
-                    {item.name}
-                  </Link>
-                );
-              })}
-            </nav>
           </div>
 
           {/* 右侧：操作按钮 + 通知 + 头像 */}

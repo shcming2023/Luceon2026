@@ -47,7 +47,7 @@ import {
   cancelJob, cancelCurrentJob,
   readAlerts,
   patchJob,
-  retryFailed, retryJob, removeJob, clearCompleted, clearAll,
+  retryFailed, retryJob, removeJob, reorderPending, clearCompleted, clearAll,
   shutdown as shutdownBatchQueue,
 } from './batch-queue.mjs';
 
@@ -3129,6 +3129,15 @@ app.delete('/batch/job/:jobId', (req, res) => {
 // PATCH /batch/job/:jobId - 更新指定任务（用于 uploading → pending / error）
 app.patch('/batch/job/:jobId', (req, res) => {
   res.json(patchJob(req.params.jobId, req.body || {}));
+});
+
+// POST /batch/reorder-pending - 重排 pending 任务顺序（仅影响 pending 子集）
+// Body: { jobIds: string[] } —— jobIds 必须与当前 pending 任务集合一致
+app.post('/batch/reorder-pending', (req, res) => {
+  const jobIds = Array.isArray(req.body?.jobIds) ? req.body.jobIds : [];
+  const result = reorderPending(jobIds);
+  if (!result.ok) res.status(400).json(result);
+  else res.json(result);
 });
 
 // POST /batch/alerts/read - 标记告警已读

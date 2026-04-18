@@ -275,7 +275,7 @@ export function ProductsPage() {
         {/* ── 页面头部 ────────────────────────────────── */}
         <div className="flex items-start justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900 mb-1">已处理资料库</h1>
+            <h1 className="text-3xl font-bold text-slate-900 mb-1">成果库</h1>
             <p className="text-slate-500 text-sm">
               已完成 MinerU 解析 + AI 元数据识别的资产 · 共 {processedCount} 条
               {totalCount !== processedCount && (

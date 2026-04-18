@@ -9,6 +9,7 @@ import { MetadataManagementPage } from './pages/MetadataManagementPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LatexToolPage } from './pages/backup/LatexToolPage';
+import { WorkspacePage } from './pages/WorkspacePage';
 
 export default function App() {
   return (
@@ -19,17 +20,20 @@ export default function App() {
           <Layout>
             <ErrorBoundary>
               <Routes>
-                <Route path="/" element={<Navigate to="/source-materials" replace />} />
+                <Route path="/" element={<Navigate to="/workspace" replace />} />
 
                 {/* ── 子系统一：EduAsset CMS ─────────────────────── */}
-                {/* 原始资料库：文件上传、MinerU OCR 解析、AI 清洗打标签 */}
-                <Route path="/source-materials" element={<SourceMaterialsPage />} />
+                <Route path="/workspace" element={<WorkspacePage />} />
+                <Route path="/source-materials" element={<Navigate to="/workspace" replace />} />
+                <Route path="/legacy/source-materials" element={<SourceMaterialsPage />} />
                 {/* 资产详情：解析结果查看、字段编辑、AI 规则配置 */}
                 <Route path="/asset/:id" element={<AssetDetailPage />} />
                 {/* 已处理资料库：检索已完成 MinerU 解析 + AI 元数据识别的资产 */}
-                <Route path="/products" element={<ProductsPage />} />
+                <Route path="/library" element={<ProductsPage />} />
+                <Route path="/products" element={<Navigate to="/library" replace />} />
                 {/* 元数据管理：灵活标签/AI规则/成品分类管理 */}
-                <Route path="/metadata" element={<MetadataManagementPage />} />
+                <Route path="/metadata" element={<Navigate to="/settings?tab=dictionary" replace />} />
+                <Route path="/legacy/metadata" element={<MetadataManagementPage />} />
                 {/* 系统设置：API Key 配置、存储设置 */}
                 <Route path="/settings" element={<SettingsPage />} />
 
@@ -37,7 +41,7 @@ export default function App() {
                 <Route path="/backup/latex" element={<LatexToolPage />} />
 
                 {/* 兜底重定向 */}
-                <Route path="*" element={<Navigate to="/source-materials" replace />} />
+                <Route path="*" element={<Navigate to="/workspace" replace />} />
               </Routes>
             </ErrorBoundary>
           </Layout>
