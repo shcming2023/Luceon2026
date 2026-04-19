@@ -33,9 +33,9 @@ function dockerRewriteEndpoint(endpoint) {
 // ─── 常量 ─────────────────────────────────────────────────────
 const BATCH_PERSIST_INTERVAL = 5000;   // 每 5 秒持久化一次
 const BATCH_MAX_RETRIES = 3;
-const BATCH_RETRY_BASE_DELAY = 15000;  // 15s 基础退避
+const BATCH_RETRY_BASE_DELAY = 30000;  // 30s 基础退避
 const BATCH_INTER_FILE_DELAY = 3000;   // 文件间 3s 冷却
-const BATCH_MEMORY_THRESHOLD = 0.85;   // 系统内存使用超过 85% 时暂停
+const BATCH_MEMORY_THRESHOLD = 0.75;   // 系统内存使用超过 75% 时暂停
 
 // ─── 队列状态 ─────────────────────────────────────────────────
 const batchQueue = {
@@ -382,6 +382,14 @@ function classifyJobError(message) {
   ) {
     return 'config';
   }
+  if (
+    /heap out of memory/i.test(msg) ||
+    /javascript heap out of memory/i.test(msg) ||
+    /\benomem\b/i.test(lower) ||
+    /out of memory/i.test(msg)
+  ) {
+    return 'resource';
+  }
   return 'transient';
 }
 
@@ -394,6 +402,84 @@ function shouldResetMineruTaskId(message) {
     /task.*not.*found/.test(lower) ||
     /任务.*不存在/.test(msg)
   );
+}
+
+function classifyRetryPolicy(message) {
+  const msg = String(message || '');
+  const lower = msg.toLowerCase();
+  if (
+    /heap out of memory/i.test(msg) ||
+    /javascript heap out of memory/i.test(msg) ||
+    /\benomem\b/i.test(lower) ||
+    /out of memory/i.test(msg)
+  ) {
+    return { retryable: false, errorType: 'resource', reason: '内存不足' };
+  }
+  if (/\bhttp\s*4\d\d\b/i.test(msg)) {
+    return { retryable: false, errorType: 'config', reason: 'HTTP 4xx' };
+  }
+  if (
+    /fetch failed/i.test(msg) ||
+    /\betimedout\b/i.test(lower) ||
+    /\beconnreset\b/i.test(lower) ||
+    /\beconnrefused\b/i.test(lower) ||
+    /\btimeout\b/i.test(lower) ||
+    /\bhttp\s*5\d\d\b/i.test(msg)
+  ) {
+    return { retryable: true, errorType: 'transient', reason: '' };
+  }
+  return { retryable: true, errorType: 'transient', reason: '' };
+}
+
+function wrapMinerUFetchError(err, url, action, timeoutMs) {
+  if (isAbortError(err)) {
+    return new Error(`${action}超时（${Math.round(timeoutMs / 1000)}s）：${url}`);
+  }
+  const msg = err instanceof Error ? err.message : String(err);
+  const cause = err && typeof err === 'object' && 'cause' in err ? err.cause : null;
+  const causeCode = cause && typeof cause === 'object' && 'code' in cause ? String(cause.code || '') : '';
+  if (err instanceof TypeError && /fetch failed/i.test(msg)) {
+    const detail = causeCode ? `（${causeCode}）` : '';
+    return new Error(`${action}失败：网络/连接异常${detail}，请检查 MinerU 服务可达性与网络状态`);
+  }
+  return new Error(`${action}失败：${msg}`);
+}
+
+function createMultipartStream({ boundary, fields, fileFieldName, fileName, mimeType, fileStream, signal }) {
+  const enc = new TextEncoder();
+  const safeName = String(fileName || 'upload.bin').replace(/"/g, '_');
+  const parts = Array.isArray(fields) ? fields : [];
+  const fileHeader =
+    `--${boundary}\r\n` +
+    `Content-Disposition: form-data; name="${fileFieldName}"; filename="${safeName}"\r\n` +
+    `Content-Type: ${mimeType || 'application/octet-stream'}\r\n\r\n`;
+  const fileFooter = `\r\n--${boundary}--\r\n`;
+  const fieldChunk = (name, value) =>
+    enc.encode(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${String(value ?? '')}\r\n`);
+
+  const onAbort = () => {
+    try { fileStream?.destroy?.(new Error('aborted')); } catch {}
+  };
+  if (signal && typeof signal.addEventListener === 'function') {
+    if (signal.aborted) onAbort();
+    else signal.addEventListener('abort', onAbort, { once: true });
+  }
+
+  async function* gen() {
+    for (const [k, v] of parts) {
+      yield fieldChunk(k, v);
+    }
+    yield enc.encode(fileHeader);
+    for await (const chunk of fileStream) {
+      yield chunk;
+    }
+    yield enc.encode(fileFooter);
+  }
+
+  return {
+    contentType: `multipart/form-data; boundary=${boundary}`,
+    body: gen(),
+  };
 }
 
 function pushAlert(level, message, jobId = '') {
@@ -435,6 +521,8 @@ function checkMemoryPressure() {
   const usedRatio = totalMem > 0 ? usedMem / totalMem : 0;
   return {
     usedRatio,
+    freeBytes: freeMem,
+    totalBytes: totalMem,
     freeMB: Math.round(freeMem / 1024 / 1024),
     totalMB: Math.round(totalMem / 1024 / 1024),
     pressure: usedRatio > BATCH_MEMORY_THRESHOLD,
@@ -533,12 +621,39 @@ async function processOneJob(job) {
   const localEndpoint = dockerRewriteEndpoint(String(mineruConfig.localEndpoint || 'http://mineru:8010').trim());
   const localTimeout = Number(mineruConfig.localTimeout || 3600);
   const timeoutMs = Math.max(localTimeout * 1000, 30_000);
-  const backend = String(mineruConfig.localBackend || 'hybrid-auto-engine');
+  const backend = String(mineruConfig.localBackend || 'pipeline');
   const maxPages = Number(mineruConfig.localMaxPages || 1000);
   const ocrLanguage = String(mineruConfig.localOcrLanguage || 'ch');
   const enableOcr = Boolean(mineruConfig.localEnableOcr);
   const enableFormula = Boolean(mineruConfig.localEnableFormula);
   const enableTable = mineruConfig.localEnableTable !== false;
+  const maxFileSize = Number(mineruConfig.maxFileSize || 100 * 1024 * 1024);
+
+  if (Number.isFinite(maxFileSize) && maxFileSize > 0 && Number(job.fileSize || 0) > maxFileSize) {
+    updateJob(job.id, {
+      status: 'error',
+      progress: 0,
+      message: `处理失败（不可重试）：文件超过 MinerU 解析限制（最大 ${Math.round(maxFileSize / 1024 / 1024)}MB）`,
+      error: '文件超过 MinerU 解析限制',
+      errorType: 'config',
+    });
+    pushAlert('error', `任务失败（文件超限）：${job.fileName}（${(job.fileSize / 1024 / 1024).toFixed(1)}MB）`, job.id);
+    if (job.materialId) {
+      await syncMaterialToDb(job.materialId, {
+        status: 'failed',
+        metadata: {
+          processingStage: '',
+          processingMsg: `处理失败（不可重试）：文件超过 MinerU 解析限制（最大 ${Math.round(maxFileSize / 1024 / 1024)}MB）`,
+          processingUpdatedAt: new Date().toISOString(),
+        },
+      });
+    }
+    return;
+  }
+  if (Number(job.fileSize || 0) > 50 * 1024 * 1024) {
+    console.warn(`[batch-queue] Large file warning: ${job.fileName} ${(job.fileSize / 1024 / 1024).toFixed(1)}MB`);
+    pushAlert('warn', `大文件解析：${job.fileName}（${(job.fileSize / 1024 / 1024).toFixed(1)}MB）`, job.id);
+  }
 
   // 检查 MinerU 可达性
   let mineruReachable = false;
@@ -555,49 +670,66 @@ async function processOneJob(job) {
 
   updateJob(job.id, { status: 'mineru', progress: 40, message: 'MinerU 解析中...' });
 
-  // 从 MinIO 读取原始文件
-  const bucket = deps.getMinioBucket();
-  const fileStream = await deps.getMinioClient().getObject(bucket, job.objectName);
-  const chunks = [];
-  for await (const chunk of fileStream) chunks.push(chunk);
-  const fileBuffer = Buffer.concat(chunks);
-
-  console.log(`[batch-queue] Processing ${job.fileName} (${(fileBuffer.length / 1024 / 1024).toFixed(1)} MB) via MinerU`);
+  console.log(`[batch-queue] Processing ${job.fileName} (${(Number(job.fileSize || 0) / 1024 / 1024).toFixed(1)} MB) via MinerU`);
 
   const abortSignal = currentAbortController?.signal || null;
   let mineruTaskId = String(job.mineruTaskId || '').trim();
 
   if (!mineruTaskId) {
-    const fastApiForm = new FormData();
-    fastApiForm.append(
-      'files',
-      new Blob([fileBuffer], { type: job.mimeType || 'application/octet-stream' }),
-      job.fileName,
-    );
-    fastApiForm.append('backend', backend);
+    const bucket = deps.getMinioBucket();
+    const fileStream = await deps.getMinioClient().getObject(bucket, job.objectName);
+    const boundary = `----luceon-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const fields = [];
+    fields.push(['backend', backend]);
     for (const lang of String(ocrLanguage || 'ch').split(',').map(s => s.trim()).filter(Boolean)) {
-      fastApiForm.append('lang_list', lang);
+      fields.push(['lang_list', lang]);
+      fields.push(['langlist', lang]);
     }
     let parseMethod = 'auto';
     if (enableOcr) parseMethod = 'ocr';
-    fastApiForm.append('parse_method', parseMethod);
-    fastApiForm.append('formula_enable', String(enableFormula));
-    fastApiForm.append('table_enable', String(enableTable));
+    fields.push(['parse_method', parseMethod]);
+    fields.push(['formula_enable', String(enableFormula)]);
+    fields.push(['table_enable', String(enableTable)]);
     const rawServerUrl = String(mineruConfig.localServerUrl || '').trim();
-    const serverUrl = dockerRewriteEndpoint(rawServerUrl || (/vlm|hybrid/i.test(backend) ? 'http://localhost:30000' : ''));
-    if (serverUrl) fastApiForm.append('server_url', serverUrl);
-    fastApiForm.append('return_md', 'true');
-    fastApiForm.append('response_format_zip', 'false');
+    const serverUrl = dockerRewriteEndpoint(rawServerUrl);
+    if (serverUrl) {
+      fields.push(['server_url', serverUrl]);
+      fields.push(['serverurl', serverUrl]);
+    }
+    fields.push(['return_md', 'true']);
+    fields.push(['response_format_zip', 'false']);
+    fields.push(['responseformatzip', 'false']);
     if (Number.isFinite(maxPages) && maxPages > 0) {
-      fastApiForm.append('end_page_id', String(Math.max(0, Math.floor(maxPages) - 1)));
+      const endPageId = String(Math.max(0, Math.floor(maxPages) - 1));
+      fields.push(['end_page_id', endPageId]);
+      fields.push(['endpageid', endPageId]);
     }
 
-    const mineruSubmitSignal = mergeAbortSignals([abortSignal, AbortSignal.timeout(timeoutMs)]);
-    const fastApiResponse = await fetch(`${localEndpoint}/tasks`, {
-      method: 'POST',
-      body: fastApiForm,
+    const dynamicSubmitTimeoutMs = Math.max(120_000, Math.ceil(Number(job.fileSize || 0) / 1024) * 50);
+    const submitTimeoutMs = Math.max(timeoutMs, dynamicSubmitTimeoutMs);
+    const mineruSubmitSignal = mergeAbortSignals([abortSignal, AbortSignal.timeout(submitTimeoutMs)]);
+    const multipart = createMultipartStream({
+      boundary,
+      fields,
+      fileFieldName: 'files',
+      fileName: job.fileName,
+      mimeType: job.mimeType || 'application/octet-stream',
+      fileStream,
       signal: mineruSubmitSignal,
     });
+
+    let fastApiResponse;
+    try {
+      fastApiResponse = await fetch(`${localEndpoint}/tasks`, {
+        method: 'POST',
+        headers: { 'content-type': multipart.contentType },
+        body: multipart.body,
+        duplex: 'half',
+        signal: mineruSubmitSignal,
+      });
+    } catch (e) {
+      throw wrapMinerUFetchError(e, `${localEndpoint}/tasks`, 'MinerU 任务提交', submitTimeoutMs);
+    }
 
     if (!fastApiResponse.ok) {
       const payload = await fastApiResponse.json().catch(() => ({}));
@@ -606,7 +738,7 @@ async function processOneJob(job) {
     }
 
     const taskPayload = await fastApiResponse.json().catch(() => null);
-    mineruTaskId = String(taskPayload?.task_id || '').trim();
+    mineruTaskId = String(taskPayload?.task_id || taskPayload?.taskid || taskPayload?.taskId || '').trim();
     if (!mineruTaskId) {
       throw new Error(`MinerU 未返回 task_id`);
     }
@@ -864,8 +996,15 @@ async function batchWorkerLoop() {
     // 内存检查
     const mem = checkMemoryPressure();
     if (mem.pressure) {
+      const sizes = batchQueue.items
+        .filter((j) => j && typeof j.fileSize === 'number' && (j.status === 'pending' || j.status === 'uploaded' || j.status === 'mineru' || j.status === 'ai'))
+        .map((j) => ({ id: j.id, fileName: j.fileName, fileSize: j.fileSize }))
+        .sort((a, b) => (b.fileSize || 0) - (a.fileSize || 0))
+        .slice(0, 8)
+        .map((j) => `${j.fileName}(${(j.fileSize / 1024 / 1024).toFixed(1)}MB)`)
+        .join(', ');
       console.warn(`[batch-queue] Memory pressure detected: ${mem.freeMB}MB free / ${mem.totalMB}MB total (${(mem.usedRatio * 100).toFixed(1)}% used). Pausing...`);
-      pushAlert('warn', `内存压力过大，队列已自动暂停：${mem.freeMB}MB 空闲 / ${mem.totalMB}MB 总计（${(mem.usedRatio * 100).toFixed(1)}% 已用）`);
+      pushAlert('warn', `内存压力过大，队列已自动暂停：${mem.freeMB}MB 空闲 / ${mem.totalMB}MB 总计（${(mem.usedRatio * 100).toFixed(1)}% 已用）${sizes ? `；任务大小：${sizes}` : ''}`);
       batchQueue.paused = true;
       batchQueue.updatedAt = Date.now();
       await persistBatchQueue();
@@ -883,11 +1022,27 @@ async function batchWorkerLoop() {
     }
 
     try {
+      const freeBytes = Number(mem.freeBytes || 0);
+      const needBytes = Number(job.fileSize || 0) * 2.5;
+      if (freeBytes > 0 && needBytes > 0 && freeBytes < needBytes) {
+        const msg = `内存不足，暂缓处理（需要约 ${(needBytes / 1024 / 1024).toFixed(0)}MB，当前空闲 ${mem.freeMB}MB）`;
+        updateJob(job.id, { status: 'pending', message: msg });
+        pushAlert('warn', `任务暂缓：${job.fileName} — ${msg}`, job.id);
+        await new Promise((r) => setTimeout(r, 30_000));
+        continue;
+      }
       await processOneJob(job);
       console.log(`[batch-queue] Job ${job.id} (${job.fileName}) completed successfully`);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error(`[batch-queue] Job ${job.id} (${job.fileName}) failed:`, message);
+      console.error(`[batch-queue] Job ${job.id} (${job.fileName}) failed:`, {
+        fileName: job.fileName,
+        fileSize: job.fileSize,
+        stage: job.status,
+        retries: job.retries,
+        heapUsed: process.memoryUsage().heapUsed,
+        error: message,
+      });
 
       if (cancelRequested.has(job.id) || isAbortError(err)) {
         cancelRequested.delete(job.id);
@@ -942,6 +1097,48 @@ async function batchWorkerLoop() {
         }
         continue;
       }
+      if (errType === 'resource') {
+        updateJob(job.id, {
+          status: 'error',
+          message: `处理失败（不可重试）：${message}`,
+          error: message,
+          errorType: 'resource',
+        });
+        pushAlert('error', `任务失败（不可重试）：${job.fileName} — ${message}`, job.id);
+        if (job.materialId) {
+          await syncMaterialToDb(job.materialId, {
+            status: 'failed',
+            metadata: {
+              processingStage: '',
+              processingMsg: `处理失败（不可重试）：${message}`,
+              processingUpdatedAt: new Date().toISOString(),
+            },
+          });
+        }
+        continue;
+      }
+
+      const retryPolicy = classifyRetryPolicy(message);
+      if (!retryPolicy.retryable) {
+        updateJob(job.id, {
+          status: 'error',
+          message: `处理失败（不可重试）：${message}`,
+          error: message,
+          errorType: retryPolicy.errorType || 'config',
+        });
+        pushAlert('error', `任务失败（不可重试）：${job.fileName} — ${message}`, job.id);
+        if (job.materialId) {
+          await syncMaterialToDb(job.materialId, {
+            status: 'failed',
+            metadata: {
+              processingStage: '',
+              processingMsg: `处理失败（不可重试）：${message}`,
+              processingUpdatedAt: new Date().toISOString(),
+            },
+          });
+        }
+        continue;
+      }
 
       job.retries = (job.retries || 0) + 1;
       if (job.retries < (job.maxRetries || BATCH_MAX_RETRIES)) {
@@ -954,15 +1151,15 @@ async function batchWorkerLoop() {
         console.log(`[batch-queue] Will retry job ${job.id} in ${delay / 1000}s (attempt ${job.retries + 1}/${job.maxRetries || BATCH_MAX_RETRIES})`);
         updateJob(job.id, {
           status: 'pending',
-          message: `第 ${job.retries} 次失败，${delay / 1000}s 后重试: ${message}`,
+          message: `第 ${job.retries}/${job.maxRetries || BATCH_MAX_RETRIES} 次失败，${delay / 1000}s 后重试: ${message}`,
           lastRetryAt: Date.now(),
-          ...(resetMineruTaskId ? { message: `第 ${job.retries} 次失败，${delay / 1000}s 后重试（task_id 已重置）: ${message}` } : {}),
+          ...(resetMineruTaskId ? { message: `第 ${job.retries}/${job.maxRetries || BATCH_MAX_RETRIES} 次失败，${delay / 1000}s 后重试（task_id 已重置）: ${message}` } : {}),
         });
         // 同步失败状态到 material
         if (job.materialId) {
           await syncMaterialToDb(job.materialId, {
             metadata: {
-              processingMsg: `第 ${job.retries} 次失败，等待重试: ${message}`,
+              processingMsg: `第 ${job.retries}/${job.maxRetries || BATCH_MAX_RETRIES} 次失败，等待重试: ${message}`,
               processingUpdatedAt: new Date().toISOString(),
             },
           });
@@ -972,17 +1169,17 @@ async function batchWorkerLoop() {
         // 超过最大重试次数
         updateJob(job.id, {
           status: 'error',
-          message: `处理失败（已重试 ${job.retries} 次）: ${message}`,
+          message: `处理失败（已重试 ${job.retries}/${job.maxRetries || BATCH_MAX_RETRIES} 次）: ${message}`,
           error: message,
           errorType: 'transient',
         });
-        pushAlert('error', `任务失败（已重试 ${job.retries} 次）：${job.fileName} — ${message}`, job.id);
+        pushAlert('error', `任务失败（已重试 ${job.retries}/${job.maxRetries || BATCH_MAX_RETRIES} 次）：${job.fileName} — ${message}`, job.id);
         if (job.materialId) {
           await syncMaterialToDb(job.materialId, {
             status: 'failed',
             metadata: {
               processingStage: '',
-              processingMsg: `处理失败（已重试 ${job.retries} 次）: ${message}`,
+              processingMsg: `处理失败（已重试 ${job.retries}/${job.maxRetries || BATCH_MAX_RETRIES} 次）: ${message}`,
               processingUpdatedAt: new Date().toISOString(),
             },
           });

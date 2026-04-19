@@ -70,13 +70,13 @@ services:
         condition: service_healthy
     networks:
       - cms-network
-    # ── 内存限制：Mac Mini 32G 环境下给 upload-server 分配 2G
+    # ── 内存限制：Mac Mini 32G 环境下给 upload-server 分配 4G
     deploy:
       resources:
         limits:
-          memory: 2048M
+          memory: 4096M
         reservations:
-          memory: 512M
+          memory: 1024M
     # ── 允许访问宿主机的 MinerU 和 Ollama 服务
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -101,7 +101,7 @@ services:
       # Docker 容器内访问宿主机 Ollama 地址：http://host.docker.internal:11434
       - ALLOW_LOCAL_AI_ENDPOINT=${ALLOW_LOCAL_AI_ENDPOINT:-true}
       # Node.js 内存限制：与 deploy.resources.limits.memory 匹配
-      - NODE_OPTIONS=--max-old-space-size=1536
+      - NODE_OPTIONS=--max-old-space-size=3072
       - TZ=Asia/Shanghai
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8788/health"]

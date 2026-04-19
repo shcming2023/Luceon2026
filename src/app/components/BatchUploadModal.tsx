@@ -576,13 +576,12 @@ export function ServerBatchQueuePanel({ queue }: { queue: ServerBatchQueueState 
                   <span className="text-xs text-gray-400">{formatBytes(job.fileSize)}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  {job.retries > 0 && (
-                    <span className="text-xs text-orange-500">重试 {job.retries}/{job.maxRetries}</span>
-                  )}
                   {job.status === 'completed' ? (
                     <span className="flex items-center gap-1 text-xs text-green-600"><CheckCircle2 size={12} /> 完成</span>
                   ) : job.status === 'error' ? (
-                    <span className="flex items-center gap-1 text-xs text-red-600"><AlertCircle size={12} /> 失败</span>
+                    <span className="flex items-center gap-1 text-xs text-red-600">
+                      <AlertCircle size={12} /> 失败（{job.errorType === 'config' || job.errorType === 'resource' ? '不可重试' : `已重试 ${job.retries}/${job.maxRetries}` }）
+                    </span>
                   ) : job.status === 'skipped' ? (
                     <span className="text-xs text-gray-500">已取消</span>
                   ) : job.status === 'uploading' ? (
@@ -591,6 +590,9 @@ export function ServerBatchQueuePanel({ queue }: { queue: ServerBatchQueueState 
                     <span className="text-xs text-gray-500">排队第 {Math.max(1, pendingJobs.findIndex((j) => j.id === job.id) + 1)} 位</span>
                   ) : (
                     <span className="flex items-center gap-1 text-xs text-blue-600"><Loader size={12} className="animate-spin" /> {job.progress}%</span>
+                  )}
+                  {job.status !== 'error' && job.retries > 0 && (
+                    <span className="text-xs text-orange-500">重试 {job.retries}/{job.maxRetries}</span>
                   )}
                   {job.errorType === 'config' && (
                     <span className="text-[10px] px-1.5 h-5 leading-5 rounded bg-red-50 text-red-700 border border-red-200">需人工</span>

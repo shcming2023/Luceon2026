@@ -529,7 +529,11 @@ function extractLocalMarkdown(payload) {
 
   if (payload.results && typeof payload.results === 'object') {
     const firstKey = Object.keys(payload.results)[0];
-    const md = firstKey ? payload.results?.[firstKey]?.md_content : '';
+    const md = firstKey
+      ? (payload.results?.[firstKey]?.md_content
+        ?? payload.results?.[firstKey]?.mdcontent
+        ?? payload.results?.[firstKey]?.mdContent)
+      : '';
     if (typeof md === 'string' && md.trim() !== '') return md.trim();
   }
 
@@ -538,9 +542,15 @@ function extractLocalMarkdown(payload) {
   }
 
   const candidates = [
+    payload.md_content,
+    payload.mdcontent,
+    payload.mdContent,
     payload.md_text,
     payload.markdown,
     payload.text,
+    payload.data?.md_content,
+    payload.data?.mdcontent,
+    payload.data?.mdContent,
     payload.data?.md_text,
     payload.data?.markdown,
     payload.data?.text,
@@ -622,12 +632,52 @@ async function resolveGradioOcrLanguage(localEndpoint, rawLanguage) {
   return fallback;
 }
 
-async function uploadFileToGradio(localEndpoint, buffer, fileName, mimeType, timeoutMs) {
-  const form = new FormData();
-  form.append('files', new Blob([buffer], { type: mimeType || 'application/octet-stream' }), fileName || 'upload.bin');
+async function uploadFileToGradio(localEndpoint, fileInput, fileName, mimeType, timeoutMs) {
+  const inferredName = fileName || 'upload.bin';
+  const inferredType = mimeType || 'application/octet-stream';
+  const isBufferLike = Buffer.isBuffer(fileInput) || fileInput instanceof Uint8Array;
+
+  if (isBufferLike) {
+    const form = new FormData();
+    form.append('files', new Blob([fileInput], { type: inferredType }), inferredName);
+    const response = await fetch(`${localEndpoint}/gradio_api/upload`, {
+      method: 'POST',
+      body: form,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      throw new Error(`Gradio upload 失败: HTTP ${response.status} ${detail.slice(0, 200)}`);
+    }
+    const payload = await response.json().catch(() => null);
+    const filePath = Array.isArray(payload) ? payload[0] : '';
+    if (!filePath) throw new Error('Gradio upload 未返回文件路径');
+    return String(filePath);
+  }
+
+  const filePathValue =
+    fileInput && typeof fileInput === 'object' && 'path' in fileInput ? String(fileInput.path || '') : '';
+  if (!filePathValue) {
+    throw new Error('Gradio upload 缺少文件输入');
+  }
+
+  const boundary = `----luceon-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const stream = fs.createReadStream(filePathValue);
+  const multipart = createMultipartStream({
+    boundary,
+    fields: [],
+    fileFieldName: 'files',
+    fileName: inferredName,
+    mimeType: inferredType,
+    fileStream: stream,
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+
   const response = await fetch(`${localEndpoint}/gradio_api/upload`, {
     method: 'POST',
-    body: form,
+    headers: { 'content-type': multipart.contentType },
+    body: multipart.body,
+    duplex: 'half',
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!response.ok) {
@@ -681,9 +731,9 @@ async function readSseFinalData(response, timeoutMs) {
   throw new Error('Gradio 解析超时（未收到 complete 事件）');
 }
 
-async function callGradioToMarkdown(localEndpoint, fileBuffer, fileName, mimeType, params) {
+async function callGradioToMarkdown(localEndpoint, fileInput, fileName, mimeType, params) {
   const timeoutMs = Math.max(Number(params?.timeoutMs || 30_000), 30_000);
-  const uploadedPath = await uploadFileToGradio(localEndpoint, fileBuffer, fileName, mimeType, timeoutMs);
+  const uploadedPath = await uploadFileToGradio(localEndpoint, fileInput, fileName, mimeType, timeoutMs);
   const language = await resolveGradioOcrLanguage(localEndpoint, params?.ocrLanguage);
 
   const data = [
@@ -694,7 +744,7 @@ async function callGradioToMarkdown(localEndpoint, fileBuffer, fileName, mimeTyp
     Boolean(params?.enableTable),
     language,
     String(params?.backend || 'hybrid-auto-engine'),
-    dockerRewriteEndpoint(String(params?.serverUrl || 'http://localhost:30000')),
+    dockerRewriteEndpoint(String(params?.serverUrl || '')),
   ];
 
   const callResp = await fetch(`${localEndpoint}/gradio_api/call/to_markdown`, {
@@ -740,6 +790,43 @@ async function callGradioToMarkdown(localEndpoint, fileBuffer, fileName, mimeTyp
     throw new Error(`下载 Markdown 失败: HTTP ${mdResp.status} ${detail.slice(0, 200)}`);
   }
   return mdResp.text();
+}
+
+function createMultipartStream({ boundary, fields, fileFieldName, fileName, mimeType, fileStream, signal }) {
+  const enc = new TextEncoder();
+  const safeName = String(fileName || 'upload.bin').replace(/"/g, '_');
+  const parts = Array.isArray(fields) ? fields : [];
+  const fileHeader =
+    `--${boundary}\r\n` +
+    `Content-Disposition: form-data; name="${fileFieldName}"; filename="${safeName}"\r\n` +
+    `Content-Type: ${mimeType || 'application/octet-stream'}\r\n\r\n`;
+  const fileFooter = `\r\n--${boundary}--\r\n`;
+  const fieldChunk = (name, value) =>
+    enc.encode(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${String(value ?? '')}\r\n`);
+
+  const onAbort = () => {
+    try { fileStream?.destroy?.(new Error('aborted')); } catch {}
+  };
+  if (signal && typeof signal.addEventListener === 'function') {
+    if (signal.aborted) onAbort();
+    else signal.addEventListener('abort', onAbort, { once: true });
+  }
+
+  async function* gen() {
+    for (const [k, v] of parts) {
+      yield fieldChunk(k, v);
+    }
+    yield enc.encode(fileHeader);
+    for await (const chunk of fileStream) {
+      yield chunk;
+    }
+    yield enc.encode(fileFooter);
+  }
+
+  return {
+    contentType: `multipart/form-data; boundary=${boundary}`,
+    body: gen(),
+  };
 }
 
 async function waitMinerUTask(localEndpoint, taskId, timeoutMs, onProgress, signal = null) {
@@ -788,6 +875,11 @@ async function waitMinerUTask(localEndpoint, taskId, timeoutMs, onProgress, sign
         if (signal?.aborted) throw err;
         await new Promise((resolve) => setTimeout(resolve, 1500));
         continue;
+      }
+      if (err instanceof TypeError && /fetch failed/i.test(err.message || '')) {
+        const cause = err && typeof err === 'object' && 'cause' in err ? err.cause : null;
+        const code = cause && typeof cause === 'object' && 'code' in cause ? String(cause.code || '') : '';
+        throw new Error(`查询任务状态失败：网络/连接异常${code ? `（${code}）` : ''}，请检查 MinerU 服务可达性`);
       }
       throw err;
     }
@@ -861,6 +953,11 @@ async function fetchMinerUResult(localEndpoint, taskId, timeoutMs, signal = null
           continue;
         }
         throw new Error(`获取任务结果超时（${Math.round(resultTimeoutMs / 1000)}s）`);
+      }
+      if (err instanceof TypeError && /fetch failed/i.test(err.message || '')) {
+        const cause = err && typeof err === 'object' && 'cause' in err ? err.cause : null;
+        const code = cause && typeof cause === 'object' && 'code' in cause ? String(cause.code || '') : '';
+        throw new Error(`获取任务结果失败：网络/连接异常${code ? `（${code}）` : ''}，请检查 MinerU 服务可达性`);
       }
       throw err;
     }
@@ -1576,7 +1673,7 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
       res.write(`data: ${JSON.stringify(data)}\n\n`);
     };
 
-    const backend = String(req.body?.backend || 'hybrid-auto-engine');
+    const backend = String(req.body?.backend || 'pipeline');
     const maxPages = Number(req.body?.maxPages || 1000);
     const ocrLanguage = String(req.body?.ocrLanguage || req.body?.language || 'ch');
     const enableOcr = isEnabledFlag(req.body?.enableOcr);
@@ -1585,7 +1682,10 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
     const timeoutMs = Math.max(localTimeout * 1000, 30_000);
     const parseMethod = String(req.body?.parseMethod || req.body?.parse_method || '').trim();
     const rawServerUrl = String(req.body?.serverUrl || req.body?.server_url || req.body?.url || '').trim();
-    const serverUrl = dockerRewriteEndpoint(rawServerUrl || (/vlm|hybrid/i.test(backend) ? 'http://localhost:30000' : ''));
+    const serverUrl = dockerRewriteEndpoint(rawServerUrl);
+    if (!serverUrl && /http-client/i.test(backend)) {
+      throw new Error('本地 MinerU 参数缺失：当前 backend 需要配置 server_url');
+    }
 
     const candidates = [
       `${localEndpoint}/health`,
@@ -1616,43 +1716,83 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
     let markdown = '';
     let mineruTaskId = '';
 
-    const fastApiForm = new FormData();
-    const localFileBuffer = getFileBuffer(req.file);
-    fastApiForm.append(
-      'files',
-      new Blob([localFileBuffer], { type: req.file.mimetype || 'application/octet-stream' }),
-      req.file.originalname,
-    );
-    fastApiForm.append('backend', backend);
-    for (const lang of String(ocrLanguage || 'ch').split(',').map((item) => item.trim()).filter(Boolean)) {
-      fastApiForm.append('lang_list', lang);
-    }
+    const fileSize = Number(req.file.size || 0);
+    const dynamicSubmitTimeoutMs = Math.max(120_000, Math.ceil(fileSize / 1024) * 50);
+    const submitTimeoutMs = Math.max(timeoutMs, dynamicSubmitTimeoutMs);
+
     let finalParseMethod = parseMethod || 'auto';
     if (enableOcr && !parseMethod) {
       finalParseMethod = 'ocr';
     }
-    fastApiForm.append('parse_method', finalParseMethod);
-    fastApiForm.append('formula_enable', String(enableFormula));
-    fastApiForm.append('table_enable', String(enableTable));
-    if (serverUrl) fastApiForm.append('server_url', serverUrl);
-    fastApiForm.append('return_md', 'true');
-    fastApiForm.append('response_format_zip', 'false');
-    if (Number.isFinite(maxPages) && maxPages > 0) {
-      fastApiForm.append('end_page_id', String(Math.max(0, Math.floor(maxPages) - 1)));
+
+    let supportsFastApiTasks = true;
+    try {
+      const probe = await fetch(`${localEndpoint}/tasks`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(3000),
+      });
+      if (probe.status === 404) supportsFastApiTasks = false;
+    } catch {
     }
 
-    const fastApiResponse = await fetch(`${localEndpoint}/tasks`, {
-      method: 'POST',
-      body: fastApiForm,
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    if (supportsFastApiTasks) {
+      const boundary = `----luceon-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const fields = [];
+      fields.push(['backend', backend]);
+      for (const lang of String(ocrLanguage || 'ch').split(',').map((item) => item.trim()).filter(Boolean)) {
+        fields.push(['lang_list', lang]);
+        fields.push(['langlist', lang]);
+      }
+      fields.push(['parse_method', finalParseMethod]);
+      fields.push(['formula_enable', String(enableFormula)]);
+      fields.push(['table_enable', String(enableTable)]);
+      if (serverUrl) {
+        fields.push(['server_url', serverUrl]);
+        fields.push(['serverurl', serverUrl]);
+      }
+      fields.push(['return_md', 'true']);
+      fields.push(['response_format_zip', 'false']);
+      fields.push(['responseformatzip', 'false']);
+      if (Number.isFinite(maxPages) && maxPages > 0) {
+        const endPageId = String(Math.max(0, Math.floor(maxPages) - 1));
+        fields.push(['end_page_id', endPageId]);
+        fields.push(['endpageid', endPageId]);
+      }
 
-    if (fastApiResponse.status !== 404 && fastApiResponse.status !== 405) {
+      const multipart = createMultipartStream({
+        boundary,
+        fields,
+        fileFieldName: 'files',
+        fileName: req.file.originalname,
+        mimeType: req.file.mimetype || 'application/octet-stream',
+        fileStream: fs.createReadStream(req.file.path),
+        signal: AbortSignal.timeout(submitTimeoutMs),
+      });
+
+      let fastApiResponse;
+      try {
+        fastApiResponse = await fetch(`${localEndpoint}/tasks`, {
+          method: 'POST',
+          headers: { 'content-type': multipart.contentType },
+          body: multipart.body,
+          duplex: 'half',
+          signal: AbortSignal.timeout(submitTimeoutMs),
+        });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (error instanceof TypeError && /fetch failed/i.test(msg)) {
+          throw new Error('本地 MinerU 任务提交失败：网络/连接异常，请检查 MinerU 服务可达性');
+        }
+        if ((error && typeof error === 'object' && 'name' in error && String(error.name || '') === 'AbortError') || /aborted due to timeout/i.test(msg)) {
+          throw new Error(`本地 MinerU 任务提交超时（${Math.round(submitTimeoutMs / 1000)}s），请增大超时或降低并发`);
+        }
+        throw error;
+      }
+
       const contentType = fastApiResponse.headers.get('content-type') || '';
       const payload = contentType.includes('application/json')
         ? await fastApiResponse.json().catch(() => null)
         : await fastApiResponse.text().catch(() => '');
-
       if (!fastApiResponse.ok) {
         const error = String(payload?.error || payload?.message || payload?.detail || '');
         const message = /hub|snapshot folder|huggingface/i.test(error)
@@ -1661,7 +1801,7 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
         throw new Error(message.trim());
       }
 
-      mineruTaskId = String(payload?.task_id || '').trim();
+      mineruTaskId = String(payload?.task_id || payload?.taskid || payload?.taskId || '').trim();
       if (!mineruTaskId) {
         throw new Error(`本地 MinerU 未返回 task_id，响应内容: ${JSON.stringify(payload).slice(0, 300)}`);
       }
@@ -1686,29 +1826,37 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
       const resultPayload = await fetchMinerUResult(localEndpoint, mineruTaskId, timeoutMs);
       markdown = extractLocalMarkdown(resultPayload);
     } else {
-      const form = new FormData();
-      form.append(
-        'file',
-        new Blob([localFileBuffer], { type: req.file.mimetype || 'application/octet-stream' }),
-        req.file.originalname,
-      );
-      form.append('backend', backend);
-      form.append('max_pages', String(maxPages));
-      form.append('ocr_language', ocrLanguage);
-      form.append('table_enable', String(enableTable));
-      form.append('formula_enable', String(enableFormula));
-      form.append('language', req.body?.language || ocrLanguage);
-      form.append('enableOcr', String(enableOcr));
-      form.append('enableFormula', String(enableFormula));
-      form.append('enableTable', String(enableTable));
-      form.append('enable_ocr', String(enableOcr));
-      form.append('enable_formula', String(enableFormula));
-      form.append('enable_table', String(enableTable));
+      const boundary = `----luceon-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const fields = [];
+      fields.push(['backend', backend]);
+      fields.push(['max_pages', String(maxPages)]);
+      fields.push(['ocr_language', ocrLanguage]);
+      fields.push(['table_enable', String(enableTable)]);
+      fields.push(['formula_enable', String(enableFormula)]);
+      fields.push(['language', req.body?.language || ocrLanguage]);
+      fields.push(['enableOcr', String(enableOcr)]);
+      fields.push(['enableFormula', String(enableFormula)]);
+      fields.push(['enableTable', String(enableTable)]);
+      fields.push(['enable_ocr', String(enableOcr)]);
+      fields.push(['enable_formula', String(enableFormula)]);
+      fields.push(['enable_table', String(enableTable)]);
+
+      const multipart = createMultipartStream({
+        boundary,
+        fields,
+        fileFieldName: 'file',
+        fileName: req.file.originalname,
+        mimeType: req.file.mimetype || 'application/octet-stream',
+        fileStream: fs.createReadStream(req.file.path),
+        signal: AbortSignal.timeout(submitTimeoutMs),
+      });
 
       const response = await fetch(`${localEndpoint}/gradio_api/to_markdown`, {
         method: 'POST',
-        body: form,
-        signal: AbortSignal.timeout(timeoutMs),
+        headers: { 'content-type': multipart.contentType },
+        body: multipart.body,
+        duplex: 'half',
+        signal: AbortSignal.timeout(submitTimeoutMs),
       });
       sendEvent('progress', { pct: 50, msg: '使用降级 Gradio 引擎解析中...' });
 
@@ -1724,7 +1872,7 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
           : await response.text();
         markdown = extractLocalMarkdown(payload);
       } else {
-        markdown = await callGradioToMarkdown(localEndpoint, localFileBuffer, req.file.originalname, req.file.mimetype, {
+        markdown = await callGradioToMarkdown(localEndpoint, { path: req.file.path }, req.file.originalname, req.file.mimetype, {
           backend,
           maxPages,
           ocrLanguage,
@@ -1784,6 +1932,8 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
       return;
     }
     res.status(500).json({ error: message });
+  } finally {
+    cleanupTempFile(req.file);
   }
 });
 

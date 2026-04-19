@@ -503,6 +503,10 @@ export function WorkspacePage() {
               const elapsedFrom = job.status === 'mineru' && job.mineruSubmittedAt ? job.mineruSubmittedAt : job.createdAt || lastUpdated || 0;
               const showTiming = isCancellable(job.status);
               const createdAt = job.createdAt || 0;
+              const stageLabel =
+                job.status === 'error'
+                  ? `失败（${job.errorType === 'config' || job.errorType === 'resource' ? '不可重试' : `已重试 ${job.retries}/${job.maxRetries}` }）`
+                  : formatStage(job.status);
               return (
                 <tr key={job.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3">
@@ -539,17 +543,22 @@ export function WorkspacePage() {
                   <td className="px-4 py-3 text-gray-600">{type}</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-col gap-1">
-                      <span className={`text-xs px-2 py-1 rounded-full border w-fit ${
-                        job.status === 'completed'
-                          ? 'bg-green-50 text-green-700 border-green-200'
-                          : job.status === 'error'
-                            ? 'bg-red-50 text-red-700 border-red-200'
-                            : isProcessingStatus(job.status)
-                              ? 'bg-blue-50 text-blue-700 border-blue-200'
-                              : 'bg-gray-50 text-gray-700 border-gray-200'
-                      }`}>
-                        {formatStage(job.status)}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-xs px-2 py-1 rounded-full border w-fit ${
+                          job.status === 'completed'
+                            ? 'bg-green-50 text-green-700 border-green-200'
+                            : job.status === 'error'
+                              ? 'bg-red-50 text-red-700 border-red-200'
+                              : isProcessingStatus(job.status)
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                : 'bg-gray-50 text-gray-700 border-gray-200'
+                        }`}>
+                          {stageLabel}
+                        </span>
+                        {job.errorType === 'config' && (
+                          <span className="text-[10px] px-1.5 h-5 leading-5 rounded bg-red-50 text-red-700 border border-red-200">需人工介入</span>
+                        )}
+                      </div>
                       {showTiming && (
                         <div className="text-[11px] text-gray-500">
                           <span>进度 {progress}%</span>
