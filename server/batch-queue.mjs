@@ -271,30 +271,60 @@ export async function recoverOrphanMaterials() {
         .filter((id) => Number.isFinite(id) && id > 0),
     );
 
-    const orphanJobs = materials
-      .filter((material) => {
-        const materialId = Number(material?.id || 0);
-        if (!materialId || queuedMaterialIds.has(materialId)) return false;
+    const orphanCandidates = materials.filter((material) => {
+      const materialId = Number(material?.id || 0);
+      if (!materialId || queuedMaterialIds.has(materialId)) return false;
 
-        const mineruStatus = String(material?.mineruStatus || '').toLowerCase();
-        const aiStatus = String(material?.aiStatus || '').toLowerCase();
-        const status = String(material?.status || '').toLowerCase();
-        const objectName = String(material?.metadata?.objectName || '').trim();
-        const lastQueuedAt = Number(material?.metadata?.lastQueuedAt || 0);
+      const mineruStatus = String(material?.mineruStatus || '').toLowerCase();
+      const aiStatus = String(material?.aiStatus || '').toLowerCase();
+      const status = String(material?.status || '').toLowerCase();
+      const objectName = String(material?.metadata?.objectName || '').trim();
+      const lastQueuedAt = Number(material?.metadata?.lastQueuedAt || 0);
 
-        const isProcessingState =
-          mineruStatus === 'pending' ||
-          mineruStatus === 'parsing' ||
-          aiStatus === 'analyzing' ||
-          status === 'processing';
+      const isProcessingState =
+        mineruStatus === 'pending' ||
+        mineruStatus === 'parsing' ||
+        aiStatus === 'analyzing' ||
+        status === 'processing';
 
-        // 只有最近 24h 内入过队的才算是真正的"中断孤儿"
-        const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
-        const isRecentOrphan = lastQueuedAt > 0 && (Date.now() - lastQueuedAt) < STALE_THRESHOLD_MS;
+      // 只有最近 24h 内入过队的才算是真正的"中断孤儿"
+      const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+      const isRecentOrphan = lastQueuedAt > 0 && (Date.now() - lastQueuedAt) < STALE_THRESHOLD_MS;
 
-        return isProcessingState && !!objectName && isRecentOrphan;
-      })
-      .map((material) => ({
+      return isProcessingState && !!objectName && isRecentOrphan;
+    });
+
+    if (orphanCandidates.length === 0) return;
+
+    // 对于持有 mineruTaskId 的孤儿，先查询 MinerU 任务是否仍有效
+    // 有效：恢复并复用 taskId（避免重复提交）
+    // 无效/不存在：清空 taskId，让 worker 重新提交
+    const endpoint = await loadMineruEndpoint();
+    const orphanJobs = [];
+
+    for (const material of orphanCandidates) {
+      const savedTaskId = String(material?.metadata?.mineruTaskId || '').trim();
+      let resolvedTaskId = savedTaskId;
+
+      if (savedTaskId && endpoint) {
+        const aliveStatus = await checkMineruTaskAlive(endpoint, savedTaskId);
+        if (aliveStatus === 'not_found' || aliveStatus === 'done') {
+          // MinerU 已重启或任务已完成，清空 taskId，准备重新走流程
+          resolvedTaskId = '';
+          console.log(
+            `[batch-queue] recoverOrphan: material ${material.id} taskId ${savedTaskId} ` +
+            `is ${aliveStatus}, will resubmit`
+          );
+        } else {
+          // active 或 unknown：保留 taskId，worker 会在 processOneJob 中直接复用
+          console.log(
+            `[batch-queue] recoverOrphan: material ${material.id} taskId ${savedTaskId} ` +
+            `is still ${aliveStatus}, reusing`
+          );
+        }
+      }
+
+      orphanJobs.push({
         fileName: String(material?.title || material?.name || `material-${material.id}`),
         fileSize: Number(material?.sizeBytes || 0),
         path: String(material?.metadata?.objectName || ''),
@@ -302,14 +332,20 @@ export async function recoverOrphanMaterials() {
         mimeType: String(material?.mimeType || 'application/pdf'),
         materialId: Number(material?.id || 0),
         status: 'pending',
-        uploadTimestamp: Number(material?.uploadTimestamp || Date.now()), // 按上传时间排序
-      }))
-      .sort((a, b) => (a.uploadTimestamp || 0) - (b.uploadTimestamp || 0)); // 按时间升序，最早的先处理
+        mineruTaskId: resolvedTaskId, // 传入已验证的 taskId
+        uploadTimestamp: Number(material?.uploadTimestamp || Date.now()),
+      });
+    }
 
-    if (orphanJobs.length === 0) return;
-
+    orphanJobs.sort((a, b) => (a.uploadTimestamp || 0) - (b.uploadTimestamp || 0));
     addJobs(orphanJobs);
-    console.log(`[batch-queue] Recovered ${orphanJobs.length} orphan materials (sorted by uploadTimestamp)`);
+
+    const reuseCount = orphanJobs.filter(j => j.mineruTaskId).length;
+    const resubmitCount = orphanJobs.length - reuseCount;
+    console.log(
+      `[batch-queue] Recovered ${orphanJobs.length} orphan materials: ` +
+      `${reuseCount} reusing existing MinerU taskId, ${resubmitCount} will resubmit`
+    );
   } catch (e) {
     console.warn('[batch-queue] recover orphan materials failed:', e.message);
   }
@@ -663,6 +699,47 @@ async function loadConfigs() {
   }
 }
 
+/**
+ * 从配置加载 MinerU endpoint（含 Docker 地址重写）
+ * @returns {Promise<string>} 失败时返回空字符串
+ */
+async function loadMineruEndpoint() {
+  try {
+    const { mineruConfig } = await loadConfigs();
+    const raw = String(mineruConfig.localEndpoint || 'http://mineru:8010').trim();
+    return dockerRewriteEndpoint(raw);
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * 查询 MinerU 中指定任务是否仍处于活跃状态（queued/processing）
+ * 利用已支持的 GET /tasks/{id} 端点，无需任何新 API
+ *
+ * @param {string} endpoint - MinerU 服务地址（已 dockerRewrite）
+ * @param {string} taskId
+ * @returns {Promise<'active'|'done'|'not_found'|'unknown'>}
+ */
+async function checkMineruTaskAlive(endpoint, taskId) {
+  if (!endpoint || !taskId) return 'unknown';
+  try {
+    const res = await fetch(
+      `${endpoint}/tasks/${encodeURIComponent(taskId)}`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+    if (res.status === 404) return 'not_found';
+    if (!res.ok) return 'unknown';
+    const payload = await res.json().catch(() => null);
+    const status = String(payload?.status || '').toLowerCase();
+    if (['queued', 'pending', 'processing', 'running'].includes(status)) return 'active';
+    if (['done', 'success', 'completed', 'failed', 'error', 'cancelled'].includes(status)) return 'done';
+    return 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
 // ─── 核心处理：处理单个文件 ──────────────────────────────────
 
 async function processOneJob(job) {
@@ -816,6 +893,18 @@ async function processOneJob(job) {
     persistBatchQueue();
     console.log(`[batch-queue] MinerU task submitted: ${mineruTaskId} for ${job.fileName}`);
 
+    // 持久化 mineruTaskId 到 DB，供重启恢复时读取
+    if (job.materialId) {
+      await syncMaterialToDb(job.materialId, {
+        metadata: {
+          mineruTaskId: mineruTaskId,
+          processingStage: 'mineru',
+          processingMsg: `MinerU 任务已提交：${mineruTaskId}`,
+          processingUpdatedAt: new Date().toISOString(),
+        },
+      });
+    }
+
     // 立即轮询一次确认任务实际状态，避免任务在队列中等待时误报为 processing
     let actualStatus = 'queued';
     try {
@@ -912,6 +1001,7 @@ async function processOneJob(job) {
         metadata: {
           markdownObjectName,
           markdownUrl,
+          mineruTaskId: mineruTaskId, // 持久化 taskId
           processingStage: batchQueue.autoAI ? 'ai' : '',
           processingMsg: 'MinerU 解析完成',
           processingProgress: '75',
@@ -1632,6 +1722,14 @@ export function removeJobsByMaterialIds(materialIds) {
 /** 清空全部任务（停止队列） */
 export async function clearAll() {
   const itemsBefore = [...batchQueue.items];
+
+  // 统计持有活跃 MinerU taskId 的任务数量，用于告警
+  const activeMineruJobs = itemsBefore.filter(j =>
+    String(j.mineruTaskId || '').trim() &&
+    ['mineru', 'uploaded', 'ai'].includes(j.status)
+  );
+
+  // 清空 CMS 队列
   batchQueue.running = false;
   batchQueue.paused = false;
   batchQueue.items = [];
@@ -1640,7 +1738,30 @@ export async function clearAll() {
   await persistBatchQueue();
   // 级联回写 materials 终态
   const result = await finalizeAffectedMaterials(itemsBefore);
-  return { ok: true, finalized: result.finalized };
+
+  // 如果有任务已提交到 MinerU，推送持久性告警
+  if (activeMineruJobs.length > 0) {
+    const taskIdList = activeMineruJobs
+      .map(j => j.mineruTaskId)
+      .slice(0, 5)
+      .join(', ');
+    const more = activeMineruJobs.length > 5 ? `... 共 ${activeMineruJobs.length} 个` : '';
+    pushAlert(
+      'warn',
+      `CMS 队列已清空，但 MinerU 服务中仍有 ${activeMineruJobs.length} 个任务正在排队/处理（${taskIdList}${more}）。` +
+      `MinerU 内存队列无法远程清除，如需立即释放资源，请重启 MinerU 服务。`
+    );
+    console.warn(
+      `[batch-queue] clearAll: ${activeMineruJobs.length} MinerU tasks remain in-flight. ` +
+      `MinerU queue can only be cleared by restarting the MinerU service.`
+    );
+  }
+
+  return {
+    ok: true,
+    finalized: result.finalized,
+    mineruTasksOrphaned: activeMineruJobs.length,
+  };
 }
 
 /** 优雅停机时调用 */

@@ -3316,6 +3316,81 @@ app.post('/batch/clear-all', async (_req, res) => {
   res.json(await clearAll());
 });
 
+// GET /batch/mineru-status - 查询所有 CMS 任务在 MinerU 中的实时状态
+// 遍历队列中持有 mineruTaskId 的任务，逐一查询 MinerU 当前状态
+app.get('/batch/mineru-status', async (_req, res) => {
+  const status = getQueueStatus();
+  const tasksWithMineruId = status.items.filter(j => j.mineruTaskId);
+
+  if (tasksWithMineruId.length === 0) {
+    res.json({ ok: true, tasks: [], total: 0, message: '当前无已提交到 MinerU 的任务' });
+    return;
+  }
+
+  let endpoint = '';
+  try {
+    const r = await fetch(`${DB_BASE_URL}/settings`, { signal: AbortSignal.timeout(5000) });
+    const settings = r.ok ? await r.json() : {};
+    const raw = String(settings?.mineruConfig?.localEndpoint || 'http://mineru:8010').trim();
+    endpoint = dockerRewriteEndpoint(raw);
+  } catch { /* endpoint 保持空 */ }
+
+  const results = await Promise.all(
+    tasksWithMineruId.map(async (job) => {
+      if (!endpoint) {
+        return { jobId: job.id, fileName: job.fileName, mineruTaskId: job.mineruTaskId, mineruStatus: 'unknown', reason: 'endpoint not configured' };
+      }
+      try {
+        const r = await fetch(
+          `${endpoint}/tasks/${encodeURIComponent(job.mineruTaskId)}`,
+          { signal: AbortSignal.timeout(5000) }
+        );
+        if (r.status === 404) {
+          return { jobId: job.id, fileName: job.fileName, mineruTaskId: job.mineruTaskId, mineruStatus: 'not_found' };
+        }
+        const payload = await r.json().catch(() => null);
+        return {
+          jobId: job.id,
+          fileName: job.fileName,
+          mineruTaskId: job.mineruTaskId,
+          cmsStatus: job.status,
+          mineruStatus: payload?.status || 'unknown',
+          mineruProgress: payload?.progress ?? null,
+        };
+      } catch (e) {
+        return { jobId: job.id, fileName: job.fileName, mineruTaskId: job.mineruTaskId, mineruStatus: 'error', reason: e.message };
+      }
+    })
+  );
+
+  res.json({
+    ok: true,
+    total: results.length,
+    tasks: results,
+    note: 'MinerU 队列只能通过重启服务清空，此接口仅供状态查询',
+  });
+});
+
+// POST /batch/clear-mineru-queue - MinerU 队列清理指引
+// 由于 MinerU FastAPI 不提供取消/清空接口，此端点返回操作指引，而非假装成功
+app.post('/batch/clear-mineru-queue', (_req, res) => {
+  const status = getQueueStatus();
+  const pendingMineruTasks = status.items.filter(j => j.mineruTaskId).length;
+
+  res.json({
+    ok: false,
+    unsupported: true,
+    pendingMineruTasks,
+    message: 'MinerU 服务不支持远程取消队列（DELETE /tasks 返回 405）',
+    action: '请手动重启 MinerU 服务以清空其内存队列',
+    steps: [
+      '1. tmux kill-session -t mineru_api',
+      '2. /path/to/start-mineru-api.sh   # 替换为实际启动脚本路径',
+      '3. 重启后调用 POST /batch/clear-all 清空 CMS 队列，再重新提交任务',
+    ],
+  });
+});
+
 app.use((err, req, res, _next) => {
   const requestId = req.requestId || '-';
   if (err instanceof multer.MulterError) {
