@@ -1725,70 +1725,60 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
       finalParseMethod = 'ocr';
     }
 
-    let supportsFastApiTasks = true;
-    try {
-      const probe = await fetch(`${localEndpoint}/tasks`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(3000),
-      });
-      if (probe.status === 404) supportsFastApiTasks = false;
-    } catch {
+    const boundary = `----luceon-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const fields = [];
+    fields.push(['backend', backend]);
+    for (const lang of String(ocrLanguage || 'ch').split(',').map((item) => item.trim()).filter(Boolean)) {
+      fields.push(['lang_list', lang]);
+      fields.push(['langlist', lang]);
+    }
+    fields.push(['parse_method', finalParseMethod]);
+    fields.push(['formula_enable', String(enableFormula)]);
+    fields.push(['table_enable', String(enableTable)]);
+    if (serverUrl) {
+      fields.push(['server_url', serverUrl]);
+      fields.push(['serverurl', serverUrl]);
+    }
+    fields.push(['return_md', 'true']);
+    fields.push(['response_format_zip', 'false']);
+    fields.push(['responseformatzip', 'false']);
+    if (Number.isFinite(maxPages) && maxPages > 0) {
+      const endPageId = String(Math.max(0, Math.floor(maxPages) - 1));
+      fields.push(['end_page_id', endPageId]);
+      fields.push(['endpageid', endPageId]);
     }
 
-    if (supportsFastApiTasks) {
-      const boundary = `----luceon-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-      const fields = [];
-      fields.push(['backend', backend]);
-      for (const lang of String(ocrLanguage || 'ch').split(',').map((item) => item.trim()).filter(Boolean)) {
-        fields.push(['lang_list', lang]);
-        fields.push(['langlist', lang]);
-      }
-      fields.push(['parse_method', finalParseMethod]);
-      fields.push(['formula_enable', String(enableFormula)]);
-      fields.push(['table_enable', String(enableTable)]);
-      if (serverUrl) {
-        fields.push(['server_url', serverUrl]);
-        fields.push(['serverurl', serverUrl]);
-      }
-      fields.push(['return_md', 'true']);
-      fields.push(['response_format_zip', 'false']);
-      fields.push(['responseformatzip', 'false']);
-      if (Number.isFinite(maxPages) && maxPages > 0) {
-        const endPageId = String(Math.max(0, Math.floor(maxPages) - 1));
-        fields.push(['end_page_id', endPageId]);
-        fields.push(['endpageid', endPageId]);
-      }
+    const multipart = createMultipartStream({
+      boundary,
+      fields,
+      fileFieldName: 'files',
+      fileName: req.file.originalname,
+      mimeType: req.file.mimetype || 'application/octet-stream',
+      fileStream: fs.createReadStream(req.file.path),
+      signal: AbortSignal.timeout(submitTimeoutMs),
+    });
 
-      const multipart = createMultipartStream({
-        boundary,
-        fields,
-        fileFieldName: 'files',
-        fileName: req.file.originalname,
-        mimeType: req.file.mimetype || 'application/octet-stream',
-        fileStream: fs.createReadStream(req.file.path),
+    let fastApiResponse;
+    try {
+      fastApiResponse = await fetch(`${localEndpoint}/tasks`, {
+        method: 'POST',
+        headers: { 'content-type': multipart.contentType },
+        body: multipart.body,
+        duplex: 'half',
         signal: AbortSignal.timeout(submitTimeoutMs),
       });
-
-      let fastApiResponse;
-      try {
-        fastApiResponse = await fetch(`${localEndpoint}/tasks`, {
-          method: 'POST',
-          headers: { 'content-type': multipart.contentType },
-          body: multipart.body,
-          duplex: 'half',
-          signal: AbortSignal.timeout(submitTimeoutMs),
-        });
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error);
-        if (error instanceof TypeError && /fetch failed/i.test(msg)) {
-          throw new Error('本地 MinerU 任务提交失败：网络/连接异常，请检查 MinerU 服务可达性');
-        }
-        if ((error && typeof error === 'object' && 'name' in error && String(error.name || '') === 'AbortError') || /aborted due to timeout/i.test(msg)) {
-          throw new Error(`本地 MinerU 任务提交超时（${Math.round(submitTimeoutMs / 1000)}s），请增大超时或降低并发`);
-        }
-        throw error;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (error instanceof TypeError && /fetch failed/i.test(msg)) {
+        throw new Error('本地 MinerU 任务提交失败：网络/连接异常，请检查 MinerU 服务可达性');
       }
+      if ((error && typeof error === 'object' && 'name' in error && String(error.name || '') === 'AbortError') || /aborted due to timeout/i.test(msg)) {
+        throw new Error(`本地 MinerU 任务提交超时（${Math.round(submitTimeoutMs / 1000)}s），请增大超时或降低并发`);
+      }
+      throw error;
+    }
 
+    if (fastApiResponse.status !== 404 && fastApiResponse.status !== 405) {
       const contentType = fastApiResponse.headers.get('content-type') || '';
       const payload = contentType.includes('application/json')
         ? await fastApiResponse.json().catch(() => null)
@@ -1826,7 +1816,7 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
       const resultPayload = await fetchMinerUResult(localEndpoint, mineruTaskId, timeoutMs);
       markdown = extractLocalMarkdown(resultPayload);
     } else {
-      const boundary = `----luceon-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const gradioBoundary = `----luceon-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       const fields = [];
       fields.push(['backend', backend]);
       fields.push(['max_pages', String(maxPages)]);
@@ -1842,7 +1832,7 @@ app.post('/parse/local-mineru', upload.single('file'), async (req, res) => {
       fields.push(['enable_table', String(enableTable)]);
 
       const multipart = createMultipartStream({
-        boundary,
+        boundary: gradioBoundary,
         fields,
         fileFieldName: 'file',
         fileName: req.file.originalname,
