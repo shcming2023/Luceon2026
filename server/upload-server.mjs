@@ -42,13 +42,15 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import {
-  initBatchQueue, restoreBatchQueue, recoverOrphanMaterials, getQueueStatus,
-  addJobs, startQueue, pauseQueue, resumeQueue, stopQueue,
-  cancelJob, cancelCurrentJob,
-  readAlerts,
-  patchJob,
-  retryFailed, retryJob, removeJob, reorderPending, clearCompleted, clearAll,
-  removeJobsByMaterialIds,
+  initBatchQueue, getQueueStatus,
+  // 并发控制（新架构核心）
+  canStartMineruTask, canStartAITask,
+  registerMineruTask, registerAITask,
+  updateMineruTaskStatus, updateAITaskStatus,
+  unregisterMineruTask, unregisterAITask,
+  getTaskStatus,
+  // 旧 API 兼容
+  dockerRewriteEndpoint,
   shutdown as shutdownBatchQueue,
 } from './batch-queue.mjs';
 

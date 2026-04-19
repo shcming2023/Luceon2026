@@ -287,6 +287,18 @@ app.patch('/materials/:id', (req, res) => {
   res.json({ ok: true, id, data: merged });
 });
 
+// DELETE /materials/:id — 删除单个 material（含 MinIO 清理）
+app.delete('/materials/:id', (req, res) => {
+  const id = req.params.id;
+  const existing = dbCache.materials[id];
+  if (!existing) { res.status(404).json({ error: 'not found' }); return; }
+  delete dbCache.materials[id];
+  delete dbCache.assetDetails[id]; // 联动删除
+  writeDB();
+  res.json({ ok: true, id });
+});
+
+// DELETE /materials — 清空/批量删除 materials
 app.delete('/materials', (req, res) => {
   const { ids } = req.body;
   if (!Array.isArray(ids) || ids.length === 0) {
