@@ -377,7 +377,8 @@ app.patch('/materials/:id', (req, res) => {
   res.json({ ok: true, id, data: merged });
 });
 
-// DELETE /materials/:id — 删除单个 material（含 MinIO 清理）
+// DELETE /materials/:id — 删除单个 material
+// MinIO cleanup is coordinated by the caller via POST /delete-material; db-server only deletes data rows.
 app.delete('/materials/:id', (req, res) => {
   const id = req.params.id;
   const existing = dbCache.materials[id];
@@ -389,6 +390,7 @@ app.delete('/materials/:id', (req, res) => {
 });
 
 // DELETE /materials — 清空/批量删除 materials
+// MinIO cleanup is coordinated by the caller via POST /delete-material; db-server only deletes data rows.
 app.delete('/materials', (req, res) => {
   const { ids } = req.body;
   if (!Array.isArray(ids) || ids.length === 0) {
