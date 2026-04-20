@@ -421,7 +421,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           console.log(`[appContext] Hydrated from DB (${materials?.length ?? 0} materials, initialized=${isDbInitialized})`);
         } else {
           // DB 从未初始化过（全新部署）：将当前内存数据 seed 写入 DB，并打标记
-          console.log('[appContext] DB not initialized, seeding from current state...');
+          console.log('[appContext] DB not initialized, checking idempotency...');
+
+          // 幂等性保护：双重检查当前 DB 中 materials 是否已有数据
+          try {
+            const materialsResp = await fetch(`${DB_BASE}/materials`);
+            if (materialsResp.ok) {
+              const existingMaterials = await materialsResp.json();
+              if (Array.isArray(existingMaterials) && existingMaterials.length > 0) {
+                console.log('[appContext] DB already has data, marking initialized directly');
+                await fetch(`${DB_BASE}/settings/initialized`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(true),
+                });
+                return;
+              }
+            }
+          } catch (e) {
+            console.warn('[appContext] Idempotency check failed:', e);
+          }
+
+          console.log('[appContext] Seeding from current state...');
           await dbPost('/bulk-restore', {
             materials:      state.materials.map(sanitizeMaterialForPersistence),
             assetDetails:   sanitizeAssetDetailsForPersistence(state.assetDetails),
@@ -440,7 +461,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           });
           await dbPut('/secrets', extractSecretsPayload({ aiConfig: state.aiConfig, mineruConfig: state.mineruConfig, minioConfig: state.minioConfig }));
           // 打初始化标记，后续刷新不再 seed
-          await dbPut('/settings/initialized', true);
+          // 必须使用 await fetch 等待确认，不能 fire-and-forget
+          await fetch(`${DB_BASE}/settings/initialized`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(true),
+          });
           console.log('[appContext] DB seeded and marked as initialized');
         }
       } catch (err) {
