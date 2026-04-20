@@ -343,7 +343,8 @@ app.get('/materials', (_req, res) => {
 });
 
 app.get('/materials/:id', (req, res) => {
-  const item = dbCache.materials[req.params.id];
+  const id = String(req.params.id);
+  const item = dbCache.materials[id];
   if (!item) { res.status(404).json({ error: 'not found' }); return; }
   res.json(item);
 });
@@ -351,20 +352,20 @@ app.get('/materials/:id', (req, res) => {
 app.post('/materials', (req, res) => {
   const item = req.body;
   if (!item?.id) { res.status(400).json({ error: '缺少 id' }); return; }
-  dbCache.materials[item.id] = item;
+  dbCache.materials[String(item.id)] = item;
   writeDB();
   res.json({ ok: true, id: item.id });
 });
 
 app.put('/materials/:id', (req, res) => {
-  const id = req.params.id;
+  const id = String(req.params.id);
   dbCache.materials[id] = { ...req.body, id: req.body.id ?? id };
   writeDB();
   res.json({ ok: true, id });
 });
 
 app.patch('/materials/:id', (req, res) => {
-  const id = req.params.id;
+  const id = String(req.params.id);
   const existing = dbCache.materials[id];
   if (!existing) { res.status(404).json({ error: 'not found' }); return; }
   const merged = {
@@ -380,7 +381,7 @@ app.patch('/materials/:id', (req, res) => {
 // DELETE /materials/:id — 删除单个 material
 // MinIO cleanup is coordinated by the caller via POST /delete-material; db-server only deletes data rows.
 app.delete('/materials/:id', (req, res) => {
-  const id = req.params.id;
+  const id = String(req.params.id);
   const existing = dbCache.materials[id];
   if (!existing) { res.status(404).json({ error: 'not found' }); return; }
   delete dbCache.materials[id];
@@ -397,8 +398,9 @@ app.delete('/materials', (req, res) => {
     res.status(400).json({ error: '缺少 ids 数组' }); return;
   }
   for (const id of ids) {
-    delete dbCache.materials[id];
-    delete dbCache.assetDetails[id]; // 联动删除
+    const sid = String(id);
+    delete dbCache.materials[sid];
+    delete dbCache.assetDetails[sid]; // 联动删除
   }
   writeDB();
   res.json({ ok: true, deleted: ids.length });
@@ -417,24 +419,25 @@ app.post('/materials/bulk-patch', (req, res) => {
 
   const updated = [];
   for (const id of ids) {
-    if (dbCache.materials[id]) {
+    const sid = String(id);
+    if (dbCache.materials[sid]) {
       // 锁定 id，防止意外修改
       const updatesCopy = { ...updates };
       delete updatesCopy.id;
 
       // metadata 浅合并，避免覆盖已有字段
-      if (updates.metadata && typeof updates.metadata === 'object' && dbCache.materials[id].metadata) {
-        dbCache.materials[id] = {
-          ...dbCache.materials[id],
+      if (updates.metadata && typeof updates.metadata === 'object' && dbCache.materials[sid].metadata) {
+        dbCache.materials[sid] = {
+          ...dbCache.materials[sid],
           ...updatesCopy,
           metadata: {
-            ...dbCache.materials[id].metadata,
+            ...dbCache.materials[sid].metadata,
             ...updates.metadata,
           },
         };
       } else {
-        dbCache.materials[id] = {
-          ...dbCache.materials[id],
+        dbCache.materials[sid] = {
+          ...dbCache.materials[sid],
           ...updatesCopy,
         };
       }
@@ -684,25 +687,25 @@ app.post('/bulk-restore', (req, res) => {
   } = req.body;
 
   for (const m of (materials || [])) {
-    if (!dbCache.materials[m.id]) dbCache.materials[m.id] = m;
+    if (!dbCache.materials[String(m.id)]) dbCache.materials[String(m.id)] = m;
   }
   for (const [id, detail] of Object.entries(assetDetails || {})) {
-    if (!dbCache.assetDetails[id]) dbCache.assetDetails[id] = detail;
+    if (!dbCache.assetDetails[String(id)]) dbCache.assetDetails[String(id)] = detail;
   }
   for (const t of (processTasks || [])) {
-    if (!dbCache.processTasks[t.id]) dbCache.processTasks[t.id] = t;
+    if (!dbCache.processTasks[String(t.id)]) dbCache.processTasks[String(t.id)] = t;
   }
   for (const t of (tasks || [])) {
-    if (!dbCache.tasks[t.id]) dbCache.tasks[t.id] = t;
+    if (!dbCache.tasks[String(t.id)]) dbCache.tasks[String(t.id)] = t;
   }
   for (const p of (products || [])) {
-    if (!dbCache.products[p.id]) dbCache.products[p.id] = p;
+    if (!dbCache.products[String(p.id)]) dbCache.products[String(p.id)] = p;
   }
   for (const tag of (flexibleTags || [])) {
-    if (!dbCache.flexibleTags[tag.id]) dbCache.flexibleTags[tag.id] = tag;
+    if (!dbCache.flexibleTags[String(tag.id)]) dbCache.flexibleTags[String(tag.id)] = tag;
   }
   for (const r of (aiRules || [])) {
-    if (!dbCache.aiRules[r.id]) dbCache.aiRules[r.id] = r;
+    if (!dbCache.aiRules[String(r.id)]) dbCache.aiRules[String(r.id)] = r;
   }
   if (aiRuleSettings && !dbCache.settings.aiRuleSettings) dbCache.settings.aiRuleSettings = aiRuleSettings;
   if (aiConfig && !dbCache.settings.aiConfig) dbCache.settings.aiConfig = aiConfig;
