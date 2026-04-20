@@ -44,6 +44,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         ...(p.aiConfig       !== undefined ? { aiConfig:       p.aiConfig }       : {}),
         ...(p.mineruConfig   !== undefined ? { mineruConfig:   p.mineruConfig }   : {}),
         ...(p.minioConfig    !== undefined ? { minioConfig:    p.minioConfig }    : {}),
+        ...(p._dataSource    !== undefined ? { _dataSource:    p._dataSource }    : {}),
       };
     }
 
@@ -145,15 +146,6 @@ export function appReducer(state: AppState, action: AppAction): AppState {
           ...state.batchProcessing,
           ...action.payload,
         },
-      };
-    }
-
-    // ==================== 后端批处理队列状态同步 ====================
-
-    case 'SERVER_BATCH_SYNC': {
-      return {
-        ...state,
-        serverBatchQueue: action.payload,
       };
     }
 

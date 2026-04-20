@@ -15,7 +15,7 @@ export type AiStatus = 'analyzed' | 'analyzing' | 'pending' | 'failed';
 export type MinerUStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
 /** 批处理队列条目状态 */
-export type BatchItemStatus = 'pending' | 'uploading' | 'completed' | 'error' | 'skipped';
+export type BatchItemStatus = 'pending' | 'uploading' | 'uploaded' | 'mineru' | 'ai' | 'completed' | 'error' | 'skipped';
 
 
 
@@ -346,7 +346,6 @@ export interface AppState {
   tasks: Task[];
   products: Product[];
   batchProcessing: BatchProcessingState;
-  serverBatchQueue: ServerBatchQueueState | null; // 后端批处理队列状态（轮询获取）
   flexibleTags: FlexibleTag[];
   aiRules: AiRule[];
   aiRuleSettings: AiRuleSettings;
@@ -354,6 +353,7 @@ export interface AppState {
   mineruConfig: MinerUConfig;      // MinerU API 配置
   minioConfig: MinioConfig;        // MinIO 存储配置
   assetDetails: Record<number, AssetDetail>;
+  _dataSource?: 'localStorage' | 'db-server' | 'initial';
 }
 
 // ==================== Action 类型 ====================

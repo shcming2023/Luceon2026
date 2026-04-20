@@ -40,7 +40,7 @@ test.describe('【1】页面加载与 SPA 路由', () => {
   });
 
   test('/cms/source-materials 原始资料库页面可访问', async ({ page }) => {
-    await page.goto(`${BASE_URL}/cms/source-materials`);
+    await page.goto(`${BASE_URL}/cms/legacy/source-materials`);
     await waitForAppReady(page);
     // 验证页面不是错误页
     await expect(page.locator('body')).not.toContainText('500');
@@ -120,6 +120,55 @@ test.describe('【3】db-server REST API', () => {
     expect(getResp.status()).toBe(200);
     const settings = await getResp.json() as Record<string, unknown>;
     expect(settings[testKey]).toBe(testValue);
+  });
+
+  test('secrets 持久化：写入后重新读取一致', async ({ request }) => {
+    const testKey = `uat_secret_${Date.now()}`;
+    const testValue = `secret_${Math.random().toString(36).slice(2)}`;
+
+    const putResp = await request.put(`${BASE_URL}/__proxy/db/secrets`, {
+      data: { [testKey]: testValue },
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(putResp.status()).toBeLessThan(300);
+
+    const getResp = await request.get(`${BASE_URL}/__proxy/db/secrets`);
+    expect(getResp.status()).toBe(200);
+    const body = await getResp.json() as { secrets?: Record<string, unknown> };
+    expect(body.secrets?.[testKey]).toBe(testValue);
+  });
+
+  test('materials 删除：DELETE /materials/:id 生效', async ({ request }) => {
+    const id = Date.now() * 1000 + Math.floor(Math.random() * 1000);
+    const material = {
+      id,
+      title: 'uat-delete-test',
+      type: 'TXT',
+      size: '0.0 MB',
+      sizeBytes: 0,
+      uploadTime: '刚刚',
+      uploadTimestamp: Date.now(),
+      status: 'processing',
+      mineruStatus: 'pending',
+      aiStatus: 'pending',
+      tags: [],
+      metadata: { provider: 'tmpfiles' },
+      uploader: 'uat',
+    };
+
+    const postResp = await request.post(`${BASE_URL}/__proxy/db/materials`, {
+      data: material,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(postResp.status()).toBeLessThan(300);
+
+    const delResp = await request.delete(`${BASE_URL}/__proxy/db/materials/${id}`);
+    expect(delResp.status()).toBeLessThan(300);
+
+    const listResp = await request.get(`${BASE_URL}/__proxy/db/materials`);
+    expect(listResp.status()).toBe(200);
+    const list = await listResp.json() as Array<{ id: number }>;
+    expect(list.find((m) => m.id === id)).toBeFalsy();
   });
 });
 
@@ -243,7 +292,8 @@ test.describe('【6】页面导航交互（冒烟）', () => {
 
     // 尝试通过 URL 直接访问各核心路由，验证 SPA 路由正常
     const routes = [
-      '/cms/source-materials',
+      '/cms/workspace',
+      '/cms/legacy/source-materials',
       '/cms/products',
       '/cms/metadata',
       '/cms/settings',

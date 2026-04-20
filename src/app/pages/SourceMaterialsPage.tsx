@@ -7,6 +7,7 @@ import {
   List,
   SortAsc,
   AlertTriangle,
+  AlertCircle,
   RefreshCw,
   Trash2,
   ChevronDown,
@@ -15,16 +16,18 @@ import {
   FileText,
   Cpu,
   CheckCircle,
+  Loader,
+  Play,
   Clock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore } from '../../store/appContext';
 import { StatusBadge } from '../components/StatusBadge';
-import { Play, Cpu, CheckCircle, AlertCircle, Loader } from 'lucide-react';
 import type { TabFilter, SortOption, ViewMode } from '../../store/types';
 import { sortMaterials } from '../../utils/sort';
 import { usePagination, getPageNumbers } from '../../utils/pagination';
 import { checkLocalMinerUHealth } from '../../utils/mineruLocalApi';
+import { generateNumericIdFromUuid } from '../../utils/id';
 
 /** 删除确认弹窗 */
 function confirmDelete(message: string): Promise<boolean> {
@@ -266,11 +269,9 @@ export function SourceMaterialsPage() {
     }
     setUploadProgress({ done: 0, total: validFiles.length, failed: 0 });
 
-    let idCounter = 0;
     const items = validFiles.map((file) => {
       const filePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
-      idCounter = (idCounter + 1) % 1000;
-      const materialId = Date.now() * 1000 + idCounter;
+      const materialId = generateNumericIdFromUuid();
       const jobId = `job-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       return { file, filePath, materialId, jobId };
     });
@@ -300,32 +301,6 @@ export function SourceMaterialsPage() {
           uploader: '当前用户',
         },
       });
-    }
-
-    try {
-      const addRes = await fetch('/__proxy/upload/batch/jobs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jobs: items.map((it) => ({
-            id: it.jobId,
-            fileName: it.file.name,
-            fileSize: it.file.size,
-            path: it.filePath,
-            mimeType: it.file.type || 'application/octet-stream',
-            materialId: it.materialId,
-            status: 'uploading',
-          })),
-        }),
-      });
-      if (!addRes.ok) {
-        const errData = await addRes.json().catch(() => ({ error: `HTTP ${addRes.status}` }));
-        throw new Error((errData as { error?: string }).error || `HTTP ${addRes.status}`);
-      }
-    } catch (err) {
-      toast.error(`提交队列失败：${err instanceof Error ? err.message : String(err)}`);
-      setBatchUploading(false);
-      return;
     }
 
     const uploadWithProgress = (file: File, materialId: number, onProgress: (pct: number) => void) => {
@@ -371,11 +346,6 @@ export function SourceMaterialsPage() {
             },
           },
         });
-        fetch(`/__proxy/upload/batch/job/${encodeURIComponent(it.jobId)}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'uploading', progress: pct, message: pct === 0 ? '待上传' : `上传中 ${pct}%` }),
-        }).catch(() => {});
       };
 
       try {
@@ -408,21 +378,50 @@ export function SourceMaterialsPage() {
           },
         });
 
-        await fetch(`/__proxy/upload/batch/job/${encodeURIComponent(it.jobId)}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            status: 'pending',
-            objectName,
-            mimeType: uploadResult.mimeType || it.file.type || 'application/octet-stream',
-            materialId: it.materialId,
-            fileSize: it.file.size,
-            path: it.filePath,
-            progress: 0,
-            message: '等待处理',
-            error: '',
-          }),
-        }).catch(() => {});
+        try {
+          const materialData = {
+            id: it.materialId,
+            title: it.file.name.replace(/\.[^.]+$/, ''),
+            type: it.file.name.split('.').pop()?.toUpperCase() ?? 'FILE',
+            size: `${(it.file.size / 1024 / 1024).toFixed(1)} MB`,
+            sizeBytes: it.file.size,
+            uploadTime: '刚刚',
+            uploadTimestamp: Date.now(),
+            status: 'processing',
+            mineruStatus: 'pending',
+            aiStatus: 'pending',
+            tags: [],
+            metadata: {
+              relativePath: it.filePath,
+              fileUrl: uploadResult.url,
+              objectName,
+              fileName: uploadResult.fileName,
+              provider: uploadResult.provider,
+              mimeType: uploadResult.mimeType,
+              ...(uploadResult.pages != null ? { pages: String(uploadResult.pages) } : {}),
+              ...(uploadResult.format ? { format: uploadResult.format } : {}),
+              processingStage: 'mineru',
+              processingMsg: '待解析',
+              processingProgress: '0',
+              processingUpdatedAt: new Date().toISOString(),
+            },
+            uploader: '当前用户',
+          };
+          if (materialData.metadata?.provider === 'minio' && materialData.metadata.objectName) {
+            delete (materialData.metadata as unknown as { fileUrl?: string }).fileUrl;
+          }
+          await fetch('/__proxy/db/materials', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(materialData),
+            signal: AbortSignal.timeout(10_000),
+          }).then(async (r) => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            await r.json().catch(() => null);
+          });
+        } catch (e) {
+          toast.warning(`服务端持久化失败（刷新可能丢失）：${e instanceof Error ? e.message : String(e)}`, { duration: 6000 });
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         dispatch({
@@ -442,11 +441,6 @@ export function SourceMaterialsPage() {
             },
           },
         });
-        fetch(`/__proxy/upload/batch/job/${encodeURIComponent(it.jobId)}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'error', error: msg, message: `上传失败：${msg}` }),
-        }).catch(() => {});
         setUploadProgress((prev) => (prev ? { ...prev, failed: prev.failed + 1 } : prev));
       } finally {
         setUploadProgress((prev) => {
@@ -511,9 +505,46 @@ export function SourceMaterialsPage() {
     if (relatedTaskCount > 0) msg += `\n关联的 ${relatedTaskCount} 条处理任务也将同步删除。`;
     const ok = await confirmDelete(msg);
     if (!ok) return;
-    dispatch({ type: 'DELETE_MATERIAL', payload: ids });
-    setSelectedIds(new Set());
-    toast.success(`已删除 ${ids.length} 条资料`);
+    try {
+      const dbRes = await fetch('/__proxy/db/materials', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!dbRes.ok) {
+        const errText = await dbRes.text().catch(() => '');
+        throw new Error(`数据库删除失败：HTTP ${dbRes.status} ${errText.slice(0, 200)}`);
+      }
+
+      const deletedMaterials = state.materials
+        .filter((m) => ids.includes(m.id))
+        .map((m) => ({ id: m.id, metadata: m.metadata }));
+      try {
+        const resp = await fetch('/__proxy/upload/delete-material', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ materialIds: ids, materials: deletedMaterials }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        if (!resp.ok) {
+          const errData = await resp.json().catch(() => null);
+          throw new Error(errData?.error || `HTTP ${resp.status}`);
+        }
+        const result = await resp.json().catch(() => null);
+        if (Array.isArray(result?.errors) && result.errors.length > 0) {
+          toast.warning('部分 MinIO 文件清理失败，建议前往设置页扫描孤儿对象', { duration: 6000 });
+        }
+      } catch (e) {
+        toast.warning(`云存储清理失败（数据库已删除）：${e instanceof Error ? e.message : String(e)}`, { duration: 6000 });
+      }
+
+      dispatch({ type: 'DELETE_MATERIAL', payload: ids });
+      setSelectedIds(new Set());
+      toast.success(`已删除 ${ids.length} 条资料`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : `删除失败：${String(err)}`);
+    }
   };
 
   const handleDelete = async (e: React.MouseEvent, id: number) => {
@@ -528,9 +559,41 @@ export function SourceMaterialsPage() {
     if (relatedTaskCount > 0) msg += `\n关联的 ${relatedTaskCount} 条处理任务也将同步删除。`;
     const ok = await confirmDelete(msg);
     if (!ok) return;
-    dispatch({ type: 'DELETE_MATERIAL', payload: [id] });
-    setSelectedIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
-    toast.success('已删除');
+    try {
+      const dbRes = await fetch(`/__proxy/db/materials/${encodeURIComponent(String(id))}`, {
+        method: 'DELETE',
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!dbRes.ok) {
+        const errText = await dbRes.text().catch(() => '');
+        throw new Error(`数据库删除失败：HTTP ${dbRes.status} ${errText.slice(0, 200)}`);
+      }
+
+      try {
+        const resp = await fetch('/__proxy/upload/delete-material', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ materialIds: [id], materials: material ? [{ id: material.id, metadata: material.metadata }] : [] }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        if (!resp.ok) {
+          const errData = await resp.json().catch(() => null);
+          throw new Error(errData?.error || `HTTP ${resp.status}`);
+        }
+        const result = await resp.json().catch(() => null);
+        if (Array.isArray(result?.errors) && result.errors.length > 0) {
+          toast.warning('部分 MinIO 文件清理失败，建议前往设置页扫描孤儿对象', { duration: 6000 });
+        }
+      } catch (e) {
+        toast.warning(`云存储清理失败（数据库已删除）：${e instanceof Error ? e.message : String(e)}`, { duration: 6000 });
+      }
+
+      dispatch({ type: 'DELETE_MATERIAL', payload: [id] });
+      setSelectedIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+      toast.success('已删除');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : `删除失败：${String(err)}`);
+    }
   };
 
   const handleClearAll = async () => {
@@ -543,9 +606,44 @@ export function SourceMaterialsPage() {
     if (totalTaskCount > 0) msg += `\n关联的 ${totalTaskCount} 条处理任务也将同步删除。`;
     const ok = await confirmDelete(msg);
     if (!ok) return;
-    dispatch({ type: 'DELETE_MATERIAL', payload: allIds });
-    setSelectedIds(new Set());
-    toast.success(`已清空全部 ${allIds.length} 条资料`);
+    try {
+      const dbRes = await fetch('/__proxy/db/materials', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: allIds }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!dbRes.ok) {
+        const errText = await dbRes.text().catch(() => '');
+        throw new Error(`数据库删除失败：HTTP ${dbRes.status} ${errText.slice(0, 200)}`);
+      }
+
+      const deletedMaterials = state.materials.map((m) => ({ id: m.id, metadata: m.metadata }));
+      try {
+        const resp = await fetch('/__proxy/upload/delete-material', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ materialIds: allIds, materials: deletedMaterials }),
+          signal: AbortSignal.timeout(60_000),
+        });
+        if (!resp.ok) {
+          const errData = await resp.json().catch(() => null);
+          throw new Error(errData?.error || `HTTP ${resp.status}`);
+        }
+        const result = await resp.json().catch(() => null);
+        if (Array.isArray(result?.errors) && result.errors.length > 0) {
+          toast.warning('部分 MinIO 文件清理失败，建议前往设置页扫描孤儿对象', { duration: 6000 });
+        }
+      } catch (e) {
+        toast.warning(`云存储清理失败（数据库已删除）：${e instanceof Error ? e.message : String(e)}`, { duration: 6000 });
+      }
+
+      dispatch({ type: 'DELETE_MATERIAL', payload: allIds });
+      setSelectedIds(new Set());
+      toast.success(`已清空全部 ${allIds.length} 条资料`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : `清空失败：${String(err)}`);
+    }
   };
 
   const handleParse = async (material: typeof state.materials[number]) => {
@@ -715,20 +813,14 @@ export function SourceMaterialsPage() {
               <RefreshCw size={14} />
               重置
             </button>
-            <input ref={fileInputRef} data-testid="file-input" type="file" multiple className="hidden" onChange={handleBatchFileSelect} accept=".pdf,.docx,.doc,.pptx,.ppt,.jpg,.jpeg,.png" />
-            {/* @ts-expect-error webkitdirectory is a non-standard attribute */}
-            <input ref={folderInputRef} type="file" webkitdirectory="true" directory="true" className="hidden" onChange={handleBatchFileSelect} />
-            <div className="flex bg-blue-600 rounded-xl overflow-hidden text-white text-sm font-semibold hover:bg-blue-700 transition-colors">
-              <button data-testid="upload-button" disabled={batchUploading} onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 px-4 py-2 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed">
-                <Upload size={15} />
-                文件
-              </button>
-              <div className="w-px bg-blue-500 my-2" />
-              <button disabled={batchUploading} onClick={() => folderInputRef.current?.click()} className="flex items-center gap-1.5 px-4 py-2 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed" title="上传整个文件夹">
-                <FolderPlus size={15} />
-                文件夹
-              </button>
-            </div>
+            <button
+              onClick={() => navigate('/workspace')}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm text-white bg-blue-600 rounded-xl hover:bg-blue-700 font-semibold transition-colors"
+              type="button"
+            >
+              <Upload size={15} />
+              前往工作台上传
+            </button>
           </div>
         </div>
 
@@ -992,7 +1084,7 @@ export function SourceMaterialsPage() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (m.aiStatus === 'completed') return;
+                                  if (m.aiStatus === 'analyzed') return;
                                   if (m.aiStatus === 'analyzing') return;
                                   if (m.mineruStatus !== 'completed') {
                                     toast.error('请先完成解析');
@@ -1000,9 +1092,9 @@ export function SourceMaterialsPage() {
                                   }
                                   handleAnalyze(m);
                                 }}
-                                disabled={m.aiStatus === 'completed' || m.aiStatus === 'analyzing' || m.mineruStatus !== 'completed'}
+                                disabled={m.aiStatus === 'analyzed' || m.aiStatus === 'analyzing' || m.mineruStatus !== 'completed'}
                                 className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                                  m.aiStatus === 'completed'
+                                  m.aiStatus === 'analyzed'
                                     ? 'bg-green-50 text-green-600 cursor-not-allowed'
                                     : m.aiStatus === 'analyzing'
                                       ? 'bg-purple-50 text-purple-600 cursor-not-allowed'
@@ -1011,7 +1103,7 @@ export function SourceMaterialsPage() {
                                         : 'bg-purple-600 text-white hover:bg-purple-700'
                                 }`}
                                 title={
-                                  m.aiStatus === 'completed'
+                                  m.aiStatus === 'analyzed'
                                     ? '已分析'
                                     : m.aiStatus === 'analyzing'
                                       ? '分析中'
@@ -1020,7 +1112,7 @@ export function SourceMaterialsPage() {
                                         : '开始AI分析'
                                 }
                               >
-                                {m.aiStatus === 'completed' ? (
+                                {m.aiStatus === 'analyzed' ? (
                                   <>
                                     <CheckCircle size={12} /> 已分析
                                   </>

@@ -46,13 +46,13 @@ services:
     environment:
       - TZ=Asia/Shanghai
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/cms/"]
+      test: ["CMD", "wget", "-qO-", "http://localhost/__proxy/upload/health"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 15s
 
-   # ── 文件上传代理服务 + 后端批处理队列引擎 ─────────────────
+   # ── 文件上传代理服务 ─────────────────
   # 接收前端上传的文件，优先转发到 MinIO（持久化存储），失败时降级到 tmpfiles.org（临时存储）
   # 供 MinerU URL 模式解析使用
   # 同时包含后端批处理队列引擎，支持浏览器无关的不间断 PDF 处理
@@ -77,9 +77,9 @@ services:
           memory: 4096M
         reservations:
           memory: 1024M
-    # ── 允许访问宿主机的 MinerU 和 Ollama 服务
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    # Linux 场景如需容器访问宿主机服务（例如 Ollama http://host.docker.internal:11434），可取消注释：
+    # extra_hosts:
+    #   - "host.docker.internal:host-gateway"
     environment:
       - UPLOAD_PORT=8788
       - STORAGE_BACKEND=${STORAGE_BACKEND:-minio}
@@ -89,8 +89,8 @@ services:
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadmin}
       - MINIO_BUCKET=${MINIO_BUCKET:-eduassets}
-      # Presigned URL 有效期（秒），默认 24 小时，支持长时间批处理
-      - MINIO_PRESIGNED_EXPIRY=${MINIO_PRESIGNED_EXPIRY:-86400}
+      # Presigned URL 有效期（秒）
+      - MINIO_PRESIGNED_EXPIRY=${MINIO_PRESIGNED_EXPIRY:-3600}
       # 局域网/生产部署：设置此变量让浏览器可访问 MinIO 文件
       # 格式：http://<宿主机IP>:<CMS_PORT>/minio
       - MINIO_PUBLIC_ENDPOINT=${MINIO_PUBLIC_ENDPOINT:-}
@@ -102,9 +102,6 @@ services:
       - ALLOW_LOCAL_AI_ENDPOINT=${ALLOW_LOCAL_AI_ENDPOINT:-true}
       # Node.js 内存限制：与 deploy.resources.limits.memory 匹配
       - NODE_OPTIONS=--max-old-space-size=3072
-      # 批处理队列容量限制
-      - QUEUE_MAX_ACTIVE=${QUEUE_MAX_ACTIVE:-10}
-      - QUEUE_MAX_BATCH=${QUEUE_MAX_BATCH:-10}
       - TZ=Asia/Shanghai
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8788/health"]
@@ -165,9 +162,7 @@ services:
     # ports:
     #   - "9000:9000"  # API 端口（通过 Nginx /minio/ 代理访问，无需直接暴露）
     #   - "19001:9001"  # Web 控制台端口
-    # UAT/开发环境：开启 9001 控制台端口，方便检查存储状态
-    ports:
-      - "19001:9001"  # MinIO Web 控制台（UAT 调试用）
+    # UAT/开发环境如需开启 9001 控制台端口，请在 docker-compose.override.yml 中单独暴露
     networks:
       - cms-network
     environment:

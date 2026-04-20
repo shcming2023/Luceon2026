@@ -180,6 +180,11 @@ docker compose up -d --build
 | `MINERU_API_KEY` | MinerU API Key，也可在系统设置页面配置 |
 | `KIMI_API_KEY` | Kimi/Moonshot API Key，也可在系统设置页面配置 |
 
+### Mac vs Linux：host.docker.internal 与 extra_hosts
+
+- **Mac（Docker Desktop）**：默认支持 `host.docker.internal`，一般不需要在 compose 中配置 `extra_hosts`。
+- **Linux**：如需容器访问宿主机服务（例如宿主机 Ollama `http://host.docker.internal:11434`），通常需要在 compose 中添加 `extra_hosts: host.docker.internal:host-gateway`。
+
 ---
 
 ## 五、API Token 配置（Overleaf 备份）

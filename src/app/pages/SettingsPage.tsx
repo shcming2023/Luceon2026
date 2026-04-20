@@ -7,7 +7,7 @@ import type { AiConfig, AiProvider, MinerUConfig, MinioConfig } from '../../stor
 import { checkLocalMinerUHealth } from '../../utils/mineruLocalApi';
 import { MetadataSettingsPanel } from '../components/MetadataSettingsPanel';
 
-type ActiveTab = 'ai' | 'mineru' | 'storage' | 'backup' | 'dictionary';
+type ActiveTab = 'ai' | 'mineru' | 'storage' | 'backup' | 'consistency' | 'dictionary';
 
 // ─── 提示词字段中文标签映射 ──────────────────────────────────
 const PROMPT_LABELS: Record<string, string> = {
@@ -259,7 +259,7 @@ export function SettingsPage() {
 
   useEffect(() => {
     const tab = new URLSearchParams(location.search).get('tab');
-    const valid: ActiveTab[] = ['ai', 'mineru', 'storage', 'backup', 'dictionary'];
+    const valid: ActiveTab[] = ['ai', 'mineru', 'storage', 'backup', 'consistency', 'dictionary'];
     if (tab && valid.includes(tab as ActiveTab)) {
       setActiveTab(tab as ActiveTab);
     }
@@ -556,6 +556,16 @@ export function SettingsPage() {
     window.setTimeout(() => window.location.reload(), 1200);
   };
 
+  const handleClearLocalCache = () => {
+    try {
+      for (const key of LOCAL_STORAGE_KEYS) localStorage.removeItem(key);
+      toast.success('已清除本地缓存，页面将刷新');
+      window.setTimeout(() => window.location.reload(), 800);
+    } catch (e) {
+      toast.error(`清除缓存失败：${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   const handleScanOrphans = async () => {
     setOrphanLoading(true);
     setOrphanStats(null);
@@ -779,6 +789,16 @@ export function SettingsPage() {
           }`}
         >
           <span className="flex items-center gap-1.5"><HardDrive size={15} /> 备份与监控</span>
+        </button>
+        <button
+          onClick={() => switchTab('consistency')}
+          className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'consistency'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <span className="flex items-center gap-1.5"><AlertTriangle size={15} /> 一致性检查</span>
         </button>
         <button
           onClick={() => switchTab('dictionary')}
@@ -1672,102 +1692,6 @@ export function SettingsPage() {
             </div>
           </div>
 
-          {/* ── 孤儿对象审计 ──────────────────────────────── */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-gray-800">孤儿对象审计</h2>
-              <button
-                onClick={handleScanOrphans}
-                disabled={orphanLoading}
-                className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-              >
-                {orphanLoading ? <Loader size={14} className="animate-spin" /> : <ScanLine size={14} />}
-                {orphanLoading ? '扫描中...' : '扫描孤儿对象'}
-              </button>
-            </div>
-            <p className="text-xs text-gray-500">孤儿对象指 MinIO 中存在但数据库无对应记录的文件，通常由删除失败或历史操作残留产生。</p>
-
-            {orphanStats === null && !orphanLoading && (
-              <p className="text-sm text-gray-400">点击"扫描孤儿对象"开始检测</p>
-            )}
-
-            {orphanStats !== null && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3">
-                  <span className="text-sm text-gray-700">发现孤儿对象</span>
-                  <span className={`text-sm font-semibold ${orphanStats.totalCount > 0 ? 'text-amber-600' : 'text-green-600'}`}>
-                    {orphanStats.totalCount} 个（{formatBytes(orphanStats.totalSize)}）
-                  </span>
-                </div>
-
-                {orphanStats.orphans.length > 0 && (
-                  <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-100 divide-y divide-gray-100">
-                    {orphanStats.orphans.slice(0, 50).map((o) => (
-                      <div key={`${o.bucket}/${o.objectName}`} className="flex items-center justify-between px-3 py-2 text-xs text-gray-600 hover:bg-gray-50">
-                        <span className="truncate flex-1 pr-3 font-mono">{o.objectName}</span>
-                        <span className="flex-shrink-0 text-gray-400">{o.bucket} · {formatBytes(o.size)}</span>
-                      </div>
-                    ))}
-                    {orphanStats.orphans.length > 50 && (
-                      <div className="px-3 py-2 text-xs text-gray-400 text-center">
-                        仅展示前 50 条，共 {orphanStats.totalCount} 条
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {orphanStats.totalCount > 0 && (
-                  <div className="space-y-2">
-                    {!orphanConfirmOpen ? (
-                      <button
-                        onClick={() => setOrphanConfirmOpen(true)}
-                        disabled={cleaningOrphans}
-                        className="flex items-center gap-2 px-4 py-2 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
-                      >
-                        <Trash2 size={14} /> 一键清理孤儿对象
-                      </button>
-                    ) : (
-                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3">
-                        <div className="flex items-start gap-2">
-                          <AlertTriangle size={16} className="mt-0.5 text-amber-600 flex-shrink-0" />
-                          <div>
-                            <p className="text-sm font-semibold text-amber-800">确认清理？</p>
-                            <p className="text-xs text-amber-700 mt-1">
-                              将从 MinIO 中永久删除 <strong>{orphanStats.totalCount}</strong> 个孤儿对象（共 {formatBytes(orphanStats.totalSize)}），此操作不可撤销。
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <button
-                            onClick={handleCleanupOrphans}
-                            disabled={cleaningOrphans}
-                            className="flex items-center gap-2 px-4 py-2 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
-                          >
-                            {cleaningOrphans ? <Loader size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                            {cleaningOrphans ? '清理中...' : '确认删除'}
-                          </button>
-                          <button
-                            onClick={() => setOrphanConfirmOpen(false)}
-                            disabled={cleaningOrphans}
-                            className="px-4 py-2 text-sm border border-amber-200 text-amber-700 rounded-lg hover:bg-white disabled:opacity-50"
-                          >
-                            取消
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {orphanStats.totalCount === 0 && (
-                  <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 border border-green-100 rounded-lg px-4 py-3">
-                    <CheckCircle size={16} /> 未发现孤儿对象，数据一致性良好
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
           <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
             <h2 className="font-semibold text-gray-800">备份与恢复</h2>
             <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
@@ -1943,6 +1867,133 @@ export function SettingsPage() {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === 'consistency' && (
+        <div className="space-y-5">
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-gray-800">数据来源</h2>
+              <span className="text-xs text-gray-500">
+                {state._dataSource === 'db-server' ? 'db-server' : state._dataSource === 'initial' ? 'initial' : 'localStorage'}
+              </span>
+            </div>
+            {state._dataSource !== 'db-server' && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />
+                <span>当前页面数据可能来自本地缓存。若近期做过导入/删除/迁移，建议清除缓存并刷新以强制从服务端重新加载。</span>
+              </div>
+            )}
+            <div className="flex justify-end">
+              <button
+                onClick={handleClearLocalCache}
+                className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50"
+                type="button"
+              >
+                <RefreshCw size={14} /> 清除缓存并刷新
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-gray-800">孤儿对象审计</h2>
+              <button
+                onClick={handleScanOrphans}
+                disabled={orphanLoading}
+                className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                type="button"
+              >
+                {orphanLoading ? <Loader size={14} className="animate-spin" /> : <ScanLine size={14} />}
+                {orphanLoading ? '扫描中...' : '扫描孤儿对象'}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500">孤儿对象指 MinIO 中存在但数据库无对应记录的文件，通常由删除失败或历史操作残留产生。</p>
+
+            {orphanStats === null && !orphanLoading && (
+              <p className="text-sm text-gray-400">点击"扫描孤儿对象"开始检测</p>
+            )}
+
+            {orphanStats !== null && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3">
+                  <span className="text-sm text-gray-700">发现孤儿对象</span>
+                  <span className={`text-sm font-semibold ${orphanStats.totalCount > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                    {orphanStats.totalCount} 个（{formatBytes(orphanStats.totalSize)}）
+                  </span>
+                </div>
+
+                {orphanStats.orphans.length > 0 && (
+                  <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-100 divide-y divide-gray-100">
+                    {orphanStats.orphans.slice(0, 50).map((o) => (
+                      <div key={`${o.bucket}/${o.objectName}`} className="flex items-center justify-between px-3 py-2 text-xs text-gray-600 hover:bg-gray-50">
+                        <span className="truncate flex-1 pr-3 font-mono">{o.objectName}</span>
+                        <span className="flex-shrink-0 text-gray-400">{o.bucket} · {formatBytes(o.size)}</span>
+                      </div>
+                    ))}
+                    {orphanStats.orphans.length > 50 && (
+                      <div className="px-3 py-2 text-xs text-gray-400 text-center">
+                        仅展示前 50 条，共 {orphanStats.totalCount} 条
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {orphanStats.totalCount > 0 && (
+                  <div className="space-y-2">
+                    {!orphanConfirmOpen ? (
+                      <button
+                        onClick={() => setOrphanConfirmOpen(true)}
+                        disabled={cleaningOrphans}
+                        className="flex items-center gap-2 px-4 py-2 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
+                        type="button"
+                      >
+                        <Trash2 size={14} /> 一键清理孤儿对象
+                      </button>
+                    ) : (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle size={16} className="mt-0.5 text-amber-600 flex-shrink-0" />
+                          <div>
+                            <p className="text-sm font-semibold text-amber-800">确认清理？</p>
+                            <p className="text-xs text-amber-700 mt-1">
+                              将从 MinIO 中永久删除 <strong>{orphanStats.totalCount}</strong> 个孤儿对象（共 {formatBytes(orphanStats.totalSize)}），此操作不可撤销。
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={handleCleanupOrphans}
+                            disabled={cleaningOrphans}
+                            className="flex items-center gap-2 px-4 py-2 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
+                            type="button"
+                          >
+                            {cleaningOrphans ? <Loader size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                            {cleaningOrphans ? '清理中...' : '确认删除'}
+                          </button>
+                          <button
+                            onClick={() => setOrphanConfirmOpen(false)}
+                            disabled={cleaningOrphans}
+                            className="px-4 py-2 text-sm border border-amber-200 text-amber-700 rounded-lg hover:bg-white disabled:opacity-50"
+                            type="button"
+                          >
+                            取消
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {orphanStats.totalCount === 0 && (
+                  <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 border border-green-100 rounded-lg px-4 py-3">
+                    <CheckCircle size={16} /> 未发现孤儿对象，数据一致性良好
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

@@ -15,7 +15,8 @@ import {
 import { toast } from 'sonner';
 import { useAppStore } from '../../store/appContext';
 import { checkLocalMinerUHealth } from '../../utils/mineruLocalApi';
-import type { BatchQueueItem, ServerBatchQueueState } from '../../store/types';
+import type { BatchQueueItem } from '../../store/types';
+import { generateNumericIdFromUuid } from '../../utils/id';
 
 const runtimeFileMap: Map<string, File> =
   (globalThis as { __luceonBatchFileMap?: Map<string, File> }).__luceonBatchFileMap ||
@@ -143,7 +144,6 @@ export function BatchProcessingController() {
   const { state, dispatch } = useAppStore();
   const [working, setWorking] = useState(false);
   const wasRunningRef = useRef(false);
-  const idCounterRef = useRef(0);
   const lastWarnRef = useRef(new Map<string, number>());
 
   const items = state.batchProcessing.items;
@@ -229,8 +229,7 @@ export function BatchProcessingController() {
 
         updateItem(item.id, { status: 'uploading', progress: 10, message: '正在上传文件...' });
 
-        idCounterRef.current = (idCounterRef.current + 1) % 1000;
-        const newId = Date.now() * 1000 + idCounterRef.current;
+        const newId = generateNumericIdFromUuid();
         materialId = newId;
         updateItem(item.id, { materialId: newId });
 
@@ -307,18 +306,18 @@ export function BatchProcessingController() {
 
         updateItem(item.id, { progress: 50, message: '创建数据库记录...' });
 
-        // 调用 db-server 创建 material 记录
         const materialData = {
-          id: newId,  // 使用前端生成的临时 ID
+          id: newId,
           title: f.name.replace(/\.[^.]+$/, ''),
           type: f.name.split('.').pop()?.toUpperCase() ?? 'FILE',
           size: `${(f.size / 1024 / 1024).toFixed(1)} MB`,
-          size_bytes: f.size,
-          upload_time: new Date().toISOString(),
+          sizeBytes: f.size,
+          uploadTime: '刚刚',
+          uploadTimestamp: Date.now(),
           uploader: '当前用户',
           status: 'processing',
-          mineru_status: 'pending',
-          ai_status: 'pending',
+          mineruStatus: 'pending',
+          aiStatus: 'pending',
           tags: [],
           metadata: {
             relativePath: item.path,
@@ -335,6 +334,9 @@ export function BatchProcessingController() {
             processingUpdatedAt: new Date().toISOString(),
           },
         };
+        if (materialData.metadata?.provider === 'minio' && materialData.metadata.objectName) {
+          delete (materialData.metadata as unknown as { fileUrl?: string }).fileUrl;
+        }
 
         const dbRes = await fetchWithTimeout('/__proxy/db/materials', {
           method: 'POST',
@@ -348,9 +350,7 @@ export function BatchProcessingController() {
           throw new Error(`创建数据库记录失败: HTTP ${dbRes.status} - ${errText}`);
         }
 
-        const dbResult = await dbRes.json();
-        // db-server 返回的 id 就是我们传入的 newId,不需要额外更新
-        const dbMaterialId = dbResult.id;
+        await dbRes.json().catch(() => null);
 
         updateItem(item.id, { status: 'completed', progress: 100, message: '上传成功' });
         batchRemoveFile(item.id);
@@ -389,256 +389,10 @@ export function BatchProcessingController() {
   return null;
 }
 
-// ─── 后端批处理队列控制面板 ────────────────────────────────────
-
-export function ServerBatchQueuePanel({ queue }: { queue: ServerBatchQueueState }) {
-  const { dispatch } = useAppStore();
-
-  const refresh = async () => {
-    try {
-      const res = await fetch('/__proxy/upload/batch/status', { signal: AbortSignal.timeout(5000) });
-      if (res.ok) {
-        const data = await res.json();
-        dispatch({ type: 'SERVER_BATCH_SYNC', payload: data });
-      }
-    } catch {
-    }
-  };
-
-  const handlePause = async () => {
-    try {
-      await fetch('/__proxy/upload/batch/pause', { method: 'POST' });
-      toast.info('后端队列已暂停');
-      await refresh();
-    } catch (e) {
-      toast.error(`暂停失败: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  };
-
-  const handleResume = async () => {
-    try {
-      await fetch('/__proxy/upload/batch/resume', { method: 'POST' });
-      toast.success('后端队列已恢复');
-      await refresh();
-    } catch (e) {
-      toast.error(`恢复失败: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  };
-
-  const handleCancelCurrent = async () => {
-    const current = queue.items.find((j) => j.status === 'uploaded' || j.status === 'mineru' || j.status === 'ai');
-    if (!current) return;
-    try {
-      await fetch(`/__proxy/upload/batch/cancel/${encodeURIComponent(current.id)}`, { method: 'POST' });
-      toast.info('已请求终止当前任务');
-      await refresh();
-    } catch (e) {
-      toast.error(`终止失败: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  };
-
-  const handleReadAlerts = async () => {
-    try {
-      await fetch('/__proxy/upload/batch/alerts/read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      await refresh();
-    } catch (e) {
-      toast.error(`标记告警已读失败: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  };
-
-  const handleRetryFailed = async () => {
-    try {
-      const res = await fetch('/__proxy/upload/batch/retry-failed', { method: 'POST' });
-      const data = await res.json();
-      toast.success(`已重试 ${data.retried || 0} 个失败任务`);
-      await refresh();
-    } catch (e) {
-      toast.error(`重试失败: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  };
-
-  const handleClearCompleted = async () => {
-    try {
-      const res = await fetch('/__proxy/upload/batch/clear-completed', { method: 'POST' });
-      const data = await res.json();
-      toast.success(`已清理 ${data.removed || 0} 个已完成任务`);
-      await refresh();
-    } catch (e) {
-      toast.error(`清理失败: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  };
-
-  const handleClearAll = async () => {
-    try {
-      await fetch('/__proxy/upload/batch/clear-all', { method: 'POST' });
-      toast.success('已清空后端队列');
-      await refresh();
-    } catch (e) {
-      toast.error(`清空失败: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  };
-
-  const handleRemoveJob = async (id: string) => {
-    try {
-      await fetch(`/__proxy/upload/batch/job/${encodeURIComponent(id)}`, { method: 'DELETE' });
-      toast.success('已移除任务');
-      await refresh();
-    } catch (e) {
-      toast.error(`移除失败: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  };
-
-  const isRunning = queue.running && !queue.paused;
-  const isPaused = queue.running && queue.paused;
-  const hasProcessing = queue.items.some((j) => j.status === 'uploaded' || j.status === 'mineru' || j.status === 'ai');
-  const unreadAlerts = queue.unreadAlerts ?? 0;
-  const alerts = queue.alerts ?? [];
-  const pendingJobs = queue.items.filter((j) => j.status === 'pending');
-  const uploadingCount = queue.uploading ?? queue.items.filter((j) => j.status === 'uploading').length;
-
-  return (
-    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <h4 className="text-sm font-semibold text-blue-900 flex items-center gap-2">
-            后端处理队列
-            {unreadAlerts > 0 && (
-              <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-[10px] leading-5 bg-red-600 text-white rounded-full">
-                {unreadAlerts > 9 ? '9+' : unreadAlerts}
-              </span>
-            )}
-            <span className={`ml-2 inline-block w-2 h-2 rounded-full ${
-              isRunning ? 'bg-green-500 animate-pulse' : isPaused ? 'bg-yellow-500' : queue.total > 0 ? 'bg-gray-400' : 'bg-gray-300'
-            }`} />
-          </h4>
-          <p className="text-xs text-blue-700 mt-0.5">
-            总计 {queue.total} · 上传中 {uploadingCount} · 待处理 {queue.pending} · 处理中 {queue.processing} · 完成 {queue.completed} · 失败 {queue.errors}
-            {queue.memory && (
-              <span className={`ml-2 ${queue.memory.pressure ? 'text-red-600 font-semibold' : ''}`}>
-                · 内存 {queue.memory.freeMB}MB 空闲{queue.memory.pressure ? ' (压力过大，已暂停)' : ''}
-              </span>
-            )}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {isPaused ? (
-            <button onClick={handleResume} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">
-              <Play size={14} /> 恢复
-            </button>
-          ) : queue.running ? (
-            <button onClick={handlePause} className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500 text-white text-sm rounded-lg hover:bg-yellow-600">
-              <Pause size={14} /> 暂停
-            </button>
-          ) : null}
-          {queue.running && hasProcessing && (
-            <button onClick={handleCancelCurrent} className="px-3 py-1.5 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50">
-              终止当前
-            </button>
-          )}
-          {unreadAlerts > 0 && (
-            <button onClick={handleReadAlerts} className="px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
-              标记告警已读
-            </button>
-          )}
-          {queue.errors > 0 && (
-            <button onClick={handleRetryFailed} className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50">
-              <RotateCcw size={14} /> 重试失败
-            </button>
-          )}
-          {queue.total > 0 && (
-            <button onClick={handleClearAll} className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50">
-              <Trash2 size={14} /> 清空全部
-            </button>
-          )}
-          {queue.completed > 0 && (
-            <button onClick={handleClearCompleted} className="px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
-              清理已完成
-            </button>
-          )}
-        </div>
-      </div>
-
-      {alerts.length > 0 && (
-        <div className="mb-3 space-y-1">
-          {alerts.slice(-3).reverse().map((a) => (
-            <div key={a.id} className={`text-xs ${a.level === 'error' ? 'text-red-600' : a.level === 'warn' ? 'text-orange-600' : 'text-blue-700'}`}>
-              {a.message}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* 后端队列任务列表 */}
-      {queue.items.length > 0 && (
-        <div className="max-h-60 overflow-y-auto space-y-2">
-          {queue.items.map((job) => (
-            <div key={job.id} className="bg-white rounded-lg border border-blue-100 p-2.5 flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 overflow-hidden">
-                  <FileIcon size={16} className="text-blue-400 flex-shrink-0" />
-                  <span className="text-sm text-gray-900 truncate" title={job.path}>{job.path || job.fileName}</span>
-                  <span className="text-xs text-gray-400">{formatBytes(job.fileSize)}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  {job.status === 'completed' ? (
-                    <span className="flex items-center gap-1 text-xs text-green-600"><CheckCircle2 size={12} /> 完成</span>
-                  ) : job.status === 'error' ? (
-                    <span className="flex items-center gap-1 text-xs text-red-600">
-                      <AlertCircle size={12} /> 失败（{job.errorType === 'config' || job.errorType === 'resource' ? '不可重试' : `已重试 ${job.retries}/${job.maxRetries}` }）
-                    </span>
-                  ) : job.status === 'skipped' ? (
-                    <span className="text-xs text-gray-500">已取消</span>
-                  ) : job.status === 'uploading' ? (
-                    <span className="text-xs text-blue-600">上传中 {Math.max(0, Math.min(100, Math.round(job.progress || 0)))}%</span>
-                  ) : job.status === 'pending' ? (
-                    <span className="text-xs text-gray-500">排队第 {Math.max(1, pendingJobs.findIndex((j) => j.id === job.id) + 1)} 位</span>
-                  ) : (
-                    <span className="flex items-center gap-1 text-xs text-blue-600"><Loader size={12} className="animate-spin" /> {job.progress}%</span>
-                  )}
-                  {job.status !== 'error' && job.retries > 0 && (
-                    <span className="text-xs text-orange-500">重试 {job.retries}/{job.maxRetries}</span>
-                  )}
-                  {job.errorType === 'config' && (
-                    <span className="text-[10px] px-1.5 h-5 leading-5 rounded bg-red-50 text-red-700 border border-red-200">需人工</span>
-                  )}
-                  {!(job.status === 'uploaded' || job.status === 'mineru' || job.status === 'ai') && (
-                    <button
-                      onClick={() => handleRemoveJob(job.id)}
-                      className="p-1.5 text-red-500 hover:bg-red-50 rounded"
-                      title="移除"
-                    >
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-              </div>
-              {job.message && (
-                <p className={`text-xs truncate ${job.status === 'error' ? 'text-red-500' : 'text-gray-500'}`} title={job.message}>
-                  {job.message}
-                </p>
-              )}
-              {job.status === 'uploading' && (
-                <div className="h-1.5 bg-blue-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${Math.max(0, Math.min(100, job.progress))}%` }} />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function BatchUploadModal() {
   const { state, dispatch } = useAppStore();
   const bp = state.batchProcessing;
   const items = bp.items;
-  const serverQueue = state.serverBatchQueue;
 
   const isProcessing = bp.running && !bp.paused;
   const [diagRunning, setDiagRunning] = useState(false);

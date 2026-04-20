@@ -1,0 +1,5 @@
+services:
+  minio:
+    ports:
+      - "19001:9001"
+

@@ -148,6 +148,61 @@ function sanitizeMinioConfigForLocalStorage(config: MinioConfig): MinioConfig {
   };
 }
 
+function extractSecretsPayload(configs: { aiConfig: AiConfig; mineruConfig: MinerUConfig; minioConfig: MinioConfig }) {
+  const payload: Record<string, string | null> = {};
+
+  if (typeof configs.aiConfig.apiKey === 'string') {
+    const v = configs.aiConfig.apiKey.trim();
+    payload.aiConfig_apiKey = v ? v : null;
+  }
+  if (Array.isArray(configs.aiConfig.providers)) {
+    for (const p of configs.aiConfig.providers) {
+      if (!p || typeof p !== 'object') continue;
+      const id = String((p as { id?: unknown }).id || '').trim();
+      if (!id) continue;
+      const apiKey = String((p as { apiKey?: unknown }).apiKey || '').trim();
+      payload[`aiProvider_${id}_apiKey`] = apiKey ? apiKey : null;
+    }
+  }
+
+  if (typeof configs.mineruConfig.apiKey === 'string') {
+    const v = configs.mineruConfig.apiKey.trim();
+    payload.mineru_apiKey = v ? v : null;
+  }
+  if (typeof configs.minioConfig.accessKey === 'string') {
+    const v = configs.minioConfig.accessKey.trim();
+    payload.minio_accessKey = v ? v : null;
+  }
+  if (typeof configs.minioConfig.secretKey === 'string') {
+    const v = configs.minioConfig.secretKey.trim();
+    payload.minio_secretKey = v ? v : null;
+  }
+
+  return payload;
+}
+
+function applySecretsToConfigs(input: { aiConfig: AiConfig; mineruConfig: MinerUConfig; minioConfig: MinioConfig }, secrets: Record<string, unknown>) {
+  const aiConfig = { ...input.aiConfig };
+  const mineruConfig = { ...input.mineruConfig };
+  const minioConfig = { ...input.minioConfig };
+
+  if (typeof secrets.aiConfig_apiKey === 'string') aiConfig.apiKey = secrets.aiConfig_apiKey;
+  if (Array.isArray(aiConfig.providers)) {
+    aiConfig.providers = aiConfig.providers.map((p) => {
+      const id = String(p.id || '').trim();
+      const key = `aiProvider_${id}_apiKey`;
+      if (id && typeof secrets[key] === 'string') return { ...p, apiKey: secrets[key] as string };
+      return p;
+    });
+  }
+
+  if (typeof secrets.mineru_apiKey === 'string') mineruConfig.apiKey = secrets.mineru_apiKey;
+  if (typeof secrets.minio_accessKey === 'string') minioConfig.accessKey = secrets.minio_accessKey;
+  if (typeof secrets.minio_secretKey === 'string') minioConfig.secretKey = secrets.minio_secretKey;
+
+  return { aiConfig, mineruConfig, minioConfig };
+}
+
 function mergeConfigWithFallback<T extends Record<string, unknown>>(fallback: T, value: unknown): T {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return fallback;
   const result: Record<string, unknown> = { ...fallback };
@@ -281,6 +336,7 @@ const initialState: AppState = {
   mineruConfig:     loadConfigFromStorage<MinerUConfig>(LS.MINERU, initialMinerUConfig),
   minioConfig:      loadConfigFromStorage<MinioConfig>(LS.MINIO, initialMinioConfig),
   assetDetails:     loadFromStorage(LS.ASSET_DETAILS, initialAssetDetails),
+  _dataSource:      'localStorage',
 };
 
 // ─── Context ──────────────────────────────────────────────────
@@ -319,6 +375,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           flexibleTags,
           aiRules,
           settings,
+          secrets,
         ] = await Promise.all([
           dbGet<Material[]>('/materials'),
           dbGet<Record<number, AssetDetail>>('/asset-details'),
@@ -328,6 +385,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           dbGet<FlexibleTag[]>('/flexible-tags'),
           dbGet<AiRule[]>('/ai-rules'),
           dbGet<Record<string, unknown>>('/settings'),
+          dbGet<{ secrets: Record<string, unknown> }>('/secrets').catch(() => ({ secrets: {} })),
         ]);
 
         if (cancelled) return;
@@ -337,6 +395,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const hasMaterials = Array.isArray(materials) && materials.length > 0;
 
         if (hasMaterials || isDbInitialized) {
+          const mergedAi = settings?.aiConfig ? mergeConfigWithFallback(initialAiConfig, settings.aiConfig) : initialAiConfig;
+          const mergedMineru = settings?.mineruConfig ? mergeConfigWithFallback(initialMinerUConfig, settings.mineruConfig) : initialMinerUConfig;
+          const mergedMinio = settings?.minioConfig ? mergeConfigWithFallback(initialMinioConfig, settings.minioConfig) : initialMinioConfig;
+          const withSecrets = applySecretsToConfigs({ aiConfig: mergedAi, mineruConfig: mergedMineru, minioConfig: mergedMinio }, secrets?.secrets ?? {});
           // DB 已初始化（有数据 or 有初始化标记）：直接用 DB 数据覆盖内存 state
           dispatch({
             type: 'HYDRATE_FROM_DB',
@@ -350,9 +412,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               flexibleTags:   flexibleTags ?? undefined,
               aiRules:        aiRules ?? undefined,
               aiRuleSettings: (settings?.aiRuleSettings as AiRuleSettings | undefined) ?? undefined,
-              aiConfig:       settings?.aiConfig ? mergeConfigWithFallback(initialAiConfig, settings.aiConfig) : undefined,
-              mineruConfig:   settings?.mineruConfig ? mergeConfigWithFallback(initialMinerUConfig, settings.mineruConfig) : undefined,
-              minioConfig:    settings?.minioConfig ? mergeConfigWithFallback(initialMinioConfig, settings.minioConfig) : undefined,
+              aiConfig:       withSecrets.aiConfig,
+              mineruConfig:   withSecrets.mineruConfig,
+              minioConfig:    withSecrets.minioConfig,
+              _dataSource:    'db-server',
             },
           });
           console.log(`[appContext] Hydrated from DB (${materials?.length ?? 0} materials, initialized=${isDbInitialized})`);
@@ -371,10 +434,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             flexibleTags:   state.flexibleTags,
             aiRules:        state.aiRules,
             aiRuleSettings: state.aiRuleSettings,
-            aiConfig:       state.aiConfig,
-            mineruConfig:   state.mineruConfig,
-            minioConfig:    state.minioConfig,
+            aiConfig:       sanitizeAiConfigForLocalStorage(state.aiConfig),
+            mineruConfig:   sanitizeMinerUConfigForLocalStorage(state.mineruConfig),
+            minioConfig:    sanitizeMinioConfigForLocalStorage(state.minioConfig),
           });
+          await dbPut('/secrets', extractSecretsPayload({ aiConfig: state.aiConfig, mineruConfig: state.mineruConfig, minioConfig: state.minioConfig }));
           // 打初始化标记，后续刷新不再 seed
           await dbPut('/settings/initialized', true);
           console.log('[appContext] DB seeded and marked as initialized');
@@ -422,40 +486,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const currentIds = new Set(state.materials.map((m) => m.id));
 
     if (hydratedRef.current) {
-      // 检测删除：上一轮有、这一轮没有的 id 需要从 db-server 删除
-      const deletedIds = [...prevMaterialIds.current].filter((id) => !currentIds.has(id));
-      if (deletedIds.length > 0) {
-        dbDelete('/materials', { ids: deletedIds });
-        // 强一致性清理：等待 MinIO 清理结果，失败时以 toast.warning 通知用户
-        // 从 prevMaterialsRef 取被删 material 的完整 metadata，
-        // 让 upload-server 按 metadata.provider 决定是否清理，而非依赖当前运行时配置
-        const deletedMaterials = prevMaterialsRef.current
-          .filter((m) => deletedIds.includes(m.id))
-          .map((m) => ({ id: m.id, metadata: m.metadata }));
-        void (async () => {
-          try {
-            const resp = await fetch('/__proxy/upload/delete-material', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ materialIds: deletedIds, materials: deletedMaterials }),
-              signal: AbortSignal.timeout(30_000),
-            });
-            if (!resp.ok) {
-              const errData = await resp.json().catch(() => null);
-              throw new Error(errData?.error || `HTTP ${resp.status}`);
-            }
-            const result = await resp.json().catch(() => null);
-            // 检查是否有部分清理失败的条目
-            if (Array.isArray(result?.errors) && result.errors.length > 0) {
-              console.warn('[appContext] MinIO partial cleanup failed:', result.errors);
-              toast.warning('部分 MinIO 文件清理失败，建议前往"备份与监控"扫描孤儿对象', { duration: 6000 });
-            }
-          } catch (e) {
-            console.warn('[appContext] MinIO cleanup failed:', e instanceof Error ? e.message : String(e));
-            toast.warning('MinIO 文件清理失败，数据库记录已删除，建议前往"备份与监控"扫描孤儿对象', { duration: 6000 });
-          }
-        })();
-      }
       // 差量 upsert：仅对内容指纹变化的记录执行 POST（#7）
       for (const m of state.materials) {
         const sanitized = sanitizeMaterialForPersistence(m);
@@ -607,19 +637,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     saveToStorage(LS.AI, sanitizeAiConfigForLocalStorage(state.aiConfig));
     if (!hydratedRef.current) return;
-    dbPut('/settings/aiConfig', state.aiConfig);
+    dbPut('/settings/aiConfig', sanitizeAiConfigForLocalStorage(state.aiConfig));
+    dbPut('/secrets', extractSecretsPayload({ aiConfig: state.aiConfig, mineruConfig: state.mineruConfig, minioConfig: state.minioConfig }));
   }, [state.aiConfig]);
 
   useEffect(() => {
     saveToStorage(LS.MINERU, sanitizeMinerUConfigForLocalStorage(state.mineruConfig));
     if (!hydratedRef.current) return;
-    dbPut('/settings/mineruConfig', state.mineruConfig);
+    dbPut('/settings/mineruConfig', sanitizeMinerUConfigForLocalStorage(state.mineruConfig));
+    dbPut('/secrets', extractSecretsPayload({ aiConfig: state.aiConfig, mineruConfig: state.mineruConfig, minioConfig: state.minioConfig }));
   }, [state.mineruConfig]);
 
   useEffect(() => {
     saveToStorage(LS.MINIO, sanitizeMinioConfigForLocalStorage(state.minioConfig));
     if (!hydratedRef.current) return;
-    dbPut('/settings/minioConfig', state.minioConfig);
+    dbPut('/settings/minioConfig', sanitizeMinioConfigForLocalStorage(state.minioConfig));
+    dbPut('/secrets', extractSecretsPayload({ aiConfig: state.aiConfig, mineruConfig: state.mineruConfig, minioConfig: state.minioConfig }));
   }, [state.minioConfig]);
 
   useEffect(() => {

@@ -30,6 +30,12 @@ const DATA_PATH = (() => {
   }
 })();
 
+const SECRETS_PATH = (() => {
+  if (process.env.SECRETS_PATH) return process.env.SECRETS_PATH;
+  const dir = path.dirname(DATA_PATH);
+  return path.join(dir, 'secrets.json');
+})();
+
 // ─── CORS 配置 ────────────────────────────────────────────────
 // 生产部署时通过 CORS_ORIGIN 环境变量指定允许的来源（逗号分隔）
 const CORS_ORIGIN_RAW = process.env.CORS_ORIGIN || '';
@@ -95,12 +101,27 @@ let dbCache = (() => {
   }
 })();
 
+let secretsCache = (() => {
+  try {
+    if (!existsSync(SECRETS_PATH)) return {};
+    const raw = readFileSync(SECRETS_PATH, 'utf-8');
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+})();
+
 // ─── Health ───────────────────────────────────────────────────
 
 // ─── writeDB debounce 计时器 ──────────────────────────────────
 let writeTimer = null;
 let maxWriteTimer = null;
 let writeQueuedAt = 0;
+let secretsWriteTimer = null;
+let secretsMaxWriteTimer = null;
+let secretsWriteQueuedAt = 0;
+let writeChain = Promise.resolve();
 const WRITE_DEBOUNCE_MS = 100;
 const WRITE_MAX_WAIT_MS = 5000;
 
@@ -110,22 +131,33 @@ const WRITE_MAX_WAIT_MS = 5000;
  * - 真正的磁盘 I/O 在 100ms 后触发，期间重复调用重置计时器
  * - 磁盘错误在回调内 console.error 记录，不向请求方返回 500
  */
+function enqueueWrite(task) {
+  writeChain = writeChain
+    .then(() => task())
+    .catch((e) => console.error('[db-server] queued write failed:', e?.message || String(e)));
+}
+
+function atomicWriteJson(filePath, payload) {
+  const dir = path.dirname(filePath);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  const tmpPath = filePath + '.tmp';
+  writeFileSync(tmpPath, JSON.stringify(payload, null, 2), 'utf-8');
+  renameSync(tmpPath, filePath);
+}
+
 function flushDB() {
   if (writeTimer) clearTimeout(writeTimer);
   if (maxWriteTimer) clearTimeout(maxWriteTimer);
   writeTimer = null;
   maxWriteTimer = null;
   writeQueuedAt = 0;
-
-  const dir = path.dirname(DATA_PATH);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  const tmpPath = DATA_PATH + '.tmp';
-  try {
-    writeFileSync(tmpPath, JSON.stringify(dbCache, null, 2), 'utf-8');
-    renameSync(tmpPath, DATA_PATH);
-  } catch (e) {
-    console.error('[db-server] writeDB flush failed:', e.message);
-  }
+  enqueueWrite(() => {
+    try {
+      atomicWriteJson(DATA_PATH, dbCache);
+    } catch (e) {
+      console.error('[db-server] writeDB flush failed:', e.message);
+    }
+  });
 }
 
 function writeDB() {
@@ -143,8 +175,42 @@ function flushDBSync() {
   flushDB();
 }
 
+function flushSecretsSync() {
+  try {
+    atomicWriteJson(SECRETS_PATH, secretsCache);
+  } catch (e) {
+    console.error('[db-server] secrets flush on shutdown failed:', e.message);
+  }
+}
+
+function flushSecrets() {
+  if (secretsWriteTimer) clearTimeout(secretsWriteTimer);
+  if (secretsMaxWriteTimer) clearTimeout(secretsMaxWriteTimer);
+  secretsWriteTimer = null;
+  secretsMaxWriteTimer = null;
+  secretsWriteQueuedAt = 0;
+  enqueueWrite(() => {
+    try {
+      atomicWriteJson(SECRETS_PATH, secretsCache);
+    } catch (e) {
+      console.error('[db-server] secrets flush failed:', e.message);
+    }
+  });
+}
+
+function writeSecrets() {
+  const now = Date.now();
+  if (!secretsWriteQueuedAt) {
+    secretsWriteQueuedAt = now;
+    secretsMaxWriteTimer = setTimeout(flushSecrets, WRITE_MAX_WAIT_MS);
+  }
+  if (secretsWriteTimer) clearTimeout(secretsWriteTimer);
+  const remaining = Math.max(0, WRITE_MAX_WAIT_MS - (now - secretsWriteQueuedAt));
+  secretsWriteTimer = setTimeout(flushSecrets, Math.min(WRITE_DEBOUNCE_MS, remaining));
+}
+
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, service: 'db-server', dataPath: DATA_PATH });
+  res.json({ ok: true, service: 'db-server', dataPath: DATA_PATH, secretsPath: SECRETS_PATH });
 });
 
 app.get('/stats', (_req, res) => {
@@ -209,6 +275,21 @@ function requireBody(req, res, next) {
   }
   next();
 }
+
+app.get('/secrets', (_req, res) => {
+  res.json({ ok: true, secrets: secretsCache });
+});
+
+app.put('/secrets', requireBody, (req, res) => {
+  const nextSecrets = { ...secretsCache };
+  for (const [key, val] of Object.entries(req.body)) {
+    if (typeof val === 'string') nextSecrets[key] = val;
+    else if (val === null) delete nextSecrets[key];
+  }
+  secretsCache = nextSecrets;
+  writeSecrets();
+  res.json({ ok: true });
+});
 
 /**
  * 防止原型链污染：递归检查对象中是否包含危险键名。
@@ -645,6 +726,7 @@ function gracefulShutdown(signal) {
   console.log(`[db-server] Received ${signal}, flushing data to disk...`);
   try {
     flushDBSync();
+    flushSecretsSync();
     console.log('[db-server] Data flushed successfully.');
   } catch (e) {
     console.error('[db-server] Flush on shutdown failed:', e.message);
@@ -666,7 +748,7 @@ process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
 // 捕获未处理异常，尝试落盘后退出
 process.on('uncaughtException', (err) => {
   console.error('[db-server] Uncaught exception:', err);
-  try { flushDBSync(); } catch { /* best effort */ }
+  try { flushDBSync(); flushSecretsSync(); } catch { /* best effort */ }
   process.exit(1);
 });
 process.on('unhandledRejection', (reason) => {

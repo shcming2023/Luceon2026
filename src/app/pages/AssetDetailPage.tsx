@@ -8,6 +8,27 @@ import { PDFPreviewPanel } from '../components/PDFPreviewPanel';
 import { PreviewTabPanel } from '../components/PreviewTabPanel';
 import { ProcessPipelineCard } from '../components/ProcessPipelineCard';
 
+function getPresignedExpireAtMs(url: string): number | null {
+  try {
+    const u = new URL(url);
+    const dateStr = u.searchParams.get('X-Amz-Date');
+    const expStr = u.searchParams.get('X-Amz-Expires');
+    if (!dateStr || !expStr) return null;
+    const y = Number(dateStr.slice(0, 4));
+    const mo = Number(dateStr.slice(4, 6));
+    const d = Number(dateStr.slice(6, 8));
+    const h = Number(dateStr.slice(9, 11));
+    const mi = Number(dateStr.slice(11, 13));
+    const s = Number(dateStr.slice(13, 15));
+    const issuedAt = Date.UTC(y, mo - 1, d, h, mi, s);
+    const expiresSec = Number(expStr);
+    if (!Number.isFinite(issuedAt) || !Number.isFinite(expiresSec)) return null;
+    return issuedAt + expiresSec * 1000;
+  } catch {
+    return null;
+  }
+}
+
 export function AssetDetailPage() {
   const { id } = useParams<{ id: string }>();
   const numId = Number(id);
@@ -21,30 +42,43 @@ export function AssetDetailPage() {
   const [titleDraft, setTitleDraft] = useState(detail?.title ?? '');
 
   const [mineruMarkdown, setMineruMarkdown] = useState<string>('');
-  const serverJob = state.serverBatchQueue?.items?.find(
-    (j) => j.materialId === numId && !['completed', 'error', 'skipped'].includes(j.status),
-  );
-  const mineruRunning = Boolean(serverJob);
-  const mineruProgress = serverJob?.progress ?? 0;
-  const mineruProgressMsg = serverJob?.message || (mineruRunning ? '后端队列处理中...' : '');
-  const mineruRetryCount = serverJob?.retries ?? 0;
+  const mineruRunning = material?.mineruStatus === 'processing';
+  const mineruProgress = Number(material?.metadata?.processingProgress || 0);
+  const mineruProgressMsg = material?.metadata?.processingMsg || (mineruRunning ? '处理中...' : '');
+  const mineruRetryCount = 0;
 
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
 
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
+  const originalRefreshTimerRef = useRef<number | null>(null);
 
   const objectName = material?.metadata?.objectName;
 
   useEffect(() => {
     const obj = String(objectName || '').trim();
     if (!obj) return;
-    (async () => {
+    const request = async () => {
       try {
         const r = await fetch(`/__proxy/upload/presign?objectName=${encodeURIComponent(obj)}`, { cache: 'no-store' });
         const d = await r.json();
-        if (d?.url) setOriginalUrl(d.url);
+        if (d?.url) {
+          setOriginalUrl(d.url);
+          const expireAt = getPresignedExpireAtMs(d.url);
+          if (expireAt) {
+            const delay = Math.max(30_000, expireAt - Date.now() - 60_000);
+            if (originalRefreshTimerRef.current) window.clearTimeout(originalRefreshTimerRef.current);
+            originalRefreshTimerRef.current = window.setTimeout(() => {
+              void request();
+            }, delay);
+          }
+        }
       } catch {}
-    })();
+    };
+    void request();
+    return () => {
+      if (originalRefreshTimerRef.current) window.clearTimeout(originalRefreshTimerRef.current);
+      originalRefreshTimerRef.current = null;
+    };
   }, [objectName]);
 
   const [mdBootLoading, setMdBootLoading] = useState(false);
@@ -67,7 +101,13 @@ export function AssetDetailPage() {
           url = d?.url;
         }
         if (!url) throw new Error('无法获取 Markdown 访问地址');
-        const res = await fetch(url, { cache: 'no-store' });
+        let res = await fetch(url, { cache: 'no-store' });
+        if (res.status === 403 && mdObj) {
+          const r = await fetch(`/__proxy/upload/presign?objectName=${encodeURIComponent(mdObj)}`, { cache: 'no-store' });
+          const d = await r.json();
+          const retryUrl = d?.url;
+          if (retryUrl) res = await fetch(retryUrl, { cache: 'no-store' });
+        }
         if (!res.ok) throw new Error(`读取失败: HTTP ${res.status}`);
         setMineruMarkdown(await res.text());
       } catch (e) {
@@ -258,34 +298,18 @@ export function AssetDetailPage() {
       }
 
       const fileName = material.metadata?.fileName || `${material.title}.${material.type.toLowerCase()}`;
-      const jobPath = String(material.metadata?.relativePath || fileName);
-      const jobs = [{
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        fileName,
-        fileSize: material.sizeBytes || 0,
-        path: jobPath,
-        objectName,
-        mimeType: material.metadata?.mimeType || 'application/octet-stream',
-        materialId: numId,
-      }];
+      void fileName;
 
-      const addRes = await fetch('/__proxy/upload/batch/jobs', {
+      const res = await fetch('/__proxy/upload/parse/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobs }),
+        body: JSON.stringify({ materialId: numId }),
+        signal: AbortSignal.timeout(15_000),
       });
-      if (!addRes.ok) {
-        const errData = await addRes.json().catch(() => ({ error: `HTTP ${addRes.status}` }));
-        throw new Error((errData as { error?: string }).error || `HTTP ${addRes.status}`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error((errData as { error?: string }).error || `HTTP ${res.status}`);
       }
-
-      const startBody = state.serverBatchQueue
-        ? JSON.stringify({ autoMinerU: state.serverBatchQueue.autoMinerU, autoAI: state.serverBatchQueue.autoAI })
-        : '';
-      await fetch('/__proxy/upload/batch/start', {
-        method: 'POST',
-        ...(startBody ? { headers: { 'Content-Type': 'application/json' }, body: startBody } : {}),
-      }).catch(() => {});
 
       dispatch({
         type: 'UPDATE_MATERIAL',
@@ -298,7 +322,7 @@ export function AssetDetailPage() {
             metadata: {
               ...material.metadata,
               processingStage: 'mineru',
-              processingMsg: '等待后端队列处理',
+              processingMsg: '解析任务已提交',
               processingProgress: '0',
               processingUpdatedAt: new Date().toISOString(),
             },
@@ -306,7 +330,7 @@ export function AssetDetailPage() {
         },
       });
 
-      toast.info('已加入后端解析队列');
+      toast.info('解析任务已提交');
     } catch (err) {
       const msg = err instanceof Error ? err.message : '未知错误';
       dispatch({ type: 'UPDATE_MATERIAL_MINERU_STATUS', payload: { id: numId, mineruStatus: 'failed' } });

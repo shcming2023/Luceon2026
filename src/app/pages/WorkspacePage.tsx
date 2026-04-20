@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, ChevronDown, Eye, FolderPlus, Settings, Trash2, Upload } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Eye, FolderPlus, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore } from '../../store/appContext';
-import type { BatchItemStatus, Material } from '../../store/types';
+import type { Material } from '../../store/types';
 import { Link } from 'react-router-dom';
-import { DropdownMenu } from '../components/DropdownMenu';
 import { useFileUpload } from '../hooks/useFileUpload';
  
 type FilterKey = 'all' | 'pending' | 'processing' | 'failed' | 'completed';
@@ -17,98 +16,23 @@ function formatBytes(bytes: number) {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
  
-function formatElapsed(ms: number) {
-  if (!Number.isFinite(ms) || ms < 0) return '-';
-  const s = Math.floor(ms / 1000);
-  if (s < 60) return `${s}秒`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}分${s % 60}秒`;
-  const h = Math.floor(m / 60);
-  return `${h}小时${m % 60}分`;
-}
- 
-function formatStage(status: BatchItemStatus) {
-  if (status === 'uploading') return '上传中';
-  if (status === 'pending') return '待处理';
-  if (status === 'uploaded') return '文件已就绪';
-  if (status === 'mineru') return 'MinerU 解析';
-  if (status === 'ai') return 'AI 分析';
-  if (status === 'completed') return '已完成';
-  if (status === 'error') return '失败';
-  if (status === 'skipped') return '已取消';
-  return status;
-}
- 
-function isProcessingStatus(status: BatchItemStatus) {
-  return status === 'uploaded' || status === 'mineru' || status === 'ai';
-}
- 
-function isCancellable(status: BatchItemStatus) {
-  return status === 'uploading' || status === 'uploaded' || status === 'mineru' || status === 'ai';
-}
- 
 export function WorkspacePage() {
   const { state, dispatch } = useAppStore();
-  const queue = state.serverBatchQueue;
   const [filter, setFilter] = useState<FilterKey>('all');
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [now, setNow] = useState(() => Date.now());
-  const pollTimerRef = useRef<number | null>(null);
-  const unmountedRef = useRef(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
   const { upload, uploading, progress } = useFileUpload();
  
-  const materialById = useMemo(() => {
-    const map = new Map<number, Material>();
-    for (const m of state.materials) map.set(m.id, m);
-    return map;
-  }, [state.materials]);
- 
-  const hasActive = useMemo(() => {
-    if (!queue) return false;
-    const items = Array.isArray(queue.items) ? queue.items : [];
-    return items.some(
-      (j) => j.status === 'uploading' || j.status === 'pending' || isProcessingStatus(j.status),
-    );
-  }, [queue]);
- 
-  const jobs = useMemo(() => {
-    const list = Array.isArray(queue?.items) ? queue.items : [];
-    if (filter === 'all') return list;
-    if (filter === 'pending') return list.filter((j) => j.status === 'pending' || j.status === 'uploading');
-    if (filter === 'processing') return list.filter((j) => isProcessingStatus(j.status));
-    if (filter === 'failed') return list.filter((j) => j.status === 'error');
-    if (filter === 'completed') return list.filter((j) => j.status === 'completed');
-    return list;
-  }, [queue?.items, filter]);
- 
-  const pendingIds = useMemo(() => {
-    const list = Array.isArray(queue?.items) ? queue.items : [];
-    return list.filter((j) => j.status === 'pending').map((j) => j.id);
-  }, [queue?.items]);
- 
-  const counts = useMemo(() => {
-    const all = Array.isArray(queue?.items) ? queue.items : [];
-    const pending = all.filter((j) => j.status === 'pending' || j.status === 'uploading').length;
-    const processing = all.filter((j) => isProcessingStatus(j.status)).length;
-    const failed = all.filter((j) => j.status === 'error').length;
-    const completed = all.filter((j) => j.status === 'completed').length;
-    return { all: all.length, pending, processing, failed, completed };
-  }, [queue?.items]);
- 
-  const refresh = useCallback(async (opts: { silent?: boolean } = {}) => {
-    const silent = opts.silent ?? true;
-    try {
-      const res = await fetch('/__proxy/upload/batch/status', { signal: AbortSignal.timeout(5000) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      dispatch({ type: 'SERVER_BATCH_SYNC', payload: data });
-    } catch (e) {
-      if (!silent) toast.error(`刷新失败：${e instanceof Error ? e.message : String(e)}`);
-    }
-  }, [dispatch]);
- 
+  useEffect(() => {
+    const el = folderInputRef.current as unknown as { webkitdirectory?: boolean; directory?: boolean; setAttribute?: (k: string, v: string) => void } | null;
+    if (!el) return;
+    el.webkitdirectory = true;
+    el.directory = true;
+    el.setAttribute?.('webkitdirectory', '');
+    el.setAttribute?.('directory', '');
+  }, []);
+
   const handlePickFiles = () => {
     fileInputRef.current?.click();
   };
@@ -123,182 +47,102 @@ export function WorkspacePage() {
     void upload(files);
   };
  
-  const pauseOrResume = async () => {
-    if (!queue) return;
-    try {
-      if (queue.running && queue.paused) {
-        await fetch('/__proxy/upload/batch/resume', { method: 'POST' });
-        toast.success('队列已恢复');
-      } else if (queue.running && !queue.paused) {
-        await fetch('/__proxy/upload/batch/pause', { method: 'POST' });
-        toast.info('队列已暂停');
-      } else {
-        await fetch('/__proxy/upload/batch/start', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ autoMinerU: true, autoAI: true }),
-        });
-        toast.success('队列已启动');
-      }
-      await refresh();
-    } catch (e) {
-      toast.error(`操作失败：${e instanceof Error ? e.message : String(e)}`);
-    }
+  const items = useMemo(() => {
+    const list = [...state.materials];
+    list.sort((a, b) => (b.uploadTimestamp || 0) - (a.uploadTimestamp || 0));
+    return list;
+  }, [state.materials]);
+
+  const getFilterKey = (m: Material): FilterKey => {
+    const failed = m.status === 'failed' || m.mineruStatus === 'failed' || m.aiStatus === 'failed';
+    if (failed) return 'failed';
+    if (m.status === 'completed' && m.aiStatus === 'completed') return 'completed';
+    const pending = m.mineruStatus === 'pending' || m.aiStatus === 'pending';
+    if (pending) return 'pending';
+    return 'processing';
   };
- 
-  const retryFailed = async () => {
-    try {
-      const res = await fetch('/__proxy/upload/batch/retry-failed', { method: 'POST' });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
-      toast.success(`已重试 ${data.retried || 0} 个失败任务`);
-      await refresh();
-    } catch (e) {
-      toast.error(`重试失败：${e instanceof Error ? e.message : String(e)}`);
-    }
-  };
- 
-  const clearFinished = useCallback(async () => {
-    try {
-      const res = await fetch('/__proxy/upload/batch/clear-completed', { method: 'POST' });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`);
-      toast.success(`已清理 ${(data as { removed?: number }).removed || 0} 个任务`);
-      await refresh();
-    } catch (e) {
-      toast.error(`清理失败：${e instanceof Error ? e.message : String(e)}`);
-    }
-  }, [refresh]);
- 
-  const clearSelection = () => setSelectedIds(new Set());
- 
-  const removeSelected = async () => {
-    if (!queue) return;
-    const ids = Array.from(selectedIds);
-    if (ids.length === 0) return;
-    try {
-      const byId = new Map(queue.items.map((j) => [j.id, j]));
-      const tasks = ids.map(async (id) => {
-        const job = byId.get(id);
-        if (!job) return;
-        if (isCancellable(job.status)) {
-          await fetch(`/__proxy/upload/batch/cancel/${encodeURIComponent(id)}`, { method: 'POST' });
-          return;
-        }
-        await fetch(`/__proxy/upload/batch/job/${encodeURIComponent(id)}`, { method: 'DELETE' });
-      });
-      await Promise.all(tasks);
-      toast.success('已处理所选任务');
-      clearSelection();
-      await refresh();
-    } catch (e) {
-      toast.error(`删除/取消失败：${e instanceof Error ? e.message : String(e)}`);
-    }
-  };
- 
-  const reorderPendingBySwap = async (jobId: string, direction: 'up' | 'down') => {
-    if (!queue) return;
-    const idx = pendingIds.findIndex((id) => id === jobId);
-    if (idx === -1) return;
-    const next = pendingIds.slice();
-    const swapWith = direction === 'up' ? idx - 1 : idx + 1;
-    if (swapWith < 0 || swapWith >= next.length) return;
-    [next[idx], next[swapWith]] = [next[swapWith], next[idx]];
- 
-    try {
-      const res = await fetch('/__proxy/upload/batch/reorder-pending', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobIds: next }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
-      await refresh();
-    } catch (e) {
-      toast.error(`调整顺序失败：${e instanceof Error ? e.message : String(e)}`);
-    }
-  };
- 
+
+  const filtered = useMemo(() => {
+    if (filter === 'all') return items;
+    return items.filter((m) => getFilterKey(m) === filter);
+  }, [filter, items]);
+
+  const counts = useMemo(() => {
+    const all = items.length;
+    const pending = items.filter((m) => getFilterKey(m) === 'pending').length;
+    const processing = items.filter((m) => getFilterKey(m) === 'processing').length;
+    const failed = items.filter((m) => getFilterKey(m) === 'failed').length;
+    const completed = items.filter((m) => getFilterKey(m) === 'completed').length;
+    return { all, pending, processing, failed, completed };
+  }, [items]);
+
   const toggleSelectAll = (checked: boolean) => {
-    if (!checked) {
-      setSelectedIds(new Set());
-      return;
-    }
-    setSelectedIds(new Set(jobs.map((j) => j.id)));
+    if (!checked) return setSelectedIds(new Set());
+    setSelectedIds(new Set(filtered.map((m) => m.id)));
   };
- 
-  const toggleOne = (id: string) => {
+
+  const toggleOne = (id: number) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
   };
- 
-  const summary = useMemo(() => {
-    if (!queue) return null;
-    const uploading = queue.uploading ?? queue.items.filter((j) => j.status === 'uploading').length;
-    return `队列 ${queue.total} · 上传中 ${uploading} · 待处理 ${queue.pending} · 处理中 ${queue.processing} · 失败 ${queue.errors} · 完成 ${queue.completed}`;
-  }, [queue]);
- 
-  useEffect(() => {
-    unmountedRef.current = false;
-    return () => {
-      unmountedRef.current = true;
-      if (pollTimerRef.current !== null) {
-        window.clearTimeout(pollTimerRef.current);
-        pollTimerRef.current = null;
+
+  const deleteMaterials = async (ids: number[]) => {
+    if (ids.length === 0) return;
+    try {
+      const dbRes = await fetch('/__proxy/db/materials', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!dbRes.ok) {
+        const errText = await dbRes.text().catch(() => '');
+        throw new Error(`数据库删除失败：HTTP ${dbRes.status} ${errText.slice(0, 200)}`);
       }
-    };
-  }, []);
- 
-  useEffect(() => {
-    if (!hasActive) return;
-    const t = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(t);
-  }, [hasActive]);
- 
-  useEffect(() => {
-    const scheduleNext = (delayMs: number) => {
-      if (unmountedRef.current) return;
-      if (pollTimerRef.current !== null) window.clearTimeout(pollTimerRef.current);
-      pollTimerRef.current = window.setTimeout(() => {
-        void poll();
-      }, delayMs);
-    };
- 
-    const poll = async () => {
-      if (unmountedRef.current) return;
-      if (document.hidden) {
-        scheduleNext(30_000);
-        return;
+      const deletedMaterials = state.materials
+        .filter((m) => ids.includes(m.id))
+        .map((m) => ({ id: m.id, metadata: m.metadata }));
+      try {
+        const resp = await fetch('/__proxy/upload/delete-material', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ materialIds: ids, materials: deletedMaterials }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        const result = await resp.json().catch(() => null);
+        if (!resp.ok) throw new Error(result?.error || `HTTP ${resp.status}`);
+        if (Array.isArray(result?.errors) && result.errors.length > 0) {
+          toast.warning('部分 MinIO 文件清理失败，建议前往设置页扫描孤儿对象', { duration: 6000 });
+        }
+      } catch (e) {
+        toast.warning(`云存储清理失败（数据库已删除）：${e instanceof Error ? e.message : String(e)}`, { duration: 6000 });
       }
-      await refresh({ silent: true });
-      scheduleNext(hasActive ? 5_000 : 30_000);
-    };
- 
-    scheduleNext(0);
-    const onVisibilityChange = () => {
-      if (!document.hidden) scheduleNext(0);
-    };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      if (pollTimerRef.current !== null) {
-        window.clearTimeout(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
-    };
-  }, [hasActive, refresh]);
- 
-  useEffect(() => {
-    const el = folderInputRef.current as unknown as { webkitdirectory?: boolean; directory?: boolean; setAttribute?: (k: string, v: string) => void } | null;
-    if (!el) return;
-    el.webkitdirectory = true;
-    el.directory = true;
-    el.setAttribute?.('webkitdirectory', '');
-    el.setAttribute?.('directory', '');
-  }, []);
+
+      dispatch({ type: 'DELETE_MATERIAL', payload: ids });
+      toast.success(ids.length === 1 ? '已删除' : '已删除所选资料');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : `删除失败：${String(e)}`);
+    }
+  };
+
+  const removeSelected = async () => {
+    const ids = Array.from(selectedIds);
+    await deleteMaterials(ids);
+    setSelectedIds(new Set());
+  };
+
+  const stageLabel = (m: Material) => {
+    if (m.status === 'failed' || m.mineruStatus === 'failed' || m.aiStatus === 'failed') return '失败';
+    if (m.aiStatus === 'processing') return 'AI 分析';
+    if (m.mineruStatus === 'processing') return 'MinerU 解析';
+    if (m.mineruStatus === 'pending') return '待解析';
+    if (m.aiStatus === 'pending') return '待分析';
+    if (m.status === 'completed' && m.aiStatus === 'completed') return '已完成';
+    return '处理中';
+  };
  
   return (
     <div className="p-6 space-y-5 max-w-[1400px] mx-auto">
@@ -322,12 +166,7 @@ export function WorkspacePage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">工作台</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {summary || '后端队列状态加载中...'}
-            {queue?.memory && (
-              <span className={`ml-2 ${queue.memory.pressure ? 'text-red-600 font-semibold' : ''}`}>
-                · 内存 {queue.memory.freeMB}MB 空闲{queue.memory.pressure ? '（压力过大，已暂停）' : ''}
-              </span>
-            )}
+            资料 {counts.all} · 待处理 {counts.pending} · 处理中 {counts.processing} · 失败 {counts.failed} · 完成 {counts.completed}
           </p>
           {progress && (
             <div className="text-sm text-gray-500 mt-1">
@@ -356,55 +195,6 @@ export function WorkspacePage() {
               <FolderPlus size={16} /> 文件夹
             </button>
           </div>
-          <DropdownMenu
-            trigger={({ open, setOpen }) => (
-              <button
-                className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white hover:bg-gray-50"
-                type="button"
-                onClick={() => setOpen(!open)}
-              >
-                <Settings size={16} /> 队列控制 <ChevronDown size={14} />
-              </button>
-            )}
-            items={[
-              {
-                kind: 'item',
-                label: queue?.running ? (queue.paused ? '恢复队列' : '暂停队列') : '启动队列',
-                onClick: pauseOrResume,
-                disabled: !queue,
-              },
-              {
-                kind: 'item',
-                label: `重试失败 (${queue?.errors ?? 0})`,
-                onClick: retryFailed,
-                disabled: !queue || (queue?.errors ?? 0) === 0,
-              },
-              { kind: 'divider' },
-              {
-                kind: 'item',
-                label: `清理已结束 (${(queue?.errors ?? 0) + (queue?.completed ?? 0)})`,
-                onClick: clearFinished,
-                disabled: !queue || (queue?.completed ?? 0) + (queue?.errors ?? 0) === 0,
-              },
-              {
-                kind: 'item',
-                label: '清空全部',
-                danger: true,
-                onClick: async () => {
-                  try {
-                    const res = await fetch('/__proxy/upload/batch/clear-all', { method: 'POST' });
-                    const data = await res.json().catch(() => ({}));
-                    if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`);
-                    toast.success('已清空后端队列');
-                    await refresh();
-                  } catch (e) {
-                    toast.error(`清空失败：${e instanceof Error ? e.message : String(e)}`);
-                  }
-                },
-                disabled: !queue || (queue?.total ?? 0) === 0,
-              },
-            ]}
-          />
         </div>
       </div>
  
@@ -419,7 +209,7 @@ export function WorkspacePage() {
           ] as const).map((t) => (
             <button
               key={t.key}
-              onClick={() => { setFilter(t.key); clearSelection(); }}
+              onClick={() => { setFilter(t.key); setSelectedIds(new Set()); }}
               className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
                 filter === t.key ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
               }`}
@@ -442,15 +232,6 @@ export function WorkspacePage() {
           ))}
         </div>
         <div className="flex items-center gap-2">
-          {(counts.failed > 0 || counts.completed > 0) && (
-            <button
-              type="button"
-              onClick={clearFinished}
-              className="text-xs text-gray-500 hover:text-red-500"
-            >
-              清理已结束 ({counts.failed + counts.completed})
-            </button>
-          )}
           <button
             onClick={removeSelected}
             disabled={selectedIds.size === 0}
@@ -468,7 +249,7 @@ export function WorkspacePage() {
               <th className="w-10 px-4 py-3 text-left">
                 <input
                   type="checkbox"
-                  checked={jobs.length > 0 && selectedIds.size === jobs.length}
+                  checked={filtered.length > 0 && selectedIds.size === filtered.length}
                   onChange={(e) => toggleSelectAll(e.target.checked)}
                   className="rounded"
                 />
@@ -482,60 +263,44 @@ export function WorkspacePage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {!queue && (
-              <tr>
-                <td colSpan={7} className="text-center py-14 text-gray-400">后端队列加载中...</td>
-              </tr>
-            )}
-            {queue && jobs.length === 0 && (
+            {filtered.length === 0 && (
               <tr>
                 <td colSpan={7} className="text-center py-14 text-gray-400">暂无任务</td>
               </tr>
             )}
-            {jobs.map((job) => {
-              const material = job.materialId ? materialById.get(job.materialId) : undefined;
+            {filtered.map((material) => {
               const type = material?.metadata?.format || material?.type || '-';
-              const canMove = job.status === 'pending' && pendingIds.length > 1;
-              const canMoveUp = canMove && pendingIds[0] !== job.id;
-              const canMoveDown = canMove && pendingIds[pendingIds.length - 1] !== job.id;
-              const progress = Math.max(0, Math.min(100, Math.round(Number(job.progress || 0))));
-              const lastUpdated = job.updatedAt || 0;
-              const elapsedFrom = job.status === 'mineru' && job.mineruSubmittedAt ? job.mineruSubmittedAt : job.createdAt || lastUpdated || 0;
-              const showTiming = isCancellable(job.status);
-              const createdAt = job.createdAt || 0;
-              const stageLabel =
-                job.status === 'error'
-                  ? `失败（${job.errorType === 'config' || job.errorType === 'resource' ? '不可重试' : `已重试 ${job.retries}/${job.maxRetries}` }）`
-                  : formatStage(job.status);
+              const createdAt = material.uploadTimestamp || 0;
+              const stage = stageLabel(material);
               return (
-                <tr key={job.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={material.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3">
                     <input
                       type="checkbox"
-                      checked={selectedIds.has(job.id)}
-                      onChange={() => toggleOne(job.id)}
+                      checked={selectedIds.has(material.id)}
+                      onChange={() => toggleOne(material.id)}
                       className="rounded"
                     />
                   </td>
                   <td className="px-4 py-3">
                     <div className="min-w-0">
-                      {job.materialId && job.status === 'completed' ? (
+                      {material.id ? (
                         <Link
-                          to={`/asset/${job.materialId}`}
+                          to={`/asset/${material.id}`}
                           className="text-blue-600 hover:underline font-medium truncate block"
-                          title={job.path || job.fileName}
+                          title={material.metadata?.relativePath || material.title}
                         >
-                          {job.path || job.fileName}
+                          {material.metadata?.relativePath || material.title}
                         </Link>
                       ) : (
-                        <div className="text-gray-900 font-medium truncate" title={job.path || job.fileName}>
-                          {job.path || job.fileName}
+                        <div className="text-gray-900 font-medium truncate" title={material.metadata?.relativePath || material.title}>
+                          {material.metadata?.relativePath || material.title}
                         </div>
                       )}
-                      <div className="text-xs text-gray-400 mt-0.5">{formatBytes(job.fileSize)}</div>
-                      {job.message && (
-                        <div className={`text-xs truncate ${job.status === 'error' ? 'text-red-600' : 'text-gray-500'}`} title={job.message}>
-                          {job.message}
+                      <div className="text-xs text-gray-400 mt-0.5">{formatBytes(material.sizeBytes)}</div>
+                      {material.metadata?.processingMsg && (
+                        <div className={`text-xs truncate ${stage === '失败' ? 'text-red-600' : 'text-gray-500'}`} title={material.metadata.processingMsg}>
+                          {material.metadata.processingMsg}
                         </div>
                       )}
                     </div>
@@ -545,34 +310,21 @@ export function WorkspacePage() {
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-1.5">
                         <span className={`text-xs px-2 py-1 rounded-full border w-fit ${
-                          job.status === 'completed'
+                          stage === '已完成'
                             ? 'bg-green-50 text-green-700 border-green-200'
-                            : job.status === 'error'
+                            : stage === '失败'
                               ? 'bg-red-50 text-red-700 border-red-200'
-                              : isProcessingStatus(job.status)
+                              : stage === 'MinerU 解析' || stage === 'AI 分析' || stage === '处理中'
                                 ? 'bg-blue-50 text-blue-700 border-blue-200'
                                 : 'bg-gray-50 text-gray-700 border-gray-200'
                         }`}>
-                          {stageLabel}
+                          {stage}
                         </span>
-                        {job.errorType === 'config' && (
-                          <span className="text-[10px] px-1.5 h-5 leading-5 rounded bg-red-50 text-red-700 border border-red-200">需人工介入</span>
-                        )}
                       </div>
-                      {showTiming && (
-                        <div className="text-[11px] text-gray-500">
-                          <span>进度 {progress}%</span>
-                          {elapsedFrom > 0 && <span className="ml-2">已等待 {formatElapsed(now - elapsedFrom)}</span>}
-                          {lastUpdated > 0 && <span className="ml-2">最近更新 {formatElapsed(now - lastUpdated)}</span>}
-                        </div>
-                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3">
                     {(() => {
-                      if (!material) return <span className="text-xs text-gray-300">-</span>;
-                      if (job.status === 'ai') return <span className="text-xs text-blue-500">识别中...</span>;
-                      if (job.status !== 'completed') return <span className="text-xs text-gray-300">-</span>;
                       const subject = material.metadata?.subject;
                       const grade = material.metadata?.grade;
                       const tags = material.tags ?? [];
@@ -601,31 +353,9 @@ export function WorkspacePage() {
                   <td className="px-4 py-3 text-gray-600">{createdAt ? new Date(createdAt).toLocaleString() : '-'}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5">
-                      {filter === 'pending' && job.status === 'pending' && pendingIds.length > 1 && (
-                        <>
-                          <button
-                            onClick={() => reorderPendingBySwap(job.id, 'up')}
-                            disabled={!canMoveUp}
-                            className="p-2 rounded border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-50"
-                            title="上移（仅 pending）"
-                            type="button"
-                          >
-                            <ArrowUp size={14} />
-                          </button>
-                          <button
-                            onClick={() => reorderPendingBySwap(job.id, 'down')}
-                            disabled={!canMoveDown}
-                            className="p-2 rounded border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-50"
-                            title="下移（仅 pending）"
-                            type="button"
-                          >
-                            <ArrowDown size={14} />
-                          </button>
-                        </>
-                      )}
-                      {job.materialId && job.status === 'completed' && (
+                      {material.id && (
                         <Link
-                          to={`/asset/${job.materialId}`}
+                          to={`/asset/${material.id}`}
                           className="p-2 rounded border border-gray-200 bg-white hover:bg-blue-50 text-blue-600"
                           title="查看详情"
                         >
@@ -634,19 +364,10 @@ export function WorkspacePage() {
                       )}
                       <button
                         onClick={async () => {
-                          try {
-                            if (isCancellable(job.status)) {
-                              await fetch(`/__proxy/upload/batch/cancel/${encodeURIComponent(job.id)}`, { method: 'POST' });
-                            } else {
-                              await fetch(`/__proxy/upload/batch/job/${encodeURIComponent(job.id)}`, { method: 'DELETE' });
-                            }
-                            await refresh();
-                          } catch (e) {
-                            toast.error(`操作失败：${e instanceof Error ? e.message : String(e)}`);
-                          }
+                          await deleteMaterials([material.id]);
                         }}
                         className="p-2 rounded border border-red-200 bg-white text-red-600 hover:bg-red-50"
-                        title={isCancellable(job.status) ? '取消' : '删除'}
+                        title="删除"
                         type="button"
                       >
                         <Trash2 size={14} />
