@@ -280,7 +280,16 @@ app.get('/secrets', (_req, res) => {
   res.json({ ok: true, secrets: secretsCache });
 });
 
+const ALLOWED_SECRETS_KEYS = new Set(['aiKeys', 'mineruKey', 'minioCredentials']);
+
 app.put('/secrets', requireBody, (req, res) => {
+  for (const key of Object.keys(req.body)) {
+    if (!ALLOWED_SECRETS_KEYS.has(key)) {
+      res.status(400).json({ error: `secrets key "${key}" 不在允许列表内` });
+      return;
+    }
+  }
+
   const nextSecrets = { ...secretsCache };
   for (const [key, val] of Object.entries(req.body)) {
     if (typeof val === 'string') nextSecrets[key] = val;
@@ -368,7 +377,8 @@ app.patch('/materials/:id', (req, res) => {
   res.json({ ok: true, id, data: merged });
 });
 
-// DELETE /materials/:id — 删除单个 material（含 MinIO 清理）
+// DELETE /materials/:id — 删除单个 material
+// MinIO cleanup is coordinated by the caller via POST /delete-material; db-server only deletes data rows.
 app.delete('/materials/:id', (req, res) => {
   const id = req.params.id;
   const existing = dbCache.materials[id];
@@ -380,6 +390,7 @@ app.delete('/materials/:id', (req, res) => {
 });
 
 // DELETE /materials — 清空/批量删除 materials
+// MinIO cleanup is coordinated by the caller via POST /delete-material; db-server only deletes data rows.
 app.delete('/materials', (req, res) => {
   const { ids } = req.body;
   if (!Array.isArray(ids) || ids.length === 0) {

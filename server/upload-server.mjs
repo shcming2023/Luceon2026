@@ -3038,8 +3038,22 @@ app.post('/delete-material', async (req, res) => {
     const provider = m.metadata?.provider;
     try {
       if (provider !== 'minio') {
-        // 非 minio 存储的资料，直接跳过，不报错
-        results.push({ id, skipped: true, reason: `provider is '${provider ?? 'unknown'}'` });
+        // Fallback for legacy records without metadata.provider: scan by material id.
+        const rawBucket = getMinioBucket();
+        const parsedBucket = getParsedBucket();
+        const [originals, parsed] = await Promise.all([
+          listAllObjects(rawBucket, `originals/${id}/`),
+          listAllObjects(parsedBucket, `parsed/${id}/`),
+        ]);
+        if (originals.length === 0 && parsed.length === 0) {
+          results.push({ id, skipped: true, reason: `provider is '${provider ?? 'unknown'}', no objects found in MinIO` });
+          continue;
+        }
+        await Promise.all([
+          ...originals.map((o) => getMinioClient().removeObject(rawBucket, o.name)),
+          ...parsed.map((o) => getMinioClient().removeObject(parsedBucket, o.name)),
+        ]);
+        results.push({ id, originals: originals.length, parsed: parsed.length, fallback: true });
         continue;
       }
       const rawBucket = getMinioBucket();
