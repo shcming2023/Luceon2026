@@ -149,8 +149,6 @@ export function BatchProcessingController() {
   const items = state.batchProcessing.items;
   const running = state.batchProcessing.running;
   const paused = state.batchProcessing.paused;
-  const autoMinerU = state.batchProcessing.autoMinerU;
-  const autoAI = state.batchProcessing.autoAI;
 
   const nextPending = useMemo(
     () => items.find((i) => i.status === 'pending'),
@@ -298,55 +296,65 @@ export function BatchProcessingController() {
                 mimeType: uploadResult.mimeType,
                 ...(uploadResult.pages != null ? { pages: String(uploadResult.pages) } : {}),
                 ...(uploadResult.format ? { format: uploadResult.format } : {}),
-                processingStage: autoMinerU ? 'mineru' : '',
-                processingMsg: '等待后端队列处理',
-                processingProgress: '0',
+                processingStage: 'db_create',
+                processingMsg: '正在创建数据库记录...',
+                processingProgress: '40',
                 processingUpdatedAt: new Date().toISOString(),
               },
             },
           },
         });
 
-        updateItem(item.id, { progress: 40, message: '提交后端队列...' });
+        updateItem(item.id, { progress: 50, message: '创建数据库记录...' });
 
-        const jobs = [{
-          id: item.id,
-          fileName: f.name,
-          fileSize: f.size,
-          path: item.path,
-          objectName,
-          mimeType: uploadResult.mimeType || f.type || 'application/octet-stream',
-          materialId: newId,
-        }];
+        // 调用 db-server 创建 material 记录
+        const materialData = {
+          id: newId,  // 使用前端生成的临时 ID
+          title: f.name.replace(/\.[^.]+$/, ''),
+          type: f.name.split('.').pop()?.toUpperCase() ?? 'FILE',
+          size: `${(f.size / 1024 / 1024).toFixed(1)} MB`,
+          size_bytes: f.size,
+          upload_time: new Date().toISOString(),
+          uploader: '当前用户',
+          status: 'processing',
+          mineru_status: 'pending',
+          ai_status: 'pending',
+          tags: [],
+          metadata: {
+            relativePath: item.path,
+            fileUrl: uploadResult.url,
+            objectName,
+            fileName: uploadResult.fileName,
+            provider: uploadResult.provider,
+            mimeType: uploadResult.mimeType,
+            ...(uploadResult.pages != null ? { pages: String(uploadResult.pages) } : {}),
+            ...(uploadResult.format ? { format: uploadResult.format } : {}),
+            processingStage: '',
+            processingMsg: '上传成功，请在列表中点击"开始解析"',
+            processingProgress: '0',
+            processingUpdatedAt: new Date().toISOString(),
+          },
+        };
 
-        const addRes = await fetchWithTimeout('/__proxy/upload/batch/jobs', {
+        const dbRes = await fetchWithTimeout('/__proxy/db/materials', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jobs }),
+          body: JSON.stringify(materialData),
           timeoutMs: 10_000,
         });
-        if (!addRes.ok) {
-          const errData = await addRes.json().catch(() => ({ error: `HTTP ${addRes.status}` }));
-          throw new Error((errData as { error?: string }).error || `HTTP ${addRes.status}`);
+
+        if (!dbRes.ok) {
+          const errText = await dbRes.text();
+          throw new Error(`创建数据库记录失败: HTTP ${dbRes.status} - ${errText}`);
         }
 
-        await fetchWithTimeout('/__proxy/upload/batch/start', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ autoMinerU, autoAI }),
-          timeoutMs: 10_000,
-        }).catch(() => {});
+        const dbResult = await dbRes.json();
+        // db-server 返回的 id 就是我们传入的 newId,不需要额外更新
+        const dbMaterialId = dbResult.id;
 
-        try {
-          const statusRes = await fetch('/__proxy/upload/batch/status', { signal: AbortSignal.timeout(5000) });
-          if (statusRes.ok) {
-            const data = await statusRes.json();
-            dispatch({ type: 'SERVER_BATCH_SYNC', payload: data });
-          }
-        } catch {}
-
-        updateItem(item.id, { status: 'completed', progress: 100, message: '已提交后端队列' });
+        updateItem(item.id, { status: 'completed', progress: 100, message: '上传成功' });
         batchRemoveFile(item.id);
+        toast.success('上传成功，请在列表中点击"开始解析"');
       } catch (error) {
         const raw = error instanceof Error ? error.message : String(error);
         const msg = raw.includes('请求超时') || raw.includes('timed out') || raw.includes('Timeout')
@@ -376,7 +384,7 @@ export function BatchProcessingController() {
     processOne(nextPending, file).finally(() => {
       setWorking(false);
     });
-  }, [autoAI, autoMinerU, dispatch, nextPending, paused, running, working]);
+  }, [dispatch, nextPending, paused, running, working]);
 
   return null;
 }
@@ -758,25 +766,7 @@ export function BatchUploadModal() {
               </button>
             )}
 
-            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={bp.autoMinerU}
-                onChange={(e) => dispatch({ type: 'BATCH_SET_OPTIONS', payload: { autoMinerU: e.target.checked } })}
-                className="rounded text-blue-600"
-              />
-              自动 MinerU 解析
-            </label>
-            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={bp.autoAI}
-                onChange={(e) => dispatch({ type: 'BATCH_SET_OPTIONS', payload: { autoAI: e.target.checked } })}
-                className="rounded text-blue-600"
-                disabled={!bp.autoMinerU}
-              />
-              自动 AI 分析
-            </label>
+  
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -796,10 +786,7 @@ export function BatchUploadModal() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
-          {serverQueue && (
-            <ServerBatchQueuePanel queue={serverQueue} />
-          )}
-          {items.length === 0 && (!serverQueue || serverQueue.total === 0) ? (
+          {items.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-3 py-12">
               <Folder size={48} className="text-gray-300" />
               <p>暂无文件，请先在工作台中上传文件或文件夹</p>
@@ -906,7 +893,6 @@ export function BatchUploadModal() {
 export function BatchProgressFab() {
   const { state, dispatch } = useAppStore();
   const bp = state.batchProcessing;
-  const sq = state.serverBatchQueue;
 
   // 前端队列统计
   const activeCount = bp.items.filter((i) => !['completed', 'skipped', 'error'].includes(i.status)).length;
@@ -924,48 +910,21 @@ export function BatchProgressFab() {
       )
     : false;
 
-  // 后端队列统计
-  const sqTotal = sq?.total ?? 0;
-  const sqPending = sq?.pending ?? 0;
-  const sqProcessing = sq?.processing ?? 0;
-  const sqErrors = sq?.errors ?? 0;
-  const sqRunning = sq?.running && !sq?.paused;
-
   // 无任何队列时隐藏
-  if (totalCount === 0 && sqTotal === 0) return null;
+  if (totalCount === 0) return null;
 
-  // 优先显示后端队列状态
-  let label: string;
-  let dotColor: string;
-  let totalErrors = errorCount + sqErrors;
-
-  if (sqTotal > 0) {
-    label = sqRunning
-      ? `后端处理中 ${sqPending + sqProcessing}/${sqTotal}`
-      : sq?.paused
-        ? `后端已暂停 ${sqPending + sqProcessing}/${sqTotal}`
-        : `后端队列 ${sqPending + sqProcessing}/${sqTotal}`;
-    dotColor = sq?.memory?.pressure
-      ? 'bg-red-500'
-      : sqRunning
-        ? 'bg-green-500 animate-pulse'
-        : sq?.paused
-          ? 'bg-yellow-500'
-          : 'bg-gray-400';
-  } else {
-    label = bp.running
-      ? `处理中 ${activeCount}/${totalCount}`
+  const label = bp.running
+    ? `处理中 ${activeCount}/${totalCount}`
+    : bp.paused
+      ? `已暂停 ${activeCount}/${totalCount}`
+      : `队列 ${activeCount}/${totalCount}`;
+  const dotColor = isStale
+    ? 'bg-red-500'
+    : bp.running && !bp.paused
+      ? 'bg-blue-600'
       : bp.paused
-        ? `已暂停 ${activeCount}/${totalCount}`
-        : `队列 ${activeCount}/${totalCount}`;
-    dotColor = isStale
-      ? 'bg-red-500'
-      : bp.running && !bp.paused
-        ? 'bg-blue-600'
-        : bp.paused
-          ? 'bg-yellow-500'
-          : 'bg-gray-400';
-  }
+        ? 'bg-yellow-500'
+        : 'bg-gray-400';
 
   return (
     <button
@@ -975,9 +934,9 @@ export function BatchProgressFab() {
     >
       <span className={`inline-block w-2 h-2 rounded-full ${dotColor}`} />
       <span className="font-medium">{label}</span>
-      {totalErrors > 0 && (
+      {errorCount > 0 && (
         <span className="ml-1 px-2 py-0.5 rounded-full bg-red-50 text-red-600 text-xs">
-          {totalErrors} 失败
+          {errorCount} 失败
         </span>
       )}
     </button>

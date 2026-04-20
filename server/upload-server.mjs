@@ -52,6 +52,22 @@ import {
   // 旧 API 兼容
   dockerRewriteEndpoint,
   shutdown as shutdownBatchQueue,
+  addJobs,
+  startQueue,
+  pauseQueue,
+  resumeQueue,
+  stopQueue,
+  cancelJob,
+  retryFailed,
+  retryJob,
+  removeJob,
+  patchJob,
+  clearCompleted,
+  clearAll,
+  readAlerts,
+  restoreBatchQueue,
+  recoverOrphanMaterials,
+  removeJobsByMaterialIds,
 } from './batch-queue.mjs';
 
 const app = express();
@@ -505,21 +521,6 @@ function detectFormat(mimeType, fileName) {
 
 function normalizeEndpoint(endpoint) {
   return String(endpoint || '').trim().replace(/\/+$/, '');
-}
-
-/**
- * Docker 环境下自动将 localhost/127.0.0.1 替换为 host.docker.internal
- * Docker 容器内 localhost 指向容器自身，而非宿主机。
- * 当用户填写 localhost/127.0.0.1 且运行在 Docker 中时，自动替换为 host.docker.internal
- * 检测方式：/.dockerenv 文件存在，或 DB_BASE_URL 包含 Docker 服务名
- */
-const IS_DOCKER = fs.existsSync('/.dockerenv') || (process.env.DB_BASE_URL || '').includes('db-server');
-
-function dockerRewriteEndpoint(endpoint) {
-  if (!IS_DOCKER || !endpoint) return endpoint;
-  return endpoint
-    .replace(/\/\/localhost([:/])/g, '//host.docker.internal$1')
-    .replace(/\/\/127\.0\.0\.1([:/])/g, '//host.docker.internal$1');
 }
 
 function isEnabledFlag(value) {

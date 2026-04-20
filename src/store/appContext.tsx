@@ -274,7 +274,6 @@ const initialState: AppState = {
   tasks:            loadFromStorage(LS.TASKS, initialTasks),
   products:         loadFromStorage(LS.PRODUCTS, initialProducts),
   batchProcessing:  loadFromStorage(LS.BATCH_PROCESSING, initialBatchProcessing),
-  serverBatchQueue:  null,
   flexibleTags:     loadFromStorage(LS.FLEXIBLE_TAGS, initialFlexibleTags),
   aiRules:          loadFromStorage(LS.AI_RULES, initialAiRules),
   aiRuleSettings:   loadFromStorage(LS.AI_RULE_SETTINGS, initialAiRuleSettings),
@@ -303,8 +302,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // 防止 db-server 写操作在 hydration 完成之前触发（初次加载时跳过写操作）
   const hydratedRef = useRef(false);
-  const lastServerJobStatusRef = useRef<Map<string, string>>(new Map());
-  const syncingMaterialIdsRef = useRef<Set<number>>(new Set());
 
   // ── 启动：从 db-server 加载数据（一次性，挂载后执行）──────────
   useEffect(() => {
@@ -631,74 +628,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dbPut('/settings/batchProcessing', state.batchProcessing);
   }, [state.batchProcessing]);
 
-  // ── 后端批处理队列状态轮询 ──────────────────────────
+  // ── 后端批处理队列状态轮询（已移除）──────────────────
   useEffect(() => {
-    if (!hydratedRef.current) return;
-    let active = true;
-    let idleCounter = 0;
-    const poll = async () => {
-      try {
-        const res = await fetch('/__proxy/upload/batch/status', {
-          signal: AbortSignal.timeout(5000),
-        });
-        if (res.ok && active) {
-          const data = await res.json();
-          dispatch({ type: 'SERVER_BATCH_SYNC', payload: data });
-
-          const items = Array.isArray(data?.items) ? data.items : [];
-          const terminalStatuses = new Set(['completed', 'error', 'skipped']);
-          const prev = lastServerJobStatusRef.current;
-          for (const job of items) {
-            const jobId = String(job?.id || '');
-            if (!jobId) continue;
-            const status = String(job?.status || '');
-            const prevStatus = prev.get(jobId);
-            prev.set(jobId, status);
-
-            if (!terminalStatuses.has(status)) continue;
-            if (prevStatus === status) continue;
-
-            const materialId = Number(job?.materialId || 0);
-            if (!Number.isFinite(materialId) || materialId <= 0) continue;
-            if (syncingMaterialIdsRef.current.has(materialId)) continue;
-            syncingMaterialIdsRef.current.add(materialId);
-
-            dbGet<Material>(`/materials/${materialId}`)
-              .then((m) => {
-                if (!active || !m?.id) return;
-                dispatch({ type: 'UPDATE_MATERIAL', payload: { id: materialId, updates: m } });
-              })
-              .catch(() => {
-              })
-              .finally(() => {
-                syncingMaterialIdsRef.current.delete(materialId);
-              });
-          }
-        }
-      } catch {
-        // 轮询失败静默忽略
-      }
-    };
-    // 立即轮询一次
-    poll();
-    // 根据队列是否活跃调整轮询频率：活跃时 3s，空闲时 15s
-    const interval = setInterval(() => {
-      const q = state.serverBatchQueue;
-      const isActive = q && (q.running || (q.pending ?? 0) > 0 || (q.processing ?? 0) > 0);
-      if (isActive) {
-        idleCounter = 0;
-        poll();
-      } else {
-        // 空闲时每 5 次轮询一次（15s 周期）
-        idleCounter++;
-        if (idleCounter >= 5) {
-          idleCounter = 0;
-          poll();
-        }
-      }
-    }, 3000);
-    return () => { active = false; clearInterval(interval); };
-  }, [state.serverBatchQueue?.running, state.serverBatchQueue?.total]);
+    // 空效果，用于保持依赖关系
+  }, []);
 
   return (
     <AppContext.Provider value={{ state, dispatch, dbReady }}>

@@ -36,8 +36,6 @@ export const initialBatchProcessing: BatchProcessingState = {
   running: false,
   paused: false,
   uiOpen: false,
-  autoMinerU: true,
-  autoAI: true,
 };
 
 // ==================== 任务中心 ====================

@@ -19,8 +19,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore } from '../../store/appContext';
-import { ServerBatchQueuePanel } from '../components/BatchUploadModal';
 import { StatusBadge } from '../components/StatusBadge';
+import { Play, Cpu, CheckCircle, AlertCircle, Loader } from 'lucide-react';
 import type { TabFilter, SortOption, ViewMode } from '../../store/types';
 import { sortMaterials } from '../../utils/sort';
 import { usePagination, getPageNumbers } from '../../utils/pagination';
@@ -85,7 +85,6 @@ export function SourceMaterialsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const uploadHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastServerQueueSyncAtRef = useRef(0);
 
   const [tab, setTab] = useState<TabFilter>('all');
   const [search, setSearch] = useState('');
@@ -143,24 +142,6 @@ export function SourceMaterialsPage() {
     return { statusCounts, totalSizeBytes, subjectCoverage };
   }, [filtered]);
 
-  const serverQueue = state.serverBatchQueue ?? {
-    running: false,
-    paused: false,
-    autoMinerU: true,
-    autoAI: true,
-    total: 0,
-    uploading: 0,
-    pending: 0,
-    processing: 0,
-    completed: 0,
-    errors: 0,
-    items: [],
-    alerts: [],
-    unreadAlerts: 0,
-    memory: { usedRatio: 0, freeMB: 0, totalMB: 0, pressure: false },
-    updatedAt: 0,
-  };
-
   const [uploadServerOk, setUploadServerOk] = useState<boolean | null>(null);
   const [mineruOk, setMineruOk] = useState<boolean | null>(null);
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number; failed: number } | null>(null);
@@ -201,6 +182,26 @@ export function SourceMaterialsPage() {
     const timer = setInterval(check, 30_000);
     return () => { mounted = false; clearInterval(timer); };
   }, [state.mineruConfig.localEndpoint]);
+
+  // 轮询 materials 列表，每3秒刷新一次
+  useEffect(() => {
+    let mounted = true;
+    const refreshMaterials = async () => {
+      try {
+        const res = await fetch('/__proxy/db/materials', { signal: AbortSignal.timeout(5000) });
+        if (res.ok && mounted) {
+          const data = await res.json();
+          // TODO: 更新 materials 列表到 store
+          console.log('Materials refreshed:', data);
+        }
+      } catch (err) {
+        console.error('Failed to refresh materials:', err);
+      }
+    };
+    refreshMaterials();
+    const timer = setInterval(refreshMaterials, 3000);
+    return () => { mounted = false; clearInterval(timer); };
+  }, []);
 
   const isCurrentPageFullySelected = currentItems.length > 0 && currentItems.every((item) => selectedIds.has(item.id));
 
@@ -321,13 +322,6 @@ export function SourceMaterialsPage() {
         const errData = await addRes.json().catch(() => ({ error: `HTTP ${addRes.status}` }));
         throw new Error((errData as { error?: string }).error || `HTTP ${addRes.status}`);
       }
-      try {
-        const statusRes = await fetch('/__proxy/upload/batch/status', { signal: AbortSignal.timeout(5000) });
-        if (statusRes.ok) {
-          const data = await statusRes.json();
-          dispatch({ type: 'SERVER_BATCH_SYNC', payload: data });
-        }
-      } catch {}
     } catch (err) {
       toast.error(`提交队列失败：${err instanceof Error ? err.message : String(err)}`);
       setBatchUploading(false);
@@ -429,18 +423,6 @@ export function SourceMaterialsPage() {
             error: '',
           }),
         }).catch(() => {});
-
-        const now = Date.now();
-        if (now - lastServerQueueSyncAtRef.current > 1000) {
-          lastServerQueueSyncAtRef.current = now;
-          try {
-            const statusRes = await fetch('/__proxy/upload/batch/status', { signal: AbortSignal.timeout(5000) });
-            if (statusRes.ok) {
-              const data = await statusRes.json();
-              dispatch({ type: 'SERVER_BATCH_SYNC', payload: data });
-            }
-          } catch {}
-        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         dispatch({
@@ -564,6 +546,105 @@ export function SourceMaterialsPage() {
     dispatch({ type: 'DELETE_MATERIAL', payload: allIds });
     setSelectedIds(new Set());
     toast.success(`已清空全部 ${allIds.length} 条资料`);
+  };
+
+  const handleParse = async (material: typeof state.materials[number]) => {
+    try {
+      dispatch({
+        type: 'UPDATE_MATERIAL',
+        payload: {
+          id: material.id,
+          updates: {
+            mineruStatus: 'processing',
+            metadata: {
+              ...material.metadata,
+              processingStage: 'mineru',
+              processingMsg: '正在解析中...',
+              processingUpdatedAt: new Date().toISOString(),
+            },
+          },
+        },
+      });
+
+      const res = await fetch('/__proxy/upload/parse/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ materialId: material.id }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+
+      toast.success('解析任务已提交');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`解析失败：${msg}`);
+      dispatch({
+        type: 'UPDATE_MATERIAL',
+        payload: {
+          id: material.id,
+          updates: {
+            mineruStatus: 'failed',
+            metadata: {
+              ...material.metadata,
+              processingMsg: `解析失败：${msg}`,
+              processingUpdatedAt: new Date().toISOString(),
+            },
+          },
+        },
+      });
+    }
+  };
+
+  const handleAnalyze = async (material: typeof state.materials[number]) => {
+    try {
+      dispatch({
+        type: 'UPDATE_MATERIAL',
+        payload: {
+          id: material.id,
+          updates: {
+            aiStatus: 'analyzing',
+            metadata: {
+              ...material.metadata,
+              processingStage: 'ai',
+              processingMsg: '正在AI分析中...',
+              processingUpdatedAt: new Date().toISOString(),
+            },
+          },
+        },
+      });
+
+      // TODO: 调用 AI 分析端点，确认参数格式
+      const res = await fetch('/__proxy/upload/ai/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ materialId: material.id }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+
+      toast.success('AI分析任务已提交');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`AI分析失败：${msg}`);
+      dispatch({
+        type: 'UPDATE_MATERIAL',
+        payload: {
+          id: material.id,
+          updates: {
+            aiStatus: 'failed',
+            metadata: {
+              ...material.metadata,
+              processingMsg: `AI分析失败：${msg}`,
+              processingUpdatedAt: new Date().toISOString(),
+            },
+          },
+        },
+      });
+    }
   };
 
   /* ── 获取文件类型颜色 ─────────────────────────────────── */
@@ -813,13 +894,14 @@ export function SourceMaterialsPage() {
                       {showStatusColumn && (
                         <th className="px-4 py-3 text-left font-semibold text-slate-600 text-xs uppercase tracking-wide">阶段</th>
                       )}
+                      <th className="px-4 py-3 text-left font-semibold text-slate-600 text-xs uppercase tracking-wide">处理</th>
                       <th className="px-4 py-3 text-left font-semibold text-slate-600 text-xs uppercase tracking-wide">操作</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {currentItems.length === 0 && (
                       <tr>
-                        <td colSpan={showStatusColumn ? 8 : 7} className="text-center py-16 text-slate-400">暂无数据</td>
+                        <td colSpan={showStatusColumn ? 9 : 8} className="text-center py-16 text-slate-400">暂无数据</td>
                       </tr>
                     )}
                     {currentItems.map((m) => {
@@ -868,6 +950,92 @@ export function SourceMaterialsPage() {
                               </div>
                             </td>
                           )}
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (m.mineruStatus === 'completed') return;
+                                  if (m.mineruStatus === 'processing') return;
+                                  handleParse(m);
+                                }}
+                                disabled={m.mineruStatus === 'completed' || m.mineruStatus === 'processing'}
+                                className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                                  m.mineruStatus === 'completed'
+                                    ? 'bg-green-50 text-green-600 cursor-not-allowed'
+                                    : m.mineruStatus === 'processing'
+                                      ? 'bg-blue-50 text-blue-600 cursor-not-allowed'
+                                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                                }`}
+                                title={
+                                  m.mineruStatus === 'completed'
+                                    ? '已解析'
+                                    : m.mineruStatus === 'processing'
+                                      ? '解析中'
+                                      : '开始解析'
+                                }
+                              >
+                                {m.mineruStatus === 'completed' ? (
+                                  <>
+                                    <CheckCircle size={12} /> 已解析
+                                  </>
+                                ) : m.mineruStatus === 'processing' ? (
+                                  <>
+                                    <Loader size={12} className="animate-spin" /> 解析中
+                                  </>
+                                ) : (
+                                  <>
+                                    <Cpu size={12} /> 解析
+                                  </>
+                                )}
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (m.aiStatus === 'completed') return;
+                                  if (m.aiStatus === 'analyzing') return;
+                                  if (m.mineruStatus !== 'completed') {
+                                    toast.error('请先完成解析');
+                                    return;
+                                  }
+                                  handleAnalyze(m);
+                                }}
+                                disabled={m.aiStatus === 'completed' || m.aiStatus === 'analyzing' || m.mineruStatus !== 'completed'}
+                                className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                                  m.aiStatus === 'completed'
+                                    ? 'bg-green-50 text-green-600 cursor-not-allowed'
+                                    : m.aiStatus === 'analyzing'
+                                      ? 'bg-purple-50 text-purple-600 cursor-not-allowed'
+                                      : m.mineruStatus !== 'completed'
+                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                        : 'bg-purple-600 text-white hover:bg-purple-700'
+                                }`}
+                                title={
+                                  m.aiStatus === 'completed'
+                                    ? '已分析'
+                                    : m.aiStatus === 'analyzing'
+                                      ? '分析中'
+                                      : m.mineruStatus !== 'completed'
+                                        ? '需先解析'
+                                        : '开始AI分析'
+                                }
+                              >
+                                {m.aiStatus === 'completed' ? (
+                                  <>
+                                    <CheckCircle size={12} /> 已分析
+                                  </>
+                                ) : m.aiStatus === 'analyzing' ? (
+                                  <>
+                                    <Loader size={12} className="animate-spin" /> 分析中
+                                  </>
+                                ) : (
+                                  <>
+                                    <Cpu size={12} /> AI分析
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </td>
                           <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
                             <button
                               onClick={(e) => handleDelete(e, m.id)}
@@ -982,7 +1150,6 @@ export function SourceMaterialsPage() {
           </div>
 
           <div className="space-y-6">
-            <ServerBatchQueuePanel queue={serverQueue} />
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
               <h2 className="text-base font-semibold text-slate-900 mb-4">系统状态</h2>
               <div className="space-y-3">
@@ -998,13 +1165,6 @@ export function SourceMaterialsPage() {
                   <span className={`flex items-center gap-1.5 text-xs font-semibold ${mineruOk ? 'text-green-600' : mineruOk === false ? 'text-red-600' : 'text-slate-400'}`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${mineruOk ? 'bg-green-500 animate-pulse' : mineruOk === false ? 'bg-red-500' : 'bg-slate-300'}`} />
                     {mineruOk ? '正常' : mineruOk === false ? '异常' : '检测中'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-600">后端队列</span>
-                  <span className={`flex items-center gap-1.5 text-xs font-semibold ${serverQueue.running ? (serverQueue.paused ? 'text-orange-600' : 'text-green-600') : 'text-slate-500'}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${serverQueue.running ? (serverQueue.paused ? 'bg-orange-500' : 'bg-green-500 animate-pulse') : 'bg-slate-300'}`} />
-                    {serverQueue.running ? (serverQueue.paused ? '已暂停' : '运行中') : '未启动'}
                   </span>
                 </div>
               </div>
