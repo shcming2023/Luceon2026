@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+// Card component from shadcn UI not present; using native Tailwind divs
 import { Loader2, RefreshCw, FileText, Play, Download, Trash, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -54,7 +54,7 @@ export function TaskManagementPage() {
         </button>
       </div>
 
-      <Card className="flex-1 overflow-hidden flex flex-col shadow-sm border-slate-200">
+      <div className="flex-1 overflow-hidden flex flex-col shadow-sm border border-slate-200 rounded-lg bg-white">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-slate-500 bg-slate-50 uppercase border-b border-slate-200">
@@ -132,7 +132,7 @@ export function TaskManagementPage() {
             </tbody>
           </table>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }
