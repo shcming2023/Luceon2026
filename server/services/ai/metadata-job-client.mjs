@@ -8,6 +8,21 @@
 const DB_BASE_URL = process.env.DB_BASE_URL || 'http://localhost:8789';
 
 /**
+ * 获取所有 AI Metadata Jobs 列表
+ * @returns {Promise<Array>} AI Metadata Jobs 列表
+ */
+export async function getAllJobs() {
+  try {
+    const resp = await fetch(`${DB_BASE_URL}/ai-metadata-jobs`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return await resp.json();
+  } catch (error) {
+    console.error(`[metadata-job-client] getAllJobs failed: ${error.message}`);
+    return [];
+  }
+}
+
+/**
  * 按 parseTaskId 查询已有的 AI Metadata Jobs 列表
  * @param {string} parseTaskId - 关联的 ParseTask ID
  * @returns {Promise<Array>} AI Metadata Jobs 列表，查询失败返回空数组

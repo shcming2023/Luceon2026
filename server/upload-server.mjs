@@ -43,6 +43,7 @@ import path from 'path';
 import os from 'os';
 import { registerConsistencyRoutes } from './lib/consistency-routes.mjs';
 import { ParseTaskWorker } from './services/queue/task-worker.mjs';
+import { AiMetadataWorker } from './services/ai/metadata-worker.mjs';
 
 const app = express();
 const port = Number(process.env.UPLOAD_PORT || 8788);
@@ -3289,6 +3290,8 @@ const worker = new ParseTaskWorker({
   }
 });
 
+const aiWorker = new AiMetadataWorker();
+
 const server = app.listen(port, async () => {
   console.log(`[upload-server] listening on http://localhost:${port}`);
   await loadPersistedConfig();
@@ -3299,6 +3302,8 @@ const server = app.listen(port, async () => {
   
   // 启动 ParseTask Worker
   worker.start();
+  // 启动 AI Metadata Worker
+  aiWorker.start();
 });
 
 // ─── 优雅停机 ─────────────────────────────────────────────────
@@ -3308,6 +3313,7 @@ async function gracefulShutdown(signal) {
   
   // 停止 Worker
   if (worker) worker.stop();
+  if (aiWorker) aiWorker.stop();
 
   server.close(() => {
     console.log(`[upload-server] Server closed after ${signal}.`);

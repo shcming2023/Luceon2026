@@ -49,6 +49,8 @@ interface AiMetadataJob {
   inputMarkdownObjectName?: string;
   confidence?: number | null;
   needsReview?: boolean;
+  result?: Record<string, unknown>;
+  errorMessage?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -373,6 +375,23 @@ export function TaskDetailPage() {
                       </dd>
                     </div>
                   </dl>
+
+                  {/* AI 结果预览 */}
+                  {job.result && (
+                    <div className="mt-4 pt-3 border-t border-slate-100">
+                      <p className="text-[10px] uppercase font-bold text-slate-400 mb-2 tracking-wider">识别结果预览 (JSON)</p>
+                      <pre className="text-[10px] bg-slate-900 text-slate-300 p-3 rounded overflow-x-auto leading-relaxed max-h-48">
+                        {JSON.stringify(job.result, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+
+                  {/* 错误显示 */}
+                  {job.errorMessage && (
+                    <div className="mt-3 p-2 bg-red-50 border border-red-100 rounded text-[10px] text-red-600">
+                      <strong>执行错误:</strong> {job.errorMessage}
+                    </div>
+                  )}
                 </div>
               );
             })}
