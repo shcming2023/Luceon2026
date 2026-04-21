@@ -21,9 +21,9 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN corepack enable && corepack prepare pnpm@latest --activate \
   && pnpm install --no-frozen-lockfile --prod
 
-# 复制服务端源码
-COPY server/upload-server.mjs ./server/
-COPY server/db-server.mjs ./server/
+# 复制服务端源码（整目录，自动包含 lib/ 等子目录）
+# proxy-server.mjs 供局域网直接 node 运行，无需进入 Docker 镜像，通过 .dockerignore 排除
+COPY server/ ./server/
 
 # 默认启动上传服务（db-server 通过 docker-compose command 覆盖）
 EXPOSE 8788 8789
