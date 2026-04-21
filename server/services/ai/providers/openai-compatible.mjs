@@ -13,10 +13,11 @@ export class OpenAiCompatibleProvider extends BaseProvider {
     this.model = config.model || 'gpt-3.5-turbo';
     this.apiKey = config.apiKey || '';
     this.temperature = config.temperature ?? 0.1;
+    this._providerIdOverride = config.providerIdOverride;
   }
 
   get id() {
-    return 'openai-compatible';
+    return this._providerIdOverride || 'openai-compatible';
   }
 
   async healthCheck() {

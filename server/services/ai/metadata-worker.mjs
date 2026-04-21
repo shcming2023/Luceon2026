@@ -198,8 +198,11 @@ export class AiMetadataWorker {
         return await this.degradeToSkeleton(job, `AI Provider 调用全部失败: ${err.message}，自动降级为模拟结果完成链路`);
       }
 
-      // 6. 结果后处理与置信度校准
-      const result = aiResponse.result;
+      // 6. 结果后处理与归一化 (TASK-24)
+      const result = this.normalizeResult(aiResponse.result);
+      // 记录原始响应预览
+      result.rawPreview = aiResponse.rawResponse?.slice(0, 1000);
+
       const confidence = result.confidence || aiResponse.usage?.confidence || 0;
       
       // 判断是否需要人工审核
@@ -321,30 +324,41 @@ export class AiMetadataWorker {
   }
 
   createProvider(id, aiSettings) {
-    let baseUrl = aiSettings.ollamaBaseUrl || aiSettings.baseUrl || 'http://host.docker.internal:11434';
+    let url = aiSettings.ollamaBaseUrl || aiSettings.baseUrl || aiSettings.apiEndpoint || 'http://host.docker.internal:11434';
+    const timeoutMs = aiSettings.timeoutMs || 120000;
     
-    // 规范化 Ollama 端点：如果包含了 v1 路径，则剥离，因为 OllamaProvider 自带 /api/chat
-    if (id === 'ollama' && baseUrl.includes('/v1')) {
-      baseUrl = baseUrl.split('/v1')[0];
+    // 路由逻辑变更 (TASK-24)：
+    // 如果配置包含了 /v1/chat/completions，则使用 OpenAiCompatibleProvider
+    if (url.includes('/v1/chat/completions')) {
+      const baseUrl = url.split('/chat/completions')[0];
+      return new OpenAiCompatibleProvider({
+        baseUrl,
+        model: aiSettings.ollamaModel || aiSettings.model || 'qwen3.5:9b',
+        apiKey: aiSettings.openaiApiKey || aiSettings.apiKey,
+        timeoutMs,
+        // 特殊标记：即便底层用 OpenAI 协议，业务标识依然保留为原始 id (如 ollama)
+        providerIdOverride: id 
+      });
     }
 
-    const timeoutMs = aiSettings.timeoutMs || 120000;
-
+    // 否则如果是 ollama 且不带 v1，或者 id 就是 ollama，使用原生 OllamaProvider (/api/chat)
     if (id === 'ollama') {
       return new OllamaProvider({
-        baseUrl,
+        baseUrl: url,
         model: aiSettings.ollamaModel || aiSettings.model || 'qwen3.5:9b',
         timeoutMs
       });
     }
+
     if (id === 'openai-compatible') {
       return new OpenAiCompatibleProvider({
-        baseUrl: aiSettings.openaiBaseUrl || aiSettings.baseUrl,
+        baseUrl: url,
         model: aiSettings.openaiModel || aiSettings.model,
         apiKey: aiSettings.openaiApiKey || aiSettings.apiKey,
         timeoutMs
       });
     }
+
     // 兜底返回 Ollama (Docker 友好地址)
     return new OllamaProvider({ baseUrl: 'http://host.docker.internal:11434' });
   }
@@ -357,6 +371,29 @@ export class AiMetadataWorker {
     if (!n || isNaN(n)) return 120000;
     if (n <= 3600) return n * 1000; // 秒转毫秒
     return n;
+  }
+
+  /**
+   * 结果归一化：确保所有 PRD 要求的字段都存在，即便为空
+   */
+  normalizeResult(raw) {
+    if (!raw || typeof raw !== 'object') return { title: '解析失败', subject: '', grade: '' };
+    
+    return {
+      title: raw.title || '',
+      subject: raw.subject || '',
+      grade: raw.grade || '',
+      semester: raw.semester || '',
+      materialType: raw.materialType || '',
+      language: raw.language || '中文',
+      curriculum: raw.curriculum || '',
+      tags: Array.isArray(raw.tags) ? raw.tags : [],
+      summary: raw.summary || '',
+      confidence: Number(raw.confidence || 0),
+      fieldConfidence: raw.fieldConfidence || {},
+      needsReview: raw.needsReview !== undefined ? !!raw.needsReview : true,
+      ...raw // 保留 AI 可能返回的其他字段
+    };
   }
 
   getDefaultPrompt() {
