@@ -2353,7 +2353,7 @@ app.post('/parse/analyze', async (req, res) => {
         if (setResp.ok) {
            const allSettings = await setResp.json();
            const mSet = allSettings?.mineru || {};
-           if (mSet.apiEndpoint) localEndpoint = mSet.apiEndpoint;
+           if (mSet.localEndpoint) localEndpoint = mSet.localEndpoint;
            if (mSet.localTimeout) timeoutMs = parseInt(mSet.localTimeout, 10) * 1000;
         }
       } catch (e) {}
