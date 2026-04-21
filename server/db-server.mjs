@@ -71,7 +71,7 @@ function redactSensitive(value) {
 // 请求日志（方便排查）
 app.use((req, _res, next) => {
   if (req.method !== 'GET') {
-    console.log(`[db-server] ${req.method} ${req.path}`, JSON.stringify(redactSensitive(req.body)).slice(0, 200));
+    console.log(`[db-server] ${req.method} ${req.path}`, (JSON.stringify(redactSensitive(req.body)) ?? '').slice(0, 200));
   }
   next();
 });
