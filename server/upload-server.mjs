@@ -496,6 +496,25 @@ function normalizeEndpoint(endpoint) {
   return String(endpoint || '').trim().replace(/\/+$/, '');
 }
 
+/**
+ * Docker 环境端点转换：将 localhost / 127.0.0.1 替换为 host.docker.internal
+ * 使容器内进程可访问宿主机上运行的本地服务（Ollama、本地 MinerU 等）。
+ * 非 Docker 环境或不含 localhost/127.0.0.1 的地址原样返回。
+ * @param {string} endpoint
+ * @returns {string}
+ */
+function dockerRewriteEndpoint(endpoint) {
+  const apiEndpoint = String(endpoint || '');
+  if (apiEndpoint && (apiEndpoint.includes('localhost') || apiEndpoint.includes('127.0.0.1'))) {
+    const rewritten = apiEndpoint
+      .replace(/localhost/g, 'host.docker.internal')
+      .replace(/127\.0\.0\.1/g, 'host.docker.internal');
+    // console.log(`[Docker端点转换] ${apiEndpoint} -> ${rewritten}`);
+    return rewritten;
+  }
+  return apiEndpoint;
+}
+
 function isEnabledFlag(value) {
   return value === true || value === 'true' || value === '1' || value === 1;
 }
@@ -2310,6 +2329,86 @@ app.post('/parse/analyze', async (req, res) => {
   if (!materialId) {
     res.status(400).json({ error: '缺少 materialId' });
     return;
+  }
+
+  // ==== MinerU-only 模式 ====
+  const isMinerUOnly = !markdownObjectName && !markdownUrl && !markdownContent && !aiProviders && !aiApiEndpoint;
+  if (isMinerUOnly) {
+    try {
+      const dbBaseUrl = process.env.DB_BASE_URL || 'http://localhost:8789';
+      const matResp = await fetch(`${dbBaseUrl}/materials/${materialId}`);
+      if (!matResp.ok) throw new Error(`无法从数据库获取资料信息 (HTTP ${matResp.status})`);
+      const material = await matResp.json();
+
+      const objectName = material?.metadata?.objectName;
+      if (!objectName) {
+        return res.status(400).json({ error: '该资料尚未上传文件，无法解析' });
+      }
+
+      // 获取配置
+      let localEndpoint = process.env.LOCAL_MINERU_ENDPOINT || 'http://localhost:8000';
+      let timeoutMs = 300000;
+      try {
+        const setResp = await fetch(`${dbBaseUrl}/settings`);
+        if (setResp.ok) {
+           const allSettings = await setResp.json();
+           const mSet = allSettings?.mineru || {};
+           if (mSet.apiEndpoint) localEndpoint = mSet.apiEndpoint;
+           if (mSet.localTimeout) timeoutMs = parseInt(mSet.localTimeout, 10) * 1000;
+        }
+      } catch (e) {}
+
+      // 获取文件 Buffer
+      const rawBucket = getMinioBucket();
+      const fileBuffer = await getObjectBuffer(rawBucket, objectName);
+      const fileName = material.name || 'upload.pdf';
+      const mimeType = inferContentTypeByExt(fileName) || 'application/octet-stream';
+
+      // 调用本地 MinerU 解析
+      const mdString = await callGradioToMarkdown(localEndpoint, fileBuffer, fileName, mimeType, { timeoutMs });
+
+      // 上传至 MinIO parsed/ 目录
+      const parsedBucket = getParsedBucket();
+      const newObjectName = `parsed/${materialId}/${Date.now()}-parsed.md`;
+      const client = getMinioClient();
+      await ensureBucket(client, parsedBucket);
+      const outputBuffer = Buffer.from(mdString, 'utf-8');
+      await client.putObject(parsedBucket, newObjectName, outputBuffer, outputBuffer.length, {
+        'Content-Type': 'text/markdown; charset=utf-8'
+      });
+      const mdUrl = `/${parsedBucket}/${newObjectName}`;
+
+      // 更新 db-server 状态
+      await fetch(`${dbBaseUrl}/materials/${materialId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mineruStatus: 'completed',
+          metadata: {
+            ...(material.metadata || {}),
+            markdownObjectName: newObjectName,
+            markdownUrl: mdUrl,
+            parsedFilesCount: 1,
+            processingStage: '',
+            processingMsg: '解析完成'
+          }
+        })
+      });
+
+      return res.status(200).json({ ok: true, materialId, markdownObjectName: newObjectName, markdownUrl: mdUrl });
+    } catch (err) {
+      console.error('[MinerU-only] 解析失败:', err);
+      const dbBaseUrl = process.env.DB_BASE_URL || 'http://localhost:8789';
+      await fetch(`${dbBaseUrl}/materials/${materialId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mineruStatus: 'failed',
+          metadata: { processingMsg: `MinerU 解析失败: ${err.message}` }
+        })
+      }).catch(() => {});
+      return res.status(500).json({ error: 'MinerU 解析失败', detail: err.message });
+    }
   }
 
   // ── 确定提供商列表 ─────────────────────────────────────────
