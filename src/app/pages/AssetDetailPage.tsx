@@ -249,10 +249,6 @@ export function AssetDetailPage() {
 
   const handleMineruParse = async () => {
     if (!material) { toast.error('找不到资料信息'); return; }
-    if (state.mineruConfig.engine === 'cloud' && !state.mineruConfig.apiKey?.trim()) {
-      toast.error('请先在「系统设置」中配置 MinerU API Key');
-      return;
-    }
 
     let objectName = String(material.metadata?.objectName || '').trim();
     const fileUrl = String(material.metadata?.fileUrl || '').trim();
@@ -262,6 +258,7 @@ export function AssetDetailPage() {
     }
 
     try {
+      // 如果没有 objectName 但有 fileUrl，先上传到 MinIO
       if (!objectName && fileUrl) {
         const blob = await fetch(fileUrl).then((r) => {
           if (!r.ok) throw new Error(`下载文件失败: HTTP ${r.status}`);
@@ -277,7 +274,7 @@ export function AssetDetailPage() {
         if (!uploadRes.ok) throw new Error(`上传失败: HTTP ${uploadRes.status}`);
         const uploadResult = await uploadRes.json();
         objectName = String(uploadResult?.objectName || '').trim();
-        if (!objectName) throw new Error('上传成功但未获得 objectName（未写入 MinIO）');
+        if (!objectName) throw new Error('上传成功但未获得 objectName');
 
         dispatch({
           type: 'UPDATE_MATERIAL',
@@ -297,14 +294,26 @@ export function AssetDetailPage() {
         });
       }
 
-      const fileName = material.metadata?.fileName || `${material.title}.${material.type.toLowerCase()}`;
-      void fileName;
+      // 使用 PRD 主链路：下载文件后通过 POST /tasks 创建 ParseTask
+      // ParseTaskWorker 会自动拾取并通过 local-mineru adapter 调用 FastAPI
+      const presignRes = await fetch(`/__proxy/upload/presign?objectName=${encodeURIComponent(objectName)}`, { cache: 'no-store' });
+      const presignData = await presignRes.json();
+      if (!presignData?.url) throw new Error('无法获取文件预签名URL');
 
-      const res = await fetch('/__proxy/upload/parse/analyze', {
+      const fileBlob = await fetch(presignData.url).then(r => {
+        if (!r.ok) throw new Error(`下载文件失败: HTTP ${r.status}`);
+        return r.blob();
+      });
+      const fileName = material.metadata?.fileName || material.title || 'document.pdf';
+      const file = new File([fileBlob], fileName, { type: material.mimeType || 'application/pdf' });
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('materialId', String(numId));
+
+      const res = await fetch('/__proxy/upload/tasks', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ materialId: numId }),
-        signal: AbortSignal.timeout(15_000),
+        body: formData,
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
@@ -322,7 +331,7 @@ export function AssetDetailPage() {
             metadata: {
               ...material.metadata,
               processingStage: 'mineru',
-              processingMsg: '解析任务已提交',
+              processingMsg: '解析任务已提交（PRD 主链路）',
               processingProgress: '0',
               processingUpdatedAt: new Date().toISOString(),
             },
@@ -330,7 +339,7 @@ export function AssetDetailPage() {
         },
       });
 
-      toast.info('解析任务已提交');
+      toast.info('解析任务已提交，Worker 将自动处理');
     } catch (err) {
       const msg = err instanceof Error ? err.message : '未知错误';
       dispatch({ type: 'UPDATE_MATERIAL_MINERU_STATUS', payload: { id: numId, mineruStatus: 'failed' } });
@@ -571,7 +580,7 @@ export function AssetDetailPage() {
             material={material}
             originalUrl={originalUrl}
             onRefreshOriginalUrl={handleRefreshOriginalUrl}
-            mineruEngineLabel={state.mineruConfig.engine === 'local' ? '本地 Gradio' : '官方 API'}
+            mineruEngineLabel={'本地 FastAPI'}
             mineruRunning={mineruRunning}
             mineruProgress={mineruProgress}
             mineruProgressMsg={mineruProgressMsg}

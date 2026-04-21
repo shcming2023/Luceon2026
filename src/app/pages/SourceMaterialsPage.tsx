@@ -657,24 +657,60 @@ export function SourceMaterialsPage() {
             metadata: {
               ...material.metadata,
               processingStage: 'mineru',
-              processingMsg: '正在解析中...',
+              processingMsg: '正在准备解析任务...',
               processingUpdatedAt: new Date().toISOString(),
             },
           },
         },
       });
 
-      const res = await fetch('/__proxy/upload/parse/analyze', {
+      const objectName = String(material.metadata?.objectName || '').trim();
+      if (!objectName) {
+        throw new Error('文件尚未上传或缺少 objectName');
+      }
+
+      // 下载文件后通过 POST /tasks 创建 ParseTask (PRD 主链路)
+      const presignRes = await fetch(`/__proxy/upload/presign?objectName=${encodeURIComponent(objectName)}`, { cache: 'no-store' });
+      const presignData = await presignRes.json();
+      if (!presignData?.url) throw new Error('无法获取文件预签名URL');
+
+      const fileBlob = await fetch(presignData.url).then(r => {
+        if (!r.ok) throw new Error(`下载文件失败: HTTP ${r.status}`);
+        return r.blob();
+      });
+      const fileName = material.metadata?.fileName || material.title || 'document.pdf';
+      const file = new File([fileBlob], fileName, { type: material.metadata?.mimeType || 'application/pdf' });
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('materialId', String(material.id));
+
+      const res = await fetch('/__proxy/upload/tasks', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ materialId: material.id }),
+        body: formData,
       });
 
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}: ${res.statusText}`);
       }
 
-      toast.success('解析任务已提交');
+      dispatch({
+        type: 'UPDATE_MATERIAL',
+        payload: {
+          id: material.id,
+          updates: {
+            mineruStatus: 'pending',
+            metadata: {
+              ...material.metadata,
+              processingStage: 'mineru',
+              processingMsg: '解析任务已提交（PRD 主链路）',
+              processingUpdatedAt: new Date().toISOString(),
+            },
+          },
+        },
+      });
+
+      toast.success('解析任务已提交，Worker 将自动处理');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error(`解析失败：${msg}`);

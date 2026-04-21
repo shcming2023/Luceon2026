@@ -1984,11 +1984,37 @@ app.post('/tasks', upload.single('file'), async (req, res) => {
     if (!dbMatResp.ok) throw new Error(`同步 Material 到 db-server 失败`);
 
     // 3. 创建 ParseTask
-    const optionsSnapshot = { ...req.body, material };
+    // 从 db-server 获取 mineruConfig，合并到 optionsSnapshot 中
+    let mineruConfig = {};
+    try {
+      const settingsResp = await fetch(`${DB_BASE_URL}/settings`);
+      if (settingsResp.ok) {
+        const allSettings = await settingsResp.json();
+        mineruConfig = allSettings?.mineruConfig || {};
+      }
+    } catch (e) {
+      console.warn('[upload-server] /tasks: 获取 mineruConfig 失败，使用默认值', e.message);
+    }
+
+    const optionsSnapshot = {
+      // 先注入全局 mineruConfig 作为默认值
+      localEndpoint: mineruConfig.localEndpoint || 'http://host.docker.internal:8083',
+      localTimeout: mineruConfig.localTimeout || 3600,
+      backend: mineruConfig.backend || 'pipeline',
+      ocrLanguage: mineruConfig.ocrLanguage || 'ch',
+      enableOcr: mineruConfig.enableOcr,
+      enableFormula: mineruConfig.enableFormula,
+      enableTable: mineruConfig.enableTable,
+      maxPages: mineruConfig.maxPages || 1000,
+      // 再用请求体中的单任务参数覆盖
+      ...req.body,
+      material
+    };
+
     const parseTask = {
       id: taskId,
       materialId: materialId,
-      engine: optionsSnapshot.backend || 'pipeline', 
+      engine: 'local-mineru', // PRD 主链路：始终使用本地 MinerU FastAPI
       stage: 'upload',
       state: 'pending',
       progress: 0,
@@ -2422,37 +2448,74 @@ app.post('/parse/analyze', async (req, res) => {
         return res.status(400).json({ error: '该资料尚未上传文件，无法解析' });
       }
 
-      // 获取配置
-      let localEndpoint = process.env.LOCAL_MINERU_ENDPOINT || 'http://localhost:8000';
+      // 获取配置 (TASK-25: 修正为 mineruConfig)
+      let localEndpoint = process.env.LOCAL_MINERU_ENDPOINT || 'http://host.docker.internal:8083';
       let timeoutMs = 300000;
+      let mineruBackend = 'pipeline';
+      let mineruOcrLanguage = 'ch';
       try {
         const setResp = await fetch(`${dbBaseUrl}/settings`);
         if (setResp.ok) {
            const allSettings = await setResp.json();
-           const mSet = allSettings?.mineru || {};
+           const mSet = allSettings?.mineruConfig || {};
            if (mSet.localEndpoint) localEndpoint = mSet.localEndpoint;
            if (mSet.localTimeout) timeoutMs = parseInt(mSet.localTimeout, 10) * 1000;
+           if (mSet.backend) mineruBackend = mSet.backend;
+           if (mSet.ocrLanguage) mineruOcrLanguage = mSet.ocrLanguage;
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn('[MinerU-only] 获取 mineruConfig 失败，使用默认值');
+      }
 
-      // 获取文件 Buffer
+      // Docker 网络地址重写
+      if (localEndpoint.includes('localhost') || localEndpoint.includes('127.0.0.1')) {
+        localEndpoint = localEndpoint.replace(/localhost|127\.0\.0\.1/g, 'host.docker.internal');
+      }
+      localEndpoint = localEndpoint.replace(/\/+$/, '');
+
+      // 获取文件流
       const rawBucket = getMinioBucket();
-      const fileBuffer = await getObjectBuffer(rawBucket, objectName);
+      const fileStream = await getMinioClient().getObject(rawBucket, objectName);
       const fileName = material.name || 'upload.pdf';
       const mimeType = inferContentTypeByExt(fileName) || 'application/octet-stream';
 
-      // 调用本地 MinerU 解析
-      const mdString = await callGradioToMarkdown(localEndpoint, fileBuffer, fileName, mimeType, { timeoutMs });
-
-      // 上传至 MinIO parsed/ 目录
+      // 使用 FastAPI /tasks 协议调用本地 MinerU (TASK-25: 不再走 Gradio)
+      const { processWithLocalMinerU } = await import('./services/mineru/local-adapter.mjs');
+      const pseudoTask = {
+        id: `analyze-${materialId}-${Date.now()}`,
+        materialId,
+        optionsSnapshot: {
+          localEndpoint,
+          localTimeout: Math.round(timeoutMs / 1000),
+          backend: mineruBackend,
+          ocrLanguage: mineruOcrLanguage,
+          enableOcr: true,
+          enableFormula: true,
+          enableTable: true,
+        }
+      };
       const parsedBucket = getParsedBucket();
-      const newObjectName = `parsed/${materialId}/${Date.now()}-parsed.md`;
-      const client = getMinioClient();
-      await ensureBucket(client, parsedBucket);
-      const outputBuffer = Buffer.from(mdString, 'utf-8');
-      await client.putObject(parsedBucket, newObjectName, outputBuffer, outputBuffer.length, {
-        'Content-Type': 'text/markdown; charset=utf-8'
+      const mineruResult = await processWithLocalMinerU({
+        task: pseudoTask,
+        material,
+        fileStream,
+        fileName,
+        mimeType,
+        timeoutMs,
+        minioContext: {
+          saveMarkdown: async (objName, md) => {
+            const client = getMinioClient();
+            await ensureBucket(client, parsedBucket);
+            const buf = Buffer.from(md, 'utf-8');
+            await client.putObject(parsedBucket, objName, buf, buf.length, { 'Content-Type': 'text/markdown; charset=utf-8' });
+          }
+        },
+        updateProgress: async () => {} // MinerU-only 同步模式无需进度回调
       });
+      const mdString = mineruResult.markdown;
+
+      // processWithLocalMinerU 已自动保存到 MinIO，使用其返回的 objectName
+      const newObjectName = mineruResult.objectName;
       const mdUrl = `/${parsedBucket}/${newObjectName}`;
 
       // 更新 db-server 状态
