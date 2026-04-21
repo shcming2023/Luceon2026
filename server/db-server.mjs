@@ -578,6 +578,17 @@ app.get('/task-events', (req, res) => {
   }
 });
 
+app.post('/task-events', (req, res) => {
+  const item = req.body;
+  if (!item?.id) { res.status(400).json({ error: '缺少 id' }); return; }
+  dbCache.taskEvents[item.id] = {
+    createdAt: new Date().toISOString(),
+    ...item
+  };
+  writeDB();
+  res.json({ ok: true, id: item.id });
+});
+
 // ─── AI Metadata Jobs ─────────────────────────────────────────
 
 app.get('/ai-metadata-jobs', (_req, res) => {
