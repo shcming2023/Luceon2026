@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
 
 /**
  * EduAsset CMS — UAT 端到端测试套件
@@ -10,23 +10,76 @@ import { test, expect, type Page } from '@playwright/test';
  *   4. 文件上传流程（含 MinIO presigned URL 局域网可访问性验证）
  *   5. MinIO Nginx 代理可达性
  *   6. 数据持久化（写入后重新加载验证）
+ *
+ * 环境变量：
+ *   BASE_URL    — 测试目标地址，默认 http://localhost:8081
+ *   PUBLIC_HOST — presigned URL 应包含的公网主机名（如 192.168.31.33），
+ *                 未设置时跳过主机名匹配断言
  */
 
-const BASE_URL = process.env.BASE_URL || 'http://192.168.31.33:8081';
+const BASE_URL = process.env.BASE_URL || 'http://localhost:8081';
+const PUBLIC_HOST = process.env.PUBLIC_HOST || '';
 
 // ── 辅助函数 ──────────────────────────────────────────────────
 
+/**
+ * 等待 React 应用挂载完成
+ * @param page - Playwright Page 对象
+ */
 async function waitForAppReady(page: Page) {
-  // 等待 React 应用挂载完成（Layout 中的导航元素出现）
   await page.waitForSelector('nav, [data-testid="layout"], main', { timeout: 20_000 });
 }
+
+/** 测试数据命名空间前缀，用于识别需要清理的 UAT 数据 */
+const UAT_PREFIX = 'uat_';
+
+/** 追踪当前测试创建的设置 key，用于 afterAll 清理 */
+const createdSettingKeys: string[] = [];
+
+/** 追踪当前测试创建的 secrets key，用于 afterAll 清理 */
+const createdSecretKeys: string[] = [];
+
+/**
+ * 清理指定集合中以 UAT_PREFIX 开头的 key
+ * @param request - APIRequestContext
+ * @param collection - 集合名（'settings' 或 'secrets'）
+ * @param keys - 需要删除的 key 列表
+ */
+async function cleanupKeys(request: APIRequestContext, collection: 'settings' | 'secrets', keys: string[]) {
+  if (keys.length === 0) return;
+  try {
+    const resp = await request.get(`${BASE_URL}/__proxy/db/${collection}`);
+    if (!resp.ok()) return;
+    const data = await resp.json() as Record<string, unknown>;
+    const secretsWrap = collection === 'secrets' ? (data as { secrets?: Record<string, unknown> }).secrets : null;
+    const target = secretsWrap || data;
+    const cleanup: Record<string, null> = {};
+    for (const key of keys) {
+      if (key in target) cleanup[key] = null;
+    }
+    if (Object.keys(cleanup).length > 0) {
+      await request.put(`${BASE_URL}/__proxy/db/${collection}`, {
+        data: cleanup,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+  } catch {
+    // 清理失败不影响测试结果
+  }
+}
+
+// ── 全局 afterAll：清理 UAT 测试数据 ──────────────────────────
+
+test.afterAll(async ({ request }) => {
+  await cleanupKeys(request, 'settings', createdSettingKeys);
+  await cleanupKeys(request, 'secrets', createdSecretKeys);
+});
 
 // ── 测试组 1：页面加载与路由 ──────────────────────────────────
 
 test.describe('【1】页面加载与 SPA 路由', () => {
   test('根路径 / 应重定向到 /cms/', async ({ page }) => {
     const response = await page.goto(`${BASE_URL}/`);
-    // 允许重定向链最终落在 /cms/ 或 /cms/source-materials
     expect(page.url()).toMatch(/\/cms\//);
     expect(response?.status()).toBeLessThan(400);
   });
@@ -35,14 +88,12 @@ test.describe('【1】页面加载与 SPA 路由', () => {
     await page.goto(`${BASE_URL}/cms/`);
     await waitForAppReady(page);
     const title = await page.title();
-    // 页面 title 不为空
     expect(title).toBeTruthy();
   });
 
   test('/cms/source-materials 原始资料库页面可访问', async ({ page }) => {
     await page.goto(`${BASE_URL}/cms/source-materials`);
     await waitForAppReady(page);
-    // 验证页面不是错误页
     await expect(page.locator('body')).not.toContainText('500');
     await expect(page.locator('body')).not.toContainText('502');
     await expect(page.locator('body')).not.toContainText('504');
@@ -93,7 +144,6 @@ test.describe('【3】db-server REST API', () => {
     const response = await request.get(`${BASE_URL}/__proxy/db/materials`);
     expect(response.status()).toBe(200);
     const body = await response.json();
-    // 资产列表应为数组
     expect(Array.isArray(body)).toBe(true);
   });
 
@@ -105,17 +155,16 @@ test.describe('【3】db-server REST API', () => {
   });
 
   test('数据持久化：写入后重新读取一致', async ({ request }) => {
-    const testKey = `uat_test_${Date.now()}`;
+    const testKey = `${UAT_PREFIX}test_${Date.now()}`;
     const testValue = `test_value_${Math.random().toString(36).slice(2)}`;
+    createdSettingKeys.push(testKey);
 
-    // 写入测试设置
     const putResp = await request.put(`${BASE_URL}/__proxy/db/settings`, {
       data: { [testKey]: testValue },
       headers: { 'Content-Type': 'application/json' },
     });
     expect(putResp.status()).toBeLessThan(300);
 
-    // 重新读取验证
     const getResp = await request.get(`${BASE_URL}/__proxy/db/settings`);
     expect(getResp.status()).toBe(200);
     const settings = await getResp.json() as Record<string, unknown>;
@@ -123,8 +172,9 @@ test.describe('【3】db-server REST API', () => {
   });
 
   test('secrets 持久化：写入后重新读取一致', async ({ request }) => {
-    const testKey = `uat_secret_${Date.now()}`;
+    const testKey = `${UAT_PREFIX}secret_${Date.now()}`;
     const testValue = `secret_${Math.random().toString(36).slice(2)}`;
+    createdSecretKeys.push(testKey);
 
     const putResp = await request.put(`${BASE_URL}/__proxy/db/secrets`, {
       data: { [testKey]: testValue },
@@ -177,12 +227,10 @@ test.describe('【3】db-server REST API', () => {
 test.describe('【4】MinIO Nginx 反向代理', () => {
   test('/minio/minio/health/live 通过 Nginx 可达', async ({ request }) => {
     const response = await request.get(`${BASE_URL}/minio/minio/health/live`);
-    // MinIO health 端点返回 200
     expect(response.status()).toBe(200);
   });
 
-  test('presigned URL 中包含局域网公开地址（非内部容器地址）', async ({ request }) => {
-    // 通过 /list 接口获取已有文件的 presigned URL（如有文件）
+  test('presigned URL 使用公网地址（非内部容器地址）', async ({ request }) => {
     const listResp = await request.get(`${BASE_URL}/__proxy/upload/list?prefix=originals`);
     if (listResp.status() !== 200) {
       test.skip();
@@ -193,8 +241,7 @@ test.describe('【4】MinIO Nginx 反向代理', () => {
     const objects = body.objects || [];
 
     if (objects.length === 0) {
-      // 没有文件时跳过（空环境），不视为失败
-      console.log('  [跳过] MinIO 中暂无文件，presigned URL 检查跳过');
+      test.skip();
       return;
     }
 
@@ -203,9 +250,11 @@ test.describe('【4】MinIO Nginx 反向代理', () => {
       const url = obj.presignedUrl;
       expect(url).not.toMatch(/minio:\d+/);
       expect(url).not.toMatch(/localhost:\d+/);
-      // 应包含配置的公开地址
-      expect(url).toContain('192.168.31.33');
-      console.log(`  ✓ presigned URL: ${url.slice(0, 80)}...`);
+
+      // 若配置了 PUBLIC_HOST，则验证 URL 包含该主机名；否则仅验证不含内部地址
+      if (PUBLIC_HOST) {
+        expect(url).toContain(PUBLIC_HOST);
+      }
     }
   });
 });
@@ -214,15 +263,11 @@ test.describe('【4】MinIO Nginx 反向代理', () => {
 
 test.describe('【5】文件上传流程', () => {
   test('upload-server /tasks 接受小型测试文件并创建任务', async ({ request }) => {
-    // 创建一个最小的有效 PNG 文件（1x1 像素）
     const minimalPng = Buffer.from(
       '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489' +
       '0000000a49444154789c6260000000020001e221bc330000000049454e44ae426082',
       'hex',
     );
-
-    const formData = new FormData();
-    formData.append('file', new Blob([minimalPng], { type: 'image/png' }), 'uat-test.png');
 
     const response = await request.post(`${BASE_URL}/__proxy/upload/tasks`, {
       multipart: {
@@ -234,25 +279,22 @@ test.describe('【5】文件上传流程', () => {
       },
     });
 
-    // 200 = 上传成功，507 = 存储配额不足（可接受），其余为失败
     const status = response.status();
-    if (status === 200) {
-      const body = await response.json() as { taskId?: string; materialId?: string; url?: string; provider?: string };
-      expect(body.taskId).toBeTruthy();
-      console.log(`  ✓ 上传成功，provider: ${body.provider}, URL: ${body.url?.slice(0, 60)}...`);
+    expect(status).toBe(200);
 
-      // 若 URL 指向 MinIO，验证其为局域网可访问地址
-      if (body.provider === 'minio' && body.url) {
-        expect(body.url).not.toMatch(/^http:\/\/minio:/);
-        expect(body.url).toMatch(/192\.168\.31\.33/);
+    const body = await response.json() as { taskId?: string; materialId?: string; url?: string; provider?: string };
+    expect(body.taskId).toBeTruthy();
+
+    // 若 URL 指向 MinIO，验证其为公网可访问地址（非容器内部地址）
+    if (body.provider === 'minio' && body.url) {
+      expect(body.url).not.toMatch(/^http:\/\/minio:/);
+      if (PUBLIC_HOST) {
+        expect(body.url).toContain(PUBLIC_HOST);
       }
-    } else {
-      console.warn(`  ⚠ 上传返回 HTTP ${status}，可能是存储未配置，跳过断言`);
     }
   });
 
   test('上传后 presigned URL 在局域网可直接访问（HTTP GET）', async ({ request }) => {
-    // 先上传一个小文件
     const content = Buffer.from(`UAT test file ${Date.now()}`);
 
     const uploadResp = await request.post(`${BASE_URL}/__proxy/upload/tasks`, {
@@ -265,21 +307,17 @@ test.describe('【5】文件上传流程', () => {
       },
     });
 
-    if (uploadResp.status() !== 200) {
-      console.warn('  ⚠ 上传失败，跳过 presigned URL 访问测试');
-      return;
-    }
+    expect(uploadResp.status()).toBe(200);
 
     const body = await uploadResp.json() as { url?: string; provider?: string };
     if (body.provider !== 'minio' || !body.url) {
-      console.warn('  ⚠ 非 MinIO 存储或无 URL，跳过测试');
+      test.skip();
       return;
     }
 
     // 直接 GET presigned URL，验证文件可访问
     const fileResp = await request.get(body.url);
     expect(fileResp.status()).toBe(200);
-    console.log(`  ✓ presigned URL 可直接访问：${body.url.slice(0, 80)}...`);
   });
 });
 
@@ -290,7 +328,6 @@ test.describe('【6】页面导航交互（冒烟）', () => {
     await page.goto(`${BASE_URL}/cms/`);
     await waitForAppReady(page);
 
-    // 尝试通过 URL 直接访问各核心路由，验证 SPA 路由正常
     const routes = [
       '/cms/workspace',
       '/cms/source-materials',
@@ -302,7 +339,6 @@ test.describe('【6】页面导航交互（冒烟）', () => {
     for (const route of routes) {
       await page.goto(`${BASE_URL}${route}`);
       await waitForAppReady(page);
-      // 验证没有出现错误页面
       const body = page.locator('body');
       await expect(body).not.toContainText('Uncaught Error');
       await expect(body).not.toContainText('Cannot GET');

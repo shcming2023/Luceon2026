@@ -13,6 +13,10 @@
     "uat:build": "bash start-uat.sh --build",
     "uat:stop": "bash start-uat.sh stop",
     "uat:smoke": "bash uat/smoke-test.sh",
+    "test": "bash scripts/run-tests.sh",
+    "test:smoke": "bash uat/smoke-test.sh",
+    "test:server": "node server/tests/worker-smoke.mjs",
+    "test:e2e": "cd uat && npx playwright test",
     "test:local-mineru": "node server/test-local-mineru.mjs"
   },
   "dependencies": {

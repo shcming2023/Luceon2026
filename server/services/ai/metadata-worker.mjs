@@ -496,9 +496,9 @@ export class AiMetadataWorker {
       });
     }
 
-    // 兜底返回 Mac mini 内网 Ollama
+    // 兜底返回 host.docker.internal Ollama
     return new OpenAiCompatibleProvider({
-      baseUrl: 'http://192.168.31.33:11434',
+      baseUrl: 'http://host.docker.internal:11434',
       model: aiSettings.ollamaModel || aiSettings.model || 'qwen3.5:9b',
       apiKey: aiSettings.openaiApiKey || aiSettings.apiKey,
       timeoutMs,

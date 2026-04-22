@@ -73,7 +73,7 @@ export default defineConfig({
         },
       },
       '/__proxy/mineru-local': {
-        target: process.env.LOCAL_MINERU_URL || 'http://192.168.31.33:8083',
+        target: process.env.LOCAL_MINERU_URL || 'http://localhost:8083',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace('/__proxy/mineru-local', ''),

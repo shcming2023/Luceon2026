@@ -138,7 +138,7 @@ export const initialAiConfig: AiConfig = {
 /** MinerU API 配置（默认值） */
 export const initialMinerUConfig: MinerUConfig = {
   engine: 'local',
-  localEndpoint: 'http://192.168.31.33:8083',
+  localEndpoint: '',
   localTimeout: 3600,
   localBackend: 'hybrid-auto-engine',
   localMaxPages: 1000,

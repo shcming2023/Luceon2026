@@ -1213,7 +1213,7 @@ export function SettingsPage() {
                   <Input
                     value={mineruForm.localEndpoint}
                     onChange={(v) => updateMineru({ localEndpoint: v })}
-                    placeholder="http://192.168.31.33:8083"
+                    placeholder="http://localhost:8083"
                   />
                 </FieldRow>
                 <FieldRow label="本地超时（秒）">

@@ -9,7 +9,9 @@ import { defineConfig, devices } from '@playwright/test';
  *   npx playwright test --config=uat/playwright.config.ts
  */
 
-const BASE_URL = process.env.BASE_URL || 'http://192.168.31.33:8081';
+const BASE_URL = process.env.BASE_URL || 'http://localhost:8081';
+/** 公网主机名，用于 presigned URL 断言。未设置时跳过主机名匹配。 */
+const PUBLIC_HOST = process.env.PUBLIC_HOST || '';
 
 export default defineConfig({
   testDir: './tests',

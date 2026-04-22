@@ -121,7 +121,7 @@ echo ""
 
 # ── 5. MinIO 控制台（直接端口，仅 UAT 环境）─────────────────
 echo -e "${CYAN}【5】MinIO 控制台（UAT 环境 9001 端口）${RESET}"
-MINIO_CONSOLE_URL="${MINIO_CONSOLE_URL:-http://192.168.31.33:9001}"
+MINIO_CONSOLE_URL="${MINIO_CONSOLE_URL:-http://localhost:9001}"
 printf "  %-52s" "[MinIO 控制台 $MINIO_CONSOLE_URL]"
 http_code=$(curl -s -o /dev/null -w "%{http_code}" \
   --max-time 5 \

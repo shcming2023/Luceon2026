@@ -364,58 +364,7 @@ export function AssetDetailPage() {
   const handleAiAnalyze = async () => {
     if (!material) { toast.error('找不到资料信息'); return; }
 
-    let markdownObjectName = material.metadata?.markdownObjectName;
-    let markdownUrl = material.metadata?.markdownUrl;
-    const inlineMarkdownContent = mineruMarkdown || undefined;
-
-    if (!markdownObjectName && !markdownUrl && !inlineMarkdownContent && material.mineruZipUrl) {
-      setAiAnalyzing(true);
-      try {
-        const downloadRes = await fetch('/__proxy/upload/parse/download', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ zipUrl: material.mineruZipUrl, materialId: numId }),
-        });
-        if (downloadRes.ok) {
-          const downloadData = await downloadRes.json();
-          if (downloadData.markdownObjectName) markdownObjectName = downloadData.markdownObjectName;
-          if (downloadData.markdownUrl) markdownUrl = downloadData.markdownUrl;
-          if (downloadData.markdownContent) setMineruMarkdown(downloadData.markdownContent);
-          if (downloadData.markdownObjectName || downloadData.markdownUrl) {
-            dispatch({
-              type: 'UPDATE_MATERIAL',
-              payload: {
-                id: numId,
-                updates: {
-                  metadata: {
-                    ...material.metadata,
-                    ...(downloadData.markdownObjectName ? { markdownObjectName: downloadData.markdownObjectName } : {}),
-                    ...(downloadData.markdownUrl ? { markdownUrl: downloadData.markdownUrl } : {}),
-                    parsedFilesCount: String(downloadData.totalFiles ?? '?'),
-                  },
-                },
-              },
-            });
-          }
-        }
-      } catch (e) {
-        console.warn('[AI] download before analyze failed:', e);
-      }
-    }
-
-    const finalInlineContent = markdownObjectName || markdownUrl
-      ? undefined
-      : (inlineMarkdownContent || mineruMarkdown || undefined);
-
-    if (!markdownObjectName && !markdownUrl && !finalInlineContent) {
-      toast.error('请先完成 MinerU 解析，生成 full.md 后再运行 AI 分析');
-      setAiAnalyzing(false);
-      return;
-    }
-
     const { apiEndpoint, apiKey, model, providers } = state.aiConfig;
-
-    // 优先使用新的多提供商格式
     const enabledProviders = providers?.filter((p) => p.enabled);
     if ((!enabledProviders || enabledProviders.length === 0) && (!apiEndpoint?.trim() || !model?.trim())) {
       toast.error('请先在「系统设置」中配置 AI 提供商（至少启用一个）');
@@ -426,80 +375,127 @@ export function AssetDetailPage() {
     dispatch({ type: 'UPDATE_MATERIAL_AI_STATUS', payload: { id: numId, aiStatus: 'analyzing' } });
 
     try {
-      const resp = await fetch('/__proxy/upload/parse/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          markdownObjectName,
-          markdownUrl,
-          ...(finalInlineContent ? { markdownContent: finalInlineContent } : {}),
-          materialId: numId,
-          maxMarkdownChars: Math.max(10_000, Math.min(200_000, Number(state.aiConfig.maxMarkdownChars || 200_000))),
-          // 新格式：传递 providers 数组
-          ...(enabledProviders && enabledProviders.length > 0
-            ? { aiProviders: enabledProviders }
-            : {
-                // 旧格式兜底
-                aiApiEndpoint: apiEndpoint?.replace(/\/$/, ''),
-                aiApiKey: apiKey,
-                aiModel: model,
-              }),
-          prompts: state.aiConfig.prompts,
-          enableThinking: state.aiConfig.enableThinking === true,
-        }),
-      });
+      // ── 通过 PRD 主链路触发 AI 分析 ──────────────────────────
+      // 1) 查找当前 Material 关联的 ParseTask
+      const tasksResp = await fetch('/__proxy/db/tasks');
+      if (!tasksResp.ok) throw new Error(`获取任务列表失败: HTTP ${tasksResp.status}`);
+      const allTasks = await tasksResp.json() as Array<{ id: string; materialId?: string | number; state: string }>;
+      const myTasks = allTasks.filter((t) => String(t.materialId) === String(numId));
+      const reAiable = myTasks.find((t) => ['completed', 'review-pending', 'failed'].includes(t.state));
 
-      if (!resp.ok) {
-        const errData = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
-        throw new Error(errData.error || `HTTP ${resp.status}`);
+      let targetTaskId: string | null = null;
+
+      if (reAiable) {
+        // 已有可 re-ai 的任务，直接调用
+        targetTaskId = reAiable.id;
+      } else {
+        // 没有关联任务，尝试先创建一个 ParseTask
+        // 检查 Material 是否有解析产物（markdownObjectName），若无则提示先解析
+        if (!material.metadata?.markdownObjectName && !material.metadata?.markdownUrl) {
+          toast.error('请先完成 MinerU 解析，生成 full.md 后再运行 AI 分析');
+          setAiAnalyzing(false);
+          dispatch({ type: 'UPDATE_MATERIAL_AI_STATUS', payload: { id: numId, aiStatus: 'pending' } });
+          return;
+        }
+
+        // 创建一个新的 ParseTask（跳过解析阶段，直接进入 AI）
+        const newTaskId = `task-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`;
+        const createResp = await fetch('/__proxy/db/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: newTaskId,
+            materialId: numId,
+            state: 'completed',
+            stage: 'mineru',
+            progress: 100,
+            message: '资产详情页触发 AI 分析（跳过解析）',
+            engine: 'local-mineru',
+            metadata: {
+              markdownObjectName: material.metadata?.markdownObjectName,
+              markdownUrl: material.metadata?.markdownUrl,
+            },
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          }),
+        });
+        if (!createResp.ok) throw new Error(`创建任务失败: HTTP ${createResp.status}`);
+        targetTaskId = newTaskId;
       }
 
-      const data = await resp.json();
+      // 2) 调用 re-ai 接口触发 AI Worker
+      const reAiResp = await fetch(`/__proxy/upload/tasks/${encodeURIComponent(targetTaskId!)}/re-ai`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
 
-      // AI 识别结果回写到 store 的 metadata（保留 format/pages/fileUrl 等上传字段）
-      const newMetadata = {
-        subject:      data.subject || '',
-        grade:        data.grade || '',
-        type:         data.materialType || '',
-        language:     data.language || '',
-        country:      data.country || '',
-        summary:      data.summary || '',
-        aiConfidence: String(data.confidence ?? ''),
-        aiAnalyzedAt: data.analyzedAt || new Date().toISOString(),
+      if (!reAiResp.ok) {
+        const errData = await reAiResp.json().catch(() => ({ error: `HTTP ${reAiResp.status}` }));
+        throw new Error(errData.error || `HTTP ${reAiResp.status}`);
+      }
+
+      const reAiResult = await reAiResp.json() as { ok: boolean; taskId: string; state: string };
+      toast.info(`AI 分析任务已提交（任务 ${reAiResult.taskId}），AI Worker 将自动处理`);
+
+      // 3) 通过 SSE 监听任务完成
+      const eventSource = new EventSource(`/__proxy/upload/tasks/stream?taskId=${encodeURIComponent(reAiResult.taskId!)}`);
+      const onMessage = (event: MessageEvent) => {
+        try {
+          const data = JSON.parse(event.data) as { event?: string; update?: { state?: string; progress?: number } };
+          if (data.update?.state === 'completed' || data.update?.state === 'review-pending') {
+            // AI 分析完成，刷新 Material 数据
+            eventSource.close();
+            setAiAnalyzing(false);
+            // 从 db-server 刷新 Material 以获取 AI 回填结果
+            fetch(`/__proxy/db/materials/${numId}`)
+              .then((r) => r.json())
+              .then((m: any) => {
+                if (m && !m.error) {
+                  dispatch({ type: 'UPDATE_MATERIAL_AI_STATUS', payload: {
+                    id: numId,
+                    aiStatus: 'analyzed',
+                    status: 'completed',
+                    ...(m.title ? { title: m.title } : {}),
+                    tags: m.tags || material.tags,
+                    metadata: m.metadata || material.metadata,
+                  }});
+                  if (m.metadata) {
+                    setMetaForm({
+                      language: m.metadata.language || '',
+                      grade:    m.metadata.grade || '',
+                      subject:  m.metadata.subject || '',
+                      country:  m.metadata.country || '',
+                      type:     m.metadata.type || m.metadata.materialType || '',
+                      summary:  m.metadata.summary || '',
+                    });
+                  }
+                  toast.success(`AI 分析完成！置信度 ${m.metadata?.aiConfidence || '?'}%`);
+                }
+              })
+              .catch(() => {});
+          } else if (data.update?.state === 'failed') {
+            eventSource.close();
+            setAiAnalyzing(false);
+            dispatch({ type: 'UPDATE_MATERIAL_AI_STATUS', payload: { id: numId, aiStatus: 'failed' } });
+            toast.error('AI 分析失败，请查看任务详情');
+          }
+        } catch { /* ignore parse errors */ }
       };
+      eventSource.addEventListener('task-update', onMessage);
+      eventSource.addEventListener('hello', () => { /* connection confirmed */ });
 
-      dispatch({
-        type: 'UPDATE_MATERIAL_AI_STATUS',
-        payload: {
-          id: numId,
-          aiStatus: 'analyzed',
-          status: 'completed',
-          ...(data.title ? { title: data.title } : {}),
-          tags: data.tags?.length ? data.tags : material.tags,
-          metadata: newMetadata,
-        },
-      });
+      // 超时保护：5 分钟后自动关闭
+      setTimeout(() => {
+        if (eventSource.readyState !== EventSource.CLOSED) {
+          eventSource.close();
+          setAiAnalyzing(false);
+        }
+      }, 5 * 60 * 1000);
 
-      // 同步更新本地表单（AI 结果自动填入）
-      setMetaForm({
-        language: data.language || '',
-        grade:    data.grade || '',
-        subject:  data.subject || '',
-        country:  data.country || '',
-        type:     data.materialType || '',
-        summary:  data.summary || '',
-      });
-
-      toast.success(
-        `AI 分析完成！置信度 ${data.confidence}%` +
-        (data.subject ? `，学科：${data.subject}` : '') +
-        (data.grade ? `，年级：${data.grade}` : ''),
-      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       dispatch({ type: 'UPDATE_MATERIAL_AI_STATUS', payload: { id: numId, aiStatus: 'failed' } });
       toast.error(`AI 分析失败: ${msg}`);
-    } finally {
       setAiAnalyzing(false);
     }
   };

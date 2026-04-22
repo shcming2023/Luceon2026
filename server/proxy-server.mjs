@@ -304,7 +304,7 @@ server.listen(PROXY_PORT, '0.0.0.0', () => {
 ╔══════════════════════════════════════════════════════╗
 ║         EduAsset CMS — 局域网反向代理已启动           ║
 ╠══════════════════════════════════════════════════════╣
-║  访问地址：http://192.168.31.33:${PROXY_PORT}              ║
+║  访问地址：http://${MINIO_HOST}:${PROXY_PORT}              ║
 ║  代理规则：                                           ║
 ║    /minio/*              → MinIO (${MINIO_HOST}:${MINIO_PORT})    ║
 ║    /__proxy/upload/*     → upload-server (:${UPLOAD_PORT})     ║
