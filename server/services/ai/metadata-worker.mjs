@@ -72,30 +72,34 @@ export class AiMetadataWorker {
   async scanAndProcess() {
     // 如果当前已有 job 正在执行，直接跳过本轮 tick
     if (processingMap.size > 0) {
-      console.log(`[ai-worker] Skipping scan: ${processingMap.size} job(s) already in progress`);
+      // 减少冗余日志，仅在有任务时提示
       return;
     }
 
-    const jobs = await getAllJobs();
+    try {
+      const jobs = await getAllJobs();
+      
+      // 处理 stale running jobs（长时间卡住的 running 状态）
+      await this.recoverStaleRunningJobs(jobs);
 
-    // 处理 stale running jobs（长时间卡住的 running 状态）
-    await this.recoverStaleRunningJobs(jobs);
+      // 按 createdAt 升序排序，选择最早的 pending job
+      const pendingJobs = jobs
+        .filter(j => j.state === 'pending')
+        .sort((a, b) => {
+          const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return timeA - timeB;
+        });
 
-    // 按 createdAt 升序排序，选择最早的 pending job
-    const pendingJobs = jobs
-      .filter(j => j.state === 'pending')
-      .sort((a, b) => {
-        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return timeA - timeB;
-      });
-
-    // 每轮最多拾取 1 个 pending job
-    if (pendingJobs.length > 0) {
-      const job = pendingJobs[0];
-      if (!processingMap.has(job.id)) {
-        await this.processJob(job);
+      if (pendingJobs.length > 0) {
+        console.log(`[ai-worker] Found ${pendingJobs.length} pending jobs. Picking the earliest one.`);
+        const job = pendingJobs[0];
+        if (!processingMap.has(job.id)) {
+          await this.processJob(job);
+        }
       }
+    } catch (err) {
+      console.error(`[ai-worker] scanAndProcess error: ${err.message}`);
     }
   }
 

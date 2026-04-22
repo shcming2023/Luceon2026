@@ -3374,7 +3374,64 @@ const worker = new ParseTaskWorker({
   }
 });
 
-const aiWorker = new AiMetadataWorker(minioContext);
+const aiWorker = new AiMetadataWorker({
+  ...minioContext,
+  onComplete: async (job, update) => {
+    try {
+      console.log(`[upload-server] AI Job completed, backfilling results: ${job.id}`);
+      
+      // 1. 获取关联的 Material ID
+      const materialId = job.materialId;
+      if (!materialId) {
+        console.warn(`[upload-server] AI Job ${job.id} has no materialId, skipping material backfill`);
+      } else {
+        // 2. 构造 Material 更新数据
+        // 状态映射：confirmed -> analyzed, review-pending -> analyzed (待审), failed -> failed
+        const aiStatus = (update.state === 'confirmed' || update.state === 'review-pending') ? 'analyzed' : 'failed';
+        
+        const materialUpdates = {
+          aiStatus,
+          metadata: {
+            ...(update.result || {}),
+            aiJobId: job.id,
+            aiAnalyzedAt: new Date().toISOString()
+          }
+        };
+
+        // 3. 同步到 db-server (Materials)
+        const matResp = await fetch(`${DB_BASE_URL}/materials/${materialId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(materialUpdates)
+        });
+        if (!matResp.ok) console.error(`[upload-server] Failed to backfill Material ${materialId}: ${matResp.status}`);
+      }
+
+      // 4. 同步到 db-server (ParseTask) - 推进状态到终态
+      if (job.parseTaskId) {
+        const taskState = update.state === 'confirmed' ? 'completed' : 
+                         (update.state === 'review-pending' ? 'review-pending' : 'failed');
+        
+        const taskResp = await fetch(`${DB_BASE_URL}/tasks/${job.parseTaskId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            state: taskState,
+            message: `AI 识别完成: ${update.state}${update.needsReview ? ' (待人工复核)' : ''}`,
+            metadata: {
+              ...(update.result || {}),
+              aiCompletedAt: new Date().toISOString()
+            }
+          })
+        });
+        if (!taskResp.ok) console.error(`[upload-server] Failed to update ParseTask ${job.parseTaskId}: ${taskResp.status}`);
+      }
+
+    } catch (err) {
+      console.error(`[upload-server] AI onComplete sync failed: ${err.message}`);
+    }
+  }
+});
 
 const server = app.listen(port, async () => {
   console.log(`[upload-server] listening on http://localhost:${port}`);

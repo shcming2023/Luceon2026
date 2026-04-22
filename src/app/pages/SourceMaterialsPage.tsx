@@ -380,29 +380,27 @@ export function SourceMaterialsPage() {
         });
 
         } catch (e) {
-          console.warn(`[frontend] 仅上传文件，跳过数据库预存，等待任务提交阶段自动落库: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        dispatch({
-          type: 'UPDATE_MATERIAL',
-          payload: {
-            id: it.materialId,
-            updates: {
-              status: 'failed',
-              mineruStatus: 'failed',
-              aiStatus: 'failed',
-              uploadTime: '上传失败',
-              metadata: {
-                processingStage: '',
-                processingMsg: `上传失败：${msg}`,
-                processingUpdatedAt: new Date().toISOString(),
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn(`[frontend] 上传中途出错: ${msg}`);
+          dispatch({
+            type: 'UPDATE_MATERIAL',
+            payload: {
+              id: it.materialId,
+              updates: {
+                status: 'failed',
+                mineruStatus: 'failed',
+                aiStatus: 'failed',
+                uploadTime: '上传失败',
+                metadata: {
+                  processingStage: '',
+                  processingMsg: `上传失败：${msg}`,
+                  processingUpdatedAt: new Date().toISOString(),
+                },
               },
             },
-          },
-        });
-        setUploadProgress((prev) => (prev ? { ...prev, failed: prev.failed + 1 } : prev));
-      } finally {
+          });
+          setUploadProgress((prev) => (prev ? { ...prev, failed: prev.failed + 1 } : prev));
+        } finally {
         setUploadProgress((prev) => {
           if (!prev) return prev;
           const next = { ...prev, done: prev.done + 1 };

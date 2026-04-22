@@ -187,7 +187,8 @@ export class ParseTaskWorker {
       });
 
       if (result.created) {
-        // 创建成功：写入 ai-job-created 事件
+        console.log(`[task-worker] AI Job created: ${result.jobId} for task ${task.id}`);
+        // 写入 ai-job-created 事件
         await logTaskEvent({
           taskId: task.id,
           taskType: 'parse',
@@ -196,8 +197,18 @@ export class ParseTaskWorker {
           message: `AI Metadata Job 已创建: ${result.jobId}`,
           payload: { aiJobId: result.jobId },
         });
+
+        // 将 aiJobId 同步更新到 ParseTask 记录中
+        await updateTask(task.id, {
+          aiJobId: result.jobId,
+          metadata: {
+            ...(task.metadata || {}),
+            aiJobId: result.jobId
+          }
+        });
       } else if (result.reason === 'duplicate') {
-        // 去重跳过：不算错误，记录 info
+        console.log(`[task-worker] AI Job already exists for task ${task.id}: ${result.jobId}`);
+        // 去重跳过
         await logTaskEvent({
           taskId: task.id,
           taskType: 'parse',
@@ -206,8 +217,18 @@ export class ParseTaskWorker {
           message: `AI Metadata Job 已存在，跳过创建 (existingJobId=${result.jobId})`,
           payload: { existingJobId: result.jobId },
         });
+
+        // 即使是重复，也确保记录中有这个 ID
+        await updateTask(task.id, {
+          aiJobId: result.jobId,
+          metadata: {
+            ...(task.metadata || {}),
+            aiJobId: result.jobId
+          }
+        });
       } else {
-        // 创建失败：记录 warning（不伪装为解析失败）
+        console.warn(`[task-worker] AI Job creation failed for task ${task.id}: ${result.reason}`);
+        // 创建失败
         await logTaskEvent({
           taskId: task.id,
           taskType: 'parse',
