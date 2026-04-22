@@ -43,7 +43,7 @@ export class AiMetadataWorker {
     
     this.timer = null;
     this.isRunning = false;
-    this.minioContext = options.minioContext || null;
+    this.minioContext = options.minioContext || (typeof options.getFileStream === 'function' ? options : null);
     this.onComplete = options.onComplete || null;
     // 默认超时时间，用于 stale running job 判断
     this.defaultTimeoutMs = 120000; // 120 秒
