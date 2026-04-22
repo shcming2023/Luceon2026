@@ -46,7 +46,7 @@ type BucketKey = 'all' | 'queued' | 'processing' | 'reviewing' | 'completed' | '
 
 const BUCKET_LABELS: Record<BucketKey, string> = {
   all: '全部',
-  queued: '排队中',
+  queued: '等待中',
   processing: '处理中',
   reviewing: '待审核',
   completed: '已完成',
@@ -58,10 +58,10 @@ function bucketOf(state: string | undefined): BucketKey {
   switch (state) {
     case 'uploading':
     case 'pending':
+    case 'ai-pending':
       return 'queued';
     case 'running':
     case 'result-store':
-    case 'ai-pending':
     case 'ai-running':
       return 'processing';
     case 'review-pending':
@@ -90,10 +90,10 @@ function stateBadgeClass(state: string | undefined): string {
 function zhLabelForState(state: string | undefined): string {
   switch (state) {
     case 'uploading': return '上传中';
-    case 'pending': return '排队中';
+    case 'pending': return '等待中';
     case 'running': return '解析中';
     case 'result-store': return '产物落库';
-    case 'ai-pending': return '等待 AI';
+    case 'ai-pending': return '等待中';
     case 'ai-running': return 'AI 分析中';
     case 'review-pending': return '待审核';
     case 'completed': return '已完成';

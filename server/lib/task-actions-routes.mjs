@@ -263,7 +263,33 @@ export function registerTaskActionRoutes(app) {
       return null;
     }
     return task;
-  }
+  // batch retry (MUST be before :id routes)
+  app.post('/tasks/batch/retry', async (req, res) => {
+    try {
+      const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+      if (ids.length === 0) {
+        res.status(400).json({ error: '缺少 ids 数组' });
+        return;
+      }
+      const results = [];
+      for (const id of ids) {
+        try {
+          const task = await dbGet(`/tasks/${encodeURIComponent(id)}`);
+          if (!task) {
+            results.push({ id, ok: false, error: 'not found' });
+            continue;
+          }
+          const newTask = await retryTask(task);
+          results.push({ id, ok: true, newTaskId: newTask.id });
+        } catch (e) {
+          results.push({ id, ok: false, error: e.message });
+        }
+      }
+      res.json({ ok: true, results });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
 
   // retry
   app.post('/tasks/:id/retry', async (req, res) => {
@@ -325,33 +351,6 @@ export function registerTaskActionRoutes(app) {
     }
   });
 
-  // batch retry
-  app.post('/tasks/batch/retry', async (req, res) => {
-    try {
-      const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
-      if (ids.length === 0) {
-        res.status(400).json({ error: '缺少 ids 数组' });
-        return;
-      }
-      const results = [];
-      for (const id of ids) {
-        try {
-          const task = await dbGet(`/tasks/${encodeURIComponent(id)}`);
-          if (!task) {
-            results.push({ id, ok: false, error: 'not found' });
-            continue;
-          }
-          const newTask = await retryTask(task);
-          results.push({ id, ok: true, newTaskId: newTask.id });
-        } catch (e) {
-          results.push({ id, ok: false, error: e.message });
-        }
-      }
-      res.json({ ok: true, results });
-    } catch (err) {
-      res.status(400).json({ error: err.message });
-    }
-  });
 
   // SSE：/tasks/stream
   app.get('/tasks/stream', (req, res) => {
