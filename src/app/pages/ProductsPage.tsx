@@ -26,6 +26,20 @@ import { usePagination, getPageNumbers } from '../../utils/pagination';
 import { fetchMinerUMarkdown } from '../../utils/mineruApi';
 import type { SortOption, ViewMode } from '../../store/types';
 
+// ── 工具函数 ──────────────────────────────────────────────
+const getMaterialTags = (m: any) =>
+  Array.isArray(m.tags) ? m.tags : Array.isArray(m.metadata?.tags) ? m.metadata.tags : [];
+
+function inferTypeFromMimeOrName(mime: string, name: string) {
+  if (mime?.includes('pdf') || name?.toLowerCase().endsWith('.pdf')) return 'PDF';
+  if (mime?.includes('word') || name?.toLowerCase().endsWith('.docx')) return 'DOCX';
+  if (mime?.includes('markdown') || name?.toLowerCase().endsWith('.md')) return 'MD';
+  return 'UNKNOWN';
+}
+
+const getMaterialType = (m: any) =>
+  m.type || inferTypeFromMimeOrName(m.metadata?.mimeType || m.mimeType, m.fileName || m.title) || 'UNKNOWN';
+
 // ── 筛选选项常量 ──────────────────────────────────────────
 
 const SORT_OPTIONS: { key: SortOption; label: string }[] = [
@@ -111,7 +125,7 @@ export function ProductsPage() {
       subjects:  unique(state.materials.map((m) => m.metadata?.subject)),
       grades:    unique(state.materials.map((m) => m.metadata?.grade)),
       languages: unique(state.materials.map((m) => m.metadata?.language)),
-      types:     unique(state.materials.map((m) => m.type)),
+      types:     unique(state.materials.map((m) => getMaterialType(m))),
     };
   }, [state.materials]);
 
@@ -123,13 +137,13 @@ export function ProductsPage() {
     if (subjectFilter !== 'all')      list = list.filter((m) => m.metadata?.subject === subjectFilter);
     if (gradeFilter !== 'all')        list = list.filter((m) => m.metadata?.grade === gradeFilter);
     if (languageFilter !== 'all')     list = list.filter((m) => m.metadata?.language === languageFilter);
-    if (typeFilter !== 'all')         list = list.filter((m) => m.type === typeFilter);
+    if (typeFilter !== 'all')         list = list.filter((m) => getMaterialType(m) === typeFilter);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter(
         (m) =>
           m.title.toLowerCase().includes(q) ||
-          m.tags.some((t) => t.toLowerCase().includes(q)) ||
+          getMaterialTags(m).some((t: string) => t.toLowerCase().includes(q)) ||
           (m.metadata?.subject || '').toLowerCase().includes(q) ||
           (m.metadata?.grade || '').toLowerCase().includes(q),
       );
@@ -451,7 +465,9 @@ export function ProductsPage() {
                   </tr>
                 )}
                 {currentItems.map((m) => {
-                  const tc = typeColor(m.type);
+                  const mType = getMaterialType(m);
+                  const mTags = getMaterialTags(m);
+                  const tc = typeColor(mType);
                   const mdSt = mdStates.get(m.id);
                   const hasMd = !!(m.metadata?.markdownObjectName || m.metadata?.markdownUrl || m.mineruZipUrl);
                   const hasZip = !!m.mineruZipUrl;
@@ -472,15 +488,15 @@ export function ProductsPage() {
                               <p className="font-medium text-slate-800 truncate max-w-xs hover:text-blue-600 transition-colors">
                                 {m.title}
                               </p>
-                              {m.tags.length > 0 && (
+                              {mTags.length > 0 && (
                                 <div className="flex gap-1 mt-1 flex-wrap">
-                                  {m.tags.slice(0, 3).map((tag) => (
+                                  {mTags.slice(0, 3).map((tag: string) => (
                                     <span key={tag} className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">
                                       {tag}
                                     </span>
                                   ))}
-                                  {m.tags.length > 3 && (
-                                    <span className="text-[10px] text-slate-400">+{m.tags.length - 3}</span>
+                                  {mTags.length > 3 && (
+                                    <span className="text-[10px] text-slate-400">+{mTags.length - 3}</span>
                                   )}
                                 </div>
                               )}
@@ -488,7 +504,7 @@ export function ProductsPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3.5">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-white ${tc.badge}`}>{m.type}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-white ${tc.badge}`}>{mType}</span>
                         </td>
                         <td className="px-4 py-3.5 text-slate-500">{m.size || formatBytes(m.sizeBytes)}</td>
                         <td className="px-4 py-3.5">
@@ -627,7 +643,9 @@ export function ProductsPage() {
               </div>
             )}
             {currentItems.map((m) => {
-              const tc = typeColor(m.type);
+              const mType = getMaterialType(m);
+              const mTags = getMaterialTags(m);
+              const tc = typeColor(mType);
               const hasMd = !!(m.metadata?.markdownObjectName || m.metadata?.markdownUrl || m.mineruZipUrl);
               const hasZip = !!m.mineruZipUrl;
               const hasPdf = !!(m.metadata?.objectName || m.previewUrl);
@@ -645,7 +663,7 @@ export function ProductsPage() {
                     <FileText className={`w-14 h-14 ${tc.text} opacity-30`} />
                     <div className="absolute top-3 left-3">
                       <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold text-white ${tc.badge}`}>
-                        {m.type}
+                        {mType}
                       </span>
                     </div>
                     {m.metadata?.subject && (
@@ -672,15 +690,15 @@ export function ProductsPage() {
                     {m.metadata?.grade && (
                       <span className="text-[10px] text-slate-400 mb-2">{m.metadata.grade}</span>
                     )}
-                    {m.tags.length > 0 && (
+                    {mTags.length > 0 && (
                       <div className="flex gap-1 flex-wrap mb-3">
-                        {m.tags.slice(0, 2).map((tag) => (
+                        {mTags.slice(0, 2).map((tag: string) => (
                           <span key={tag} className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">
                             {tag}
                           </span>
                         ))}
-                        {m.tags.length > 2 && (
-                          <span className="text-[10px] text-slate-400">+{m.tags.length - 2}</span>
+                        {mTags.length > 2 && (
+                          <span className="text-[10px] text-slate-400">+{mTags.length - 2}</span>
                         )}
                       </div>
                     )}
@@ -846,7 +864,7 @@ export function ProductsPage() {
             </div>
             {/* iframe */}
             <div className="flex-1 overflow-hidden">
-              {pdfPreviewMaterial?.type === 'PDF' || pdfPreviewUrl.includes('.pdf') || pdfPreviewMaterial?.metadata?.mimeType === 'application/pdf' ? (
+              {getMaterialType(pdfPreviewMaterial) === 'PDF' || pdfPreviewUrl.includes('.pdf') || pdfPreviewMaterial?.metadata?.mimeType === 'application/pdf' ? (
                 <iframe
                   src={pdfPreviewUrl}
                   className="w-full h-full border-0"

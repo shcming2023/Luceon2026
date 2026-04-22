@@ -1957,12 +1957,12 @@ app.post('/tasks', upload.single('file'), async (req, res) => {
     
     // 1. 上传文件到 MinIO
     const bucket = getMinioBucket();
-    // 统一 objectName 命名规则：使用 materialId 作为分层目录
-    const objectName = `originals/${materialId}/${req.file.originalname}`;
+    // 统一 objectName 命名规则：originals/{materialId}/source.{ext} (Requirement 6)
+    const ext = req.file.originalname.split('.').pop() || 'bin';
+    const objectName = `originals/${materialId}/source.${ext}`;
     await streamUploadToMinIO(req.file, bucket, objectName, req.file.mimetype);
 
     // 2. 创建或更新 material
-    // 先尝试获取已有的 Material (如果 materialId 是前端传来的数字ID)
     let existingMaterial = null;
     try {
       const getMatResp = await fetch(`${DB_BASE_URL}/materials/${encodeURIComponent(materialId)}`);
@@ -1976,11 +1976,14 @@ app.post('/tasks', upload.single('file'), async (req, res) => {
     const material = {
       ...(existingMaterial || {}),
       id: materialId,
-      status: 'processing', // 状态设为处理中
+      status: 'processing',
       fileName: req.file.originalname,
       title: req.file.originalname.replace(/\.[^/.]+$/, ''),
       fileSize: req.file.size,
       mimeType: req.file.mimetype,
+      // 补齐必选字段 (Requirement 2)
+      type: detectFormat(req.file.mimetype, req.file.originalname),
+      tags: existingMaterial?.tags || [],
       updateTime: Date.now(),
       createTime: existingMaterial?.createTime || Date.now(),
       metadata: {
@@ -1995,14 +1998,13 @@ app.post('/tasks', upload.single('file'), async (req, res) => {
     
     const dbMatBody = JSON.stringify(material);
     const dbMatResp = await fetch(`${DB_BASE_URL}/materials`, {
-      method: 'POST', // POST 在 db-server 中会按 ID 覆盖/插入
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: dbMatBody
     });
     if (!dbMatResp.ok) throw new Error(`同步 Material 到 db-server 失败`);
 
     // 3. 创建 ParseTask
-    // 从 db-server 获取 mineruConfig，合并到 optionsSnapshot 中
     let mineruConfig = {};
     try {
       const settingsResp = await fetch(`${DB_BASE_URL}/settings`);
@@ -2015,7 +2017,6 @@ app.post('/tasks', upload.single('file'), async (req, res) => {
     }
 
     const optionsSnapshot = {
-      // 先注入全局 mineruConfig 作为默认值
       localEndpoint: mineruConfig.localEndpoint || 'http://host.docker.internal:8083',
       localTimeout: mineruConfig.localTimeout || 3600,
       backend: mineruConfig.backend || 'pipeline',
@@ -2024,7 +2025,6 @@ app.post('/tasks', upload.single('file'), async (req, res) => {
       enableFormula: mineruConfig.enableFormula,
       enableTable: mineruConfig.enableTable,
       maxPages: mineruConfig.maxPages || 1000,
-      // 再用请求体中的单任务参数覆盖
       ...req.body,
       material
     };
@@ -2032,7 +2032,7 @@ app.post('/tasks', upload.single('file'), async (req, res) => {
     const parseTask = {
       id: taskId,
       materialId: materialId,
-      engine: 'local-mineru', // PRD 主链路：始终使用本地 MinerU FastAPI
+      engine: 'local-mineru',
       stage: 'upload',
       state: 'pending',
       progress: 0,
@@ -2050,7 +2050,24 @@ app.post('/tasks', upload.single('file'), async (req, res) => {
     const dbTaskResult = await dbTaskResp.json().catch(() => null);
     if (!dbTaskResp.ok) throw new Error(`同步 ParseTask 到 db-server 失败: ${dbTaskResult?.error || 'unknown'}`);
 
-    res.json({ ok: true, taskId, materialId });
+    // 生成预签名 URL 供前端使用 (Requirement 5)
+    let presignedUrl = '';
+    try {
+      presignedUrl = rewritePresignedUrl(await getMinioClient().presignedGetObject(bucket, objectName, getPresignedExpiry()));
+    } catch (e) {
+      console.warn('[upload-server] /tasks: presign failed', e.message);
+    }
+
+    res.json({
+      ok: true,
+      taskId,
+      materialId,
+      objectName,
+      url: presignedUrl,
+      fileName: req.file.originalname,
+      provider: 'minio',
+      mimeType: req.file.mimetype
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error('[upload-server] /tasks failed:', message);
@@ -3444,12 +3461,7 @@ const minioContext = {
   getFileStream: async (objectName) => {
     const bucket = resolveBucketForObject(objectName);
     return await getMinioClient().getObject(bucket, objectName);
-  }
-};
-
-const worker = new ParseTaskWorker({
-  minioContext,
-  eventBus: taskEventBus,
+  },
   saveMarkdown: async (objectName, markdown) => {
     const bucket = getParsedBucket();
     const client = getMinioClient();
@@ -3457,6 +3469,11 @@ const worker = new ParseTaskWorker({
     const buffer = Buffer.from(markdown, 'utf-8');
     await client.putObject(bucket, objectName, buffer, buffer.length, { 'Content-Type': 'text/markdown; charset=utf-8' });
   }
+};
+
+const worker = new ParseTaskWorker({
+  minioContext,
+  eventBus: taskEventBus
 });
 
 const aiWorker = new AiMetadataWorker({

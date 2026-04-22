@@ -29,6 +29,20 @@ import { usePagination, getPageNumbers } from '../../utils/pagination';
 import { checkLocalMinerUHealth } from '../../utils/mineruLocalApi';
 import { generateNumericIdFromUuid } from '../../utils/id';
 
+// ── 工具函数 ──────────────────────────────────────────────
+const getMaterialTags = (m: any) =>
+  Array.isArray(m.tags) ? m.tags : Array.isArray(m.metadata?.tags) ? m.metadata.tags : [];
+
+function inferTypeFromMimeOrName(mime: string, name: string) {
+  if (mime?.includes('pdf') || name?.toLowerCase().endsWith('.pdf')) return 'PDF';
+  if (mime?.includes('word') || name?.toLowerCase().endsWith('.docx')) return 'DOCX';
+  if (mime?.includes('markdown') || name?.toLowerCase().endsWith('.md')) return 'MD';
+  return 'UNKNOWN';
+}
+
+const getMaterialType = (m: any) =>
+  m.type || inferTypeFromMimeOrName(m.metadata?.mimeType || m.mimeType, m.fileName || m.title) || 'UNKNOWN';
+
 /** 删除确认弹窗 */
 function confirmDelete(message: string): Promise<boolean> {
   return new Promise((resolve) => {
@@ -119,7 +133,7 @@ export function SourceMaterialsPage() {
       list = list.filter(
         (m) =>
           m.title.toLowerCase().includes(q) ||
-          m.tags.some((t) => t.toLowerCase().includes(q)) ||
+          getMaterialTags(m).some((t: string) => t.toLowerCase().includes(q)) ||
           m.uploader.toLowerCase().includes(q),
       );
     }
@@ -991,7 +1005,9 @@ export function SourceMaterialsPage() {
                       </tr>
                     )}
                     {currentItems.map((m) => {
-                      const tc = typeColor(m.type);
+                      const mType = getMaterialType(m);
+                      const mTags = getMaterialTags(m);
+                      const tc = typeColor(mType);
                       return (
                         <tr key={m.id} className="hover:bg-slate-50 cursor-pointer transition-colors" onClick={() => navigate(`/asset/${m.id}`)}>
                           <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
@@ -1004,19 +1020,19 @@ export function SourceMaterialsPage() {
                               </div>
                               <div className="min-w-0">
                                 <p className="font-medium text-slate-800 truncate max-w-xs">{m.title}</p>
-                                {m.tags.length > 0 && (
+                                {mTags.length > 0 && (
                                   <div className="flex gap-1 mt-1 flex-wrap">
-                                    {m.tags.slice(0, 3).map((tag) => (
+                                    {mTags.slice(0, 3).map((tag: string) => (
                                       <span key={tag} className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">{tag}</span>
                                     ))}
-                                    {m.tags.length > 3 && <span className="text-[10px] text-slate-400">+{m.tags.length - 3}</span>}
+                                    {mTags.length > 3 && <span className="text-[10px] text-slate-400">+{mTags.length - 3}</span>}
                                   </div>
                                 )}
                               </div>
                             </div>
                           </td>
                           <td className="px-4 py-3.5">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-white ${tc.badge}`}>{m.type}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-white ${tc.badge}`}>{mType}</span>
                           </td>
                           <td className="px-4 py-3.5 text-slate-500">{m.size}</td>
                           <td className="px-4 py-3.5 text-slate-500">{m.uploader}</td>

@@ -8,6 +8,20 @@ import { PDFPreviewPanel } from '../components/PDFPreviewPanel';
 import { PreviewTabPanel } from '../components/PreviewTabPanel';
 import { ProcessPipelineCard } from '../components/ProcessPipelineCard';
 
+// ── 工具函数 ──────────────────────────────────────────────
+const getMaterialTags = (m: any) =>
+  Array.isArray(m.tags) ? m.tags : Array.isArray(m.metadata?.tags) ? m.metadata.tags : [];
+
+function inferTypeFromMimeOrName(mime: string, name: string) {
+  if (mime?.includes('pdf') || name?.toLowerCase().endsWith('.pdf')) return 'PDF';
+  if (mime?.includes('word') || name?.toLowerCase().endsWith('.docx')) return 'DOCX';
+  if (mime?.includes('markdown') || name?.toLowerCase().endsWith('.md')) return 'MD';
+  return 'UNKNOWN';
+}
+
+const getMaterialType = (m: any) =>
+  m?.type || inferTypeFromMimeOrName(m?.metadata?.mimeType || m?.mimeType, m?.fileName || m?.title) || 'UNKNOWN';
+
 function getPresignedExpireAtMs(url: string): number | null {
   try {
     const u = new URL(url);
@@ -573,7 +587,7 @@ export function AssetDetailPage() {
 
       <div className="flex-1 min-h-0 grid grid-cols-1 gap-5 lg:grid-cols-5 overflow-hidden">
         <div className="lg:col-span-2 space-y-5 min-h-0 overflow-y-auto pr-1">
-          {objectName && material?.type?.toUpperCase() === 'PDF' && (
+          {objectName && getMaterialType(material).toUpperCase() === 'PDF' && (
             <PDFPreviewPanel objectName={objectName} />
           )}
           <ProcessPipelineCard
