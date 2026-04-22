@@ -136,7 +136,7 @@ export function WorkspacePage() {
 
   const stageLabel = (m: Material) => {
     if (m.status === 'failed' || m.mineruStatus === 'failed' || m.aiStatus === 'failed') return '失败';
-    if (m.aiStatus === 'processing') return 'AI 分析';
+    if (m.aiStatus === 'analyzing') return 'AI 分析';
     if (m.mineruStatus === 'processing') return 'MinerU 解析';
     if (m.mineruStatus === 'pending') return '待解析';
     if (m.aiStatus === 'pending') return '待分析';

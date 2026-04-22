@@ -16,6 +16,9 @@ interface ParseTask {
 }
 
 export function TaskManagementPage() {
+  const [tasks, setTasks] = useState<ParseTask[]>([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
   const [filter, setFilter] = useState<'all' | 'pending' | 'processing' | 'failed' | 'completed'>('all');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
