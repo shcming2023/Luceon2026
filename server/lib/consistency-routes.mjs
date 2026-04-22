@@ -167,7 +167,11 @@ export function registerConsistencyRoutes(app, deps) {
               errorMessage: 'orphan-task: material missing',
               message: '一致性扫描：关联的 Material 不存在',
             },
-          } : null,
+          } : {
+            method: 'DELETE',
+            path: `/tasks/${encodeURIComponent(t.id)}`,
+            reason: 'PRD §9.1 补充：清理已审计的孤儿任务',
+          },
         });
       }
     }
@@ -188,7 +192,11 @@ export function registerConsistencyRoutes(app, deps) {
             method: 'PATCH',
             path: `/ai-metadata-jobs/${encodeURIComponent(j.id)}`,
             body: { state: 'failed', message: 'orphan-ai-job: parse task missing' },
-          } : null,
+          } : {
+            method: 'DELETE',
+            path: `/ai-metadata-jobs/${encodeURIComponent(j.id)}`,
+            reason: 'PRD §9.1 补充：清理已审计的孤儿 Job',
+          },
         });
       }
     }
