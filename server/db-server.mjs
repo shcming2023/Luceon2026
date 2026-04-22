@@ -939,11 +939,11 @@ function normalizeCanonicalStatesOnStartup() {
     }
   }
 
-  // 3. 修复 Task 与 Material 状态不同步 (Requirement 5)
+  // 3. 修复 Task 与 Material 状态不同步 (Requirement 5 & 历史自愈)
   // 当 Task 已完成且 AI 已确认，但 Material 仍停留在 processing 或缺少 mineruStatus 时进行补齐
   const confirmedAiJobsByTaskId = {};
   for (const j of Object.values(dbCache.aiMetadataJobs || {})) {
-    if (j.state === 'confirmed' && j.parseTaskId) {
+    if ((j.state === 'confirmed' || j.state === 'review-pending') && j.parseTaskId) {
       confirmedAiJobsByTaskId[j.parseTaskId] = j;
     }
   }
@@ -972,11 +972,49 @@ function normalizeCanonicalStatesOnStartup() {
           dirty = true;
         }
       }
+
+      // 追加修复 ParseTask 自身的 stage/completedAt (历史数据自愈)
+      if (t.stage !== 'done') {
+        t.stage = 'done';
+        dirty = true;
+      }
+      // 如果 ParseTask 的完成时间早于 AI Job 的完成时间，或者根本没设，则校准
+      const aiTime = j?.updatedAt || j?.metadata?.aiCompletedAt;
+      if (aiTime && (!t.completedAt || t.completedAt < aiTime)) {
+        t.completedAt = aiTime;
+        dirty = true;
+      }
     }
   }
 
+  // 4. 清理历史重复事件 (Requirement 4 追加)
+  const seenCreatedEvents = new Set();
+  const eventIdsToDelete = [];
+  // 按时间升序排序，保留最早的那条 created 事件
+  const sortedEvents = Object.values(dbCache.taskEvents || {}).sort((a, b) => 
+    new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
+  );
+
+  for (const e of sortedEvents) {
+    if (e.event === 'created' && e.taskId) {
+      if (seenCreatedEvents.has(e.taskId)) {
+        eventIdsToDelete.push(e.id);
+      } else {
+        seenCreatedEvents.add(e.taskId);
+      }
+    }
+  }
+
+  if (eventIdsToDelete.length > 0) {
+    console.log(`[db-server] startup-migration: deleting ${eventIdsToDelete.length} duplicate created events`);
+    for (const id of eventIdsToDelete) {
+      delete dbCache.taskEvents[id];
+    }
+    dirty = true;
+  }
+
   if (dirty) {
-    console.log('[db-server] startup-migration: normalized legacy states and synced materials');
+    console.log('[db-server] startup-migration: normalized legacy states, synced materials, and deduplicated events');
     writeDB();
   }
 }
