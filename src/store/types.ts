@@ -369,6 +369,7 @@ export type AppAction =
   | { type: 'BATCH_SET_RUNNING'; payload: { running: boolean } }
   | { type: 'BATCH_SET_PAUSED'; payload: { paused: boolean } }
   | { type: 'BATCH_SET_UI_OPEN'; payload: { uiOpen: boolean } }
+  | { type: 'BATCH_SET_OPTIONS'; payload: Partial<BatchProcessingState> }
   // 资料操作
   | { type: 'ADD_MATERIAL'; payload: Material }
   | { type: 'DELETE_MATERIAL'; payload: number[] }

@@ -46,7 +46,7 @@ services:
     environment:
       - TZ=Asia/Shanghai
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/__proxy/upload/health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/__proxy/upload/health"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -104,7 +104,7 @@ services:
       - NODE_OPTIONS=--max-old-space-size=3072
       - TZ=Asia/Shanghai
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8788/health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8788/health"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -137,7 +137,7 @@ services:
     volumes:
       - cms-db-data:/data
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8789/health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8789/health"]
       interval: 30s
       timeout: 5s
       retries: 3

@@ -85,31 +85,42 @@ export class ParseTaskWorker {
         
         const fileStream = await this.minioContext.getFileStream(objectName);
         
-        const mineruResult = await processWithLocalMinerU({
-          task,
-          material: materialInfo,
-          fileStream,
-          fileName: materialInfo.fileName || 'document.pdf',
-          mimeType: materialInfo.mimeType || 'application/pdf',
-          timeoutMs: Number(task.optionsSnapshot?.localTimeout || 3600) * 1000,
-          minioContext: this.minioContext,
-          updateProgress: async (updateInfo) => {
-            const eventName = updateInfo.stage === 'store' ? 'stage-changed' : 'progress-update';
-            await this.transition(task, updateInfo, eventName);
-          }
-        });
-        
-        const markdownObjectName = mineruResult.objectName;
+        let markdownObjectName = null;
+        let mineruTaskId = null;
+
+        const isMarkdown = (materialInfo.fileName || '').toLowerCase().endsWith('.md') || materialInfo.mimeType === 'text/markdown';
+
+        if (isMarkdown) {
+          console.log(`[task-worker] Task ${task.id} is Markdown, skipping MinerU parsing`);
+          markdownObjectName = objectName; // 直接使用原始文件作为 AI 输入
+          mineruTaskId = 'skip-markdown';
+        } else {
+          const mineruResult = await processWithLocalMinerU({
+            task,
+            material: materialInfo,
+            fileStream,
+            fileName: materialInfo.fileName || 'document.pdf',
+            mimeType: materialInfo.mimeType || 'application/pdf',
+            timeoutMs: Number(task.optionsSnapshot?.localTimeout || 3600) * 1000,
+            minioContext: this.minioContext,
+            updateProgress: async (updateInfo) => {
+              const eventName = updateInfo.stage === 'store' ? 'stage-changed' : 'progress-update';
+              await this.transition(task, updateInfo, eventName);
+            }
+          });
+          markdownObjectName = mineruResult.objectName;
+          mineruTaskId = mineruResult.mineruTaskId;
+        }
 
         await this.transition(task, {
           stage: 'complete',
           state: 'ai-pending',
           progress: 100,
-          message: 'MinerU 解析完成，产物已落库，等待 AI 元数据识别',
+          message: isMarkdown ? 'Markdown 文件无需解析，正在准备 AI 任务' : 'MinerU 解析完成，产物已落库，等待 AI 元数据识别',
           metadata: {
             ...(task.metadata || {}),
             markdownObjectName,
-            mineruTaskId: mineruResult.mineruTaskId,
+            mineruTaskId,
             parsedAt: new Date().toISOString()
           },
           completedAt: new Date().toISOString()

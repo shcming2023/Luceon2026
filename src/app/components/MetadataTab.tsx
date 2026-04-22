@@ -85,7 +85,7 @@ export function MetadataTab({
  
   const aiModel = useMemo(() => {
     const p = state.aiConfig?.providers?.find((x) => x.enabled);
-    return p?.model || p?.provider || '—';
+    return p?.model || p?.id || '—';
   }, [state.aiConfig?.providers]);
  
   const handleSaveTags = () => {

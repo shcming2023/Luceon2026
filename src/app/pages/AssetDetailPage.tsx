@@ -305,7 +305,7 @@ export function AssetDetailPage() {
         return r.blob();
       });
       const fileName = material.metadata?.fileName || material.title || 'document.pdf';
-      const file = new File([fileBlob], fileName, { type: material.mimeType || 'application/pdf' });
+      const file = new File([fileBlob], fileName, { type: material.metadata?.mimeType || 'application/pdf' });
 
       const formData = new FormData();
       formData.append('file', file);

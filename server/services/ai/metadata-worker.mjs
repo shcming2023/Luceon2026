@@ -29,7 +29,18 @@ export class AiMetadataWorker {
    * @param {Function} [contextOrOptions.onComplete] - AI Job 到达终态时的回调 (job, update) => Promise<void>
    */
   constructor(contextOrOptions = null) {
-    const options = contextOrOptions?.getFileStream ? { minioContext: contextOrOptions } : (contextOrOptions || {});
+    // 逻辑修正：
+    // 1. 如果包含 onComplete 或 minioContext，判定为新式 options 对象
+    // 2. 如果包含 getFileStream 但不包含 onComplete，判定为旧式 minioContext 对象
+    let options = {};
+    if (contextOrOptions && (contextOrOptions.onComplete || contextOrOptions.minioContext)) {
+      options = contextOrOptions;
+    } else if (contextOrOptions?.getFileStream) {
+      options = { minioContext: contextOrOptions };
+    } else {
+      options = contextOrOptions || {};
+    }
+    
     this.timer = null;
     this.isRunning = false;
     this.minioContext = options.minioContext || null;
@@ -287,9 +298,18 @@ export class AiMetadataWorker {
       }
 
       // 6. 结果后处理与归一化 (TASK-24)
-      const result = this.normalizeResult(aiResponse.result);
+      // 增强：鲁棒的 JSON 提取
+      let parsedResult = {};
+      try {
+        parsedResult = this.extractJson(aiResponse.result);
+      } catch (err) {
+        console.warn(`[ai-worker] JSON extraction failed for job ${job.id}: ${err.message}. Content preview: ${String(aiResponse.result).slice(0, 100)}`);
+        return await this.degradeToSkeleton(job, `AI 响应格式解析失败: ${err.message}，已降级`);
+      }
+
+      const result = this.normalizeResult(parsedResult);
       // 记录原始响应预览
-      result.rawPreview = aiResponse.rawResponse?.slice(0, 1000);
+      result.rawPreview = String(aiResponse.result).slice(0, 1000);
 
       const confidence = result.confidence || aiResponse.usage?.confidence || 0;
       
@@ -541,6 +561,46 @@ JSON 结构需包含以下字段（符合 PRD 10.5.3）：
           console.error(`[ai-worker] onComplete callback failed: ${err.message}`);
         }
       }
+    }
+  }
+
+  /**
+   * 鲁棒的 JSON 提取逻辑
+   * 1. 处理 ```json ... ``` 代码块
+   * 2. 处理 ``` ... ``` 原始代码块
+   * 3. 兜底尝试提取第一个 { 到最后一个 } 之间的内容
+   */
+  extractJson(raw) {
+    if (typeof raw === 'object' && raw !== null) return raw;
+    if (!raw || typeof raw !== 'string') return {};
+
+    let content = raw.trim();
+    
+    // 尝试匹配 ```json ... ```
+    const jsonBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (jsonBlockMatch && jsonBlockMatch[1]) {
+      content = jsonBlockMatch[1].trim();
+    } else {
+      // 尝试匹配第一个 { 到最后一个 }
+      const braceMatch = content.match(/(\{[\s\S]*\})/);
+      if (braceMatch && braceMatch[1]) {
+        content = braceMatch[1].trim();
+      }
+    }
+
+    try {
+      return JSON.parse(content);
+    } catch (err) {
+      // 如果解析失败，尝试清理掉结尾可能存在的额外字符（如：模型输出完 JSON 后又自言自语）
+      try {
+        const lastBrace = content.lastIndexOf('}');
+        if (lastBrace !== -1) {
+          return JSON.parse(content.slice(0, lastBrace + 1));
+        }
+      } catch (innerErr) {
+        // 依然失败，抛出原始解析错误
+      }
+      throw err;
     }
   }
 
