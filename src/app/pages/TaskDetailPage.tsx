@@ -21,7 +21,18 @@ interface ParseTask {
   createdAt?: string;
   updatedAt?: string;
   completedAt?: string;
+  metadata?: Record<string, unknown>;
   optionsSnapshot?: Record<string, unknown>;
+}
+
+/**
+ * 关联 Material 的资源状态摘要（用于动作按钮禁用判断）
+ */
+interface ResourceStatus {
+  materialExists: boolean;
+  originalExists: boolean;    // Material 有 objectName
+  markdownExists: boolean;    // Material 有 markdownObjectName 或 task.metadata.markdownObjectName
+  loaded: boolean;
 }
 
 /**
@@ -135,9 +146,15 @@ export function TaskDetailPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [optionsExpanded, setOptionsExpanded] = useState(false);
+  const [resourceStatus, setResourceStatus] = useState<ResourceStatus>({
+    materialExists: true,
+    originalExists: true,
+    markdownExists: true,
+    loaded: false,
+  });
 
   /**
-   * 从后端加载任务详情、事件日志和关联 AI Jobs
+   * 从后端加载任务详情、事件日志、关联 AI Jobs 和 Material 资源状态
    */
   const fetchData = async () => {
     if (!id) return;
@@ -170,6 +187,31 @@ export function TaskDetailPage() {
       if (aiJobsRes.ok) {
         const aiJobsData = await aiJobsRes.json();
         setAiJobs(Array.isArray(aiJobsData) ? aiJobsData : []);
+      }
+
+      // 加载关联 Material 信息，判断资源状态
+      if (taskData.materialId) {
+        try {
+          const matRes = await fetch(`/__proxy/db/materials/${encodeURIComponent(String(taskData.materialId))}`);
+          if (matRes.status === 404) {
+            setResourceStatus({ materialExists: false, originalExists: false, markdownExists: false, loaded: true });
+          } else if (matRes.ok) {
+            const mat = await matRes.json();
+            setResourceStatus({
+              materialExists: true,
+              originalExists: !!(mat.metadata?.objectName),
+              markdownExists: !!(mat.metadata?.markdownObjectName || taskData.metadata?.markdownObjectName),
+              loaded: true,
+            });
+          } else {
+            setResourceStatus({ materialExists: false, originalExists: false, markdownExists: false, loaded: true });
+          }
+        } catch {
+          setResourceStatus({ materialExists: false, originalExists: false, markdownExists: false, loaded: true });
+        }
+      } else {
+        // 无 materialId 的任务
+        setResourceStatus({ materialExists: false, originalExists: false, markdownExists: false, loaded: true });
       }
     } catch (err) {
       toast.error('加载任务详情失败', { description: String(err) });
@@ -260,6 +302,25 @@ export function TaskDetailPage() {
   // ─── 正常渲染 ────────────────────────────────────────────────
   const stateStyle = getStateStyle(task.state);
 
+  // 资源状态感知：根据 Material 和文件存在性决定按钮是否可用
+  const canRetry = task.state === 'failed' && resourceStatus.materialExists && resourceStatus.originalExists;
+  const canReparse = ['failed', 'completed', 'review-pending', 'canceled'].includes(String(task.state))
+    && resourceStatus.materialExists && resourceStatus.originalExists;
+  const canReAi = ['failed', 'completed', 'review-pending'].includes(String(task.state))
+    && resourceStatus.materialExists && resourceStatus.markdownExists;
+  const canCancel = ['pending', 'ai-pending', 'review-pending'].includes(String(task.state));
+
+  // 资源缺失提示文案
+  const resourceWarning = (() => {
+    if (!resourceStatus.loaded) return null;
+    if (!resourceStatus.materialExists) return '关联的原始资料已被删除，无法重跑。请重新上传文件创建新任务';
+    if (!resourceStatus.originalExists) return '原始文件已删除，无法重新解析。请重新上传文件';
+    if (!resourceStatus.markdownExists && ['completed', 'review-pending', 'failed'].includes(String(task.state))) {
+      return 'Markdown 产物缺失，无法重跑 AI 识别。请先执行 Reparse';
+    }
+    return null;
+  })();
+
   return (
     <div className="p-6 h-full overflow-y-auto space-y-6">
       {/* ── 顶部导航栏 ────────────────────────────────────────── */}
@@ -291,31 +352,31 @@ export function TaskDetailPage() {
           </button>
           <button
             onClick={() => callAction('retry')}
-            disabled={task.state !== 'failed'}
+            disabled={!canRetry}
             className="flex items-center gap-2 px-3 py-2 bg-white border border-amber-200 text-amber-700 rounded-lg text-sm font-medium hover:bg-amber-50 disabled:opacity-40 transition-colors"
-            title="Retry：内克隆新任务重跑"
+            title={canRetry ? 'Retry：克隆新任务重跑' : (resourceStatus.materialExists ? '需要原始文件才能重试' : '原始资料已删除，无法重试')}
           >
             <RotateCw className="w-4 h-4" /> Retry
           </button>
           <button
             onClick={() => callAction('reparse')}
-            disabled={!['failed', 'completed', 'review-pending', 'canceled'].includes(String(task.state))}
+            disabled={!canReparse}
             className="flex items-center gap-2 px-3 py-2 bg-white border border-indigo-200 text-indigo-700 rounded-lg text-sm font-medium hover:bg-indigo-50 disabled:opacity-40 transition-colors"
-            title="Reparse：仅重跑解析阶段"
+            title={canReparse ? 'Reparse：仅重跑解析阶段' : (resourceStatus.materialExists ? '需要原始文件才能重新解析' : '原始资料已删除，无法重新解析')}
           >
             <RefreshCw className="w-4 h-4" /> Reparse
           </button>
           <button
             onClick={() => callAction('re-ai')}
-            disabled={!['failed', 'completed', 'review-pending'].includes(String(task.state))}
+            disabled={!canReAi}
             className="flex items-center gap-2 px-3 py-2 bg-white border border-violet-200 text-violet-700 rounded-lg text-sm font-medium hover:bg-violet-50 disabled:opacity-40 transition-colors"
-            title="Re-AI：仅重跑 AI 元数据阶段"
+            title={canReAi ? 'Re-AI：仅重跑 AI 元数据阶段' : (resourceStatus.materialExists ? '需要 Markdown 产物才能重跑 AI' : '原始资料已删除，无法重跑 AI')}
           >
             <Sparkles className="w-4 h-4" /> Re-AI
           </button>
           <button
             onClick={() => callAction('cancel')}
-            disabled={!['pending', 'ai-pending', 'review-pending'].includes(String(task.state))}
+            disabled={!canCancel}
             className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 disabled:opacity-40 transition-colors"
             title="Cancel"
           >
@@ -323,6 +384,17 @@ export function TaskDetailPage() {
           </button>
         </div>
       </div>
+
+      {/* ── 资源缺失警告 ────────────────────────────────────── */}
+      {resourceWarning && (
+        <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-amber-800">资源不可用</p>
+            <p className="text-sm text-amber-700 mt-1">{resourceWarning}</p>
+          </div>
+        </div>
+      )}
 
       {/* ── 状态概览卡片 ──────────────────────────────────────── */}
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-5">

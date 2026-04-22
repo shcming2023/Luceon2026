@@ -14,6 +14,11 @@
  *   1) 通过 db-server REST 更新状态；
  *   2) 调用 logTaskEvent 写入 taskEvents；
  *   3) 通过事件总线 emit('task-update', ...) 广播，使订阅者（SSE）即时感知。
+ *
+ * v0.4.1 防护增强：
+ *   - reparse/retry/re-ai 执行前必须通过资源前置校验（Material 存在 + MinIO 原文件存在）
+ *   - 校验失败返回 409 Conflict，不得修改任务状态
+ *   - 杜绝"已完成任务因 Reparse 降级为失败"的数据污染问题
  */
 
 import { taskEventBus } from './task-events-bus.mjs';
@@ -47,6 +52,77 @@ async function dbPatch(path, body) {
   return await resp.json().catch(() => ({}));
 }
 
+/**
+ * 资源前置校验：检查任务关联的 Material 和 MinIO 文件是否存在
+ * @param {Object} task - ParseTask 对象
+ * @param {Object} deps - 依赖注入对象 { getMinioClient, getMinioBucket, getStorageBackend, getParsedBucket }
+ * @param {Object} options - 校验选项 { needOriginal: boolean, needMarkdown: boolean }
+ * @returns {{ ok: boolean, reason?: string, materialMissing?: boolean, originalMissing?: boolean, markdownMissing?: boolean }}
+ */
+async function validateResources(task, deps, options = {}) {
+  const { needOriginal = true, needMarkdown = false } = options;
+  const result = { ok: true };
+
+  // 1) Material 存在性校验
+  if (!task.materialId) {
+    result.ok = false;
+    result.reason = '任务缺少 materialId，无法定位关联资料';
+    result.materialMissing = true;
+    return result;
+  }
+  const material = await dbGet(`/materials/${encodeURIComponent(task.materialId)}`);
+  if (!material) {
+    result.ok = false;
+    result.reason = `关联的 Material (${task.materialId}) 已被删除，无法重跑。请重新上传文件创建新任务`;
+    result.materialMissing = true;
+    return result;
+  }
+
+  // 2) 原始文件（MinIO objectName）存在性校验
+  if (needOriginal && deps.getStorageBackend() === 'minio') {
+    const objectName = material.metadata?.objectName;
+    if (!objectName) {
+      result.ok = false;
+      result.reason = `Material (${task.materialId}) 缺少 objectName，原始文件路径已丢失`;
+      result.originalMissing = true;
+      return result;
+    }
+    try {
+      const minio = deps.getMinioClient();
+      const bucket = deps.getMinioBucket();
+      await minio.statObject(bucket, objectName);
+    } catch (e) {
+      result.ok = false;
+      result.reason = `原始文件 (${material.metadata.objectName}) 在 MinIO 中不存在，无法重新解析。请重新上传文件`;
+      result.originalMissing = true;
+      return result;
+    }
+  }
+
+  // 3) Markdown 产物存在性校验（Re-AI 需要）
+  if (needMarkdown && deps.getStorageBackend() === 'minio') {
+    const mdObjectName = material.metadata?.markdownObjectName || task.metadata?.markdownObjectName;
+    if (!mdObjectName) {
+      result.ok = false;
+      result.reason = '缺少 Markdown 产物路径，无法重跑 AI 识别。请先执行 Reparse';
+      result.markdownMissing = true;
+      return result;
+    }
+    try {
+      const minio = deps.getMinioClient();
+      const parsedBucket = deps.getParsedBucket();
+      await minio.statObject(parsedBucket, mdObjectName);
+    } catch (e) {
+      result.ok = false;
+      result.reason = `Markdown 产物 (${mdObjectName}) 在 MinIO 中不存在，无法重跑 AI 识别。请先执行 Reparse`;
+      result.markdownMissing = true;
+      return result;
+    }
+  }
+
+  return result;
+}
+
 async function emitAndLog({ taskId, taskType = 'parse', level = 'info', event, message, update = {}, payload = {} }) {
   await logTaskEvent({ taskId, taskType, level, event, message, payload });
   try {
@@ -71,10 +147,21 @@ function newTaskId() {
 /**
  * retry: failed → 克隆出新 ParseTask，指向原任务
  * 成功后：原任务仍保留为 failed（可审计），新任务进入 pending
+ * @param {Object} task - ParseTask 对象
+ * @param {Object} deps - 依赖注入对象（用于资源校验）
+ * @returns {Object} 克隆的新任务
  */
-async function retryTask(task) {
+async function retryTask(task, deps) {
   if (task.state !== 'failed') {
     throw new Error(`Only failed tasks can be retried (current: ${task.state})`);
+  }
+  // 前置校验：Retry 需要原始文件存在
+  const validation = await validateResources(task, deps, { needOriginal: true, needMarkdown: false });
+  if (!validation.ok) {
+    const err = new Error(validation.reason);
+    err.statusCode = 409;
+    err.resourceCheck = validation;
+    throw err;
   }
   const newId = newTaskId();
   const clone = {
@@ -106,11 +193,23 @@ async function retryTask(task) {
 /**
  * reparse: 将当前任务从 failed/completed/review-pending 置回 pending
  * 适用于希望"同一任务 ID 重新解析"的场景，保留任务血缘
+ * 前置校验：Material 必须存在且 MinIO 原始对象必须存在，否则返回 409 不修改状态
+ * @param {Object} task - ParseTask 对象
+ * @param {Object} deps - 依赖注入对象（用于资源校验）
+ * @returns {Object} 更新后的任务
  */
-async function reparseTask(task) {
+async function reparseTask(task, deps) {
   const allowed = new Set(['failed', 'completed', 'review-pending', 'canceled']);
   if (!allowed.has(task.state)) {
     throw new Error(`Task state ${task.state} cannot be reparsed`);
+  }
+  // 前置校验：Reparse 需要原始文件存在
+  const validation = await validateResources(task, deps, { needOriginal: true, needMarkdown: false });
+  if (!validation.ok) {
+    const err = new Error(validation.reason);
+    err.statusCode = 409;
+    err.resourceCheck = validation;
+    throw err;
   }
   const update = {
     state: 'pending',
@@ -138,14 +237,23 @@ async function reparseTask(task) {
  *   - 下一轮 tick 由 task-worker/ai-worker 自动重新创建 AI Job
  *
  * 前置：任务已产出 markdown（metadata.markdownObjectName 应存在）
+ * 前置校验：Material 必须存在且 Markdown 产物必须存在，否则返回 409 不修改状态
+ * @param {Object} task - ParseTask 对象
+ * @param {Object} deps - 依赖注入对象（用于资源校验）
+ * @returns {Object} 更新后的任务
  */
-async function reAiTask(task) {
+async function reAiTask(task, deps) {
   const allowed = new Set(['completed', 'review-pending', 'failed']);
   if (!allowed.has(task.state)) {
     throw new Error(`Task state ${task.state} cannot trigger Re-AI`);
   }
-  if (!task.metadata?.markdownObjectName) {
-    throw new Error('Task has no markdown product; Reparse first before Re-AI');
+  // 前置校验：Re-AI 需要 Material 存在 + Markdown 产物存在
+  const validation = await validateResources(task, deps, { needOriginal: false, needMarkdown: true });
+  if (!validation.ok) {
+    const err = new Error(validation.reason);
+    err.statusCode = 409;
+    err.resourceCheck = validation;
+    throw err;
   }
   // 让旧 AI Job 失效（不阻塞主流程）
   if (task.aiJobId) {
@@ -253,8 +361,25 @@ async function reviewTask(task, body) {
 
 // ─── 路由注册 ────────────────────────────────────────────────
 
-export function registerTaskActionRoutes(app) {
+/**
+ * 注册任务动作路由
+ * @param {Object} app - Express 应用实例
+ * @param {Object} deps - 依赖注入对象
+ * @param {Function} deps.getMinioClient - 获取 MinIO 客户端实例
+ * @param {Function} deps.getMinioBucket - 获取原始资料桶名
+ * @param {Function} deps.getStorageBackend - 获取存储后端类型 ('minio' | 'tmpfiles')
+ * @param {Function} deps.getParsedBucket - 获取解析产物桶名
+ */
+export function registerTaskActionRoutes(app, deps = {}) {
   if (!app) throw new Error('registerTaskActionRoutes requires an express app');
+
+  // 构建 deps 默认值（兼容无 MinIO 环境）
+  const safeDeps = {
+    getMinioClient: deps.getMinioClient || (() => null),
+    getMinioBucket: deps.getMinioBucket || (() => 'eduassets'),
+    getStorageBackend: deps.getStorageBackend || (() => 'tmpfiles'),
+    getParsedBucket: deps.getParsedBucket || (() => 'eduassets-parsed'),
+  };
 
   async function loadTask(req, res) {
     const task = await dbGet(`/tasks/${encodeURIComponent(req.params.id)}`);
@@ -263,6 +388,18 @@ export function registerTaskActionRoutes(app) {
       return null;
     }
     return task;
+  }
+
+  /**
+   * 统一错误响应：区分资源校验失败（409）和业务逻辑错误（400）
+   */
+  function handleActionError(res, err) {
+    const status = err.statusCode || 400;
+    const body = { error: err.message };
+    if (err.resourceCheck) {
+      body.resourceCheck = err.resourceCheck;
+    }
+    res.status(status).json(body);
   }
   
   // batch retry (MUST be before :id routes)
@@ -281,10 +418,10 @@ export function registerTaskActionRoutes(app) {
             results.push({ id, ok: false, error: 'not found' });
             continue;
           }
-          const newTask = await retryTask(task);
+          const newTask = await retryTask(task, safeDeps);
           results.push({ id, ok: true, newTaskId: newTask.id });
         } catch (e) {
-          results.push({ id, ok: false, error: e.message });
+          results.push({ id, ok: false, error: e.message, resourceCheck: e.resourceCheck || undefined });
         }
       }
       res.json({ ok: true, results });
@@ -298,10 +435,10 @@ export function registerTaskActionRoutes(app) {
     try {
       const task = await loadTask(req, res);
       if (!task) return;
-      const newTask = await retryTask(task);
+      const newTask = await retryTask(task, safeDeps);
       res.json({ ok: true, taskId: newTask.id, retryOf: task.id });
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      handleActionError(res, err);
     }
   });
 
@@ -310,10 +447,10 @@ export function registerTaskActionRoutes(app) {
     try {
       const task = await loadTask(req, res);
       if (!task) return;
-      const updated = await reparseTask(task);
+      const updated = await reparseTask(task, safeDeps);
       res.json({ ok: true, taskId: updated.id, state: updated.state });
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      handleActionError(res, err);
     }
   });
 
@@ -322,10 +459,10 @@ export function registerTaskActionRoutes(app) {
     try {
       const task = await loadTask(req, res);
       if (!task) return;
-      const updated = await reAiTask(task);
+      const updated = await reAiTask(task, safeDeps);
       res.json({ ok: true, taskId: updated.id, state: updated.state });
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      handleActionError(res, err);
     }
   });
 
@@ -337,7 +474,7 @@ export function registerTaskActionRoutes(app) {
       const updated = await cancelTask(task);
       res.json({ ok: true, taskId: updated.id, state: updated.state });
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      handleActionError(res, err);
     }
   });
 
@@ -349,7 +486,7 @@ export function registerTaskActionRoutes(app) {
       const updated = await reviewTask(task, req.body || {});
       res.json({ ok: true, taskId: updated.id, state: updated.state });
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      handleActionError(res, err);
     }
   });
 

@@ -152,14 +152,27 @@ export function registerConsistencyRoutes(app, deps) {
       if (!t?.materialId) continue;
       const mid = String(t.materialId);
       if (!materialsById.has(mid)) {
+        const wasCompleted = t.state === 'completed' || t.state === 'review-pending';
         findings.push({
           kind: 'orphan-task',
           severity: 'error',
           targetType: 'ParseTask',
           targetId: t.id,
           message: `ParseTask ${t.id} 引用的 Material ${mid} 不存在`,
-          suggestion: 'PRD v0.4 §9.1：将该任务置为 failed，并提示运行 Retry',
-          repair: t.state !== 'failed' ? {
+          suggestion: wasCompleted
+            ? '已完成但原始资料已丢失：标记为 canceled + resourceLost（结果可查看但不可重跑）'
+            : 'PRD v0.4 §9.1：将该任务置为 failed，并提示运行 Retry',
+          // 已完成任务 Material 缺失 → canceled + resourceLost（保留结果可查看性，明确不可重跑）
+          // 其他状态孤儿任务 → failed（可审计）或 DELETE（已 failed 的脏数据）
+          repair: wasCompleted ? {
+            method: 'PATCH',
+            path: `/tasks/${encodeURIComponent(t.id)}`,
+            body: {
+              state: 'canceled',
+              message: '一致性扫描：已完成任务关联的 Material 已删除，标记为资源缺失',
+              metadata: { ...(t.metadata || {}), resourceLost: true },
+            },
+          } : t.state !== 'failed' ? {
             method: 'PATCH',
             path: `/tasks/${encodeURIComponent(t.id)}`,
             body: {
@@ -295,19 +308,47 @@ export function registerConsistencyRoutes(app, deps) {
           try {
             await minio.statObject(bucket, obj);
           } catch (e) {
-            findings.push({
-              kind: 'original-file-missing',
-              severity: 'error',
-              targetType: 'Material',
-              targetId: m.id,
-              message: `原始对象 ${obj} 在 MinIO 中不存在`,
-              suggestion: 'PRD §11.5：该资料已失效，建议级联删除',
-              repair: {
-                method: 'DELETE',
-                path: `/__proxy/upload/materials/${encodeURIComponent(m.id)}`,
-                reason: '一致性扫描：原始文件丢失',
+            // 查找该 Material 关联的已完成任务
+            const completedTasks = Array.from(tasksById.values())
+              .filter(t => String(t.materialId) === String(m.id) && (t.state === 'completed' || t.state === 'review-pending'));
+            
+            if (completedTasks.length > 0) {
+              // 有关联的已完成任务 → 标记任务为 canceled + resourceLost（保留 AI 结果可查看性）
+              for (const ct of completedTasks) {
+                findings.push({
+                  kind: 'original-file-missing-with-completed-task',
+                  severity: 'error',
+                  targetType: 'ParseTask',
+                  targetId: ct.id,
+                  message: `原始对象 ${obj} 在 MinIO 中不存在，但关联任务 ${ct.id} 已完成`,
+                  suggestion: '标记任务为资源缺失（canceled + resourceLost），结果可查看但不可重跑',
+                  repair: {
+                    method: 'PATCH',
+                    path: `/tasks/${encodeURIComponent(ct.id)}`,
+                    body: {
+                      state: 'canceled',
+                      message: '一致性扫描：原始文件丢失，标记为资源缺失',
+                      metadata: { ...(ct.metadata || {}), resourceLost: true },
+                    },
+                  },
+                });
               }
-            });
+            } else {
+              // 无关联已完成任务 → 级联删除整个资料
+              findings.push({
+                kind: 'original-file-missing',
+                severity: 'error',
+                targetType: 'Material',
+                targetId: m.id,
+                message: `原始对象 ${obj} 在 MinIO 中不存在`,
+                suggestion: 'PRD §11.5：该资料已失效，建议级联删除',
+                repair: {
+                  method: 'DELETE',
+                  path: `/__proxy/upload/materials/${encodeURIComponent(m.id)}`,
+                  reason: '一致性扫描：原始文件丢失',
+                }
+              });
+            }
           }
         }
         
@@ -325,11 +366,16 @@ export function registerConsistencyRoutes(app, deps) {
               targetType: 'Material',
               targetId: m.id,
               message: `解析产物 ${mdObj} 在 MinIO 中不存在`,
-              suggestion: 'PRD §11.5：重置相关任务为 pending 重新解析',
+              suggestion: relatedTask ? '标记任务为资源缺失，或重解析（需原始文件存在）' : 'PRD §11.5：重置相关任务为 pending 重新解析',
               repair: relatedTask ? {
-                method: 'POST',
-                path: `/__proxy/upload/tasks/${encodeURIComponent(relatedTask.id)}/reparse`,
-                reason: '一致性扫描：解析产物丢失，触发重解析',
+                method: 'PATCH',
+                path: `/tasks/${encodeURIComponent(relatedTask.id)}`,
+                body: {
+                  state: 'canceled',
+                  message: '一致性扫描：解析产物丢失，标记为资源缺失',
+                  metadata: { ...(relatedTask.metadata || {}), resourceLost: true },
+                },
+              } : null
               } : null
             });
           }

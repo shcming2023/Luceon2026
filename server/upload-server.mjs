@@ -3291,7 +3291,12 @@ registerConsistencyRoutes(app, {
 });
 
 // 任务动作 API 与 SSE 推送（PRD v0.4 §8.2 / §10.2）
-registerTaskActionRoutes(app);
+registerTaskActionRoutes(app, {
+  getMinioClient,
+  getMinioBucket,
+  getStorageBackend,
+  getParsedBucket,
+});
 
 // ─── 启动时从 db-server 恢复持久化配置 ────────────────────────
 async function loadPersistedConfig() {

@@ -478,42 +478,30 @@ export function SourceMaterialsPage() {
     const ok = await confirmDelete(msg);
     if (!ok) return;
     try {
-      const dbRes = await fetch('/__proxy/db/materials', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids }),
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!dbRes.ok) {
-        const errText = await dbRes.text().catch(() => '');
-        throw new Error(`数据库删除失败：HTTP ${dbRes.status} ${errText.slice(0, 200)}`);
-      }
-
-      const deletedMaterials = state.materials
-        .filter((m) => ids.includes(m.id))
-        .map((m) => ({ id: m.id, metadata: m.metadata }));
-      try {
-        const resp = await fetch('/__proxy/upload/delete-material', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ materialIds: ids, materials: deletedMaterials }),
-          signal: AbortSignal.timeout(30_000),
-        });
-        if (!resp.ok) {
-          const errData = await resp.json().catch(() => null);
-          throw new Error(errData?.error || `HTTP ${resp.status}`);
+      // 使用级联删除接口，确保 MinIO 文件、关联任务和 AI Job 同步清除
+      const errors: string[] = [];
+      for (const id of ids) {
+        try {
+          const resp = await fetch(`/__proxy/upload/materials/${encodeURIComponent(String(id))}`, {
+            method: 'DELETE',
+            signal: AbortSignal.timeout(30_000),
+          });
+          if (!resp.ok) {
+            const errData = await resp.json().catch(() => null);
+            errors.push(`ID ${id}: ${errData?.error || `HTTP ${resp.status}`}`);
+          }
+        } catch (e) {
+          errors.push(`ID ${id}: ${e instanceof Error ? e.message : String(e)}`);
         }
-        const result = await resp.json().catch(() => null);
-        if (Array.isArray(result?.errors) && result.errors.length > 0) {
-          toast.warning('部分 MinIO 文件清理失败，建议前往设置页扫描孤儿对象', { duration: 6000 });
-        }
-      } catch (e) {
-        toast.warning(`云存储清理失败（数据库已删除）：${e instanceof Error ? e.message : String(e)}`, { duration: 6000 });
       }
 
       dispatch({ type: 'DELETE_MATERIAL', payload: ids });
       setSelectedIds(new Set());
-      toast.success(`已删除 ${ids.length} 条资料`);
+      if (errors.length > 0) {
+        toast.warning(`部分删除失败：${errors.join('; ')}`, { duration: 6000 });
+      } else {
+        toast.success(`已删除 ${ids.length} 条资料`);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : `删除失败：${String(err)}`);
     }
@@ -532,32 +520,14 @@ export function SourceMaterialsPage() {
     const ok = await confirmDelete(msg);
     if (!ok) return;
     try {
-      const dbRes = await fetch(`/__proxy/db/materials/${encodeURIComponent(String(id))}`, {
+      // 使用级联删除接口
+      const resp = await fetch(`/__proxy/upload/materials/${encodeURIComponent(String(id))}`, {
         method: 'DELETE',
-        signal: AbortSignal.timeout(10_000),
+        signal: AbortSignal.timeout(30_000),
       });
-      if (!dbRes.ok) {
-        const errText = await dbRes.text().catch(() => '');
-        throw new Error(`数据库删除失败：HTTP ${dbRes.status} ${errText.slice(0, 200)}`);
-      }
-
-      try {
-        const resp = await fetch('/__proxy/upload/delete-material', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ materialIds: [id], materials: material ? [{ id: material.id, metadata: material.metadata }] : [] }),
-          signal: AbortSignal.timeout(30_000),
-        });
-        if (!resp.ok) {
-          const errData = await resp.json().catch(() => null);
-          throw new Error(errData?.error || `HTTP ${resp.status}`);
-        }
-        const result = await resp.json().catch(() => null);
-        if (Array.isArray(result?.errors) && result.errors.length > 0) {
-          toast.warning('部分 MinIO 文件清理失败，建议前往设置页扫描孤儿对象', { duration: 6000 });
-        }
-      } catch (e) {
-        toast.warning(`云存储清理失败（数据库已删除）：${e instanceof Error ? e.message : String(e)}`, { duration: 6000 });
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => null);
+        throw new Error(errData?.error || `HTTP ${resp.status}`);
       }
 
       dispatch({ type: 'DELETE_MATERIAL', payload: [id] });
@@ -579,40 +549,30 @@ export function SourceMaterialsPage() {
     const ok = await confirmDelete(msg);
     if (!ok) return;
     try {
-      const dbRes = await fetch('/__proxy/db/materials', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: allIds }),
-        signal: AbortSignal.timeout(30_000),
-      });
-      if (!dbRes.ok) {
-        const errText = await dbRes.text().catch(() => '');
-        throw new Error(`数据库删除失败：HTTP ${dbRes.status} ${errText.slice(0, 200)}`);
-      }
-
-      const deletedMaterials = state.materials.map((m) => ({ id: m.id, metadata: m.metadata }));
-      try {
-        const resp = await fetch('/__proxy/upload/delete-material', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ materialIds: allIds, materials: deletedMaterials }),
-          signal: AbortSignal.timeout(60_000),
-        });
-        if (!resp.ok) {
-          const errData = await resp.json().catch(() => null);
-          throw new Error(errData?.error || `HTTP ${resp.status}`);
+      // 使用级联删除接口
+      const errors: string[] = [];
+      for (const id of allIds) {
+        try {
+          const resp = await fetch(`/__proxy/upload/materials/${encodeURIComponent(String(id))}`, {
+            method: 'DELETE',
+            signal: AbortSignal.timeout(30_000),
+          });
+          if (!resp.ok) {
+            const errData = await resp.json().catch(() => null);
+            errors.push(`ID ${id}: ${errData?.error || `HTTP ${resp.status}`}`);
+          }
+        } catch (e) {
+          errors.push(`ID ${id}: ${e instanceof Error ? e.message : String(e)}`);
         }
-        const result = await resp.json().catch(() => null);
-        if (Array.isArray(result?.errors) && result.errors.length > 0) {
-          toast.warning('部分 MinIO 文件清理失败，建议前往设置页扫描孤儿对象', { duration: 6000 });
-        }
-      } catch (e) {
-        toast.warning(`云存储清理失败（数据库已删除）：${e instanceof Error ? e.message : String(e)}`, { duration: 6000 });
       }
 
       dispatch({ type: 'DELETE_MATERIAL', payload: allIds });
       setSelectedIds(new Set());
-      toast.success(`已清空全部 ${allIds.length} 条资料`);
+      if (errors.length > 0) {
+        toast.warning(`部分删除失败：${errors.join('; ')}`, { duration: 6000 });
+      } else {
+        toast.success(`已清空全部 ${allIds.length} 条资料`);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : `清空失败：${String(err)}`);
     }
