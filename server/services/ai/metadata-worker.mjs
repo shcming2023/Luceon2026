@@ -27,6 +27,8 @@ export class AiMetadataWorker {
     this.timer = null;
     this.isRunning = false;
     this.minioContext = minioContext;
+    // 默认超时时间，用于 stale running job 判断
+    this.defaultTimeoutMs = 120000; // 120 秒
   }
 
   start() {
@@ -54,13 +56,81 @@ export class AiMetadataWorker {
     }
   }
 
+  /**
+   * 扫描并处理待执行的 AI Jobs
+   * - 严格串行：每轮最多处理 1 个 job
+   * - pending job 按 createdAt 升序（先处理最早任务）
+   * - 跳过已在处理中的 job
+   */
   async scanAndProcess() {
-    const jobs = await getAllJobs();
-    const pendingJobs = jobs.filter(j => j.state === 'pending');
+    // 如果当前已有 job 正在执行，直接跳过本轮 tick
+    if (processingMap.size > 0) {
+      console.log(`[ai-worker] Skipping scan: ${processingMap.size} job(s) already in progress`);
+      return;
+    }
 
-    for (const job of pendingJobs) {
-      if (processingMap.has(job.id)) continue;
-      this.processJob(job);
+    const jobs = await getAllJobs();
+
+    // 处理 stale running jobs（长时间卡住的 running 状态）
+    await this.recoverStaleRunningJobs(jobs);
+
+    // 按 createdAt 升序排序，选择最早的 pending job
+    const pendingJobs = jobs
+      .filter(j => j.state === 'pending')
+      .sort((a, b) => {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return timeA - timeB;
+      });
+
+    // 每轮最多拾取 1 个 pending job
+    if (pendingJobs.length > 0) {
+      const job = pendingJobs[0];
+      if (!processingMap.has(job.id)) {
+        await this.processJob(job);
+      }
+    }
+  }
+
+  /**
+   * 恢复长时间卡住的 running job
+   * 规则：state=running 且 updatedAt 超过 timeoutMs + 60s → 标记 failed 或 reset 为 pending
+   */
+  async recoverStaleRunningJobs(jobs) {
+    const runningJobs = jobs.filter(j => j.state === 'running');
+    const now = Date.now();
+    const GRACE_PERIOD_MS = 60000; // 60 秒额外缓冲
+
+    for (const job of runningJobs) {
+      if (!job.updatedAt) continue;
+      
+      const updatedAt = new Date(job.updatedAt).getTime();
+      const staleThreshold = updatedAt + this.defaultTimeoutMs + GRACE_PERIOD_MS;
+      
+      if (now > staleThreshold) {
+        console.warn(`[ai-worker] Stale running job detected: ${job.id}, updatedAt=${job.updatedAt}`);
+        
+        await logTaskEvent({
+          taskId: job.parseTaskId,
+          taskType: 'parse',
+          event: 'ai-stale-running-recovered',
+          level: 'warn',
+          message: `检测到卡住的 AI Job，已自动重置为 pending 状态`,
+          payload: {
+            aiJobId: job.id,
+            previousState: 'running',
+            originalUpdatedAt: job.updatedAt,
+            staleThresholdMs: this.defaultTimeoutMs + GRACE_PERIOD_MS
+          }
+        });
+
+        // 重置为 pending，等待下次扫描处理
+        await updateJob(job.id, {
+          state: 'pending',
+          message: '因长时间卡住，已自动重置为 pending 状态',
+          updatedAt: new Date().toISOString()
+        });
+      }
     }
   }
 
@@ -180,18 +250,25 @@ export class AiMetadataWorker {
           }
         });
       } catch (err) {
+        const durationMs = Date.now() - startTime;
         console.error(`[ai-worker] Job ${job.id} failed after attempts: ${err.message}`);
         
+        // 增强错误日志：记录详细的错误信息
+        const errorPayload = {
+          ...requestPayload,
+          durationMs,
+          errorName: err.name,
+          errorMessage: err.message,
+          errorCauseCode: err.cause?.code,
+          errorCauseMessage: err.cause?.message
+        };
+
         await logTaskEvent({
           taskId: job.parseTaskId,
           event: 'ai-provider-request-failed',
           level: 'warn',
           message: `AI Provider 调用失败: ${err.message}`,
-          payload: { 
-            ...requestPayload,
-            error: err.message,
-            details: err.details 
-          }
+          payload: errorPayload
         });
 
         // 如果所有 provider 都失败，尝试降级到模拟
@@ -324,8 +401,13 @@ export class AiMetadataWorker {
   }
 
   createProvider(id, aiSettings) {
-    let url = aiSettings.ollamaBaseUrl || aiSettings.baseUrl || aiSettings.apiEndpoint || 'http://host.docker.internal:11434';
+    // Mac mini Docker 部署默认使用内网 Ollama 地址
+    const MAC_MINI_OLLAMA = 'http://192.168.31.33:11434/v1/chat/completions';
+    
+    // 优先使用配置的地址，否则使用 Mac mini 默认地址
+    let url = aiSettings.ollamaBaseUrl || aiSettings.baseUrl || aiSettings.apiEndpoint || MAC_MINI_OLLAMA;
     const timeoutMs = aiSettings.timeoutMs || 120000;
+    this.defaultTimeoutMs = timeoutMs; // 保存用于 stale job 判断
     
     // 路由逻辑变更 (TASK-24)：
     // 如果配置包含了 /v1/chat/completions，则使用 OpenAiCompatibleProvider
@@ -359,8 +441,14 @@ export class AiMetadataWorker {
       });
     }
 
-    // 兜底返回 Ollama (Docker 友好地址)
-    return new OllamaProvider({ baseUrl: 'http://host.docker.internal:11434' });
+    // 兜底返回 Mac mini 内网 Ollama
+    return new OpenAiCompatibleProvider({
+      baseUrl: 'http://192.168.31.33:11434',
+      model: aiSettings.ollamaModel || aiSettings.model || 'qwen3.5:9b',
+      apiKey: aiSettings.openaiApiKey || aiSettings.apiKey,
+      timeoutMs,
+      providerIdOverride: id
+    });
   }
 
   /**
