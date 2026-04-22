@@ -1,9 +1,10 @@
 # Luceon2026 本地 MinerU + AI 元数据识别应用 PRD
 
-版本：v0.1  
-日期：2026-04-21  
+版本：v0.2  
+日期：2026-04-21（初稿）/ 2026-04-22（数据一致性专项修订）  
 项目仓库：https://github.com/shcming2023/Luceon2026  
-目标形态：Docker 部署的 Web 应用，基于本地部署 MinerU 接口，复刻官方 MinerU 核心交互，并增强 AI 元数据识别能力。
+目标形态：Docker 部署的 Web 应用，基于本地部署 MinerU 接口，复刻官方 MinerU 核心交互，并增强 AI 元数据识别能力。  
+变更说明：本次新增第 11 节「数据一致性与流水线管理」，原 11-21 节顺延为 12-22。
 
 ## 1. 背景与问题
 
@@ -712,9 +713,200 @@ Prompt 必须包含：
 | 备份 | DB + MinIO 完整备份/恢复 |
 | 日志 | upload-server、queue worker、AI 原始错误、安全审计 |
 
-## 11. 数据模型建议
+## 11. 数据一致性与流水线管理
 
-### 11.1 Material
+> 本节是 Luceon2026 运维与长期健康的核心约束。所有开发和部署行为必须遵循本节规则。
+
+### 11.1 系统边界与持久化能力
+
+Luceon2026 由四个相互独立的有状态系统串行构成，每个系统的持久化能力不同：
+
+| 系统 | 持久化介质 | 重启后状态 | 说明 |
+| --- | --- | --- | --- |
+| **CMS（db-server）** | JSON 文件 + MinIO 卷 | JSON 文件磁盘持久，MinIO 卷持久 | 状态可靠恢复 |
+| **MinIO** | Docker named volume | 桶与对象持久 | 原始文件与解析产物存储 |
+| **MinerU** | tmux 会话（纯内存队列） | **完全丢失** | 重启即清空，无状态持久 |
+| **Ollama** | 模型文件在磁盘 | 模型不变，运行中任务丢失 | 建议设为常驻进程 |
+
+**关键结论**：MinerU 是本系统中唯一**无状态**的组件。任何依赖 MinerU 内存队列恢复数据的做法都是不可靠的。
+
+### 11.2 数据流水线：严格单向串行
+
+整个系统是一条严格单向的串行链路，**不可能出现"有后道数据但无前道数据"的状况**：
+
+```
+① 原始上传  →  ② MinIO 存储  →  ③ MinerU 解析  →  ④ Ollama AI 元数据识别
+   Material        对象                ParseTask              AiMetadataJob
+```
+
+| 阶段 | 产出 | 下游依赖 |
+| --- | --- | --- |
+| ① 原始上传 | MinIO 对象（`originals/{materialId}/xxx.pdf`） | 无 |
+| ② MinerU 解析 | MinIO 对象（`parsed/{materialId}/full.md` 等） | 依赖 ① |
+| ③ AI 元数据识别 | DB 记录（`AiMetadataJob.result`） | 依赖 ② |
+
+**严格规则**：阶段 N 的输出，是阶段 N+1 的唯一输入。阶段之间不存在独立并行路径。
+
+### 11.3 数据血缘与清理规则
+
+#### 血缘关系
+
+每个数据实体只能引用**已存在的上游数据**，禁止出现孤儿引用：
+
+- `ParseTask.materialId` → 必须对应存在的 `Material.id`
+- `ParseTask` 进入 `ai-pending` 状态时 → 必须存在对应的 `AiMetadataJob`
+- `AiMetadataJob.parseTaskId` → 必须对应存在的 `ParseTask.id`
+
+#### 清理规则
+
+| 场景 | 判定条件 | 处理方式 |
+| --- | --- | --- |
+| **有前道，无后道** | 上游数据存在，下游数据不存在或状态卡死 | 可从前道重试继续（如 MinerU 成功但 AI 卡死 → 重置 parseTask，重触 AI） |
+| **有后道，无前道** | 下游数据存在，上游数据不存在（MinIO 对象已被删除） | **不可能**（逻辑错误），直接清除后道所有数据 |
+| **删除前道** | 业务上需要删除某个 Material 及其所有关联数据 | 必须级联删除：MinIO 原始对象 → MinerU 解析产物 → parseTask → AI Job |
+| **删除后道** | 仅清除某个阶段的数据（如仅删除 AI Job） | 可操作，后续可从最近的前道重新触发 |
+| **MinerU 结果不存在** | `ParseTask` 状态为 `ai-pending` 或 `completed`，但 MinIO 解析产物已过期/丢失 | 重置为 `pending`，重新触发 MinerU 解析 |
+| **整库重置（开发阶段）** | 每次重新构建部署镜像前 | `docker compose down -v && docker compose up --build -d`（清除所有 named volumes） |
+
+### 11.4 孤儿与失步检测
+
+#### 孤儿 parseTask（无对应 AI Job）
+
+`parseTask.state = 'ai-pending'`，但不存在对应的 `AiMetadataJob.parseTaskId`。
+
+**原因**：MinerU 解析完成后创建 AI Job 失败（如 Ollama 不可达），但 parseTask 状态已推进。
+
+**处理**：删除该 AI Job（若存在），将 parseTask 重置为 `pending`，让 worker 重新触发 AI。
+
+#### 失步 parseTask（AI Job 已是终态但 parseTask 未跟进）
+
+`parseTask.state = 'ai-pending'`，`AiMetadataJob.state` ∈ {`confirmed`, `review-pending`, `failed`}。
+
+**原因**：AI Job 处理完成，但回写 parseTask 状态失败（如网络抖动）。
+
+**处理**：将 parseTask 状态同步推进到与 AI Job 终态一致。
+
+#### 孤儿 AI Job（无对应 parseTask）
+
+`AiMetadataJob` 存在，但 `parseTaskId` 对应的 parseTask 不存在。
+
+**原因**：parseTask 被手动删除但 AI Job 未级联清除，或数据写入顺序问题。
+
+**处理**：直接删除该 AI Job。
+
+### 11.5 系统重启一致性规则
+
+由于 MinerU 采用无状态设计，CMS 重启后**不信任自身状态**，必须主动重建与其他系统的一致性。
+
+#### 重启后链路扫描流程
+
+CMS 启动时，对所有 `pending` / `ai-pending` 状态的 parseTask 执行逐级检查：
+
+```
+扫描所有非终态 parseTask
+  ↓
+对于每一项，依次检查：
+  ↓
+① MinIO 原始对象存在？
+   ├─ 否 → 删除该 parseTask 及所有下游（AI Job）
+   └─ 是 → 继续
+  ↓
+② MinerU 解析产物存在？
+   ├─ 否 → 重置为 pending，重新触发 MinerU 解析
+   └─ 是 → 继续
+  ↓
+③ 存在对应的 AI Job？
+   ├─ 否 → 重置为 ai-pending，重新触发 AI 识别
+   └─ 是 → 检查 AI Job 状态
+        ├─ 终态（confirmed/review-pending/failed）→ 同步 parseTask 到终态
+        └─ 非终态 → 保持，worker 继续处理
+```
+
+#### MinerU 重启但 CMS 未重启
+
+MinerU 重启后，其内存中的任务队列丢失，但 CMS 侧 parseTask 状态可能仍为 `running`。
+
+**检测**：Worker 轮询 MinerU 超时或返回 404 → 判定为 MinerU 侧任务丢失。
+
+**处理**：重置 parseTask 为 `pending`，重新提交 MinerU 解析。
+
+### 11.6 开发期部署规范
+
+**核心原则**：开发/调试阶段，每次重新构建部署镜像前，必须清除所有状态数据，确保三者在同一时间节点的状态一致。
+
+#### 破坏性重建（开发期标准操作）
+
+```bash
+cd /Users/concm/prod_workspace/Luceon2026
+git pull origin main
+docker compose down -v    # 删除所有 named volumes（MinIO 数据卷 + DB 数据卷）
+docker compose up --build -d
+```
+
+`docker compose down -v` 会清除：
+- MinIO 数据卷（桶 + 所有对象）
+- DB 数据卷（JSON 文件）
+
+**警告**：此操作会清除所有未入库的资料和解析结果。生产环境严禁使用 `-v`。
+
+#### 非破坏性重启（生产期标准操作）
+
+```bash
+cd /Users/concm/prod_workspace/Luceon2026
+git pull origin main
+docker compose up --build -d
+```
+
+不删除 volumes，仅重启容器。适用于：代码更新、配置调整、不需要清除历史数据的场景。
+
+#### MinerU 独立重启
+
+```bash
+# 停止 MinerU tmux 会话
+tmux kill-session -t mineru_api 2>/dev/null; tmux kill-session -t mineru_gradio 2>/dev/null
+
+# 重启 MinerU
+/Users/concm/ops/start-mineru-all.sh
+```
+
+MinerU 重启后，CMS 侧应能通过链路扫描自动恢复（见 11.5 节）。
+
+### 11.7 运维诊断工具需求
+
+建议实现一个诊断脚本，定期或在部署后执行，检查数据一致性：
+
+```
+检查项：
+  1. 所有 parseTask 是否有对应的 MinIO 原始对象（无 → 标记孤儿）
+  2. 所有 ai-pending parseTask 是否有对应 AI Job（无 → 标记孤儿 parseTask）
+  3. 所有 AI Job 是否有对应 parseTask（无 → 标记孤儿 AI Job）
+  4. 所有终态 AI Job 是否已同步 parseTask 状态（否 → 标记失步）
+  5. MinerU 服务是否可达（否 → 告警）
+  6. MinIO 服务是否可达（否 → 告警）
+
+输出：
+  - 诊断报告（正常 / 发现问题）
+  - 可执行修复建议
+  - 可选：自动执行修复（需明确提示破坏性）
+```
+
+### 11.8 本节与其他章节的关系
+
+本节是所有涉及多系统协作功能的基础约束，优先级如下：
+
+| 规则来源 | 说明 |
+| --- | --- |
+| **本节（第 11 章）** | 跨系统数据一致性、清理规则、重启恢复 — **最高优先级** |
+| 第 10.3 节（后端持久任务队列） | 队列实现参考本节一致性规则 |
+| 第 10.4 节（本地 MinerU Adapter） | Adapter 结果写入必须遵守本节血缘规则 |
+| 第 10.5 节（AI 元数据识别） | AI Job 创建与回写必须遵守本节清理规则 |
+| 第 14 节（Docker 部署要求） | 部署命令参考本节 11.6 节规范 |
+
+---
+
+## 12. 数据模型建议
+
+### 12.1 Material
 
 资料原始实体，代表上传的文件。
 
@@ -732,7 +924,7 @@ Prompt 必须包含：
 - `latestTaskId`
 - `libraryStatus`
 
-### 11.2 ParseTask
+### 12.2 ParseTask
 
 一次 MinerU 解析任务。
 
@@ -759,7 +951,7 @@ Prompt 必须包含：
 - `completedAt`
 - `updatedAt`
 
-### 11.3 AiMetadataJob
+### 12.3 AiMetadataJob
 
 一次 AI 元数据识别任务。
 
@@ -784,7 +976,7 @@ Prompt 必须包含：
 - `createdAt`
 - `completedAt`
 
-### 11.4 TaskEvent
+### 12.4 TaskEvent
 
 任务事件日志。
 
@@ -799,9 +991,9 @@ Prompt 必须包含：
 - `payload`
 - `createdAt`
 
-## 12. 后端 API 建议
+## 13. 后端 API 建议
 
-### 12.1 任务 API
+### 13.1 任务 API
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
@@ -814,7 +1006,7 @@ Prompt 必须包含：
 | `DELETE` | `/tasks/:id` | 删除任务 |
 | `GET` | `/tasks/events` | SSE 推送任务变化 |
 
-### 12.2 MinerU API
+### 13.2 MinerU API
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
@@ -822,7 +1014,7 @@ Prompt 必须包含：
 | `POST` | `/mineru/submit` | 内部 adapter 提交任务 |
 | `GET` | `/mineru/result/:taskId` | 内部 adapter 获取结果 |
 
-### 12.3 AI API
+### 13.3 AI API
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
@@ -832,13 +1024,13 @@ Prompt 必须包含：
 | `POST` | `/ai/metadata-jobs/:id/retry` | 重试 AI 识别 |
 | `GET` | `/settings/ai-models` | 拉取模型列表 |
 
-### 12.4 兼容现有代理
+### 13.4 兼容现有代理
 
 现有 `/__proxy/upload/...` 可以继续作为 Nginx/Vite 代理前缀，但后端内部应把职责拆开。前端业务代码不要直接调用 `/parse/local-mineru` 完成长流程，而是调用 `/tasks` 创建任务。
 
-## 13. 状态映射
+## 14. 状态映射
 
-### 13.1 官方状态到 Luceon2026 阶段
+### 14.1 官方状态到 Luceon2026 阶段
 
 | 官方状态 | Luceon 阶段 | Luceon 状态 |
 | --- | --- | --- |
@@ -861,7 +1053,7 @@ Prompt 必须包含：
 | `local-deleted` | storage | failed |
 | `unknown` | task | failed |
 
-### 13.2 Luceon2026 增强状态
+### 14.2 Luceon2026 增强状态
 
 新增 AI 和审核状态：
 
@@ -872,7 +1064,7 @@ Prompt 必须包含：
 - `review-confirmed`
 - `library-ready`
 
-## 14. Docker 部署要求
+## 15. Docker 部署要求
 
 默认部署形态：
 
@@ -900,23 +1092,23 @@ Prompt 必须包含：
 - `QUEUE_MINERU_CONCURRENCY`
 - `QUEUE_AI_CONCURRENCY`
 
-## 15. 非功能需求
+## 16. 非功能需求
 
-### 15.1 稳定性
+### 16.1 稳定性
 
 - 页面刷新不丢任务。
 - 后端重启后恢复未完成任务。
 - AI 模型超时不阻塞解析结果查看。
 - MinerU 不可用时不影响已完成结果浏览。
 
-### 15.2 性能
+### 16.2 性能
 
 - 任务列表默认分页。
 - 大 Markdown 按需加载。
 - AI 输入默认截断，最大 200k 字符。
 - PDF 预览懒加载。
 
-### 15.3 安全
+### 16.3 安全
 
 - 保持 SSRF 防护。
 - 仅允许显式配置后访问本地/私网 AI endpoint。
@@ -924,7 +1116,7 @@ Prompt 必须包含：
 - 任务日志中的密钥脱敏。
 - 预签名 URL 有效期可配置。
 
-### 15.4 可观测性
+### 16.4 可观测性
 
 - 每个任务有事件日志。
 - 每个外部调用有 request id。
@@ -932,9 +1124,9 @@ Prompt 必须包含：
 - 设置页可拉取最近日志。
 - 任务失败要显示下一步建议。
 
-## 16. 验收标准
+## 17. 验收标准
 
-### 16.1 官方交互复刻
+### 17.1 官方交互复刻
 
 - 用户可以从新建任务页上传文件并立即进入任务管理。
 - 任务管理页能看到上传、解析、结果处理、AI、审核全阶段状态。
@@ -942,7 +1134,7 @@ Prompt 必须包含：
 - 页面刷新后任务状态仍然正确。
 - 后端重启后未完成任务可恢复。
 
-### 16.2 本地 MinerU
+### 17.2 本地 MinerU
 
 - 本地 MinerU 健康检查成功。
 - 可以提交 PDF 到本地 MinerU。
@@ -950,7 +1142,7 @@ Prompt 必须包含：
 - Markdown 可以保存到 MinIO。
 - 解析失败有明确错误和重试入口。
 
-### 16.3 Ollama AI 元数据
+### 17.3 Ollama AI 元数据
 
 - 设置页可以拉取 Ollama 模型列表。
 - 连接测试能区分网络失败和 JSON 输出失败。
@@ -959,15 +1151,15 @@ Prompt 必须包含：
 - 低置信度任务进入待审核。
 - 重新识别不会破坏原解析产物。
 
-### 16.4 资料库
+### 17.4 资料库
 
 - 审核通过的资料进入资源库。
 - 可以按学科、年级、类型、标签检索。
 - 可以回到任务详情查看来源和解析产物。
 
-## 17. 里程碑
+## 18. 里程碑
 
-### M0：PRD 与官方拆解
+### M0（对应原 17 里程碑）：PRD 与官方拆解
 
 - 完成官方客户端/Web 版拆解。
 - 完成当前项目差距分析。
@@ -1014,9 +1206,9 @@ Prompt 必须包含：
 - Linux Docker host-gateway 验证。
 - UAT 自动化覆盖核心链路。
 
-## 18. 技术重构建议
+## 19. 技术重构建议
 
-### 18.1 后端拆分
+### 19.1 后端拆分
 
 当前 `server/upload-server.mjs` 应拆为：
 
@@ -1033,7 +1225,7 @@ Prompt 必须包含：
 - `server/services/storage/minio-service.mjs`
 - `server/services/logging/task-events.mjs`
 
-### 18.2 前端拆分
+### 19.2 前端拆分
 
 建议新增：
 
@@ -1048,7 +1240,7 @@ Prompt 必须包含：
 - `src/app/api/ai.ts`
 - `src/app/api/mineru.ts`
 
-### 18.3 状态管理
+### 19.3 状态管理
 
 前端 store 不应作为长任务事实来源。事实来源应是后端 DB。
 
@@ -1066,7 +1258,7 @@ Prompt 必须包含：
 - 执行队列。
 - 恢复未完成任务。
 
-## 19. 风险与应对
+## 20. 风险与应对
 
 | 风险 | 影响 | 应对 |
 | --- | --- | --- |
@@ -1077,7 +1269,7 @@ Prompt 必须包含：
 | Docker 访问宿主机失败 | 本地 MinerU/Ollama 不通 | 设置页诊断 host.docker.internal、IP、端口 |
 | MinIO 预签名 URL 过期 | 预览/下载失败 | 存 objectName，按需重新签名 |
 
-## 20. 开放问题
+## 21. 开放问题
 
 1. 本地 MinerU 最终统一使用 FastAPI `/tasks` 还是继续保留 Gradio 降级？
 2. 是否要求支持截图上传？如果支持，应作为二期。
@@ -1085,7 +1277,7 @@ Prompt 必须包含：
 4. 是否需要多用户权限？一期建议不做。
 5. 是否要把官方 API 作为本地 MinerU 失败时的 fallback？一期建议保留配置但默认关闭。
 
-## 21. 下一步实施建议
+## 22. 下一步实施建议
 
 推荐下一步直接进入 M1：
 
