@@ -579,6 +579,13 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, aiRules: state.aiRules.filter((r) => !idSet.has(r.id)) };
     }
 
+    case 'SET_MATERIALS': {
+      return {
+        ...state,
+        materials: action.payload,
+      };
+    }
+
     default:
       return state;
   }

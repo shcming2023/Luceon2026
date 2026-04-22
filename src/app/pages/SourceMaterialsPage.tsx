@@ -194,8 +194,9 @@ export function SourceMaterialsPage() {
         const res = await fetch('/__proxy/db/materials', { signal: AbortSignal.timeout(5000) });
         if (res.ok && mounted) {
           const data = await res.json();
-          // TODO: 更新 materials 列表到 store
-          console.log('Materials refreshed:', data);
+          if (Array.isArray(data)) {
+            dispatch({ type: 'SET_MATERIALS', payload: data });
+          }
         }
       } catch (err) {
         console.error('Failed to refresh materials:', err);
@@ -378,49 +379,8 @@ export function SourceMaterialsPage() {
           },
         });
 
-        try {
-          const materialData = {
-            id: it.materialId,
-            title: it.file.name.replace(/\.[^.]+$/, ''),
-            type: it.file.name.split('.').pop()?.toUpperCase() ?? 'FILE',
-            size: `${(it.file.size / 1024 / 1024).toFixed(1)} MB`,
-            sizeBytes: it.file.size,
-            uploadTime: '刚刚',
-            uploadTimestamp: Date.now(),
-            status: 'processing',
-            mineruStatus: 'pending',
-            aiStatus: 'pending',
-            tags: [],
-            metadata: {
-              relativePath: it.filePath,
-              fileUrl: uploadResult.url,
-              objectName,
-              fileName: uploadResult.fileName,
-              provider: uploadResult.provider,
-              mimeType: uploadResult.mimeType,
-              ...(uploadResult.pages != null ? { pages: String(uploadResult.pages) } : {}),
-              ...(uploadResult.format ? { format: uploadResult.format } : {}),
-              processingStage: 'mineru',
-              processingMsg: '待解析',
-              processingProgress: '0',
-              processingUpdatedAt: new Date().toISOString(),
-            },
-            uploader: '当前用户',
-          };
-          if (materialData.metadata?.provider === 'minio' && materialData.metadata.objectName) {
-            delete (materialData.metadata as unknown as { fileUrl?: string }).fileUrl;
-          }
-          await fetch('/__proxy/db/materials', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(materialData),
-            signal: AbortSignal.timeout(10_000),
-          }).then(async (r) => {
-            if (!r.ok) throw new Error(`HTTP ${r.status}`);
-            await r.json().catch(() => null);
-          });
         } catch (e) {
-          toast.warning(`服务端持久化失败（刷新可能丢失）：${e instanceof Error ? e.message : String(e)}`, { duration: 6000 });
+          console.warn(`[frontend] 仅上传文件，跳过数据库预存，等待任务提交阶段自动落库: ${e instanceof Error ? e.message : String(e)}`);
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);

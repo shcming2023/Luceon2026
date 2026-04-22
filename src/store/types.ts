@@ -397,4 +397,5 @@ export type AppAction =
   | { type: 'ADD_PRODUCT'; payload: Product }
   | { type: 'DELETE_PRODUCT'; payload: number[] }
   | { type: 'DELETE_FLEXIBLE_TAG'; payload: number[] }
-  | { type: 'DELETE_AI_RULE'; payload: number[] };
+  | { type: 'DELETE_AI_RULE'; payload: number[] }
+  | { type: 'SET_MATERIALS'; payload: Material[] };
