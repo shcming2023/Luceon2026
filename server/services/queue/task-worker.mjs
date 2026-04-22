@@ -47,6 +47,16 @@ export class ParseTaskWorker {
     this.eventBus = options.eventBus || null;
   }
 
+  /** 将 ReadableStream 转换为 Buffer */
+  streamToBuffer(stream) {
+    return new Promise((resolve, reject) => {
+      const chunks = [];
+      stream.on('data', chunk => chunks.push(chunk));
+      stream.on('end', () => resolve(Buffer.concat(chunks)));
+      stream.on('error', reject);
+    });
+  }
+
   start() {
     if (this.isRunning) return;
     this.isRunning = true;
@@ -203,7 +213,19 @@ export class ParseTaskWorker {
 
         if (isMarkdown) {
           console.log(`[task-worker] Task ${task.id} is Markdown, skipping MinerU parsing`);
-          markdownObjectName = objectName; // 直接使用原始文件作为 AI 输入
+          // 必须将 Markdown 内容保存到 parsed/{materialId}/full.md（PRD 强制要求 markdownObjectName 以 parsed/ 开头）
+          // 原始文件在 originals/{materialId}/{filename}，Worker 读取后写入规范路径
+          const targetObjectName = `parsed/${task.materialId}/full.md`;
+          try {
+            const buffer = await this.streamToBuffer(fileStream);
+            const markdownContent = buffer.toString('utf-8');
+            await this.minioContext.saveMarkdown(targetObjectName, markdownContent);
+            console.log(`[task-worker] Saved Markdown to ${targetObjectName} (${markdownContent.length} chars)`);
+          } catch (saveErr) {
+            console.error(`[task-worker] Failed to save Markdown to MinIO: ${saveErr.message}`);
+            throw new Error(`Markdown 文件保存失败: ${saveErr.message}`);
+          }
+          markdownObjectName = targetObjectName;
           mineruTaskId = 'skip-markdown';
         } else {
           const mineruResult = await processWithLocalMinerU({
