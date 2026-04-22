@@ -23,7 +23,7 @@ export function useFileUpload() {
   const uploadWithProgress = useCallback((file: File, materialId: number, onProgress: (pct: number) => void) => {
     return new Promise<any>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      xhr.open('POST', '/__proxy/upload/upload');
+      xhr.open('POST', '/__proxy/upload/tasks');
       xhr.responseType = 'json';
       xhr.upload.onprogress = (evt) => {
         if (!evt.lengthComputable) return;
@@ -59,23 +59,6 @@ export function useFileUpload() {
     }
     return next;
   }, []);
- 
-  const upsertMaterialToDb = useCallback(async (m: Material) => {
-    try {
-      const res = await fetch('/__proxy/db/materials', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sanitizeMaterialForDb(m)),
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!res.ok) {
-        const detail = await res.text().catch(() => '');
-        throw new Error(`HTTP ${res.status} ${detail.slice(0, 200)}`);
-      }
-    } catch (err) {
-      toast.warning(`服务端持久化失败（刷新可能丢失）：${err instanceof Error ? err.message : String(err)}`, { duration: 6000 });
-    }
-  }, [sanitizeMaterialForDb]);
  
   const upload = useCallback(async (files: File[]) => {
     if (uploading) return;
@@ -178,7 +161,7 @@ export function useFileUpload() {
           },
         };
         draftById.set(it.materialId, uploadedDraft);
-        await upsertMaterialToDb(uploadedDraft);
+        // 此处不再手动 upsertMaterialToDb，因为 /tasks 接口后端已经完成了 Material 和 ParseTask 的创建
 
         dispatch({
           type: 'UPDATE_MATERIAL',
@@ -267,7 +250,7 @@ export function useFileUpload() {
     await Promise.all(runners);
  
     setUploading(false);
-  }, [dispatch, upsertMaterialToDb, uploadWithProgress, uploading, validateFile]);
+  }, [dispatch, uploadWithProgress, uploading, validateFile]);
  
   return { upload, uploading, progress };
 }

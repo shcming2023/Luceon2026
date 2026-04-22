@@ -307,7 +307,7 @@ export function SourceMaterialsPage() {
     const uploadWithProgress = (file: File, materialId: number, onProgress: (pct: number) => void) => {
       return new Promise<any>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', '/__proxy/upload/upload');
+        xhr.open('POST', '/__proxy/upload/tasks');
         xhr.responseType = 'json';
         xhr.upload.onprogress = (evt) => {
           if (!evt.lengthComputable) return;

@@ -56,7 +56,7 @@ export function WorkspacePage() {
   const getFilterKey = (m: Material): FilterKey => {
     const failed = m.status === 'failed' || m.mineruStatus === 'failed' || m.aiStatus === 'failed';
     if (failed) return 'failed';
-    if (m.status === 'completed' && m.aiStatus === 'completed') return 'completed';
+    if (m.status === 'completed' && m.aiStatus === 'analyzed') return 'completed';
     const pending = m.mineruStatus === 'pending' || m.aiStatus === 'pending';
     if (pending) return 'pending';
     return 'processing';
@@ -140,7 +140,7 @@ export function WorkspacePage() {
     if (m.mineruStatus === 'processing') return 'MinerU 解析';
     if (m.mineruStatus === 'pending') return '待解析';
     if (m.aiStatus === 'pending') return '待分析';
-    if (m.status === 'completed' && m.aiStatus === 'completed') return '已完成';
+    if (m.status === 'completed' && m.aiStatus === 'analyzed') return '已完成';
     return '处理中';
   };
  

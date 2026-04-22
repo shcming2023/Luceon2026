@@ -40,7 +40,7 @@ test.describe('【1】页面加载与 SPA 路由', () => {
   });
 
   test('/cms/source-materials 原始资料库页面可访问', async ({ page }) => {
-    await page.goto(`${BASE_URL}/cms/legacy/source-materials`);
+    await page.goto(`${BASE_URL}/cms/source-materials`);
     await waitForAppReady(page);
     // 验证页面不是错误页
     await expect(page.locator('body')).not.toContainText('500');
@@ -89,8 +89,8 @@ test.describe('【2】后端服务健康检查', () => {
 // ── 测试组 3：DB API 基础功能 ─────────────────────────────────
 
 test.describe('【3】db-server REST API', () => {
-  test('GET /assets 返回有效响应', async ({ request }) => {
-    const response = await request.get(`${BASE_URL}/__proxy/db/assets`);
+  test('GET /materials 返回有效响应', async ({ request }) => {
+    const response = await request.get(`${BASE_URL}/__proxy/db/materials`);
     expect(response.status()).toBe(200);
     const body = await response.json();
     // 资产列表应为数组
@@ -213,7 +213,7 @@ test.describe('【4】MinIO Nginx 反向代理', () => {
 // ── 测试组 5：文件上传流程 ────────────────────────────────────
 
 test.describe('【5】文件上传流程', () => {
-  test('upload-server /upload 接受小型测试文件', async ({ request }) => {
+  test('upload-server /tasks 接受小型测试文件并创建任务', async ({ request }) => {
     // 创建一个最小的有效 PNG 文件（1x1 像素）
     const minimalPng = Buffer.from(
       '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489' +
@@ -224,7 +224,7 @@ test.describe('【5】文件上传流程', () => {
     const formData = new FormData();
     formData.append('file', new Blob([minimalPng], { type: 'image/png' }), 'uat-test.png');
 
-    const response = await request.post(`${BASE_URL}/__proxy/upload/upload`, {
+    const response = await request.post(`${BASE_URL}/__proxy/upload/tasks`, {
       multipart: {
         file: {
           name: 'uat-test.png',
@@ -237,8 +237,8 @@ test.describe('【5】文件上传流程', () => {
     // 200 = 上传成功，507 = 存储配额不足（可接受），其余为失败
     const status = response.status();
     if (status === 200) {
-      const body = await response.json() as { url?: string; provider?: string };
-      expect(body.url).toBeTruthy();
+      const body = await response.json() as { taskId?: string; materialId?: string; url?: string; provider?: string };
+      expect(body.taskId).toBeTruthy();
       console.log(`  ✓ 上传成功，provider: ${body.provider}, URL: ${body.url?.slice(0, 60)}...`);
 
       // 若 URL 指向 MinIO，验证其为局域网可访问地址
@@ -255,7 +255,7 @@ test.describe('【5】文件上传流程', () => {
     // 先上传一个小文件
     const content = Buffer.from(`UAT test file ${Date.now()}`);
 
-    const uploadResp = await request.post(`${BASE_URL}/__proxy/upload/upload`, {
+    const uploadResp = await request.post(`${BASE_URL}/__proxy/upload/tasks`, {
       multipart: {
         file: {
           name: 'uat-check.txt',
@@ -293,7 +293,7 @@ test.describe('【6】页面导航交互（冒烟）', () => {
     // 尝试通过 URL 直接访问各核心路由，验证 SPA 路由正常
     const routes = [
       '/cms/workspace',
-      '/cms/legacy/source-materials',
+      '/cms/source-materials',
       '/cms/products',
       '/cms/metadata',
       '/cms/settings',
