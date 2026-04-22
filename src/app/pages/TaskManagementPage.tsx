@@ -23,13 +23,18 @@ export function TaskManagementPage() {
   const fetchTasks = async () => {
     setLoading(true);
     try {
-      // 通过 proxy 访问 db-server
-      const res = await fetch('/cms/__proxy/db/tasks');
-      if (!res.ok) throw new Error('提取任务失败');
+      // 通过 proxy 访问 db-server（注意：SPA basename=/cms，但 proxy 路径不带 /cms 前缀）
+      const res = await fetch('/__proxy/db/tasks');
+      const contentType = res.headers.get('content-type') || '';
+      if (!res.ok) throw new Error(`提取任务失败: HTTP ${res.status}`);
+      if (!contentType.includes('application/json')) {
+        throw new Error(`服务器返回了非 JSON 响应（${contentType}），请检查服务是否正常`);
+      }
       const data = await res.json();
       setTasks(Array.isArray(data) ? data : []);
     } catch (err) {
       toast.error('无法获取任务列表', { description: String(err) });
+      setTasks([]);
     } finally {
       setLoading(false);
     }

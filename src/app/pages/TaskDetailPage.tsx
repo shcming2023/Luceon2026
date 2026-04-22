@@ -130,9 +130,9 @@ export function TaskDetailPage() {
     setNotFound(false);
     try {
       const [taskRes, eventsRes, aiJobsRes] = await Promise.all([
-        fetch(`/cms/__proxy/db/tasks/${encodeURIComponent(id)}`),
-        fetch(`/cms/__proxy/db/task-events?taskId=${encodeURIComponent(id)}`),
-        fetch(`/cms/__proxy/db/ai-metadata-jobs?parseTaskId=${encodeURIComponent(id)}`),
+        fetch(`/__proxy/db/tasks/${encodeURIComponent(id)}`),
+        fetch(`/__proxy/db/task-events?taskId=${encodeURIComponent(id)}`),
+        fetch(`/__proxy/db/ai-metadata-jobs?parseTaskId=${encodeURIComponent(id)}`),
       ]);
 
       if (taskRes.status === 404) {
