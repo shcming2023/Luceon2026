@@ -23,10 +23,17 @@ const POLL_INTERVAL_MS = 10000;
 const processingMap = new Set();
 
 export class AiMetadataWorker {
-  constructor(minioContext = null) {
+  /**
+   * @param {object|null} contextOrOptions - 兼容旧调用：传 minioContext 对象；新调用：传 options 对象
+   * @param {object} [contextOrOptions.minioContext] - MinIO 上下文
+   * @param {Function} [contextOrOptions.onComplete] - AI Job 到达终态时的回调 (job, update) => Promise<void>
+   */
+  constructor(contextOrOptions = null) {
+    const options = contextOrOptions?.getFileStream ? { minioContext: contextOrOptions } : (contextOrOptions || {});
     this.timer = null;
     this.isRunning = false;
-    this.minioContext = minioContext;
+    this.minioContext = options.minioContext || null;
+    this.onComplete = options.onComplete || null;
     // 默认超时时间，用于 stale running job 判断
     this.defaultTimeoutMs = 120000; // 120 秒
   }
@@ -520,6 +527,16 @@ JSON 结构需包含以下字段（符合 PRD 10.5.3）：
           ...payload
         }
       });
+
+      // AI Job 到达终态时触发外部回调，用于回填 materials 表等联动操作
+      const terminalStates = ['confirmed', 'review-pending', 'failed'];
+      if (this.onComplete && terminalStates.includes(update.state)) {
+        try {
+          await this.onComplete(job, update);
+        } catch (err) {
+          console.error(`[ai-worker] onComplete callback failed: ${err.message}`);
+        }
+      }
     }
   }
 
