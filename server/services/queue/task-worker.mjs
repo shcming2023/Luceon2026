@@ -85,7 +85,7 @@ export class ParseTaskWorker {
         
         const fileStream = await this.minioContext.getFileStream(objectName);
         
-        await processWithLocalMinerU({
+        const mineruResult = await processWithLocalMinerU({
           task,
           material: materialInfo,
           fileStream,
@@ -99,16 +99,24 @@ export class ParseTaskWorker {
           }
         });
         
+        const markdownObjectName = mineruResult.objectName;
+
         await this.transition(task, {
           stage: 'complete',
           state: 'ai-pending',
           progress: 100,
           message: 'MinerU 解析完成，产物已落库，等待 AI 元数据识别',
+          metadata: {
+            ...(task.metadata || {}),
+            markdownObjectName,
+            mineruTaskId: mineruResult.mineruTaskId,
+            parsedAt: new Date().toISOString()
+          },
           completedAt: new Date().toISOString()
         }, 'worker-completed');
 
         // ── 解析成功后自动创建 AI Metadata Job ──────────────────
-        await this.tryCreateAiJob(task, materialInfo.metadata?.markdownObjectName);
+        await this.tryCreateAiJob(task, markdownObjectName);
 
       } else {
         // 1. 进入 running 状态 (模拟过程)
