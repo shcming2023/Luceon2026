@@ -144,6 +144,19 @@ npx playwright show-report playwright-report
 
 ---
 
+## 六、维护与清理
+
+### 1. 一致性审计
+系统提供了自动化的数据一致性审计工具，可识别孤儿任务、丢失文件及冗余对象。
+
+- **扫描入口：** `GET /__proxy/upload/audit/consistency`
+- **详细操作指南：** [一致性清理操作说明.md](../docs/reviews/一致性清理操作说明.md)
+
+### 2. 测试产物管理
+Playwright 运行产生的临时文件（`test-results/`、`playwright-report/`）已被 `.gitignore` 排除，无需手动提交。
+
+---
+
 ## 五、手动验证清单
 
 - [ ] 浏览器打开 `http://YOUR_HOST:8081`，自动跳转到 `/cms/source-materials`

@@ -13,6 +13,8 @@ import { PDFDocument, rgb } from 'pdf-lib';
 const BASE_URL = process.env.BASE_URL || 'http://192.168.31.33:8081';
 
 test.describe('【7】处理链路与状态一致性', () => {
+  // 设置该测试组的整体超时时间为 3 分钟，防止本地 MinerU/AI 处理较慢导致失败
+  test.setTimeout(180_000);
 
   test('PDF 链路一致性：上传后状态流转验证', async ({ request }) => {
     // 1. 使用 pdf-lib 生成一个有效的小型单页 PDF
@@ -49,9 +51,9 @@ test.describe('【7】处理链路与状态一致性', () => {
     expect(mat.mineruStatus).not.toBeUndefined();
     expect(mat.aiStatus).not.toBeUndefined();
 
-    // 3. 轮询等待任务到达终态 (最多等待 60s)
+    // 3. 轮询等待任务到达终态 (最多等待 120s: 24 * 5s)
     let finalTaskState = '';
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 24; i++) {
       const tResp = await request.get(`${BASE_URL}/__proxy/db/tasks/${taskId}`);
       const task = await tResp.json();
       finalTaskState = task.state;
@@ -92,9 +94,9 @@ test.describe('【7】处理链路与状态一致性', () => {
     expect(uploadResp.status()).toBe(200);
     const { taskId } = await uploadResp.json();
 
-    // 2. 轮询等待
+    // 2. 轮询等待 (最多等待 90s: 30 * 3s)
     let finalTaskState = '';
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 30; i++) {
       const tResp = await request.get(`${BASE_URL}/__proxy/db/tasks/${taskId}`);
       const task = await tResp.json();
       finalTaskState = task.state;

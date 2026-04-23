@@ -42,3 +42,9 @@ blob-report/
 
 # 本地运行时数据
 server/db-data.json
+
+# UAT 产物
+uat/package-lock.json
+uat/playwright-results.json
+uat/test-results/
+uat/playwright-report/
