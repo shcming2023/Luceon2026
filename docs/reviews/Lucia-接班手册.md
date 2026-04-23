@@ -1,6 +1,6 @@
 # Lucia 接班手册
 
-> 本文为 Lucia 职责的强制交接入口。任何临时代班、并行协作或 Lucia 重新接手前，必须先阅读本文。
+> 本文为 Lucia 职责的强制交接入口。任何临时代班、并行协作、Lucia 额度恢复或 Lucia 重新接手前，必须先阅读本文。
 
 最后更新：2026-04-23  
 适用范围：Luceon2026 仓库中由 Lucia 负责的 PRD、验收、部署、派单、收敛控制工作
@@ -15,7 +15,7 @@
 
 1. 保证任何接手者先按同一套节奏工作，而不是各自发挥。
 2. 保证派单、验收、复盘都以同一份基线为准。
-3. 保证 Lucia 额度恢复后可以快速重新接管，不需要重新考古。
+3. 保证 Lucia 额度恢复后先读手册、再重新接管，不需要重新考古。
 
 ## 2. 当前总策略
 
@@ -70,6 +70,8 @@
 代班期间默认继承 Lucia 当前策略，不得自行切换节奏。如果认为策略需要改变，必须先形成书面判断，再由用户决定是否接受。
 
 未阅读本文，不应直接派单、验收、复盘或调整项目节奏。
+
+Lucia 本人额度恢复、上下文压缩后恢复工作，或间隔较久重新接管时，也必须先阅读本文，再继续履行职责。
 
 ## 4. 接手时必须先读的材料
 
@@ -184,16 +186,17 @@ curl -sS http://127.0.0.1:8081/__proxy/upload/audit/consistency
 
 ## 10. 接手后的标准动作
 
-临时代班或 Lucia 重新接手时，默认按这个顺序：
+临时代班、Lucia 额度恢复或 Lucia 重新接手时，默认按这个顺序：
 
-1. `git pull origin main`
-2. `docker compose up -d --build`
-3. 跑一轮 smoke
-4. 跑 `pages-smoke`
-5. 跑 `pipeline-consistency`
-6. 跑 `/audit/consistency` dry-run
-7. 输出《当前部署基线报告》或《复验报告》
-8. 只有基线过关后，才允许给 lucode 派下一单
+1. 先阅读本文
+2. `git pull origin main`
+3. `docker compose up -d --build`
+4. 跑一轮 smoke
+5. 跑 `pages-smoke`
+6. 跑 `pipeline-consistency`
+7. 跑 `/audit/consistency` dry-run
+8. 输出《当前部署基线报告》或《复验报告》
+9. 只有基线过关后，才允许给 lucode 派下一单
 
 ## 11. 当前已知非阻塞事实
 
