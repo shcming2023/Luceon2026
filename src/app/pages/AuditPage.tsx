@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, AlertTriangle, Info, AlertOctagon, CheckCircle2, Loader2, Database, Search, RotateCw, Download, FileJson } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Info, AlertOctagon, CheckCircle2, Loader2, Database, Search, RotateCw, Download, FileJson, FileText, Brain } from 'lucide-react';
 
 interface Finding {
   kind: string;
