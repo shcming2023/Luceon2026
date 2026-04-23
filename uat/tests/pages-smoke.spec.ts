@@ -95,14 +95,15 @@ test.describe('Dashboard Pages Smoke (Runtime Stability)', () => {
         const realId = tasks[0].id;
         console.log(`Testing real task detail: ${realId}`);
         await page.goto(`${BASE_URL}/cms/tasks/${realId}`);
-        await page.waitForSelector('main', { timeout: 10000 });
+        
+        // 显式等待 Tab 结构出现，避免异步加载未完成的 flaky
+        await expect(page.getByText('概览')).toBeVisible({ timeout: 10000 });
         
         bodyText = await page.innerText('body');
         expect(bodyText).not.toContain('ReferenceError');
         expect(bodyText).not.toContain('应用程序遇到了一个意外错误');
         
         // W2 断言：必须看到 Tab 结构
-        expect(bodyText).toContain('概览');
         expect(bodyText).toContain('Markdown');
         expect(bodyText).toContain('元数据');
         expect(bodyText).toContain('事件日志');
