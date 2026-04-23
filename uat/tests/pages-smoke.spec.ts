@@ -11,26 +11,40 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:8081';
 
 test.describe('Dashboard Pages Smoke (Runtime Stability)', () => {
   
-  // 在每个测试前设置 console 监听
+  const consoleErrors: string[] = [];
+
+  // 在每个测试前清空错误集合并设置监听
   test.beforeEach(async ({ page }) => {
+    consoleErrors.length = 0;
+
     page.on('pageerror', (exception) => {
-      console.error(`[Browser Error] ${exception.stack || exception.message}`);
-      test.fail(true, `Detected unhandled exception: ${exception.message}`);
+      consoleErrors.push(`[PageError] ${exception.stack || exception.message}`);
     });
 
     page.on('console', (msg) => {
-      if (msg.type() === 'error' && (msg.text().includes('ReferenceError') || msg.text().includes('is not defined'))) {
-        console.error(`[Console Error] ${msg.text()}`);
-        // 标记为失败，但在 playwright 中通常由 pageerror 捕获崩溃
+      if (msg.type() === 'error') {
+        const text = msg.text();
+        // 捕获关键运行时错误
+        if (text.includes('ReferenceError') || text.includes('is not defined') || text.includes('ErrorBoundary')) {
+          consoleErrors.push(`[ConsoleError] ${text}`);
+        }
       }
     });
+  });
+
+  // 每个测试后断言是否存在严重错误
+  test.afterEach(async () => {
+    if (consoleErrors.length > 0) {
+      const errorMsg = consoleErrors.join('\n');
+      expect(consoleErrors, `Detected runtime errors in browser console:\n${errorMsg}`).toHaveLength(0);
+    }
   });
 
   const targetPages = [
     { name: '任务管理', path: '/cms/tasks', heading: '任务管理' },
     { name: '一致性审计', path: '/cms/audit', heading: '一致性审计' },
     { name: '系统健康', path: '/cms/ops/health', heading: '系统健康' },
-    { name: '原始资料库', path: '/cms/source-materials', heading: '原始资料库' },
+    { name: '工作台', path: '/cms/workspace', heading: '工作台' },
     { name: '成果库', path: '/cms/library', heading: '成果库' },
     { name: '系统设置', path: '/cms/settings', heading: '系统设置' },
   ];
