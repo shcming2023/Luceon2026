@@ -105,6 +105,7 @@ function zhLabelForState(state: string | undefined): string {
 
 export function TaskManagementPage() {
   const [tasks, setTasks] = useState<ParseTask[]>([]);
+  const [materials, setMaterials] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<BucketKey>('all');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -114,16 +115,49 @@ export function TaskManagementPage() {
   const fetchTasks = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/__proxy/db/tasks');
-      if (!res.ok) throw new Error(`提取任务失败: HTTP ${res.status}`);
-      const data = await res.json();
-      setTasks(Array.isArray(data) ? data : []);
+      const [tResp, mResp] = await Promise.all([
+        fetch('/__proxy/db/tasks'),
+        fetch('/__proxy/db/materials'),
+      ]);
+      if (!tResp.ok) throw new Error(`提取任务失败: HTTP ${tResp.status}`);
+      const tData = await tResp.json();
+      setTasks(Array.isArray(tData) ? tData : []);
+      
+      if (mResp.ok) {
+        const mData = await mResp.json();
+        setMaterials(Array.isArray(mData) ? mData : []);
+      }
     } catch (err) {
       toast.error('无法获取任务列表', { description: String(err) });
       setTasks([]);
     } finally {
       setLoading(false);
     }
+  };
+
+  const diagnoseStatus = (t: ParseTask) => {
+    const m = materials.find(mat => String(mat.id) === String(t.materialId));
+    if (!m) return { label: '需审计', color: 'text-amber-600 bg-amber-50 border-amber-100', icon: AlertTriangle };
+
+    const ts = t.state;
+    const ms = m.status;
+    const mins = m.mineruStatus;
+    const ais = m.aiStatus;
+
+    if (ts === 'review-pending' && ms === 'reviewing' && mins === 'completed' && (ais === 'analyzed' || ais === 'failed')) {
+      return { label: '待复核', color: 'text-emerald-600 bg-emerald-50 border-emerald-100', icon: ShieldCheck };
+    }
+    if (ts === 'completed' && ms === 'completed' && mins === 'completed' && ais === 'analyzed') {
+      return { label: '已一致', color: 'text-blue-600 bg-blue-50 border-blue-100', icon: CheckCircle2 };
+    }
+    const processingStates = ['uploading', 'pending', 'running', 'result-store', 'ai-pending', 'ai-running'];
+    if (processingStates.includes(ts || '')) {
+      return { label: '流转中', color: 'text-slate-400 bg-slate-50 border-slate-100', icon: Clock };
+    }
+    if (ts === 'failed' || ts === 'canceled') {
+      return { label: '已终止', color: 'text-slate-400 bg-slate-50 border-slate-100', icon: XCircle };
+    }
+    return { label: '需审计', color: 'text-amber-600 bg-amber-50 border-amber-100', icon: AlertTriangle };
   };
 
   const patchTaskInState = async (id: string) => {
@@ -371,6 +405,16 @@ export function TaskManagementPage() {
                             <span className={`inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-full ${stateBadgeClass(t.state)}`}>
                               {zhLabelForState(t.state)}
                             </span>
+                            {(() => {
+                              const diag = diagnoseStatus(t);
+                              const DiagIcon = diag.icon;
+                              return (
+                                <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-bold ${diag.color}`} title="四方状态一致性诊断">
+                                  <DiagIcon size={10} />
+                                  {diag.label}
+                                </div>
+                              );
+                            })()}
                             {bucket === 'processing' && typeof t.progress === 'number' && (
                               <span className="text-[11px] font-mono font-medium text-blue-600">{t.progress || 0}%</span>
                             )}

@@ -12,6 +12,7 @@ import { LatexToolPage } from './pages/backup/LatexToolPage';
 import { WorkspacePage } from './pages/WorkspacePage';
 import { TaskManagementPage } from './pages/TaskManagementPage';
 import { TaskDetailPage } from './pages/TaskDetailPage';
+import { AuditPage } from './pages/AuditPage';
 
 export default function App() {
   return (
@@ -40,6 +41,8 @@ export default function App() {
                 <Route path="/legacy/metadata" element={<MetadataManagementPage />} />
                 {/* 系统设置：API Key 配置、存储设置 */}
                 <Route path="/settings" element={<SettingsPage />} />
+                {/* 运维审计：查看数据一致性扫描结果 */}
+                <Route path="/audit" element={<AuditPage />} />
 
                 {/* ── 子系统二：LaTeX 工具集 ──────────────────────── */}
                 <Route path="/backup/latex" element={<LatexToolPage />} />

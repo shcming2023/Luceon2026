@@ -141,6 +141,7 @@ export function TaskDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [task, setTask] = useState<ParseTask | null>(null);
+  const [material, setMaterial] = useState<any | null>(null);
   const [events, setEvents] = useState<TaskEvent[]>([]);
   const [aiJobs, setAiJobs] = useState<AiMetadataJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -195,8 +196,10 @@ export function TaskDetailPage() {
           const matRes = await fetch(`/__proxy/db/materials/${encodeURIComponent(String(taskData.materialId))}`);
           if (matRes.status === 404) {
             setResourceStatus({ materialExists: false, originalExists: false, markdownExists: false, loaded: true });
+            setMaterial(null);
           } else if (matRes.ok) {
             const mat = await matRes.json();
+            setMaterial(mat);
             setResourceStatus({
               materialExists: true,
               originalExists: !!(mat.metadata?.objectName),
@@ -205,13 +208,16 @@ export function TaskDetailPage() {
             });
           } else {
             setResourceStatus({ materialExists: false, originalExists: false, markdownExists: false, loaded: true });
+            setMaterial(null);
           }
         } catch {
           setResourceStatus({ materialExists: false, originalExists: false, markdownExists: false, loaded: true });
+          setMaterial(null);
         }
       } else {
         // 无 materialId 的任务
         setResourceStatus({ materialExists: false, originalExists: false, markdownExists: false, loaded: true });
+        setMaterial(null);
       }
     } catch (err) {
       toast.error('加载任务详情失败', { description: String(err) });
@@ -449,6 +455,45 @@ export function TaskDetailPage() {
             <p className="text-sm text-red-700 break-words">{task.errorMessage}</p>
           </div>
         )}
+      </div>
+
+      {/* ── 状态诊断矩阵 ────────────────────────────────────────── */}
+      <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+        <div className="px-5 py-3 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
+          <h2 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+            <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />
+            状态一致性诊断 (Diagnostic Matrix)
+          </h2>
+          {(() => {
+            const isHealthy = task.state === 'completed' && material?.status === 'completed' && material?.mineruStatus === 'completed' && material?.aiStatus === 'analyzed';
+            const isReviewing = task.state === 'review-pending' && material?.status === 'reviewing' && material?.mineruStatus === 'completed';
+            if (isHealthy) return <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 uppercase">HEALTHY</span>;
+            if (isReviewing) return <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 uppercase">READY FOR REVIEW</span>;
+            if (['failed', 'canceled'].includes(String(task.state))) return <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 uppercase">STOPPED</span>;
+            return <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 uppercase animate-pulse">NEEDS AUDIT</span>;
+          })()}
+        </div>
+        <div className="p-5 grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+            <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Task State</p>
+            <p className="text-sm font-mono font-bold text-slate-700">{task.state}</p>
+          </div>
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+            <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Material Status</p>
+            <p className="text-sm font-mono font-bold text-slate-700">{material?.status || 'N/A'}</p>
+          </div>
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+            <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">MinerU Status</p>
+            <p className="text-sm font-mono font-bold text-slate-700">{material?.mineruStatus || 'N/A'}</p>
+          </div>
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+            <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">AI Status</p>
+            <p className="text-sm font-mono font-bold text-slate-700">{material?.aiStatus || 'N/A'}</p>
+          </div>
+        </div>
+        <div className="px-5 py-3 bg-blue-50/30 text-[10px] text-blue-600/70 border-t border-slate-50">
+          提示：诊断结果基于当前快照，PDF 链路完成态通常为 [review-pending, reviewing, completed, analyzed]。
+        </div>
       </div>
 
       {/* ── 基础信息 ──────────────────────────────────────────── */}

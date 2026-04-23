@@ -234,3 +234,45 @@ MinIO (MINIO_HOST:9000)       db-data.json
   → 代理转发到 MinIO:9000
   → 文件正常加载 ✓
 ```
+
+---
+
+## 八、阶段四基线复验流程 (Phase 4 Baseline Re-verification)
+
+为了确保每一批小任务不破坏系统主链路，请在每一轮开发完成后执行以下标准复验流程：
+
+### 1. 环境启动与冒烟测试
+```bash
+# 启动环境（确保后端代码最新）
+docker compose up -d --build
+
+# 执行后端 Worker 冒烟测试
+node server/tests/worker-smoke.mjs
+
+# 执行基础链路 Bash 冒烟
+BASE_URL=http://127.0.0.1:8081 bash uat/smoke-test.sh
+```
+
+### 2. E2E 链路与一致性复验
+```bash
+# 执行完整 Pipeline 一致性 E2E（Playwright）
+cd uat && BASE_URL=http://127.0.0.1:8081 npx playwright test tests/pipeline-consistency.spec.ts
+
+# 查看数据一致性审计结果 (Dry-run)
+curl -sS http://127.0.0.1:8081/__proxy/upload/audit/consistency
+```
+
+### 3. 复验报告模板
+复验完成后，请填写以下模板以供验收：
+
+| 检查项 | 结果 / 状态 | 备注 |
+| :--- | :--- | :--- |
+| **Git Commit** | `{hash}` | 当前代码基准 |
+| **Docker Health** | `Healthy` | `docker ps` 确认所有容器存活 |
+| **MinerU / Ollama** | `Available` | 后端 logs 确认模型就绪 |
+| **Smoke Test** | `Pass` | `smoke-test.sh` 无 Error |
+| **Pipeline UAT** | `Pass` | Playwright `pipeline-consistency` 通过 |
+| **Consistency Findings**| `Total: {n}` | 审计页面确认无新增 Unexpected Findings |
+| **Flaky / Retry** | `None` | 测试过程中是否存在超时重试 |
+| **Artifacts Hygiene** | `Clean` | `git status` 确认无产生 `package-lock.json` 等未忽略产物 |
+
