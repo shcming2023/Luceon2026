@@ -58,16 +58,29 @@ export function AuditPage() {
     const filename = `consistency-audit-report-${timestamp}.${format}`;
     
     let content = '';
+    const distribution = report.findings.reduce((acc: Record<string, number>, f) => {
+      acc[f.kind] = (acc[f.kind] || 0) + 1;
+      return acc;
+    }, {});
+
     if (format === 'json') {
-      content = JSON.stringify(report, null, 2);
+      content = JSON.stringify({ ...report, distribution }, null, 2);
     } else {
       content = `# EduAsset Consistency Audit Report\n\n`;
       content += `Generated at: ${new Date().toLocaleString()}\n\n`;
+      
       content += `## Summary\n\n`;
       content += `- Materials: ${report.counters.materials}\n`;
       content += `- Tasks: ${report.counters.tasks}\n`;
       content += `- AI Jobs: ${report.counters.aiJobs}\n`;
       content += `- Total Findings: ${report.counters.findings}\n\n`;
+
+      content += `## Kind Distribution\n\n`;
+      Object.entries(distribution).sort((a, b) => b[1] - a[1]).forEach(([kind, count]) => {
+        content += `- ${kind}: ${count}\n`;
+      });
+      content += `\n`;
+      
       content += `## Findings List\n\n`;
       report.findings.forEach((f, i) => {
         content += `### ${i + 1}. [${f.severity.toUpperCase()}] ${f.kind}\n`;
