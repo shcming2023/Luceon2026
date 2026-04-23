@@ -94,6 +94,9 @@ echo -e "${CYAN}【1】前端页面可达性${RESET}"
 check_redirect "根路径重定向 /" "${BASE_URL}/"
 check "CMS 主页 /cms/" "${BASE_URL}/cms/" "200" "<!doctype html"
 check "SPA 路由 /cms/source-materials" "${BASE_URL}/cms/source-materials" "200" "<!doctype html"
+check "SPA 路由 /cms/tasks" "${BASE_URL}/cms/tasks" "200" "<!doctype html"
+check "SPA 路由 /cms/tasks/dummy-id" "${BASE_URL}/cms/tasks/dummy-id" "200" "<!doctype html"
+check "SPA 路由 /cms/audit" "${BASE_URL}/cms/audit" "200" "<!doctype html"
 echo ""
 
 # ── 2. 后端健康检查 ──────────────────────────────────────────
