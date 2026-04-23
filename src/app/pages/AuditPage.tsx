@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, AlertTriangle, Info, AlertOctagon, CheckCircle2, Loader2, Database, Search } from 'lucide-react';
-import { dbGet } from '../../store/appContext';
+import { ShieldCheck, AlertTriangle, Info, AlertOctagon, CheckCircle2, Loader2, Database, Search, RotateCw } from 'lucide-react';
 
 interface Finding {
   kind: string;
@@ -38,7 +37,9 @@ export function AuditPage() {
   const fetchReport = async () => {
     setLoading(true);
     try {
-      const data = await dbGet<AuditReport>('/audit/consistency');
+      const res = await fetch('/__proxy/upload/audit/consistency');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
       setReport(data);
     } catch (err) {
       console.error('[AuditPage] Failed to fetch audit report', err);
@@ -274,8 +275,8 @@ export function AuditPage() {
         </h4>
         <p className="text-xs text-blue-700/70 max-w-3xl mx-auto leading-relaxed">
           一致性审计页面目前处于 **只读视图** 模式。所有扫描发现项仅供审计参考。
-          若需执行 `apply` 修复操作，请通过运维终端调用 `POST /audit/consistency/apply`。
-          涉及 `orphan-object` 清理时，请务必提前完成系统全量备份。
+          如需清理或修复数据异常，请按运维手册另行审批执行，严禁在未备份情况下进行生产环境数据干预。
+          涉及 `orphan-object` 清理时，必须确认已完成系统全量导出备份。
         </p>
       </div>
     </div>
