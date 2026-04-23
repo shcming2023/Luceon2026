@@ -347,11 +347,15 @@ app.get('/secrets', (_req, res) => {
   res.json({ ok: true, secrets: secretsCache });
 });
 
-const ALLOWED_SECRETS_KEYS = new Set(['aiKeys', 'mineruKey', 'minioCredentials']);
+const ALLOWED_SECRETS_KEYS = new Set([
+  'aiKeys', 'mineruKey', 'minioCredentials',
+  'aiConfig_apiKey', 'mineru_apiKey', 'minio_accessKey', 'minio_secretKey'
+]);
 
 app.put('/secrets', requireBody, (req, res) => {
   for (const key of Object.keys(req.body)) {
-    if (!ALLOWED_SECRETS_KEYS.has(key)) {
+    const isAllowed = ALLOWED_SECRETS_KEYS.has(key) || /^aiProvider_.*_apiKey$/.test(key);
+    if (!isAllowed) {
       res.status(400).json({ error: `secrets key "${key}" 不在允许列表内` });
       return;
     }

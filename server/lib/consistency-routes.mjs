@@ -382,6 +382,32 @@ export function registerConsistencyRoutes(app, deps) {
       }
     }
 
+    // 8) 对象存储孤儿检查 (PRD §9.2 / §11.5)
+    if (getStorageBackend() === 'minio') {
+      try {
+        const { orphans } = await scanOrphansInternal();
+        for (const orphan of orphans) {
+          findings.push({
+            kind: 'orphan-object',
+            severity: 'warn',
+            targetType: 'MinIOObject',
+            targetId: orphan.objectName,
+            message: `孤儿对象 ${orphan.objectName} (Bucket: ${orphan.bucket}, Size: ${orphan.size}) 不属于任何已知的 Material`,
+            suggestion: '该文件无数据库引用，建议清理以释放空间',
+            repair: {
+              method: 'DELETE_ORPHAN', // 特殊标记，交由 applyRepairs 处理
+              bucket: orphan.bucket,
+              objectName: orphan.objectName,
+              path: `(internal:minio:${orphan.bucket}/${orphan.objectName})`,
+              reason: '一致性扫描：孤儿对象清理',
+            },
+          });
+        }
+      } catch (err) {
+        console.warn(`[consistency] Failed to scan orphans: ${err.message}`);
+      }
+    }
+
     return {
       findings,
       counters: {
@@ -401,13 +427,27 @@ export function registerConsistencyRoutes(app, deps) {
         continue;
       }
       try {
-        const resp = await fetch(`${DB_BASE_URL}${f.repair.path}`, {
-          method: f.repair.method || 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(f.repair.body || {}),
-        });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        results.push({ finding: f.kind, targetId: f.targetId, ok: true });
+        // 区分修复类型
+        if (f.repair.method === 'DELETE_ORPHAN') {
+          // 处理 MinIO 孤儿删除
+          await getMinioClient().removeObject(f.repair.bucket, f.repair.objectName);
+          results.push({ finding: f.kind, targetId: f.targetId, ok: true, action: 'minio-delete' });
+        } else {
+          // 处理 DB 或 Proxy 路由调用
+          const baseUrl = f.repair.path.startsWith('/__proxy/upload') ? '' : DB_BASE_URL;
+          // 注意：如果 path 包含 /__proxy/upload，通常是发往当前 server 的其他路由，
+          // 但在 Node 环境下直接 fetch 自己的 localhost 端口比较稳妥，或者通过路由逻辑调用。
+          // 这里的简化处理：如果是发往 DB 的，加 DB_BASE_URL；否则如果是完整路径或以 / 开头，尝试直接 fetch
+          const targetUrl = f.repair.path.startsWith('http') ? f.repair.path : `${baseUrl}${f.repair.path}`;
+          
+          const resp = await fetch(targetUrl, {
+            method: f.repair.method || 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(f.repair.body || {}),
+          });
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          results.push({ finding: f.kind, targetId: f.targetId, ok: true, action: 'db-update' });
+        }
       } catch (err) {
         results.push({ finding: f.kind, targetId: f.targetId, ok: false, error: err.message });
       }

@@ -342,7 +342,7 @@ export class AiMetadataWorker {
       const missingKeyFields = !result.subject || !result.grade || !result.materialType;
       const requireAllReview = aiSettings.requireAllReview === true;
       
-      const needsReview = isLowConfidence || missingKeyFields || requireAllReview || aiResponse.fallbackOccurred;
+      const needsReview = isLowConfidence || missingKeyFields || requireAllReview || aiResponse.fallbackOccurred || result.needsReview === true;
 
       // 7. 完成任务（Canonical 终态：confirmed / review-pending）
       const finalState = needsReview ? 'review-pending' : 'confirmed';

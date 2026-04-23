@@ -3511,7 +3511,7 @@ const aiWorker = new AiMetadataWorker({
           status = 'completed';
           aiStatus = 'analyzed';
         } else if (update.state === 'review-pending') {
-          status = 'processing'; // 待审中仍算 processing
+          status = 'reviewing'; // 待审中显式标记为审核中
           aiStatus = 'analyzed';
         } else if (update.state === 'failed') {
           status = 'failed';
