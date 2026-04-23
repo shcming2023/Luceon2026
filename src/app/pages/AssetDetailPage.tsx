@@ -7,6 +7,8 @@ import { StatusBadge } from '../components/StatusBadge';
 import { PDFPreviewPanel } from '../components/PDFPreviewPanel';
 import { PreviewTabPanel } from '../components/PreviewTabPanel';
 import { ProcessPipelineCard } from '../components/ProcessPipelineCard';
+import { deriveMaterialTaskView, ParseTask, deriveTaskBucket } from '../utils/taskView';
+import { AlertTriangle, ExternalLink, RotateCw, RefreshCw, Sparkles, XCircle, ShieldCheck } from 'lucide-react';
 
 // ── 工具函数 ──────────────────────────────────────────────
 const getMaterialTags = (m: any) =>
@@ -63,7 +65,7 @@ export function AssetDetailPage() {
 
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
   const [submittingMineru, setSubmittingMineru] = useState(false);
-  const [relatedTasks, setRelatedTasks] = useState<Array<{id: string; state: string; engine?: string}>>([]);
+  const [relatedTasks, setRelatedTasks] = useState<ParseTask[]>([]);
 
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
   const originalRefreshTimerRef = useRef<number | null>(null);
@@ -165,8 +167,8 @@ export function AssetDetailPage() {
   ]);
 
   useEffect(() => {
-    setTitleDraft(detail?.title ?? '');
-  }, [detail?.title]);
+    setTitleDraft(material?.title || detail?.title ?? '');
+  }, [material?.title, detail?.title]);
 
   const updateMeta = (key: keyof typeof metaForm, val: string) =>
     setMetaForm((prev) => ({ ...prev, [key]: val }));
@@ -181,18 +183,27 @@ export function AssetDetailPage() {
   );
 
   // ── W2-4: 获取关联任务列表 ────────────────────────────────
-  useEffect(() => {
+  const fetchRelatedTasks = async () => {
     if (!numId) return;
-    const fetchRelatedTasks = async () => {
-      try {
-        const res = await fetch('/__proxy/db/tasks');
-        if (!res.ok) return;
-        const all: Array<{id: string; materialId?: string | number; state: string; engine?: string}> = await res.json();
-        setRelatedTasks(all.filter(t => String(t.materialId) === String(numId)));
-      } catch {}
-    };
+    try {
+      const res = await fetch('/__proxy/db/tasks');
+      if (!res.ok) return;
+      const all: ParseTask[] = await res.json();
+      setRelatedTasks(all.filter(t => String(t.materialId) === String(numId)));
+    } catch {}
+  };
+
+  useEffect(() => {
     fetchRelatedTasks();
-  }, [numId, material?.mineruStatus, material?.aiStatus]);
+    const timer = setInterval(fetchRelatedTasks, 5000); // 轮询任务状态
+    return () => clearInterval(timer);
+  }, [numId]);
+
+  useEffect(() => {
+    const handleRefresh = () => fetchRelatedTasks();
+    window.addEventListener('task-action-completed', handleRefresh);
+    return () => window.removeEventListener('task-action-completed', handleRefresh);
+  }, []);
 
   useEffect(() => {
     if (!isDirty) return;
@@ -211,28 +222,33 @@ export function AssetDetailPage() {
     navigate('/workspace');
   };
 
-  const handleSaveTitle = () => {
+  const handleSaveTitle = async () => {
     const nextTitle = titleDraft.trim();
     if (!material) return;
     if (!nextTitle) {
-      setTitleDraft(detail?.title ?? '');
+      setTitleDraft(material.title || detail?.title || '');
       setEditingTitle(false);
       toast.error('标题不能为空');
       return;
     }
-    if (nextTitle === detail?.title) {
+    if (nextTitle === material.title) {
       setEditingTitle(false);
       return;
     }
-    dispatch({
-      type: 'UPDATE_MATERIAL',
-      payload: {
-        id: numId,
-        updates: { title: nextTitle },
-      },
-    });
-    setEditingTitle(false);
-    toast.success('标题已更新');
+    try {
+      // 同时同步到 Materials 和 AssetDetails
+      dispatch({
+        type: 'UPDATE_MATERIAL',
+        payload: {
+          id: numId,
+          updates: { title: nextTitle },
+        },
+      });
+      setEditingTitle(false);
+      toast.success('标题已同步');
+    } catch (e) {
+      toast.error('保存标题失败');
+    }
   };
 
   const handleDownloadParsedZip = async () => {
@@ -279,7 +295,14 @@ export function AssetDetailPage() {
 
   const handleMineruParse = async () => {
     if (!material) { toast.error('找不到资料信息'); return; }
-    if (submittingMineru || material.mineruStatus === 'processing') return;
+    
+    const view = deriveMaterialTaskView(material, relatedTasks);
+    if (view.currentTask && deriveTaskBucket(view.currentTask.state) === 'processing') {
+      toast.warning('已有进行中的任务，请勿重复提交', {
+        action: { label: '查看任务', onClick: () => navigate(`/tasks/${view.currentTask?.id}`) }
+      });
+      return;
+    }
 
     let objectName = String(material.metadata?.objectName || '').trim();
     const fileUrl = String(material.metadata?.fileUrl || '').trim();
@@ -291,244 +314,97 @@ export function AssetDetailPage() {
     setSubmittingMineru(true);
 
     try {
-      // 如果没有 objectName 但有 fileUrl，先上传到 MinIO
       if (!objectName && fileUrl) {
+        // 先下载并上传到 MinIO (BUGFIX-001 逻辑)
         const blob = await fetch(fileUrl).then((r) => {
           if (!r.ok) throw new Error(`下载文件失败: HTTP ${r.status}`);
           return r.blob();
         });
         const name = material.metadata?.fileName || `${material.title}.${material.type.toLowerCase()}`;
-        const file = new File([blob], name, { type: blob.type || 'application/octet-stream' });
-
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('file', blob, name);
         formData.append('materialId', String(numId));
-        const uploadRes = await fetch('/__proxy/upload/upload', { method: 'POST', body: formData });
-        if (!uploadRes.ok) throw new Error(`上传失败: HTTP ${uploadRes.status}`);
-        const uploadResult = await uploadRes.json();
-        objectName = String(uploadResult?.objectName || '').trim();
-        if (!objectName) throw new Error('上传成功但未获得 objectName');
-
-        dispatch({
-          type: 'UPDATE_MATERIAL',
-          payload: {
-            id: numId,
-            updates: {
-              metadata: {
-                ...material.metadata,
-                objectName,
-                fileUrl: uploadResult.url,
-                fileName: uploadResult.fileName,
-                provider: uploadResult.provider,
-                mimeType: uploadResult.mimeType,
-              },
-            },
-          },
-        });
-      }
-
-      // 使用 PRD 主链路：下载文件后通过 POST /tasks 创建 ParseTask
-      // ParseTaskWorker 会自动拾取并通过 local-mineru adapter 调用 FastAPI
-      const presignRes = await fetch(`/__proxy/upload/presign?objectName=${encodeURIComponent(objectName)}`, { cache: 'no-store' });
-      const presignData = await presignRes.json();
-      if (!presignData?.url) throw new Error('无法获取文件预签名URL');
-
-      const fileBlob = await fetch(presignData.url).then(r => {
-        if (!r.ok) throw new Error(`下载文件失败: HTTP ${r.status}`);
-        return r.blob();
-      });
-      const fileName = material.metadata?.fileName || material.title || 'document.pdf';
-      const file = new File([fileBlob], fileName, { type: material.metadata?.mimeType || 'application/pdf' });
-
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('materialId', String(numId));
-
-      const res = await fetch('/__proxy/upload/tasks', {
-        method: 'POST',
-        body: formData,
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-        if (res.status === 409 && (errData as any).code === 'TASK_ALREADY_ACTIVE') {
-          const existingTaskId = (errData as any).existingTaskId;
-          toast.info('当前已有进行中的任务', {
-            action: {
-              label: '查看任务',
-              onClick: () => navigate(`/tasks/${existingTaskId}`)
-            }
-          });
-          setSubmittingMineru(false);
-          return;
+        
+        const uploadResp = await fetch('/__proxy/upload/tasks', { method: 'POST', body: formData });
+        const uploadResult = await uploadResp.json();
+        if (!uploadResp.ok) throw new Error(uploadResult.error || `HTTP ${uploadResp.status}`);
+        
+        toast.success('解析任务已启动');
+        fetchRelatedTasks();
+      } else {
+        const formData = new FormData();
+        formData.append('materialId', String(numId));
+        formData.append('objectName', objectName);
+        
+        const resp = await fetch('/__proxy/upload/tasks', { method: 'POST', body: formData });
+        const result = await resp.json();
+        if (!resp.ok) {
+          if (resp.status === 409) {
+            toast.warning('当前素材已有进行中的任务', {
+              action: { label: '查看任务', onClick: () => navigate(`/tasks/${result.existingTaskId}`) }
+            });
+          } else {
+            throw new Error(result.error || `HTTP ${resp.status}`);
+          }
+        } else {
+          toast.success('解析任务已启动');
+          fetchRelatedTasks();
         }
-        throw new Error((errData as { error?: string }).error || `HTTP ${res.status}`);
       }
-
-      dispatch({
-        type: 'UPDATE_MATERIAL',
-        payload: {
-          id: numId,
-          updates: {
-            status: 'processing',
-            mineruStatus: 'pending',
-            aiStatus: 'pending',
-            metadata: {
-              ...material.metadata,
-              processingStage: 'mineru',
-              processingMsg: '解析任务已提交（PRD 主链路）',
-              processingProgress: '0',
-              processingUpdatedAt: new Date().toISOString(),
-            },
-          },
-        },
-      });
-
-      toast.info('解析任务已提交，Worker 将自动处理');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : '未知错误';
-      dispatch({ type: 'UPDATE_MATERIAL_MINERU_STATUS', payload: { id: numId, mineruStatus: 'failed' } });
-      toast.error(`MinerU 解析失败: ${msg}`);
+      toast.error(`解析启动失败: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setSubmittingMineru(false);
     }
   };
 
-  const handleAiAnalyze = async () => {
-    if (!material) { toast.error('找不到资料信息'); return; }
-
-    const { apiEndpoint, apiKey, model, providers } = state.aiConfig;
-    const enabledProviders = providers?.filter((p) => p.enabled);
-    if ((!enabledProviders || enabledProviders.length === 0) && (!apiEndpoint?.trim() || !model?.trim())) {
-      toast.error('请先在「系统设置」中配置 AI 提供商（至少启用一个）');
-      return;
-    }
-
-    if (!aiAnalyzing) setAiAnalyzing(true);
-    dispatch({ type: 'UPDATE_MATERIAL_AI_STATUS', payload: { id: numId, aiStatus: 'analyzing' } });
-
+  const handleTaskAction = async (taskId: string, action: 'retry' | 'reparse' | 're-ai') => {
     try {
-      // ── 通过 PRD 主链路触发 AI 分析 ──────────────────────────
-      // 1) 查找当前 Material 关联的 ParseTask
-      const tasksResp = await fetch('/__proxy/db/tasks');
-      if (!tasksResp.ok) throw new Error(`获取任务列表失败: HTTP ${tasksResp.status}`);
-      const allTasks = await tasksResp.json() as Array<{ id: string; materialId?: string | number; state: string }>;
-      const myTasks = allTasks.filter((t) => String(t.materialId) === String(numId));
-      const reAiable = myTasks.find((t) => ['completed', 'review-pending', 'failed'].includes(t.state));
-
-      let targetTaskId: string | null = null;
-
-      if (reAiable) {
-        // 已有可 re-ai 的任务，直接调用
-        targetTaskId = reAiable.id;
-      } else {
-        // 没有关联任务，尝试先创建一个 ParseTask
-        // 检查 Material 是否有解析产物（markdownObjectName），若无则提示先解析
-        if (!material.metadata?.markdownObjectName && !material.metadata?.markdownUrl) {
-          toast.error('请先完成 MinerU 解析，生成 full.md 后再运行 AI 分析');
-          setAiAnalyzing(false);
-          dispatch({ type: 'UPDATE_MATERIAL_AI_STATUS', payload: { id: numId, aiStatus: 'pending' } });
-          return;
-        }
-
-        // 创建一个新的 ParseTask（跳过解析阶段，直接进入 AI）
-        const newTaskId = `task-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`;
-        const createResp = await fetch('/__proxy/db/tasks', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: newTaskId,
-            materialId: numId,
-            state: 'completed',
-            stage: 'mineru',
-            progress: 100,
-            message: '资产详情页触发 AI 分析（跳过解析）',
-            engine: 'local-mineru',
-            metadata: {
-              markdownObjectName: material.metadata?.markdownObjectName,
-              markdownUrl: material.metadata?.markdownUrl,
-            },
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          }),
-        });
-        if (!createResp.ok) throw new Error(`创建任务失败: HTTP ${createResp.status}`);
-        targetTaskId = newTaskId;
-      }
-
-      // 2) 调用 re-ai 接口触发 AI Worker
-      const reAiResp = await fetch(`/__proxy/upload/tasks/${encodeURIComponent(targetTaskId!)}/re-ai`, {
+      const res = await fetch(`/__proxy/upload/tasks/${encodeURIComponent(taskId)}/${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '操作失败');
+      toast.success('操作已执行', { description: `新任务 ID: ${data.newTaskId}` });
+      fetchRelatedTasks();
+    } catch (e) {
+      toast.error('操作失败', { description: String(e) });
+    }
+  };
 
-      if (!reAiResp.ok) {
-        const errData = await reAiResp.json().catch(() => ({ error: `HTTP ${reAiResp.status}` }));
-        throw new Error(errData.error || `HTTP ${reAiResp.status}`);
-      }
-
-      const reAiResult = await reAiResp.json() as { ok: boolean; taskId: string; state: string };
-      toast.info(`AI 分析任务已提交（任务 ${reAiResult.taskId}），AI Worker 将自动处理`);
-
-      // 3) 通过 SSE 监听任务完成
-      const eventSource = new EventSource(`/__proxy/upload/tasks/stream?taskId=${encodeURIComponent(reAiResult.taskId!)}`);
-      const onMessage = (event: MessageEvent) => {
+  const handleAiAnalyze = async () => {
+    const view = deriveMaterialTaskView(material!, relatedTasks);
+    if (view.currentTask && deriveTaskBucket(view.currentTask.state) === 'processing') {
+      toast.warning('已有任务正在处理中');
+      return;
+    }
+    
+    if (view.currentTask) {
+      await handleTaskAction(view.currentTask.id, 're-ai');
+    } else if (material?.metadata?.markdownObjectName || material?.metadata?.markdownUrl) {
+        // 如果没有任务记录但有解析产物，可以尝试创建一个已完成的占位任务再重跑 AI
+        toast.info('尝试建立新任务并启动 AI 分析...');
+        const newTaskId = `task-${Date.now()}`;
         try {
-          const data = JSON.parse(event.data) as { event?: string; update?: { state?: string; progress?: number } };
-          if (data.update?.state === 'completed' || data.update?.state === 'review-pending') {
-            // AI 分析完成，刷新 Material 数据
-            eventSource.close();
-            setAiAnalyzing(false);
-            // 从 db-server 刷新 Material 以获取 AI 回填结果
-            fetch(`/__proxy/db/materials/${numId}`)
-              .then((r) => r.json())
-              .then((m: any) => {
-                if (m && !m.error) {
-                  dispatch({ type: 'UPDATE_MATERIAL_AI_STATUS', payload: {
-                    id: numId,
-                    aiStatus: 'analyzed',
-                    status: 'completed',
-                    ...(m.title ? { title: m.title } : {}),
-                    tags: m.tags || material.tags,
-                    metadata: m.metadata || material.metadata,
-                  }});
-                  if (m.metadata) {
-                    setMetaForm({
-                      language: m.metadata.language || '',
-                      grade:    m.metadata.grade || '',
-                      subject:  m.metadata.subject || '',
-                      country:  m.metadata.country || '',
-                      type:     m.metadata.type || m.metadata.materialType || '',
-                      summary:  m.metadata.summary || '',
-                    });
-                  }
-                  toast.success(`AI 分析完成！置信度 ${m.metadata?.aiConfidence || '?'}%`);
-                }
-              })
-              .catch(() => {});
-          } else if (data.update?.state === 'failed') {
-            eventSource.close();
-            setAiAnalyzing(false);
-            dispatch({ type: 'UPDATE_MATERIAL_AI_STATUS', payload: { id: numId, aiStatus: 'failed' } });
-            toast.error('AI 分析失败，请查看任务详情');
-          }
-        } catch { /* ignore parse errors */ }
-      };
-      eventSource.addEventListener('task-update', onMessage);
-      eventSource.addEventListener('hello', () => { /* connection confirmed */ });
-
-      // 超时保护：5 分钟后自动关闭
-      setTimeout(() => {
-        if (eventSource.readyState !== EventSource.CLOSED) {
-          eventSource.close();
-          setAiAnalyzing(false);
+            await fetch('/__proxy/db/tasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: newTaskId,
+                    materialId: numId,
+                    state: 'completed',
+                    stage: 'mineru',
+                    engine: 'local-mineru',
+                    createdAt: new Date().toISOString()
+                })
+            });
+            await handleTaskAction(newTaskId, 're-ai');
+        } catch (e) {
+            toast.error('创建任务失败');
         }
-      }, 5 * 60 * 1000);
-
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      dispatch({ type: 'UPDATE_MATERIAL_AI_STATUS', payload: { id: numId, aiStatus: 'failed' } });
-      toast.error(`AI 分析失败: ${msg}`);
-      setAiAnalyzing(false);
+    } else {
+      toast.error('请先完成 MinerU 解析');
     }
   };
 
@@ -586,7 +462,7 @@ export function AssetDetailPage() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSaveTitle();
                   if (e.key === 'Escape') {
-                    setTitleDraft(detail.title);
+                    setTitleDraft(material?.title || detail.title);
                     setEditingTitle(false);
                   }
                 }}
@@ -595,7 +471,7 @@ export function AssetDetailPage() {
               />
             ) : (
               <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold text-gray-900">{detail.title}</h1>
+                <h1 className="text-xl font-bold text-gray-900">{material?.title || detail.title}</h1>
                 <button
                   onClick={() => setEditingTitle(true)}
                   className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
@@ -605,10 +481,32 @@ export function AssetDetailPage() {
                 </button>
               </div>
             )}
-            <p className="text-xs text-gray-400 mt-1">资产 ID：{detail.assetId}</p>
+            <p className="text-xs text-gray-400 mt-1">
+              资产 ID：{detail.assetId} 
+              {material?.metadata?.fileName && ` · 文件名：${material.metadata.fileName}`}
+            </p>
           </div>
           <div className="flex items-center gap-2">
-            <StatusBadge status={detail.status} />
+            {(() => {
+              const view = deriveMaterialTaskView(material!, relatedTasks);
+              return (
+                <div className="flex items-center gap-2">
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
+                    view.bucket === 'completed' ? 'bg-green-50 text-green-700 border-green-200' :
+                    view.bucket === 'failed' ? 'bg-red-50 text-red-700 border-red-200' :
+                    view.bucket === 'processing' ? 'bg-blue-50 text-blue-700 border-blue-200 animate-pulse' :
+                    'bg-gray-50 text-gray-600 border-gray-200'
+                  }`}>
+                    {view.displayStatus}
+                  </span>
+                  {view.hasStateDrift && (
+                    <div className="flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-600 border border-amber-200 rounded text-[10px] font-bold" title={view.driftReason}>
+                      <AlertTriangle size={12} /> 状态漂移
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
@@ -634,36 +532,135 @@ export function AssetDetailPage() {
             aiDisabledReason={(!material?.metadata?.markdownObjectName && !material?.metadata?.markdownUrl && !material?.mineruZipUrl && !mineruMarkdown) ? '请先完成 MinerU 解析' : ''}
           />
 
-          {/* W2-4: 关联任务卡片 */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="font-semibold text-gray-800 flex items-center gap-2">
-                <Clock size={16} className="text-blue-500" /> 关联任务
+          {/* [P0] 当前任务卡片 */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-gray-800 flex items-center gap-2">
+                <Clock size={16} className="text-blue-600" /> 当前任务
               </h2>
-              <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 font-mono">
+              {(() => {
+                const view = deriveMaterialTaskView(material!, relatedTasks);
+                if (view.currentTask) {
+                  return (
+                    <Link to={`/tasks/${view.currentTask.id}`} className="text-xs text-blue-600 hover:underline flex items-center gap-1 font-medium">
+                      查看详情 <ExternalLink size={12} />
+                    </Link>
+                  );
+                }
+                return null;
+              })()}
+            </div>
+            
+            {(() => {
+              const view = deriveMaterialTaskView(material!, relatedTasks);
+              const task = view.currentTask;
+              if (!task) {
+                return <p className="text-sm text-gray-400 text-center py-6 border-2 border-dashed border-gray-50 rounded-lg">暂无关联任务</p>;
+              }
+              
+              const isFailed = task.state === 'failed';
+              const isProcessing = deriveTaskBucket(task.state) === 'processing';
+              
+              return (
+                <div className="space-y-4">
+                  <div className="flex items-start justify-between gap-4 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                    <div>
+                      <p className="text-[10px] text-gray-400 font-mono uppercase tracking-wider mb-1">Task ID</p>
+                      <p className="text-sm font-bold text-gray-700 font-mono">{task.id}</p>
+                      <div className="flex items-center gap-2 mt-2">
+                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                           isFailed ? 'bg-red-100 text-red-700' :
+                           task.state === 'completed' ? 'bg-green-100 text-green-700' :
+                           'bg-blue-100 text-blue-700'
+                         }`}>
+                           {task.state}
+                         </span>
+                         <span className="text-[10px] text-gray-400">{task.stage || 'prepare'}</span>
+                      </div>
+                    </div>
+                    {isProcessing && (
+                      <div className="text-right">
+                        <span className="text-lg font-bold text-blue-600 font-mono">{task.progress || 0}%</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {isProcessing && (
+                    <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                      <div className="bg-blue-600 h-full transition-all duration-500" style={{ width: `${task.progress || 0}%` }} />
+                    </div>
+                  )}
+
+                  {(task.errorMessage || task.message) && (
+                    <div className={`text-xs p-2.5 rounded border ${isFailed ? 'bg-red-50 text-red-600 border-red-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
+                       <p className="font-semibold mb-1">{isFailed ? '错误信息' : '状态说明'}</p>
+                       <p className="line-clamp-3">{task.errorMessage || task.message}</p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button 
+                       onClick={() => handleTaskAction(task.id, 'retry')}
+                       disabled={task.state !== 'failed'}
+                       className="flex items-center justify-center gap-1.5 py-2 text-xs font-semibold bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-30"
+                    >
+                      <RotateCw size={14} /> Retry
+                    </button>
+                    <button 
+                       onClick={() => handleTaskAction(task.id, 'reparse')}
+                       disabled={!['completed', 'failed', 'review-pending', 'canceled'].includes(task.state || '')}
+                       className="flex items-center justify-center gap-1.5 py-2 text-xs font-semibold bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-30"
+                    >
+                      <RefreshCw size={14} /> Reparse
+                    </button>
+                    <button 
+                       onClick={() => handleTaskAction(task.id, 're-ai')}
+                       disabled={!['completed', 'failed', 'review-pending'].includes(task.state || '')}
+                       className="flex items-center justify-center gap-1.5 py-2 text-xs font-semibold bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-30"
+                    >
+                      <Sparkles size={14} /> Re-AI
+                    </button>
+                    <button 
+                       onClick={() => navigate(`/tasks/${task.id}`)}
+                       className="flex items-center justify-center gap-1.5 py-2 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      <Eye size={14} /> 详情
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-gray-800 flex items-center gap-2">
+                <RefreshCw size={16} className="text-gray-400" /> 最近任务
+              </h2>
+              <span className="text-[10px] bg-gray-100 px-1.5 py-0.5 rounded text-gray-500 font-mono">
                 {relatedTasks.length}
               </span>
             </div>
             {relatedTasks.length === 0 ? (
-              <p className="text-xs text-slate-400 text-center py-4">暂无关联任务</p>
+              <p className="text-xs text-gray-400 text-center py-4">暂无历史任务</p>
             ) : (
-              <div className="space-y-2">
-                {relatedTasks.map((t) => (
+              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                {relatedTasks.slice(0, 5).map((t) => (
                   <div
                     key={t.id}
                     onClick={() => navigate(`/tasks/${t.id}`)}
-                    className="flex items-center justify-between p-2.5 rounded-lg border border-slate-100 hover:border-blue-200 hover:bg-blue-50/30 cursor-pointer transition-all group"
+                    className="flex items-center justify-between p-2.5 rounded-lg border border-gray-50 hover:border-blue-200 hover:bg-blue-50/30 cursor-pointer transition-all group"
                   >
                     <div className="min-w-0">
-                      <p className="text-xs font-mono font-bold text-slate-700 group-hover:text-blue-700 truncate">{t.id}</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5 capitalize">{t.engine || 'pipeline'}</p>
+                      <p className="text-[11px] font-mono font-bold text-gray-700 group-hover:text-blue-700 truncate">{t.id}</p>
+                      <p className="text-[9px] text-gray-400 mt-0.5 uppercase">{t.engine || 'local-mineru'}</p>
                     </div>
-                    <div className="flex flex-col items-end gap-1">
+                    <div className="flex items-center gap-2">
                       <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase ${
                         t.state === 'completed' ? 'bg-green-100 text-green-700' :
                         t.state === 'failed' ? 'bg-red-100 text-red-700' :
-                        t.state === 'running' ? 'bg-blue-100 text-blue-700 animate-pulse' :
-                        'bg-slate-100 text-slate-600'
+                        deriveTaskBucket(t.state) === 'processing' ? 'bg-blue-100 text-blue-700' :
+                        'bg-gray-100 text-gray-600'
                       }`}>
                         {t.state}
                       </span>

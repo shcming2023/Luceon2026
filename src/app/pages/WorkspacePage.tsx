@@ -5,6 +5,8 @@ import { useAppStore } from '../../store/appContext';
 import type { Material } from '../../store/types';
 import { Link } from 'react-router-dom';
 import { useFileUpload } from '../hooks/useFileUpload';
+import { deriveMaterialTaskView, ParseTask } from '../utils/taskView';
+import { AlertTriangle, ExternalLink } from 'lucide-react';
  
 type FilterKey = 'all' | 'pending' | 'processing' | 'failed' | 'completed';
  
@@ -23,6 +25,19 @@ export function WorkspacePage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
   const { upload, uploading, progress } = useFileUpload();
+  const [tasks, setTasks] = useState<ParseTask[]>([]);
+
+  const fetchTasks = async () => {
+    try {
+      const res = await fetch('/__proxy/db/tasks');
+      if (res.ok) {
+        const data = await res.json();
+        setTasks(Array.isArray(data) ? data : []);
+      }
+    } catch (e) {
+      console.warn('[Workspace] fetchTasks failed:', e);
+    }
+  };
  
   useEffect(() => {
     const el = folderInputRef.current as unknown as { webkitdirectory?: boolean; directory?: boolean; setAttribute?: (k: string, v: string) => void } | null;
@@ -31,6 +46,7 @@ export function WorkspacePage() {
     el.directory = true;
     el.setAttribute?.('webkitdirectory', '');
     el.setAttribute?.('directory', '');
+    fetchTasks();
   }, []);
 
   const handlePickFiles = () => {
@@ -54,11 +70,10 @@ export function WorkspacePage() {
   }, [state.materials]);
 
   const getFilterKey = (m: Material): FilterKey => {
-    const failed = m.status === 'failed' || m.mineruStatus === 'failed' || m.aiStatus === 'failed';
-    if (failed) return 'failed';
-    if (m.status === 'completed' && m.aiStatus === 'analyzed') return 'completed';
-    const pending = m.mineruStatus === 'pending' || m.aiStatus === 'pending';
-    if (pending) return 'pending';
+    const view = deriveMaterialTaskView(m, tasks);
+    if (view.bucket === 'failed' || view.bucket === 'canceled') return 'failed';
+    if (view.bucket === 'completed') return 'completed';
+    if (view.bucket === 'queued') return 'pending';
     return 'processing';
   };
 
@@ -304,19 +319,39 @@ export function WorkspacePage() {
                   <td className="px-4 py-3 text-gray-600">{type}</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`text-xs px-2 py-1 rounded-full border w-fit ${
-                          stage === '已完成'
-                            ? 'bg-green-50 text-green-700 border-green-200'
-                            : stage === '失败'
-                              ? 'bg-red-50 text-red-700 border-red-200'
-                              : stage === 'MinerU 解析' || stage === 'AI 分析' || stage === '处理中'
-                                ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                : 'bg-gray-50 text-gray-700 border-gray-200'
-                        }`}>
-                          {stage}
-                        </span>
-                      </div>
+                      {(() => {
+                        const view = deriveMaterialTaskView(material, tasks);
+                        return (
+                          <>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-xs px-2 py-1 rounded-full border w-fit font-medium ${
+                                view.bucket === 'completed'
+                                  ? 'bg-green-50 text-green-700 border-green-200'
+                                  : view.bucket === 'failed' || view.bucket === 'canceled'
+                                    ? 'bg-red-50 text-red-700 border-red-200'
+                                    : view.bucket === 'processing' || view.bucket === 'reviewing'
+                                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                      : 'bg-gray-50 text-gray-700 border-gray-200'
+                              }`}>
+                                {view.displayStatus}
+                              </span>
+                              {view.hasStateDrift && (
+                                <span className="text-amber-600" title={`状态异常: ${view.driftReason}`}>
+                                  <AlertTriangle size={14} />
+                                </span>
+                              )}
+                            </div>
+                            {view.currentTask && (
+                              <Link 
+                                to={`/tasks/${view.currentTask.id}`}
+                                className="text-[10px] text-gray-400 hover:text-blue-500 flex items-center gap-0.5"
+                              >
+                                <ExternalLink size={10} /> {view.currentTask.id.slice(0, 12)}...
+                              </Link>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </td>
                   <td className="px-4 py-3">

@@ -16,6 +16,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { deriveTaskBucket, ParseTask, TaskBucket } from '../utils/taskView';
 
 /**
  * TaskManagementPage — 任务管理
@@ -29,22 +30,7 @@ import { toast } from 'sonner';
  *   canceled   ← canceled
  */
 
-interface ParseTask {
-  id: string;
-  materialId?: string;
-  engine?: string;
-  stage?: string;
-  state?: string;
-  progress?: number;
-  message?: string;
-  errorMessage?: string | null;
-  createdAt?: string;
-  updatedAt?: string;
-  completedAt?: string | null;
-  retryOf?: string | null;
-}
-
-type BucketKey = 'all' | 'queued' | 'processing' | 'reviewing' | 'completed' | 'failed' | 'canceled';
+type BucketKey = 'all' | TaskBucket;
 
 const BUCKET_LABELS: Record<BucketKey, string> = {
   all: '全部',
@@ -57,26 +43,7 @@ const BUCKET_LABELS: Record<BucketKey, string> = {
 };
 
 function bucketOf(state: string | undefined): BucketKey {
-  switch (state) {
-    case 'uploading':
-    case 'pending':
-    case 'ai-pending':
-      return 'queued';
-    case 'running':
-    case 'result-store':
-    case 'ai-running':
-      return 'processing';
-    case 'review-pending':
-      return 'reviewing';
-    case 'completed':
-      return 'completed';
-    case 'failed':
-      return 'failed';
-    case 'canceled':
-      return 'canceled';
-    default:
-      return 'queued';
-  }
+  return deriveTaskBucket(state);
 }
 
 function stateBadgeClass(state: string | undefined): string {
