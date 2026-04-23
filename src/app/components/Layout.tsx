@@ -10,6 +10,7 @@ import {
   ListTodo,
   PlusCircle,
   ShieldCheck,
+  Activity,
 } from 'lucide-react';
 import { BatchProcessingController, BatchProgressFab, BatchUploadModal } from './BatchUploadModal';
 
@@ -23,6 +24,7 @@ const SIDE_NAV = [
 /* ── 侧边栏底部导航 ──────────────────────────────────────────── */
 const BOTTOM_NAV = [
   { name: '一致性审计',   href: '/audit',             icon: ShieldCheck },
+  { name: '系统健康',     href: '/ops/health',        icon: Activity },
   { name: '系统设置',     href: '/settings',          icon: Settings },
   { name: 'LaTeX 工具',   href: '/backup/latex',      icon: FileText },
 ];

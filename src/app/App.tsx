@@ -13,6 +13,7 @@ import { WorkspacePage } from './pages/WorkspacePage';
 import { TaskManagementPage } from './pages/TaskManagementPage';
 import { TaskDetailPage } from './pages/TaskDetailPage';
 import { AuditPage } from './pages/AuditPage';
+import { OpsHealthPage } from './pages/OpsHealthPage';
 
 export default function App() {
   return (
@@ -43,6 +44,8 @@ export default function App() {
                 <Route path="/settings" element={<SettingsPage />} />
                 {/* 运维审计：查看数据一致性扫描结果 */}
                 <Route path="/audit" element={<AuditPage />} />
+                {/* 运维健康：系统组件健康状态监控 */}
+                <Route path="/ops/health" element={<OpsHealthPage />} />
 
                 {/* ── 子系统二：LaTeX 工具集 ──────────────────────── */}
                 <Route path="/backup/latex" element={<LatexToolPage />} />

@@ -440,6 +440,118 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'upload-server' });
 });
 
+/**
+ * 运维聚合健康检查：检查全链路组件状态
+ * 遵循《阶段四第二批小任务书》：只读探测，不修改状态。
+ */
+app.get('/ops/health', async (req, res) => {
+  const dbBaseUrl = process.env.DB_BASE_URL || 'http://localhost:8789';
+  const start = Date.now();
+  
+  const results = {
+    frontend: { status: 'ok', version: '2026.04.23-UAT' },
+    uploadServer: { status: 'ok', version: '0.7.0' },
+    dbServer: { status: 'unknown' },
+    minio: { status: 'unknown' },
+    mineru: { status: 'unknown' },
+    ollama: { status: 'unknown' },
+    timestamp: new Date().toISOString()
+  };
+
+  // 1. DB Server Check
+  try {
+    const dbRes = await fetch(`${dbBaseUrl}/health`, { signal: AbortSignal.timeout(2000) });
+    if (dbRes.ok) {
+      results.dbServer = { status: 'ok', version: '1.0.0' };
+    } else {
+      results.dbServer = { status: 'warning', message: `HTTP ${dbRes.status}` };
+    }
+  } catch (e) {
+    results.dbServer = { status: 'error', message: e.message };
+  }
+
+  // 2. MinIO Check
+  if (process.env.STORAGE_BACKEND === 'minio') {
+    try {
+      // 动态获取当前 client (兼容运行时配置变更)
+      if (typeof getMinioClient === 'function' && typeof getMinioBucket === 'function') {
+        const client = getMinioClient();
+        const bucket = getMinioBucket();
+        const exists = await client.bucketExists(bucket);
+        results.minio = { status: exists ? 'ok' : 'warning', message: exists ? 'Connected' : `Bucket ${bucket} missing`, details: { bucket } };
+      } else {
+        results.minio = { status: 'warning', message: 'MinIO Client functions not available' };
+      }
+    } catch (e) {
+      results.minio = { status: 'error', message: e.message };
+    }
+  } else {
+    results.minio = { status: 'ok', message: 'Using tmpfiles (Mock)' };
+  }
+
+  // 3. MinerU Check
+  try {
+    let localEndpoint = process.env.LOCAL_MINERU_ENDPOINT || 'http://host.docker.internal:8083';
+    // 尝试从设置中读取
+    try {
+      const setResp = await fetch(`${dbBaseUrl}/settings`, { signal: AbortSignal.timeout(1000) });
+      if (setResp.ok) {
+        const settings = await setResp.json();
+        if (settings?.mineruConfig?.localEndpoint) localEndpoint = settings.mineruConfig.localEndpoint;
+      }
+    } catch (ee) { /* use default */ }
+
+    // 重写 localhost 为 host.docker.internal
+    if (localEndpoint.includes('localhost') || localEndpoint.includes('127.0.0.1')) {
+      localEndpoint = localEndpoint.replace(/localhost|127\.0\.0\.1/g, 'host.docker.internal');
+    }
+
+    const mineruRes = await fetch(`${localEndpoint.replace(/\/+$/, '')}/health`, { signal: AbortSignal.timeout(3000) });
+    if (mineruRes.ok) {
+      const data = await mineruRes.json();
+      results.mineru = { status: 'ok', details: data };
+    } else {
+      results.mineru = { status: 'warning', message: `HTTP ${mineruRes.status}` };
+    }
+  } catch (e) {
+    results.mineru = { status: 'error', message: e.message };
+  }
+
+  // 4. Ollama Check
+  try {
+    const setResp = await fetch(`${dbBaseUrl}/settings`, { signal: AbortSignal.timeout(1000) });
+    let ollamaUrl = 'http://host.docker.internal:11434';
+    if (setResp.ok) {
+      const settings = await setResp.json();
+      const aiConfig = settings.aiConfig || {};
+      if (aiConfig.ollamaBaseUrl) ollamaUrl = aiConfig.ollamaBaseUrl;
+    }
+    
+    // 重写
+    if (ollamaUrl.includes('localhost') || ollamaUrl.includes('127.0.0.1')) {
+      ollamaUrl = ollamaUrl.replace(/localhost|127\.0\.0\.1/g, 'host.docker.internal');
+    }
+
+    const ollamaRes = await fetch(`${ollamaUrl.replace(/\/+$/, '')}/api/tags`, { signal: AbortSignal.timeout(3000) });
+    if (ollamaRes.ok) {
+      const data = await ollamaRes.json();
+      const modelNames = (data.models || []).map(m => m.name);
+      const hasTarget = modelNames.some(n => n.includes('qwen3.5:9b'));
+      results.ollama = { 
+        status: hasTarget ? 'ok' : 'warning', 
+        message: hasTarget ? 'Ready' : 'qwen3.5:9b missing',
+        details: { models: modelNames } 
+      };
+    } else {
+      results.ollama = { status: 'warning', message: `HTTP ${ollamaRes.status}` };
+    }
+  } catch (e) {
+    results.ollama = { status: 'error', message: e.message };
+  }
+
+  res.json(results);
+});
+
 function toDownloadUrl(url) {
   if (!url) return '';
   return String(url).replace(/^https?:\/\/tmpfiles\.org\/(?:dl\/)?/, 'https://tmpfiles.org/dl/');

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, AlertTriangle, Info, AlertOctagon, CheckCircle2, Loader2, Database, Search, RotateCw } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Info, AlertOctagon, CheckCircle2, Loader2, Database, Search, RotateCw, Download, FileJson } from 'lucide-react';
 
 interface Finding {
   kind: string;
@@ -51,6 +51,40 @@ export function AuditPage() {
   useEffect(() => {
     fetchReport();
   }, []);
+
+  const exportReport = (format: 'json' | 'md') => {
+    if (!report) return;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `consistency-audit-report-${timestamp}.${format}`;
+    
+    let content = '';
+    if (format === 'json') {
+      content = JSON.stringify(report, null, 2);
+    } else {
+      content = `# EduAsset Consistency Audit Report\n\n`;
+      content += `Generated at: ${new Date().toLocaleString()}\n\n`;
+      content += `## Summary\n\n`;
+      content += `- Materials: ${report.counters.materials}\n`;
+      content += `- Tasks: ${report.counters.tasks}\n`;
+      content += `- AI Jobs: ${report.counters.aiJobs}\n`;
+      content += `- Total Findings: ${report.counters.findings}\n\n`;
+      content += `## Findings List\n\n`;
+      report.findings.forEach((f, i) => {
+        content += `### ${i + 1}. [${f.severity.toUpperCase()}] ${f.kind}\n`;
+        content += `- Target: ${f.targetType} (${f.targetId})\n`;
+        content += `- Message: ${f.message}\n`;
+        content += `- Suggestion: ${f.suggestion}\n\n`;
+      });
+    }
+
+    const blob = new Blob([content], { type: format === 'json' ? 'application/json' : 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const getSeverityIcon = (severity: string) => {
     switch (severity) {
@@ -123,8 +157,20 @@ export function AuditPage() {
         </div>
         <div className="flex items-center gap-3">
           <button 
-            onClick={fetchReport}
+            onClick={() => exportReport('json')}
             className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm"
+          >
+            <FileJson className="w-4 h-4 text-amber-500" /> 导出 JSON
+          </button>
+          <button 
+            onClick={() => exportReport('md')}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm"
+          >
+            <Download className="w-4 h-4 text-blue-500" /> 导出报告 (MD)
+          </button>
+          <button 
+            onClick={fetchReport}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 ml-2"
           >
             <RotateCw className="w-4 h-4" /> 重新扫描
           </button>

@@ -150,6 +150,9 @@ npx playwright show-report playwright-report
 系统提供了自动化的数据一致性审计工具，可识别孤儿任务、丢失文件及冗余对象。
 
 - **扫描入口：** `GET /__proxy/upload/audit/consistency`
+- **导出报告：** 支持在 `/cms/audit` 页面直接导出 JSON/Markdown 审计报告。
+- **系统健康：** 访问 `/cms/ops/health` 查看全链路实时状态。
+- **诊断手册：** 参见 [任务状态诊断说明.md](../docs/reviews/任务状态诊断说明.md)。
 - **详细操作指南：** [一致性清理操作说明.md](../docs/reviews/一致性清理操作说明.md)
 
 ### 2. 测试产物管理
