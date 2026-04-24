@@ -381,7 +381,7 @@ export function AssetDetailPage() {
     }
     
     if (view.currentTask) {
-      await handleTaskAction(view.currentTask.id, 're-ai');
+      await handleTaskAction(view.currentTask?.id, 're-ai');
     } else if (material?.metadata?.markdownObjectName || material?.metadata?.markdownUrl) {
       toast.info('未找到关联任务，请重新解析以建立追踪关系');
     } else {
@@ -523,7 +523,7 @@ export function AssetDetailPage() {
                 const view = deriveMaterialTaskView(material!, relatedTasks);
                 if (view.currentTask) {
                   return (
-                    <Link to={`/tasks/${view.currentTask.id}`} className="text-xs text-blue-600 hover:underline flex items-center gap-1 font-medium">
+                    <Link to={`/tasks/${view.currentTask?.id}`} className="text-xs text-blue-600 hover:underline flex items-center gap-1 font-medium">
                       查看详情 <ExternalLink size={12} />
                     </Link>
                   );
