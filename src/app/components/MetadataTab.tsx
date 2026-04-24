@@ -55,7 +55,7 @@ export function MetadataTab({
   isDirty,
   onSaveMeta,
 }: {
-  materialId: number;
+  materialId: string | number;
   material?: Material;
   metaForm: MetaForm;
   updateMeta: (key: keyof MetaForm, val: string) => void;
@@ -89,7 +89,7 @@ export function MetadataTab({
   }, [state.aiConfig?.providers]);
  
   const handleSaveTags = () => {
-    dispatch({ type: 'UPDATE_MATERIAL_TAGS', payload: { id: materialId, tags: localTags } });
+    dispatch({ type: 'UPDATE_MATERIAL_TAGS', payload: { id: materialId as any, tags: localTags } });
     setEditingTags(false);
     toast.success('标签已保存');
   };

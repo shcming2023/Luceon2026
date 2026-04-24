@@ -47,12 +47,15 @@ function getPresignedExpireAtMs(url: string): number | null {
 
 export function AssetDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const numId = Number(id);
+  const routeMaterialId = String(id || '');
+  const numId = Number(routeMaterialId);
   const { state, dispatch } = useAppStore();
   const navigate = useNavigate();
 
-  const detail = state.assetDetails[numId];
-  const material = state.materials.find((m) => m.id === numId);
+  const assetDetailsById = state.assetDetails as unknown as Record<string, any>;
+  const detail = assetDetailsById[routeMaterialId] ?? (Number.isFinite(numId) ? assetDetailsById[String(numId)] : undefined);
+  const material = state.materials.find((m) => String(m.id) === routeMaterialId);
+  const materialId = material?.id ?? routeMaterialId;
 
   // P0 防御：material 未找到时的处理
   // 不在组件内 early return，而是让 React 继续渲染
@@ -189,12 +192,12 @@ export function AssetDetailPage() {
 
   // ── W2-4: 获取关联任务列表 ────────────────────────────────
   const fetchRelatedTasks = async () => {
-    if (!numId) return;
+    if (!routeMaterialId) return;
     try {
       const res = await fetch('/__proxy/db/tasks');
       if (!res.ok) return;
       const all: ParseTask[] = await res.json();
-      setRelatedTasks(all.filter(t => String(t.materialId) === String(numId)));
+      setRelatedTasks(all.filter(t => String(t.materialId) === String(materialId)));
     } catch {}
   };
 
@@ -202,7 +205,7 @@ export function AssetDetailPage() {
     fetchRelatedTasks();
     const timer = setInterval(fetchRelatedTasks, 5000); // 轮询任务状态
     return () => clearInterval(timer);
-  }, [numId]);
+  }, [routeMaterialId, material?.id]);
 
   useEffect(() => {
     const handleRefresh = () => fetchRelatedTasks();
@@ -245,7 +248,7 @@ export function AssetDetailPage() {
       dispatch({
         type: 'UPDATE_MATERIAL',
         payload: {
-          id: numId,
+          id: materialId as any,
           updates: { title: nextTitle },
         },
       });
@@ -263,7 +266,7 @@ export function AssetDetailPage() {
       const r = await fetch('/__proxy/upload/parsed-zip', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ materialId: numId }),
+        body: JSON.stringify({ materialId }),
       });
       if (!r.ok) {
         const err = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
@@ -273,7 +276,7 @@ export function AssetDetailPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `parsed-${material.title || numId}.zip`;
+      a.download = `parsed-${material.title || materialId}.zip`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success('解析产物 ZIP 已下载');
@@ -328,7 +331,7 @@ export function AssetDetailPage() {
         const name = material.metadata?.fileName || `${material.title}.${material.type.toLowerCase()}`;
         const formData = new FormData();
         formData.append('file', blob, name);
-        formData.append('materialId', String(numId));
+        formData.append('materialId', String(materialId));
         
         const uploadResp = await fetch('/__proxy/upload/tasks', { method: 'POST', body: formData });
         const uploadResult = await uploadResp.json();
@@ -338,7 +341,7 @@ export function AssetDetailPage() {
         fetchRelatedTasks();
       } else {
         const formData = new FormData();
-        formData.append('materialId', String(numId));
+        formData.append('materialId', String(materialId));
         formData.append('objectName', objectName);
         
         const resp = await fetch('/__proxy/upload/tasks', { method: 'POST', body: formData });
@@ -399,7 +402,7 @@ export function AssetDetailPage() {
     dispatch({
       type: 'UPDATE_MATERIAL',
       payload: {
-        id: numId,
+        id: materialId as any,
         updates: {
           metadata: {
             ...material.metadata,
@@ -468,7 +471,7 @@ export function AssetDetailPage() {
               </div>
             )}
             <p className="text-xs text-gray-400 mt-1">
-              资产 ID：{numId} 
+              资产 ID：{detail?.assetId || `MAT-${materialId}`}
               {material?.metadata?.fileName && ` · 文件名：${material.metadata.fileName}`}
             </p>
           </div>
@@ -680,7 +683,7 @@ export function AssetDetailPage() {
         </div>
         <div className="lg:col-span-3 min-h-0 overflow-hidden">
           <PreviewTabPanel
-            materialId={numId}
+            materialId={materialId}
             material={material}
             markdownContent={previewMdContent}
             mdLoading={mdBootLoading}

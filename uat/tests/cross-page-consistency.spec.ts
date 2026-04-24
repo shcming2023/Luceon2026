@@ -11,6 +11,7 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:8081';
 test.describe('Cross-Page Consistency (ParseTask Truth)', () => {
   let materialId: string;
   let taskId: string;
+  let materialTitle: string;
 
   test.beforeAll(async ({ request }) => {
     // 1. 使用 pdf-lib 生成一个有效的单页 PDF
@@ -21,12 +22,13 @@ test.describe('Cross-Page Consistency (ParseTask Truth)', () => {
     const pdfBuffer = Buffer.from(pdfBytes);
 
     materialId = `cross-page-${Date.now()}`;
+    materialTitle = `cross-page-consistency-${materialId}`;
 
     // 2. 直接调用主链路入口 POST /__proxy/upload/tasks
     const resp = await request.post(`${BASE_URL}/__proxy/upload/tasks`, {
       multipart: {
         file: {
-          name: 'cross-page-consistency.pdf',
+          name: `${materialTitle}.pdf`,
           mimeType: 'application/pdf',
           buffer: pdfBuffer,
         },
@@ -50,9 +52,9 @@ test.describe('Cross-Page Consistency (ParseTask Truth)', () => {
   });
 
   test('Status Consistency: Pending Stage', async ({ page }) => {
-    // A. 工作台检查 - 使用缩短的 taskId 定位行
+    // A. 工作台检查 - 使用唯一素材标题定位行，避免历史 taskId 前缀碰撞
     await page.goto(`${BASE_URL}/cms/workspace`);
-    const wsRow = page.locator(`tr:has-text("${taskId.slice(0, 12)}")`);
+    const wsRow = page.locator(`tr:has-text("${materialTitle}")`);
     // 预期显示 "等待中" (queued bucket)
     await expect(wsRow.getByText(/等待中|解析中/).first()).toBeVisible({ timeout: 15000 });
 
@@ -64,7 +66,7 @@ test.describe('Cross-Page Consistency (ParseTask Truth)', () => {
     const detailStatus = page.locator('.rounded-full').first();
     await expect(detailStatus).toBeVisible({ timeout: 15000 });
     // 资产详情页应该显示任务卡片（Task ID 单独一行，不带前缀）
-    await expect(page.getByText(taskId)).toBeVisible();
+    await expect(page.getByText(taskId).first()).toBeVisible();
 
     // C. 任务列表检查
     await page.goto(`${BASE_URL}/cms/tasks`);
@@ -74,14 +76,25 @@ test.describe('Cross-Page Consistency (ParseTask Truth)', () => {
   });
 
   test('Status Consistency: Failure Stage', async ({ request, page }) => {
-    // 1. 手动将任务设为失败
-    await request.post(`/__proxy/db/tasks/${taskId}`, {
-      data: { state: 'failed', errorMessage: 'Consistency Test Failure' }
+    // 1. 手动将任务设为失败。db-server 的 /tasks/:id 仅支持 GET，写入需通过 POST /tasks upsert 完整对象。
+    const taskResp = await request.get(`/__proxy/db/tasks/${encodeURIComponent(taskId)}`);
+    const taskText = await taskResp.text();
+    expect(taskResp.ok(), `Fetch task failed: HTTP ${taskResp.status()} ${taskText}`).toBeTruthy();
+    const existingTask = JSON.parse(taskText);
+    const updateResp = await request.post('/__proxy/db/tasks', {
+      data: {
+        ...existingTask,
+        state: 'failed',
+        errorMessage: 'Consistency Test Failure',
+        updatedAt: new Date().toISOString(),
+      },
     });
+    const updateText = await updateResp.text();
+    expect(updateResp.ok(), `Update task failed: HTTP ${updateResp.status()} ${updateText}`).toBeTruthy();
 
-    // A. 工作台检查 - 使用缩短的 taskId 定位行
+    // A. 工作台检查 - 使用唯一素材标题定位行
     await page.goto(`${BASE_URL}/cms/workspace`);
-    const wsRow = page.locator(`tr:has-text("${taskId.slice(0, 12)}")`);
+    const wsRow = page.locator(`tr:has-text("${materialTitle}")`);
     await expect(wsRow.getByText('失败')).toBeVisible({ timeout: 15000 });
 
     // B. 资产详情页检查
@@ -89,9 +102,9 @@ test.describe('Cross-Page Consistency (ParseTask Truth)', () => {
     await expect(page.getByText('失败')).toBeVisible();
     await expect(page.getByText('Consistency Test Failure')).toBeVisible();
 
-    // C. 任务列表检查 - 使用缩短的 taskId 定位行
+    // C. 任务列表检查 - 使用完整 taskId 定位，状态列显示中文展示桶
     await page.goto(`${BASE_URL}/cms/tasks`);
-    const taskRow = page.locator(`tr:has-text("${taskId.slice(0, 12)}")`);
-    await expect(taskRow.getByText('failed', { exact: false })).toBeVisible();
+    const taskRow = page.locator(`tr:has-text("${taskId}")`);
+    await expect(taskRow.getByText('失败')).toBeVisible();
   });
 });

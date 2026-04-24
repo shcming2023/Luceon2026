@@ -45,7 +45,7 @@ export function PreviewTabPanel({
   isDirty,
   onSaveMeta,
 }: {
-  materialId: number;
+  materialId: string | number;
   material?: Material;
   markdownContent: string;
   mdLoading: boolean;

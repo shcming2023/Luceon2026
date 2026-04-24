@@ -12,7 +12,7 @@ function pickJson(objects: ListedObject[]) {
   return objects.find((o) => o.name.endsWith('.json')) ?? null;
 }
  
-export function JsonPreviewPanel({ materialId }: { materialId: number }) {
+export function JsonPreviewPanel({ materialId }: { materialId: string | number }) {
   const [loading, setLoading] = useState(true);
   const [content, setContent] = useState<string>('');
   const [error, setError] = useState('');
