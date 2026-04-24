@@ -50,7 +50,7 @@ export async function readTail(filePath, bytes = 4096) {
   });
 }
 
-export async function parseLatestMineruProgress() {
+export async function parseLatestMineruProgress(minObservedAt) {
   const logPaths = [
     process.env.MINERU_ERR_LOG_PATH || '/Users/concm/ops/logs/mineru-api.err.log',
     process.env.MINERU_LOG_PATH || '/Users/concm/ops/logs/mineru-api.log',
@@ -91,6 +91,15 @@ export async function parseLatestMineruProgress() {
       }
     } catch (e) {
       // Ignore read errors
+    }
+  }
+
+  if (bestProgress && minObservedAt) {
+    const logTime = new Date(bestProgress.observedAt).getTime();
+    const minTime = new Date(minObservedAt).getTime();
+    if (logTime < minTime) {
+      // Log is older than the current task's start time -> it's a stale log from a previous task
+      return null;
     }
   }
 

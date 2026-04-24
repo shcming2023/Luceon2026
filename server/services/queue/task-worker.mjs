@@ -121,7 +121,8 @@ export class ParseTaskWorker {
       if (processingTasks.length !== 1) return; // Only attribute when exactly 1 processing task exists
 
       const targetTask = processingTasks[0];
-      const logProgress = await parseLatestMineruProgress();
+      const minObservedAt = targetTask.metadata?.mineruStartedAt || targetTask.updatedAt || targetTask.createdAt;
+      const logProgress = await parseLatestMineruProgress(minObservedAt);
       if (!logProgress) return;
 
       const now = Date.now();

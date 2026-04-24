@@ -103,6 +103,10 @@ services:
       # Node.js 内存限制：与 deploy.resources.limits.memory 匹配
       - NODE_OPTIONS=--max-old-space-size=3072
       - TZ=Asia/Shanghai
+      - MINERU_ERR_LOG_PATH=/host/mineru-logs/mineru-api.err.log
+      - MINERU_LOG_PATH=/host/mineru-logs/mineru-api.log
+    volumes:
+      - /Users/concm/ops/logs:/host/mineru-logs:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8788/health"]
       interval: 30s
