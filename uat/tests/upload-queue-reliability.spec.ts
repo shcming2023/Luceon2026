@@ -99,17 +99,21 @@ test.describe('【P0】上传队列可靠性与 aborted 可观测', () => {
     const uploadBtn = page.locator('button:has-text("上传文件")');
     const fileInput = page.locator('input[type="file"]').first();
 
-    console.log(`[${runId}] Round 1: 4 files`);
+    console.log(`[${runId}] Round 1: 4 files (via Workspace)`);
     await uploadBtn.click();
     await fileInput.setInputFiles(round1);
 
-    console.log(`[${runId}] Round 2: 3 files`);
-    await uploadBtn.click();
-    await fileInput.setInputFiles(round2);
+    const appendBtn = page.locator('button:has-text("继续添加文件")');
+    const appendInput = page.locator('div[role="dialog"] input[type="file"]').first();
 
-    console.log(`[${runId}] Round 3: 3 files`);
-    await uploadBtn.click();
-    await fileInput.setInputFiles(round3);
+    console.log(`[${runId}] Round 2: 3 files (via Modal)`);
+    await expect(appendBtn).toBeVisible({ timeout: 10000 });
+    await appendBtn.click();
+    await appendInput.setInputFiles(round2);
+
+    console.log(`[${runId}] Round 3: 3 files (via Modal)`);
+    await appendBtn.click();
+    await appendInput.setInputFiles(round3);
 
     const dumpQueue = async (label: string) => {
       const raw = await page.evaluate(() => localStorage.getItem('app_batch_processing'));

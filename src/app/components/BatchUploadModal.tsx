@@ -12,9 +12,11 @@ import {
   File as FileIcon,
   Folder,
   Trash2,
+  Plus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore } from '../../store/appContext';
+import { useFileUpload } from '../hooks/useFileUpload';
 import { checkLocalMinerUHealth } from '../../utils/mineruLocalApi';
 import type { BatchQueueItem } from '../../store/types';
 import { generateNumericIdFromUuid } from '../../utils/id';
@@ -584,6 +586,21 @@ export function BatchUploadModal() {
     dispatch({ type: 'BATCH_CLEAR' });
   };
 
+  const { upload } = useFileUpload();
+  const appendInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAppendFiles = () => {
+    appendInputRef.current?.click();
+  };
+
+  const onAppendInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (files.length > 0) {
+      void upload(files);
+    }
+  };
+
   if (!bp.uiOpen) return null;
 
   return (
@@ -620,6 +637,21 @@ export function BatchUploadModal() {
                 <Pause size={16} /> 暂停处理
               </button>
             )}
+
+            <input
+              type="file"
+              multiple
+              ref={appendInputRef}
+              className="hidden"
+              onChange={onAppendInputChange}
+              accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png"
+            />
+            <button
+              onClick={handleAppendFiles}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <Plus size={16} /> 继续添加文件
+            </button>
 
   
           </div>
