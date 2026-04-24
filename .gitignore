@@ -48,3 +48,8 @@ uat/package-lock.json
 uat/playwright-results.json
 uat/test-results/
 uat/playwright-report/
+
+# Trae / Agent 工具产物
+.trae/
+.codebuddy/
+.lucia-e2e/
