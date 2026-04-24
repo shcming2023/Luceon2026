@@ -34,6 +34,8 @@ pnpm-debug.log*
 
 # 测试目录中的 PDF 文件（体积大，不应入库）
 test/*.pdf
+testpdf/
+TestPdf/
 
 # Playwright E2E 测试产物
 test-results/

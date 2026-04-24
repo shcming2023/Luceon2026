@@ -130,6 +130,18 @@ npx playwright show-report playwright-report
 | `BASE_URL` | `http://localhost:8081` | 测试目标地址 |
 | `PUBLIC_HOST` | — | presigned URL 应包含的公网主机名（如 `192.168.31.33`），未设置时跳过主机名匹配 |
 
+### 上传队列可靠性回归（本地样本目录）
+
+```bash
+cd /Users/concm/prod_workspace/Luceon2026/uat
+TEST_PDF_DIR=/Users/concm/prod_workspace/Luceon2026/testpdf \
+BASE_URL=http://127.0.0.1:8081 \
+npx playwright test tests/upload-queue-reliability.spec.ts
+```
+
+- `testpdf` 是本地验收样本目录，不随 Git 同步，不要提交大 PDF
+- 复验前请确认目录存在且至少包含 10 个 PDF（会自动过滤 `.DS_Store`、`._*` 与非 PDF 文件）
+
 **测试套件覆盖范围：**
 
 | 测试组 | 测试内容 |
@@ -281,4 +293,3 @@ curl -sS http://127.0.0.1:8081/__proxy/upload/audit/consistency
 | **Consistency Findings**| `Total: {n}` | 审计页面确认无新增 Unexpected Findings |
 | **Flaky / Retry** | `None` | 测试过程中是否存在超时重试 |
 | **Artifacts Hygiene** | `Clean` | `git status` 确认无产生 `package-lock.json` 等未忽略产物 |
-

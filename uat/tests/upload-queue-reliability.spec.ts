@@ -3,9 +3,20 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:8081';
-const TEST_PDF_DIR = '/Users/concm/prod_workspace/Luceon2026/TestPdf';
+const TEST_PDF_DIR = process.env.TEST_PDF_DIR || path.resolve(process.cwd(), '..', 'testpdf');
 
 function listTestPdfs() {
+  if (!fs.existsSync(TEST_PDF_DIR)) {
+    throw new Error(
+      [
+        `TEST_PDF_DIR 不存在：${TEST_PDF_DIR}`,
+        '请创建本地样本目录，例如：',
+        `mkdir -p ${TEST_PDF_DIR}`,
+        '并放入至少 10 个 PDF 文件用于回归测试。',
+      ].join('\n'),
+    );
+  }
+
   const names = fs.readdirSync(TEST_PDF_DIR);
   return names
     .filter((n) => n.toLowerCase().endsWith('.pdf'))
@@ -36,7 +47,9 @@ test.describe('【P0】上传队列可靠性与 aborted 可观测', () => {
     });
 
     const pdfs = listTestPdfs();
-    expect(pdfs.length).toBeGreaterThanOrEqual(10);
+    if (pdfs.length < 10) {
+      throw new Error(`TEST_PDF_DIR 至少需要 10 个 PDF，当前仅发现 ${pdfs.length} 个：${TEST_PDF_DIR}`);
+    }
     const selected = pdfs.slice(0, 10);
 
     const before = await getDbCounts(request);
