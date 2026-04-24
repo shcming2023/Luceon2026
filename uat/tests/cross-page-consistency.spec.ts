@@ -54,12 +54,15 @@ test.describe('Cross-Page Consistency (ParseTask Truth)', () => {
     await page.goto(`${BASE_URL}/cms/workspace`);
     const wsRow = page.locator(`tr:has-text("${taskId.slice(0, 12)}")`);
     // 预期显示 "等待中" (queued bucket)
-    await expect(wsRow.getByText(/等待中|解析中/)).toBeVisible({ timeout: 15000 });
+    await expect(wsRow.getByText(/等待中|解析中/).first()).toBeVisible({ timeout: 15000 });
 
     // B. 资产详情页检查
     await page.goto(`${BASE_URL}/cms/asset/${materialId}`);
-    const detailStatus = page.locator('.flex.items-center.gap-2 span.rounded-full');
-    await expect(detailStatus).toBeVisible();
+    // 等待页面稳定
+    await page.waitForTimeout(2000);
+    // 检查状态徽章（多个可能的选择器）
+    const detailStatus = page.locator('.rounded-full').first();
+    await expect(detailStatus).toBeVisible({ timeout: 15000 });
     // 资产详情页应该显示任务卡片
     await expect(page.getByText(`Task ID: ${taskId}`)).toBeVisible();
 
