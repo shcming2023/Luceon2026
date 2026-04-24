@@ -1,47 +1,46 @@
 import http from 'http';
 import { processWithLocalMinerU } from '../services/mineru/local-adapter.mjs';
 
-// 模拟 MinerU 服务器
-function createMockMinerUServer() {
+// 模拟 global fetch
+function setupFetchMock() {
   let callCount = 0;
+  const originalFetch = globalThis.fetch;
   
-  const server = http.createServer((req, res) => {
-    if (req.method === 'GET' && req.url === '/health') {
-      res.writeHead(200);
-      res.end('ok');
-    } else if (req.method === 'POST' && req.url === '/tasks') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ task_id: 'mock-task-123' }));
-    } else if (req.method === 'GET' && req.url === '/tasks/mock-task-123') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      callCount++;
-      if (callCount === 1) {
-        // 第一轮返回 pending/queued
-        res.end(JSON.stringify({ status: 'pending', queued_ahead: 2, started_at: null }));
-      } else if (callCount === 2) {
-        // 第二轮返回 processing
-        res.end(JSON.stringify({ status: 'processing', started_at: new Date().toISOString(), queued_ahead: 0 }));
-      } else {
-        // 第三轮完成
-        res.end(JSON.stringify({ status: 'done' }));
-      }
-    } else if (req.method === 'GET' && req.url === '/tasks/mock-task-123/result') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
+  globalThis.fetch = async (url, options) => {
+    const urlStr = String(url);
+    if (urlStr.endsWith('/health')) {
+      return new Response('ok', { status: 200 });
+    } else if (urlStr.endsWith('/tasks') && options?.method === 'POST') {
+      return new Response(JSON.stringify({ task_id: 'mock-task-123' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } else if (urlStr.includes('/tasks/mock-task-123/result')) {
+      return new Response(JSON.stringify({
         md_content: '# Test Markdown\n\nDone.',
         artifacts: []
-      }));
-    } else {
-      res.writeHead(404);
-      res.end('Not Found');
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } else if (urlStr.includes('/tasks/mock-task-123')) {
+      callCount++;
+      if (callCount === 1) {
+        return new Response(JSON.stringify({ status: 'pending', queued_ahead: 2, started_at: null }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      } else if (callCount === 2) {
+        return new Response(JSON.stringify({ status: 'processing', started_at: new Date().toISOString(), queued_ahead: 0 }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      } else {
+        return new Response(JSON.stringify({ status: 'done' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
     }
-  });
-  
-  return new Promise((resolve) => {
-    server.listen(0, '127.0.0.2', () => {
-      resolve(`http://127.0.0.2:${server.address().port}`);
-    });
-  });
+    
+    // 如果不是我们 mock 的 URL，可以回退或抛错
+    throw new Error(`Unhandled mock fetch: ${urlStr}`);
+  };
+
+  return () => {
+    globalThis.fetch = originalFetch;
+  };
 }
 
 // 模拟流
@@ -51,8 +50,9 @@ async function* mockStream() {
 
 async function main() {
   console.log('=== MinerU Queue Status Smoke Test ===');
-  const endpoint = await createMockMinerUServer();
-  console.log(`Mock Server listening at: ${endpoint}`);
+  const restoreFetch = setupFetchMock();
+  const endpoint = 'http://mock-mineru-internal:56789';
+  console.log(`Mock Fetch installed. Virtual endpoint: ${endpoint}`);
 
   const task = {
     id: 'cms-task-001',
@@ -110,9 +110,11 @@ async function main() {
     }
 
     console.log('✅ 队列状态对账语义验证通过！');
+    restoreFetch();
     process.exit(0);
   } catch (err) {
     console.error('❌ 测试失败:', err);
+    restoreFetch();
     process.exit(1);
   }
 }
