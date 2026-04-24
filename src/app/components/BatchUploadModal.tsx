@@ -65,14 +65,17 @@ function formatAgo(ts: number) {
 function fixFilenameEncoding(filename: string | undefined): string {
   if (!filename) return '';
 
-  // 检测是否包含典型的编码错误字符（连续的 Latin-1 扩展字符）
-  const hasMojiChars = /[\u00C0-\u00FF]{3,}/.test(filename);
+  // 检测是否包含典型的编码错误字符。乱码文件名可能混入 C1 控制字符，
+  // 例如 "附" 被误解码为 "é\u0099\u0084"。
+  const hasMojiChars = /[\u0080-\u00FF]/.test(filename);
   if (!hasMojiChars) return filename;
 
   try {
-    // 将 Latin-1 解析的字符串重新编码为 UTF-8
-    const latin1Buffer = new TextEncoder().encode(filename);
-    const utf8String = new TextDecoder('latin1').decode(latin1Buffer);
+    // 将按 Latin-1 误解码的字符还原为原始字节，再按 UTF-8 解码。
+    const latin1Bytes = Uint8Array.from(
+      Array.from(filename, (char) => char.charCodeAt(0) & 0xff)
+    );
+    const utf8String = new TextDecoder('utf-8').decode(latin1Bytes);
 
     // 验证修复后的字符串是否包含中文字符（确认修复成功）
     if (/[\u4E00-\u9FFF]/.test(utf8String)) {

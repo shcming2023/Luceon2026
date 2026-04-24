@@ -9,7 +9,7 @@ async function runTest() {
   console.log('--- AI Worker Smoke Test Start ---');
 
   // 1. 模拟 MinIO 上下文
-  const mockMinio = {
+  const mockAiMinio = {
     getFileStream: async (name) => {
       console.log(`[mock-minio] getFileStream called for: ${name}`);
       return {
@@ -44,7 +44,7 @@ async function runTest() {
 
   // 4. 初始化 Worker (使用 Spread 模式，模拟 upload-server.mjs 的调用方式)
   const worker = new AiMetadataWorker({
-    ...mockMinio,
+    ...mockAiMinio,
     onComplete: async (job, update) => {
       console.log('[smoke-test] onComplete triggered!');
     }
@@ -97,14 +97,14 @@ async function runTest() {
     },
   };
 
-  const mockMinio = {
+  const mockParseMinio = {
     getFileStream: async () => ({}),
     saveMarkdown: async () => {},
     saveObject: async () => {},
   };
 
-  const worker = new ParseTaskWorker({
-    minioContext: mockMinio,
+  const parseWorker = new ParseTaskWorker({
+    minioContext: mockParseMinio,
     taskClient: mockTaskClient,
     mineruProcessor: async () => {
       throw new Error('fetch failed');
@@ -130,7 +130,7 @@ async function runTest() {
   };
 
   try {
-    await worker.processTask(mockTask);
+    await parseWorker.processTask(mockTask);
   } catch (err) {
     console.error('❌ FAILED: ParseTaskWorker processTask threw:', err.message);
     process.exit(1);

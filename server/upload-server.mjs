@@ -74,8 +74,10 @@ function pushDebugLog(entry) {
 function fixFilenameEncoding(filename) {
   if (!filename) return filename;
 
-  // 检测是否包含典型的编码错误字符（连续的 Latin-1 扩展字符）
-  const hasMojiChars = /[\u00C0-\u00FF]{3,}/.test(filename);
+  // 检测是否包含典型的编码错误字符。
+  // multer/busboy 可能把 UTF-8 文件名字节按 Latin-1 解码，结果会混入 C1 控制字符
+  // （例如 "附" 变成 "é\u0099\u0084"），因此不能只检测 \u00C0-\u00FF。
+  const hasMojiChars = /[\u0080-\u00FF]/.test(filename);
   if (!hasMojiChars) return filename;
 
   try {
