@@ -4,6 +4,8 @@
  * 由 ParseTaskWorker 调用，用于长耗时后台处理。
  */
 
+import JSZip from 'jszip';
+
 export async function processWithLocalMinerU({ task, material, fileStream, fileName, mimeType, timeoutMs, minioContext, updateProgress }) {
   const options = task.optionsSnapshot || {};
   let localEndpoint = options.localEndpoint;
@@ -22,6 +24,9 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
   const enableFormula = isEnabledFlag(options.enableFormula);
   const enableTable = isEnabledFlag(options.enableTable);
   const parseMethod = String(options.parseMethod || options.parse_method || '').trim();
+  const responseFormatZip = (options.responseFormatZip ?? options.response_format_zip) == null
+    ? true
+    : isEnabledFlag(options.responseFormatZip ?? options.response_format_zip);
 
   let serverUrl = String(options.serverUrl || options.server_url || options.url || '').trim();
   if (serverUrl && (serverUrl.includes('localhost') || serverUrl.includes('127.0.0.1'))) {
@@ -48,7 +53,7 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
     ['parse_method', finalParseMethod],
     ['formula_enable', enableFormula ? '1' : '0'],
     ['table_enable', enableTable ? '1' : '0'],
-    ['response_format_zip', 'false']
+    ['response_format_zip', responseFormatZip ? 'true' : 'false']
   ];
   for (const lang of String(ocrLanguage).split(',').map((item) => item.trim()).filter(Boolean)) {
     fields.push(['lang_list', lang]);
@@ -102,8 +107,125 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
     });
 
     await updateProgress({ progress: 80, message: '解析完成，提取结果...' });
-    const resultPayload = await fetchMinerUResult(localEndpoint, mineruTaskId, timeoutMs);
-    markdown = extractLocalMarkdown(resultPayload);
+    const resultRaw = await fetchMinerUResultRaw(localEndpoint, mineruTaskId, timeoutMs);
+    let resultPayload = resultRaw.kind === 'json' ? resultRaw.payload : null;
+
+    const materialId = task.materialId || task.id;
+    const parsedPrefix = `parsed/${materialId}/`;
+    const fullMdObjectName = `${parsedPrefix}full.md`;
+    const parsedArtifacts = [];
+    const seen = new Set();
+
+    const pushArtifact = (relativePath, objectName, size, mimeType) => {
+      const key = `${relativePath}::${objectName}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      parsedArtifacts.push({
+        objectName,
+        relativePath,
+        size: typeof size === 'number' ? size : undefined,
+        mimeType: mimeType || undefined,
+      });
+    };
+
+    const saveObject = async (objectName, buffer, contentType) => {
+      if (typeof minioContext?.saveObject !== 'function') return false;
+      await minioContext.saveObject(objectName, buffer, contentType || 'application/octet-stream');
+      return true;
+    };
+
+    let zipObjectName = null;
+    let hasMineruZip = false;
+
+    if (resultPayload) {
+      const rawJson = Buffer.from(JSON.stringify(resultPayload), 'utf-8');
+      const rawObjectName = `${parsedPrefix}mineru-result.json`;
+      const ok = await saveObject(rawObjectName, rawJson, 'application/json; charset=utf-8');
+      if (ok) pushArtifact('mineru-result.json', rawObjectName, rawJson.length, 'application/json');
+    }
+
+    let zipBuffer = resultRaw.kind === 'zip' ? resultRaw.buffer : null;
+    if (!zipBuffer && resultPayload && responseFormatZip) {
+      zipBuffer = await extractZipBufferFromJsonResult(resultPayload, timeoutMs);
+    }
+
+    if (zipBuffer) {
+      hasMineruZip = true;
+      zipObjectName = `${parsedPrefix}mineru-result.zip`;
+      const ok = await saveObject(zipObjectName, zipBuffer, 'application/zip');
+      if (ok) pushArtifact('mineru-result.zip', zipObjectName, zipBuffer.length, 'application/zip');
+
+      const zip = await JSZip.loadAsync(zipBuffer);
+      const entries = Object.entries(zip.files)
+        .filter(([, entry]) => !entry.dir)
+        .map(([name]) => name);
+
+      for (const name of entries) {
+        const safeRelativePath = sanitizeRelativePath(name);
+        if (!safeRelativePath) continue;
+        if (safeRelativePath === 'mineru-result.zip' || safeRelativePath === 'mineru-result.json') continue;
+
+        const lower = safeRelativePath.toLowerCase();
+        if (!markdown && (lower === 'full.md' || lower.endsWith('/full.md'))) {
+          const content = await zip.file(name).async('nodebuffer');
+          markdown = content.toString('utf-8').trim();
+          continue;
+        }
+      }
+
+      for (const name of entries) {
+        const safeRelativePath = sanitizeRelativePath(name);
+        if (!safeRelativePath) continue;
+        if (safeRelativePath === 'full.md' || safeRelativePath.endsWith('/full.md')) continue;
+        if (safeRelativePath === 'mineru-result.zip' || safeRelativePath === 'mineru-result.json') continue;
+
+        const content = await zip.file(name).async('nodebuffer');
+        const objectName = `${parsedPrefix}${safeRelativePath}`;
+        const contentType = inferContentTypeByExt(safeRelativePath);
+        const ok = await saveObject(objectName, content, contentType);
+        if (ok) pushArtifact(safeRelativePath, objectName, content.length, contentType);
+      }
+    } else if (resultPayload) {
+      markdown = extractLocalMarkdown(resultPayload);
+      const extra = await extractArtifactsFromJsonResult(resultPayload, timeoutMs);
+      for (const item of extra) {
+        const safeRelativePath = sanitizeRelativePath(item.relativePath);
+        if (!safeRelativePath) continue;
+        if (safeRelativePath === 'full.md') continue;
+        const objectName = `${parsedPrefix}${safeRelativePath}`;
+        const contentType = item.mimeType || inferContentTypeByExt(safeRelativePath);
+        const ok = await saveObject(objectName, item.buffer, contentType);
+        if (ok) pushArtifact(safeRelativePath, objectName, item.buffer.length, contentType);
+      }
+    }
+
+    if (!markdown) throw new Error('提取到的 Markdown 内容为空');
+
+    await updateProgress({ stage: 'store', state: 'result-store', progress: 90, message: '正在保存产物到 MinIO...' });
+
+    await minioContext.saveMarkdown(fullMdObjectName, markdown);
+    pushArtifact('full.md', fullMdObjectName, Buffer.byteLength(markdown, 'utf-8'), 'text/markdown');
+
+    const realArtifacts = parsedArtifacts.filter((a) => {
+      const rp = String(a.relativePath || '');
+      if (rp === 'full.md') return false;
+      if (rp === 'mineru-result.json') return false;
+      if (rp === 'mineru-result.zip') return false;
+      return true;
+    });
+
+    const artifactIncomplete = realArtifacts.length === 0;
+
+    return {
+      markdown,
+      mineruTaskId,
+      objectName: fullMdObjectName,
+      parsedPrefix,
+      parsedFilesCount: parsedArtifacts.length,
+      parsedArtifacts,
+      zipObjectName: hasMineruZip ? zipObjectName : null,
+      artifactIncomplete,
+    };
 
   } else {
     // 降级 Gradio
@@ -113,13 +235,20 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
 
   if (!markdown) throw new Error('提取到的 Markdown 内容为空');
 
-  // 4. Update state to result-store and Save
   await updateProgress({ stage: 'store', state: 'result-store', progress: 90, message: '正在保存产物到 MinIO...' });
   const objectName = `parsed/${task.materialId || task.id}/full.md`;
-  
   await minioContext.saveMarkdown(objectName, markdown);
 
-  return { markdown, mineruTaskId, objectName };
+  return {
+    markdown,
+    mineruTaskId,
+    objectName,
+    parsedPrefix: `parsed/${task.materialId || task.id}/`,
+    parsedFilesCount: 1,
+    parsedArtifacts: [{ objectName, relativePath: 'full.md', size: Buffer.byteLength(markdown, 'utf-8'), mimeType: 'text/markdown' }],
+    zipObjectName: null,
+    artifactIncomplete: true,
+  };
 }
 
 // ─── Utils ───────────────────────────────────
@@ -187,4 +316,135 @@ function extractLocalMarkdown(payload) {
   }
   const candidates = [payload?.md_content, payload?.markdown, payload?.text, payload?.data?.md_content, payload?.data?.markdown, payload?.data?.text];
   return (candidates.find(i => typeof i === 'string' && i.trim() !== '') || '').trim();
+}
+
+async function fetchMinerUResultRaw(localEndpoint, taskId, timeoutMs) {
+  const response = await fetch(`${localEndpoint}/tasks/${encodeURIComponent(taskId)}/result`, { signal: AbortSignal.timeout(timeoutMs) });
+  if (!response.ok) throw new Error(`获取结果失败: HTTP ${response.status}`);
+  const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+  if (contentType.includes('application/json') || contentType.includes('text/json')) {
+    return { kind: 'json', payload: await response.json() };
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const asText = buffer.slice(0, Math.min(200, buffer.length)).toString('utf-8');
+  if (asText.trim().startsWith('{') || asText.trim().startsWith('[')) {
+    try {
+      return { kind: 'json', payload: JSON.parse(buffer.toString('utf-8')) };
+    } catch {
+      return { kind: 'zip', buffer };
+    }
+  }
+  return { kind: 'zip', buffer };
+}
+
+function inferContentTypeByExt(filePath) {
+  const lower = String(filePath || '').toLowerCase();
+  if (lower.endsWith('.md')) return 'text/markdown; charset=utf-8';
+  if (lower.endsWith('.json')) return 'application/json; charset=utf-8';
+  if (lower.endsWith('.txt')) return 'text/plain; charset=utf-8';
+  if (lower.endsWith('.html')) return 'text/html; charset=utf-8';
+  if (lower.endsWith('.css')) return 'text/css; charset=utf-8';
+  if (lower.endsWith('.js')) return 'application/javascript; charset=utf-8';
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+  if (lower.endsWith('.gif')) return 'image/gif';
+  if (lower.endsWith('.webp')) return 'image/webp';
+  if (lower.endsWith('.svg')) return 'image/svg+xml';
+  if (lower.endsWith('.pdf')) return 'application/pdf';
+  if (lower.endsWith('.zip')) return 'application/zip';
+  if (lower.endsWith('.xml')) return 'application/xml; charset=utf-8';
+  return 'application/octet-stream';
+}
+
+function sanitizeRelativePath(input) {
+  const raw = String(input || '').replace(/\\/g, '/').replace(/^\/+/, '').trim();
+  if (!raw) return '';
+  const parts = raw.split('/').filter(Boolean);
+  const safe = [];
+  for (const p of parts) {
+    if (p === '.' || p === '') continue;
+    if (p === '..') return '';
+    safe.push(p.replace(/\0/g, ''));
+  }
+  return safe.join('/');
+}
+
+async function extractZipBufferFromJsonResult(payload, timeoutMs) {
+  const candidates = [
+    payload?.zip_url, payload?.zipUrl, payload?.result_zip_url, payload?.resultZipUrl,
+    payload?.data?.zip_url, payload?.data?.zipUrl, payload?.data?.result_zip_url, payload?.data?.resultZipUrl,
+  ].filter((v) => typeof v === 'string' && v.trim() !== '');
+
+  const url = candidates.find((u) => /^https?:\/\//i.test(u));
+  if (url) {
+    const resp = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+    if (!resp.ok) return null;
+    return Buffer.from(await resp.arrayBuffer());
+  }
+
+  const base64Candidates = [
+    payload?.zip_base64, payload?.zipBase64, payload?.result_zip_base64, payload?.resultZipBase64,
+    payload?.data?.zip_base64, payload?.data?.zipBase64, payload?.data?.result_zip_base64, payload?.data?.resultZipBase64,
+  ].filter((v) => typeof v === 'string' && v.trim() !== '');
+
+  const b64 = base64Candidates.find((s) => s.length > 100);
+  if (b64) {
+    try {
+      return Buffer.from(b64, 'base64');
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+async function extractArtifactsFromJsonResult(payload, timeoutMs) {
+  const result = [];
+  const candidates = [
+    payload?.artifacts,
+    payload?.files,
+    payload?.data?.artifacts,
+    payload?.data?.files,
+    payload?.results?.artifacts,
+    payload?.results?.files,
+    Array.isArray(payload?.results) ? payload.results.flatMap((r) => r?.artifacts || r?.files || []) : null,
+    Array.isArray(payload?.data) ? payload.data.flatMap((r) => r?.artifacts || r?.files || []) : null,
+  ].flat().filter(Boolean);
+
+  const items = Array.isArray(candidates) ? candidates : [];
+
+  for (const item of items) {
+    if (!item || typeof item !== 'object') continue;
+    const relativePath = item.relativePath || item.path || item.name || item.filename || item.file_name;
+    if (typeof relativePath !== 'string' || relativePath.trim() === '') continue;
+
+    const mimeType = (item.mimeType || item.mimetype || item.contentType || item['Content-Type'] || '').toString().trim();
+    const base64 = item.base64 || item.content_base64 || item.data_base64 || item.contentBase64 || item.dataBase64;
+    const url = item.url || item.download_url || item.downloadUrl || item.presignedUrl;
+
+    if (typeof base64 === 'string' && base64.trim() !== '') {
+      try {
+        const buffer = Buffer.from(base64, 'base64');
+        result.push({ relativePath, buffer, mimeType: mimeType || null });
+        continue;
+      } catch {
+        continue;
+      }
+    }
+
+    if (typeof url === 'string' && /^https?:\/\//i.test(url)) {
+      try {
+        const resp = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+        if (!resp.ok) continue;
+        const buffer = Buffer.from(await resp.arrayBuffer());
+        const ct = mimeType || String(resp.headers.get('content-type') || '').trim() || null;
+        result.push({ relativePath, buffer, mimeType: ct });
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  return result;
 }

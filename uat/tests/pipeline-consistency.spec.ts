@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { PDFDocument, rgb } from 'pdf-lib';
+import JSZip from 'jszip';
 
 /**
  * pipeline-consistency.spec.ts - 核心处理链路一致性测试
@@ -63,6 +64,28 @@ test.describe('【7】处理链路与状态一致性', () => {
 
     console.log(`  PDF Task finished with state: ${finalTaskState}`);
 
+    // 3.1 解析产物入库验证：parsed/{materialId}/ 下对象数量必须 > 1（至少 full.md + mineru-result.json）
+    const prefix = `parsed/${materialId}/`;
+    const listResp = await request.get(`${BASE_URL}/__proxy/upload/list?prefix=${encodeURIComponent(prefix)}`);
+    expect(listResp.status()).toBe(200);
+    const listPayload = await listResp.json();
+    expect(listPayload.total).toBeGreaterThan(1);
+    const objectNames = (listPayload.objects || []).map((o: { objectName: string }) => o.objectName);
+    expect(objectNames).toContain(`${prefix}full.md`);
+    expect(objectNames).toContain(`${prefix}mineru-result.json`);
+
+    // 3.2 /parsed-zip 打包一致性：ZIP 内文件数应与对象列表一致，且保留相对路径
+    const zipResp = await request.post(`${BASE_URL}/__proxy/upload/parsed-zip`, { data: { materialId } });
+    expect(zipResp.status()).toBe(200);
+    const zipBuffer = await zipResp.body();
+    const zip = await JSZip.loadAsync(zipBuffer);
+    const zipFileNames = Object.values(zip.files).filter((f) => !f.dir).map((f) => f.name).sort();
+    const listedRelativePaths = objectNames
+      .map((name: string) => (name.startsWith(prefix) ? name.slice(prefix.length) : name))
+      .sort();
+    expect(zipFileNames.length).toBe(listPayload.total);
+    expect(zipFileNames).toEqual(listedRelativePaths);
+
     // 4. 验证 Material 状态一致性
     const matFinalResp = await request.get(`${BASE_URL}/__proxy/db/materials/${materialId}`);
     const matFinal = await matFinalResp.json();
@@ -73,6 +96,22 @@ test.describe('【7】处理链路与状态一致性', () => {
       // 验证 Task 3 的修复：review-pending 映射到 reviewing
       expect(matFinal.status).toBe('reviewing');
     }
+
+    // 5. metadata 可追踪 parsed 产物清单
+    const taskFinalResp = await request.get(`${BASE_URL}/__proxy/db/tasks/${taskId}`);
+    expect(taskFinalResp.status()).toBe(200);
+    const taskFinal = await taskFinalResp.json();
+    expect(taskFinal.metadata?.markdownObjectName).toBe(`${prefix}full.md`);
+    expect(taskFinal.metadata?.parsedPrefix).toBe(prefix);
+    expect(taskFinal.metadata?.parsedFilesCount).toBe(listPayload.total);
+    expect(Array.isArray(taskFinal.metadata?.parsedArtifacts)).toBeTruthy();
+    expect(taskFinal.metadata?.parsedArtifacts?.length).toBe(listPayload.total);
+
+    expect(matFinal.metadata?.markdownObjectName).toBe(`${prefix}full.md`);
+    expect(matFinal.metadata?.parsedPrefix).toBe(prefix);
+    expect(matFinal.metadata?.parsedFilesCount).toBe(listPayload.total);
+    expect(Array.isArray(matFinal.metadata?.parsedArtifacts)).toBeTruthy();
+    expect(matFinal.metadata?.parsedArtifacts?.length).toBe(listPayload.total);
   });
 
   test('Markdown 链路一致性：跳过解析验证', async ({ request }) => {

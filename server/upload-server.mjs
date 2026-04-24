@@ -2779,6 +2779,13 @@ app.post('/parse/analyze', async (req, res) => {
             await ensureBucket(client, parsedBucket);
             const buf = Buffer.from(md, 'utf-8');
             await client.putObject(parsedBucket, objName, buf, buf.length, { 'Content-Type': 'text/markdown; charset=utf-8' });
+          },
+          saveObject: async (objectName, buffer, contentType) => {
+            const client = getMinioClient();
+            await ensureBucket(client, parsedBucket);
+            const content = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+            const meta = { 'Content-Type': String(contentType || 'application/octet-stream') };
+            await client.putObject(parsedBucket, objectName, content, content.length, meta);
           }
         },
         updateProgress: async () => {} // MinerU-only 同步模式无需进度回调
@@ -2799,7 +2806,10 @@ app.post('/parse/analyze', async (req, res) => {
             ...(material.metadata || {}),
             markdownObjectName: newObjectName,
             markdownUrl: mdUrl,
-            parsedFilesCount: 1,
+            parsedPrefix: mineruResult.parsedPrefix || `parsed/${materialId}/`,
+            parsedFilesCount: Number(mineruResult.parsedFilesCount || 1),
+            parsedArtifacts: Array.isArray(mineruResult.parsedArtifacts) ? mineruResult.parsedArtifacts : [],
+            zipObjectName: mineruResult.zipObjectName || undefined,
             processingStage: '',
             processingMsg: '解析完成'
           }
@@ -2991,6 +3001,37 @@ app.post('/parsed-zip', async (req, res) => {
     if (!objects || objects.length === 0) {
       res.status(400).json({ error: `parsed/${materialId}/ 目录下暂无文件` });
       return;
+    }
+
+    res.setHeader('X-Parsed-Files-Count', String(objects.length));
+
+    try {
+      const [matResp, tasksResp] = await Promise.all([
+        fetch(`${DB_BASE_URL}/materials/${encodeURIComponent(materialId)}`).catch(() => null),
+        fetch(`${DB_BASE_URL}/tasks`).catch(() => null),
+      ]);
+
+      const material = matResp?.ok ? await matResp.json().catch(() => null) : null;
+      const tasks = tasksResp?.ok ? await tasksResp.json().catch(() => null) : null;
+
+      const expectedCount = Number(material?.metadata?.parsedFilesCount || 0);
+      const relatedTask = Array.isArray(tasks)
+        ? tasks.find((t) => String(t?.materialId) === String(materialId))
+        : null;
+      const taskExpectedCount = Number(relatedTask?.metadata?.parsedFilesCount || 0);
+
+      const onlyFullMd = objects.length === 1 && String(objects[0]?.name || '').endsWith('/full.md');
+      const metadataSuggestsMore = (expectedCount > 1) || (taskExpectedCount > 1);
+
+      if (onlyFullMd && metadataSuggestsMore) {
+        res.setHeader('X-Luceon-Warning', 'artifact-incomplete');
+        console.warn(`[upload-server] /parsed-zip: artifact-incomplete for material ${materialId} (objects=1, expectedCount=${expectedCount || taskExpectedCount})`);
+      } else if (onlyFullMd) {
+        res.setHeader('X-Luceon-Warning', 'artifact-incomplete');
+        console.warn(`[upload-server] /parsed-zip: only full.md found for material ${materialId} (objects=1)`);
+      }
+    } catch (e) {
+      console.warn(`[upload-server] /parsed-zip: warning check failed: ${e.message}`);
     }
 
     console.log(`[upload-server] /parsed-zip: packing ${objects.length} files for material ${materialId}`);
@@ -3630,6 +3671,14 @@ const minioContext = {
     await ensureBucket(client, bucket);
     const buffer = Buffer.from(markdown, 'utf-8');
     await client.putObject(bucket, objectName, buffer, buffer.length, { 'Content-Type': 'text/markdown; charset=utf-8' });
+  },
+  saveObject: async (objectName, buffer, contentType) => {
+    const bucket = getParsedBucket();
+    const client = getMinioClient();
+    await ensureBucket(client, bucket);
+    const content = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+    const meta = { 'Content-Type': String(contentType || 'application/octet-stream') };
+    await client.putObject(bucket, objectName, content, content.length, meta);
   }
 };
 

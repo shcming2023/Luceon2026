@@ -208,6 +208,11 @@ export class ParseTaskWorker {
         
         let markdownObjectName = null;
         let mineruTaskId = null;
+        let parsedPrefix = `parsed/${task.materialId}/`;
+        let parsedFilesCount = 0;
+        let parsedArtifacts = [];
+        let zipObjectName = null;
+        let artifactIncomplete = false;
 
         const isMarkdown = (materialInfo.fileName || '').toLowerCase().endsWith('.md') || materialInfo.mimeType === 'text/markdown';
 
@@ -216,9 +221,10 @@ export class ParseTaskWorker {
           // 必须将 Markdown 内容保存到 parsed/{materialId}/full.md（PRD 强制要求 markdownObjectName 以 parsed/ 开头）
           // 原始文件在 originals/{materialId}/{filename}，Worker 读取后写入规范路径
           const targetObjectName = `parsed/${task.materialId}/full.md`;
+          let markdownContent = '';
           try {
             const buffer = await this.streamToBuffer(fileStream);
-            const markdownContent = buffer.toString('utf-8');
+            markdownContent = buffer.toString('utf-8');
             await this.minioContext.saveMarkdown(targetObjectName, markdownContent);
             console.log(`[task-worker] Saved Markdown to ${targetObjectName} (${markdownContent.length} chars)`);
           } catch (saveErr) {
@@ -227,6 +233,11 @@ export class ParseTaskWorker {
           }
           markdownObjectName = targetObjectName;
           mineruTaskId = 'skip-markdown';
+          parsedPrefix = `parsed/${task.materialId}/`;
+          parsedFilesCount = 1;
+          parsedArtifacts = [{ objectName: targetObjectName, relativePath: 'full.md', size: Buffer.byteLength(markdownContent, 'utf-8'), mimeType: 'text/markdown' }];
+          zipObjectName = null;
+          artifactIncomplete = false;
         } else {
           const mineruResult = await processWithLocalMinerU({
             task,
@@ -243,6 +254,40 @@ export class ParseTaskWorker {
           });
           markdownObjectName = mineruResult.objectName;
           mineruTaskId = mineruResult.mineruTaskId;
+          parsedPrefix = mineruResult.parsedPrefix || `parsed/${task.materialId}/`;
+          parsedArtifacts = Array.isArray(mineruResult.parsedArtifacts) ? mineruResult.parsedArtifacts : [];
+          parsedFilesCount = Number(mineruResult.parsedFilesCount || parsedArtifacts.length || 1);
+          zipObjectName = mineruResult.zipObjectName || null;
+          artifactIncomplete = mineruResult.artifactIncomplete === true;
+
+          await logTaskEvent({
+            taskId: task.id,
+            taskType: 'parse',
+            level: 'info',
+            event: 'artifacts-saved',
+            message: `解析产物已保存到 ${parsedPrefix} (count=${parsedFilesCount})`,
+            payload: {
+              parsedPrefix,
+              parsedFilesCount,
+              hasMineruZip: Boolean(zipObjectName),
+            },
+          });
+
+          if (artifactIncomplete) {
+            await logTaskEvent({
+              taskId: task.id,
+              taskType: 'parse',
+              level: 'warn',
+              event: 'artifact-incomplete',
+              message: 'MinerU 仅返回 Markdown，完整解析产物未入库',
+              payload: {
+                parsedPrefix,
+                parsedFilesCount,
+                markdownObjectName,
+                mineruTaskId,
+              },
+            });
+          }
         }
 
         await this.transition(task, {
@@ -254,6 +299,11 @@ export class ParseTaskWorker {
             ...(task.metadata || {}),
             markdownObjectName,
             mineruTaskId,
+            parsedPrefix,
+            parsedFilesCount,
+            parsedArtifacts,
+            zipObjectName: zipObjectName || undefined,
+            artifactIncomplete,
             parsedAt: new Date().toISOString()
           },
           completedAt: new Date().toISOString()
@@ -265,6 +315,10 @@ export class ParseTaskWorker {
           metadata: {
             ...(materialInfo.metadata || {}),
             markdownObjectName,
+            parsedPrefix,
+            parsedFilesCount,
+            parsedArtifacts,
+            zipObjectName: zipObjectName || undefined,
             processingStage: 'ai',
             processingMsg: '解析完成，等待 AI 元数据识别',
             processingUpdatedAt: new Date().toISOString()
