@@ -64,7 +64,7 @@ test.describe('【7】处理链路与状态一致性', () => {
 
     console.log(`  PDF Task finished with state: ${finalTaskState}`);
 
-    // 3.1 解析产物入库验证：parsed/{materialId}/ 下对象数量必须 > 1（至少 full.md + mineru-result.json）
+    // 3.1 解析产物入库验证：parsed/{materialId}/ 下对象数量必须 > 1（至少包含 canonical full.md 与 MinerU 原始结果载体）
     const prefix = `parsed/${materialId}/`;
     const listResp = await request.get(`${BASE_URL}/__proxy/upload/list?prefix=${encodeURIComponent(prefix)}`);
     expect(listResp.status()).toBe(200);
@@ -72,7 +72,9 @@ test.describe('【7】处理链路与状态一致性', () => {
     expect(listPayload.total).toBeGreaterThan(1);
     const objectNames = (listPayload.objects || []).map((o: { objectName: string }) => o.objectName);
     expect(objectNames).toContain(`${prefix}full.md`);
-    expect(objectNames).toContain(`${prefix}mineru-result.json`);
+    const hasMineruZip = objectNames.includes(`${prefix}mineru-result.zip`);
+    const hasMineruJson = objectNames.includes(`${prefix}mineru-result.json`);
+    expect(hasMineruZip || hasMineruJson).toBeTruthy();
 
     // 3.2 /parsed-zip 打包一致性：ZIP 内文件数应与对象列表一致，且保留相对路径
     const zipResp = await request.post(`${BASE_URL}/__proxy/upload/parsed-zip`, { data: { materialId } });
@@ -85,6 +87,11 @@ test.describe('【7】处理链路与状态一致性', () => {
       .sort();
     expect(zipFileNames.length).toBe(listPayload.total);
     expect(zipFileNames).toEqual(listedRelativePaths);
+    expect(zipFileNames).toContain('full.md');
+    const originalMdRelativePaths = listedRelativePaths.filter((p: string) => p.toLowerCase().endsWith('.md') && p !== 'full.md');
+    for (const p of originalMdRelativePaths) {
+      expect(zipFileNames).toContain(p);
+    }
 
     // 4. 验证 Material 状态一致性
     const matFinalResp = await request.get(`${BASE_URL}/__proxy/db/materials/${materialId}`);

@@ -160,23 +160,42 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
         .filter(([, entry]) => !entry.dir)
         .map(([name]) => name);
 
+      const mdCandidates = [];
       for (const name of entries) {
         const safeRelativePath = sanitizeRelativePath(name);
         if (!safeRelativePath) continue;
-        if (safeRelativePath === 'mineru-result.zip' || safeRelativePath === 'mineru-result.json') continue;
-
         const lower = safeRelativePath.toLowerCase();
-        if (!markdown && (lower === 'full.md' || lower.endsWith('/full.md'))) {
-          const content = await zip.file(name).async('nodebuffer');
-          markdown = content.toString('utf-8').trim();
-          continue;
-        }
+        if (!lower.endsWith('.md')) continue;
+        if (safeRelativePath === 'mineru-result.zip' || safeRelativePath === 'mineru-result.json') continue;
+        mdCandidates.push({ name, relativePath: safeRelativePath });
+      }
+
+      const isFullMd = (rel) => {
+        const lower = String(rel || '').toLowerCase();
+        return lower === 'full.md' || lower.endsWith('/full.md');
+      };
+
+      const pickPrimaryMarkdown = (candidates) => {
+        if (!Array.isArray(candidates) || candidates.length === 0) return null;
+        const full = candidates.find((c) => isFullMd(c.relativePath));
+        if (full) return full;
+        if (candidates.length === 1) return candidates[0];
+
+        const auto = candidates.filter((c) => String(c.relativePath || '').toLowerCase().includes('/auto/'));
+        const pool = auto.length > 0 ? auto : candidates;
+        return pool.slice().sort((a, b) => String(a.relativePath).length - String(b.relativePath).length)[0];
+      };
+
+      const primary = pickPrimaryMarkdown(mdCandidates);
+      if (primary && !markdown) {
+        const content = await zip.file(primary.name).async('nodebuffer');
+        markdown = content.toString('utf-8').trim();
       }
 
       for (const name of entries) {
         const safeRelativePath = sanitizeRelativePath(name);
         if (!safeRelativePath) continue;
-        if (safeRelativePath === 'full.md' || safeRelativePath.endsWith('/full.md')) continue;
+        if (safeRelativePath === 'full.md') continue;
         if (safeRelativePath === 'mineru-result.zip' || safeRelativePath === 'mineru-result.json') continue;
 
         const content = await zip.file(name).async('nodebuffer');
