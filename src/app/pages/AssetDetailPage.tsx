@@ -54,6 +54,11 @@ export function AssetDetailPage() {
   const detail = state.assetDetails[numId];
   const material = state.materials.find((m) => m.id === numId);
 
+  // P0 防御：material 未加载完成时直接返回，避免下游 deriveMaterialTaskView 访问 undefined.id
+  if (!material) {
+    return <div className="p-8 text-center text-gray-400">加载中...</div>;
+  }
+
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(detail?.title ?? '');
 
