@@ -330,20 +330,21 @@ export function BatchProcessingController() {
     };
 
     const processOne = async (item: BatchQueueItem, f: File) => {
-      let materialId: number | undefined;
+      let materialId = item.materialId;
       try {
         const uploadHealth = await fetchWithTimeout('/__proxy/upload/health', { timeoutMs: 5000 }).catch(() => null);
         if (!uploadHealth?.ok) throw new Error('上传服务不可用（/__proxy/upload/health）');
 
         updateItem(item.id, { status: 'uploading', progress: 10, message: '正在提交上传...' });
 
-        const newId = generateNumericIdFromUuid();
-        materialId = newId;
-        updateItem(item.id, { materialId: newId });
+        if (!materialId) {
+          materialId = generateNumericIdFromUuid();
+          updateItem(item.id, { materialId });
+        }
 
         const formData = new FormData();
         formData.append('file', f);
-        formData.append('materialId', String(newId));
+        formData.append('materialId', String(materialId));
 
         const uploadRes = await fetchWithTimeout('/__proxy/upload/tasks', {
           method: 'POST',
@@ -369,7 +370,7 @@ export function BatchProcessingController() {
         dispatch({
           type: 'ADD_MATERIAL',
           payload: {
-            id: newId,
+            id: materialId,
             title,
             type: (fileName.split('.').pop() || 'FILE').toUpperCase(),
             size: `${(f.size / 1024 / 1024).toFixed(1)} MB`,
@@ -605,21 +606,23 @@ export function BatchUploadModal() {
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      className="fixed bottom-24 right-6 z-50 flex flex-col w-[560px] max-h-[75vh] bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden"
       role="dialog"
       aria-modal="true"
       aria-label="批量上传与处理"
       data-testid="batch-upload-modal"
     >
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-white flex flex-col h-full">
         <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50/50">
           <div>
             <h3 className="text-lg font-semibold text-gray-900">批量上传与处理</h3>
-            <p className="text-sm text-gray-500 mt-1">队列 {items.length} 个文件，离开页面也可在右下角继续查看进度</p>
+            <p className="text-sm text-gray-500 mt-1">队列 {items.length} 个文件，您可以点击右侧按钮收起弹窗</p>
           </div>
           <button
             onClick={handleClose}
             className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            title="收起弹窗"
+            data-testid="batch-modal-close"
           >
             <X size={20} />
           </button>
@@ -842,8 +845,8 @@ export function BatchProgressFab() {
       )
     : false;
 
-  // 无任何队列时隐藏
-  if (totalCount === 0) return null;
+  // 无任何队列或已打开主弹窗时隐藏
+  if (totalCount === 0 || bp.uiOpen) return null;
 
   const label = bp.running
     ? `处理中 ${activeCount}/${totalCount}`
