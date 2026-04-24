@@ -53,7 +53,13 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
     ['parse_method', finalParseMethod],
     ['formula_enable', enableFormula ? '1' : '0'],
     ['table_enable', enableTable ? '1' : '0'],
-    ['response_format_zip', responseFormatZip ? 'true' : 'false']
+    ['response_format_zip', 'true'],
+    ['return_md', 'true'],
+    ['return_middle_json', 'true'],
+    ['return_model_output', 'true'],
+    ['return_content_list', 'true'],
+    ['return_images', 'true'],
+    ['return_original_file', 'true']
   ];
   for (const lang of String(ocrLanguage).split(',').map((item) => item.trim()).filter(Boolean)) {
     fields.push(['lang_list', lang]);

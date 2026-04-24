@@ -86,11 +86,36 @@ test.describe('【7】处理链路与状态一致性', () => {
       .map((name: string) => (name.startsWith(prefix) ? name.slice(prefix.length) : name))
       .sort();
     expect(zipFileNames.length).toBe(listPayload.total);
-    expect(zipFileNames).toEqual(listedRelativePaths);
+    expect(zipFileNames.sort()).toEqual(listedRelativePaths.sort());
     expect(zipFileNames).toContain('full.md');
-    const originalMdRelativePaths = listedRelativePaths.filter((p: string) => p.toLowerCase().endsWith('.md') && p !== 'full.md');
-    for (const p of originalMdRelativePaths) {
-      expect(zipFileNames).toContain(p);
+    
+    // 3.3 深度校验 MinerU 原始产物完整性 (P0 Patch 验证)
+    if (hasMineruZip) {
+      const mineruZipObj = zip.file('mineru-result.zip');
+      expect(mineruZipObj).toBeTruthy();
+      const mineruZipBuffer = await mineruZipObj.async('nodebuffer');
+      const mineruZip = await JSZip.loadAsync(mineruZipBuffer);
+      
+      // MinerU 原始 ZIP 内所有非目录文件
+      const mineruZipFiles = Object.values(mineruZip.files).filter((f) => !f.dir).map((f) => f.name);
+      
+      // 断言: mineruZipFiles ⊆ zipFileNames
+      for (const name of mineruZipFiles) {
+        // 由于 local-adapter 存入 MinIO 时会 sanitizeRelativePath，确保这里比对逻辑一致
+        const safeName = name.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\.\.\//g, '');
+        if (safeName && safeName !== 'mineru-result.zip' && safeName !== 'mineru-result.json' && safeName !== 'full.md') {
+          expect(zipFileNames).toContain(safeName);
+        }
+      }
+
+      // 如果 MinerU 真实产出了以下辅助文件，验证它们被成功入库导出
+      const artifactsToCheck = ['_middle.json', '_model.json', '_content_list.json', '_content_list_v2.json', '_origin.pdf'];
+      for (const checkItem of artifactsToCheck) {
+        const hasItemInMineru = mineruZipFiles.some((f) => f.toLowerCase().endsWith(checkItem));
+        if (hasItemInMineru) {
+          expect(zipFileNames.some((f) => f.toLowerCase().endsWith(checkItem))).toBeTruthy();
+        }
+      }
     }
 
     // 4. 验证 Material 状态一致性
