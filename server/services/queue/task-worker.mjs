@@ -412,7 +412,6 @@ export class ParseTaskWorker {
         await updateTask(task.id, {
           aiJobId: result.jobId,
           metadata: {
-            ...(task.metadata || {}),
             aiJobId: result.jobId
           }
         });
@@ -432,7 +431,6 @@ export class ParseTaskWorker {
         await updateTask(task.id, {
           aiJobId: result.jobId,
           metadata: {
-            ...(task.metadata || {}),
             aiJobId: result.jobId
           }
         });

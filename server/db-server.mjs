@@ -662,7 +662,13 @@ app.patch('/tasks/:id', (req, res) => {
   const id = req.params.id;
   const existing = dbCache.parseTasks[id];
   if (!existing) { res.status(404).json({ error: 'not found' }); return; }
-  dbCache.parseTasks[id] = { ...existing, ...req.body, updatedAt: new Date().toISOString() };
+  const merged = {
+    ...existing,
+    ...req.body,
+    ...(req.body?.metadata ? { metadata: { ...(existing.metadata || {}), ...req.body.metadata } } : {}),
+    updatedAt: new Date().toISOString(),
+  };
+  dbCache.parseTasks[id] = merged;
   writeDB();
   res.json({ ok: true, id });
 });
