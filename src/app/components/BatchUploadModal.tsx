@@ -223,6 +223,12 @@ export function BatchProcessingController() {
                     : stateKey === 'canceled'
                       ? 'canceled'
                       : 'failed';
+              const hint =
+                status === 'failed' || status === 'canceled'
+                  ? '（可打开任务页重跑）'
+                  : status === 'review-pending'
+                    ? '（可打开任务页查看详情）'
+                    : '';
               dispatch({
                 type: 'BATCH_UPDATE_ITEM',
                 payload: {
@@ -233,14 +239,14 @@ export function BatchProcessingController() {
                     taskState: stateKey,
                     taskStage: stageKey,
                     message: errorMessage
-                      ? `处理失败：${errorMessage}`
+                      ? `处理失败：${errorMessage}${hint}`
                       : message
-                        ? message
+                        ? `${message}${hint}`
                         : status === 'review-pending'
-                          ? '待人工复核'
+                          ? `待人工复核${hint}`
                           : status === 'completed'
                             ? '处理完成'
-                            : '处理失败',
+                            : `处理失败${hint}`,
                   },
                 },
               });
