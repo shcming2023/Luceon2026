@@ -116,7 +116,21 @@ const STATE_LABELS: Record<string, string> = {
   canceled: '已取消',
 };
 
-export function deriveMaterialTaskView(material: Material, tasks: ParseTask[]): MaterialTaskView {
+export function deriveMaterialTaskView(material: Material | undefined, tasks: ParseTask[]): MaterialTaskView {
+  // P0 防御：material 未定义时返回安全默认值
+  if (!material) {
+    return {
+      materialId: 'unknown',
+      title: '加载中...',
+      currentTask: null,
+      latestTask: null,
+      taskState: undefined,
+      bucket: 'unknown',
+      displayStatus: '加载中...',
+      hasStateDrift: false,
+    };
+  }
+
   const currentTask = deriveCurrentTask(material.id, tasks);
   const bucket = deriveTaskBucket(currentTask?.state);
   
