@@ -3758,6 +3758,14 @@ const aiWorker = new AiMetadataWorker({
         else if (update.state === 'review-pending') taskState = 'review-pending';
         else taskState = 'failed';
 
+        let existingTask = null;
+        try {
+          const tGet = await fetch(`${DB_BASE_URL}/tasks/${job.parseTaskId}`);
+          if (tGet.ok) existingTask = await tGet.json();
+        } catch (e) {
+          console.warn(`[upload-server] Failed to fetch existing ParseTask ${job.parseTaskId} before merge: ${e.message}`);
+        }
+
         const taskResp = await fetch(`${DB_BASE_URL}/tasks/${job.parseTaskId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -3767,6 +3775,7 @@ const aiWorker = new AiMetadataWorker({
             message: `AI 识别完成: ${update.state}${update.needsReview ? ' (待人工复核)' : ''}`,
             completedAt: new Date().toISOString(),
             metadata: {
+              ...(existingTask?.metadata || {}),
               ...(update.result || {}),
               aiCompletedAt: new Date().toISOString()
             }
