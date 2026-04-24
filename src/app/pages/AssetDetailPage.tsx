@@ -54,15 +54,10 @@ export function AssetDetailPage() {
   const detail = state.assetDetails[numId];
   const material = state.materials.find((m) => m.id === numId);
 
-  // P0 防御：区分"数据未加载"和"asset 不存在"两种情况
-  if (!material) {
-    // materials 已加载完成但仍未找到 → 显示"不存在"
-    if (state.materials.length > 0) {
-      return <div className="p-8 text-center text-gray-400">该资料不存在或已被删除</div>;
-    }
-    // materials 尚未加载 → 显示加载中
-    return <div className="p-8 text-center text-gray-400">加载中...</div>;
-  }
+  // P0 防御：material 未找到时的处理
+  // 不在组件内 early return，而是让 React 继续渲染
+  // deriveMaterialTaskView 已改为接受 Material | undefined，会返回安全默认值
+  // 如果 material 确实是 undefined，页面会显示"加载中..."而不是崩溃
 
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(detail?.title ?? '');

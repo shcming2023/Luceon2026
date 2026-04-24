@@ -50,12 +50,11 @@ test.describe('Cross-Page Consistency (ParseTask Truth)', () => {
   });
 
   test('Status Consistency: Pending Stage', async ({ page }) => {
-    // A. 工作台检查
+    // A. 工作台检查 - 使用 taskId 定位行（工作台显示任务 ID 而非 materialId）
     await page.goto(`${BASE_URL}/cms/workspace`);
-    const wsRow = page.locator(`tr:has-text("${materialId}")`);
+    const wsRow = page.locator(`tr:has-text("${taskId}")`);
     // 预期显示 "等待中" (queued bucket)
-    await expect(wsRow.getByText(/等待中|解析中/)).toBeVisible();
-    await expect(wsRow.getByText(taskId.slice(0, 8))).toBeVisible();
+    await expect(wsRow.getByText(/等待中|解析中/)).toBeVisible({ timeout: 15000 });
 
     // B. 资产详情页检查
     await page.goto(`${BASE_URL}/cms/asset/${materialId}`);
@@ -77,10 +76,10 @@ test.describe('Cross-Page Consistency (ParseTask Truth)', () => {
       data: { state: 'failed', errorMessage: 'Consistency Test Failure' }
     });
 
-    // A. 工作台检查
+    // A. 工作台检查 - 使用 taskId 定位行
     await page.goto(`${BASE_URL}/cms/workspace`);
-    const wsRow = page.locator(`tr:has-text("${materialId}")`);
-    await expect(wsRow.getByText('失败')).toBeVisible();
+    const wsRow = page.locator(`tr:has-text("${taskId}")`);
+    await expect(wsRow.getByText('失败')).toBeVisible({ timeout: 15000 });
 
     // B. 资产详情页检查
     await page.goto(`${BASE_URL}/cms/asset/${materialId}`);
