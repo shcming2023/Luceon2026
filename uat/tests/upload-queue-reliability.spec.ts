@@ -97,7 +97,7 @@ test.describe('【P0】上传队列可靠性与 aborted 可观测', () => {
     const round3 = selected.slice(7, 10);
 
     const uploadBtn = page.locator('button:has-text("上传文件")');
-    const fileInput = page.locator('input[type="file"]');
+    const fileInput = page.locator('input[type="file"]').first();
 
     console.log(`[${runId}] Round 1: 4 files`);
     await uploadBtn.click();
