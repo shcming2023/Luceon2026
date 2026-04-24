@@ -235,11 +235,20 @@ curl -sS http://127.0.0.1:8081/__proxy/upload/audit/consistency
 6. 跑 `pipeline-consistency`
 7. 跑 `/audit/consistency` dry-run
 8. 输出《当前部署基线报告》或《复验报告》
-9. 只有基线过关后，才允许给 lucode 派下一单
+9. 根据复验结果决定是否需要继续下达收敛补丁任务
 
 ## 10.1 本次交班后的第一动作
 
 当前不是自由派单阶段。下一位 Lucia 接手后，第一件事必须是评审 lucode 对《P0 Patch 2：修复状态收口 UAT 防线，完成可验收闭环》的执行结果。
+
+代班 Lucia 可以完整接替 Lucia 的职责，包括继续给 lucode 下达必要任务；但任务必须沿着当前 P0/P1 收敛计划延续，不能绕过当前阻塞项另起 Wave、泛化开发或中风险产品扩展。
+
+执行边界：
+
+- 若 P0 Patch 2 未达到关闭标准，代班 Lucia 可以继续下达必要的 P0/P1 收敛补丁任务。
+- 若 P0 Patch 2 达到关闭标准，代班 Lucia 应输出复验结论，并围绕生产交付目标处理下一项生产准入阻塞项。
+- 任何新任务仍必须小批量、低风险、可验收，并要求 lucode 完成后主动同步 GitHub。
+- 禁止跳过 P0 Patch 2 复核直接进入 Wave3 或泛化开发。
 
 P0 Patch 2 验收重点：
 
