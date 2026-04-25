@@ -86,6 +86,22 @@ async function runTest() {
   console.assert(resData.diagnosis.blockingMineruTaskId === 'known-p1', 'Expected actual ID');
   console.log('Test 3 Pass ✅');
 
+  // Test 4: Known failed but MinerU processing
+  console.log('Test 4: Known failed but MinerU processing');
+  mockMineruHealth = { processing_tasks: 1, queued_tasks: 0 };
+  mockLuceonTasks = [
+    { id: 't1', state: 'failed', stage: 'mineru-failed', metadata: { mineruTaskId: 'failed-p1' } }
+  ];
+  mockMineruTasks = {
+    'failed-p1': { status: 'processing', started_at: 'yes' }
+  };
+
+  resData = await new Promise(resolve => handler({}, makeRes(resolve)));
+  console.assert(resData.diagnosis.kind === 'known-failed-but-mineru-processing', 'Expected known-failed-but-mineru-processing');
+  console.assert(resData.diagnosis.status === 'blocked', 'Expected blocked');
+  console.assert(resData.diagnosis.safeToAutoRecover === false, 'Expected safeToAutoRecover false');
+  console.log('Test 4 Pass ✅');
+
   console.log('✅ Diagnostics语义验证通过！');
   process.exit(0);
 }

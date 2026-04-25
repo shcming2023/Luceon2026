@@ -230,7 +230,7 @@ export function OpsHealthPage() {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
-                <div className={`p-6 rounded-3xl border transition-all duration-300 ${diagnostics.diagnosis.kind === 'orphan-processing-blocker' ? 'bg-orange-50 border-orange-200' : 'bg-slate-50 border-slate-100'}`}>
+                <div className={`p-6 rounded-3xl border transition-all duration-300 ${['orphan-processing-blocker', 'known-failed-but-mineru-processing'].includes(diagnostics.diagnosis.kind) ? 'bg-orange-50 border-orange-200' : 'bg-slate-50 border-slate-100'}`}>
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
                     <div>
                       <h3 className="text-sm font-bold text-slate-900">MinerU 队列状态: {diagnostics.diagnosis.status}</h3>
@@ -239,7 +239,7 @@ export function OpsHealthPage() {
                         Luceon 追踪：处理中 {diagnostics.luceon.mineruProcessingTasks.length}，排队中 {diagnostics.luceon.mineruQueuedTasks.length}
                       </p>
                     </div>
-                    {diagnostics.diagnosis.kind === 'orphan-processing-blocker' && (
+                    {['orphan-processing-blocker', 'known-failed-but-mineru-processing'].includes(diagnostics.diagnosis.kind) && (
                       <div className="bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2">
                         <AlertCircle className="w-4 h-4" /> 发现阻塞风险
                       </div>
@@ -263,6 +263,25 @@ export function OpsHealthPage() {
                           <li>运行 node server/tests/mineru-deep-check.mjs</li>
                           <li>确认 queued tasks 继续推进</li>
                         </ol>
+                      </div>
+                    </div>
+                  )}
+
+                  {diagnostics.diagnosis.kind === 'known-failed-but-mineru-processing' && (
+                    <div className="bg-white border border-red-200 rounded-xl p-4 shadow-sm">
+                      <h4 className="text-sm font-bold text-red-600 flex items-center gap-2">
+                        已失败任务仍占用 MinerU
+                      </h4>
+                      <p className="text-xs text-slate-600 mt-2">
+                        诊断结果: {diagnostics.diagnosis.message}<br />
+                        Luceon Task: {diagnostics.diagnosis.blockingLuceonTaskId}<br />
+                        MinerU Task: {diagnostics.diagnosis.blockingMineruTaskId}
+                      </p>
+                      <div className="mt-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        <p className="text-xs font-semibold text-slate-700 mb-2">建议：等待完成或人工清障</p>
+                        <p className="text-xs text-slate-600">
+                          建议等待 MinerU 当前任务自然结束；若长时间无日志进展，可人工重启 MinerU，并将该 Luceon 任务转入人工审计或手动重试。注意：该任务在 Luceon 侧已 failed。
+                        </p>
                       </div>
                     </div>
                   )}

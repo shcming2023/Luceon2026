@@ -67,4 +67,50 @@ test.describe('MinerU 本地日志进度观测与停滞判定', () => {
     // 只需要验证能够打开不报错即可
     await expect(page.locator('text=系统运维概览')).toBeVisible();
   });
+
+  test('OpsHealthPage 显示已知失败但仍在处理的 MinerU 任务', async ({ page }) => {
+    await page.route('**/ops/mineru/diagnostics', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          mineru: { processingTasks: 1, queuedTasks: 0 },
+          luceon: { mineruProcessingTasks: [], mineruQueuedTasks: [] },
+          diagnosis: {
+            status: 'blocked',
+            kind: 'known-failed-but-mineru-processing',
+            message: 'Luceon 任务已进入失败/取消终态，但 MinerU 仍在处理该内部任务，当前解析槽位被历史任务占用。',
+            blockingLuceonTaskId: 'task-mock-failed-123',
+            blockingMineruTaskId: 'mineru-mock-456',
+            safeToAutoRecover: false
+          }
+        })
+      });
+    });
+
+    await page.route('**/ops/health', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          frontend: { status: 'ok', version: 'test' },
+          uploadServer: { status: 'ok', version: 'test' },
+          dbServer: { status: 'ok', version: 'test' },
+          minio: { status: 'ok', version: 'test' },
+          mineru: { status: 'ok', version: 'test' },
+          ollama: { status: 'ok', version: 'test' },
+          timestamp: new Date().toISOString()
+        })
+      });
+    });
+
+    await page.goto(`${BASE_URL}/cms/ops`);
+    
+    await expect(page.locator('text=发现阻塞风险')).toBeVisible();
+    await expect(page.locator('text=已失败任务仍占用 MinerU')).toBeVisible();
+    await expect(page.locator('text=task-mock-failed-123')).toBeVisible();
+    await expect(page.locator('text=mineru-mock-456')).toBeVisible();
+    await expect(page.locator('text=建议：等待完成或人工清障')).toBeVisible();
+  });
 });

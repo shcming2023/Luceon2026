@@ -69,11 +69,14 @@ export function registerMineruDiagnosticsRoutes(app, getDbBaseUrl) {
         }
         
         // Find all known MinerU task IDs
-        const knownIds = new Set();
+        const knownIdsMap = new Map();
         for (const t of tasks) {
-          if (t.metadata?.mineruTaskId) knownIds.add(t.metadata.mineruTaskId);
+          if (t.metadata?.mineruTaskId) {
+            knownIdsMap.set(t.metadata.mineruTaskId, { id: t.id, state: t.state });
+          }
         }
-        result.luceon.knownMineruTaskIds = Array.from(knownIds);
+        result.luceon.knownMineruTaskIds = Array.from(knownIdsMap.keys());
+        result.luceon.knownMineruTaskMap = Object.fromEntries(knownIdsMap);
       }
       } catch (e) {
       // If DB fails, we can't fully diagnose
@@ -91,6 +94,7 @@ export function registerMineruDiagnosticsRoutes(app, getDbBaseUrl) {
 
     // processingTasks > 0
     let actualProcessingMineruTaskId = null;
+    let actualProcessingLuceonTaskInfo = null;
     let foundLuceonTaskProcessing = result.luceon.mineruProcessingTasks.length > 0;
 
     // Deep check known MinerU tasks if MinerU says it's processing
@@ -100,8 +104,9 @@ export function registerMineruDiagnosticsRoutes(app, getDbBaseUrl) {
           const tRes = await fetch(`${localEndpoint}/tasks/${mTaskId}`, { signal: AbortSignal.timeout(1000) });
           if (tRes.ok) {
             const tData = await tRes.json();
-            if (tData.status === 'processing' || tData.started_at && !['done', 'success', 'completed', 'succeeded', 'failed'].includes(tData.status)) {
+            if (tData.status === 'processing' || tData.status === 'running' || (tData.started_at && !['done', 'success', 'completed', 'succeeded', 'failed'].includes(tData.status))) {
               actualProcessingMineruTaskId = mTaskId;
+              actualProcessingLuceonTaskInfo = result.luceon.knownMineruTaskMap[mTaskId];
               break;
             }
           }
@@ -109,11 +114,25 @@ export function registerMineruDiagnosticsRoutes(app, getDbBaseUrl) {
       }
     }
 
-    if (foundLuceonTaskProcessing || actualProcessingMineruTaskId) {
+    if (foundLuceonTaskProcessing) {
       result.diagnosis.status = 'busy';
       result.diagnosis.kind = 'luceon-processing';
       result.diagnosis.message = 'MinerU 正被 Luceon 已知任务占用';
-      result.diagnosis.blockingMineruTaskId = actualProcessingMineruTaskId || 'known-luceon-task';
+      result.diagnosis.blockingMineruTaskId = 'known-luceon-task';
+    } else if (actualProcessingMineruTaskId) {
+      if (actualProcessingLuceonTaskInfo && ['failed', 'canceled'].includes(actualProcessingLuceonTaskInfo.state)) {
+        result.diagnosis.status = 'blocked';
+        result.diagnosis.kind = 'known-failed-but-mineru-processing';
+        result.diagnosis.message = 'Luceon 任务已进入失败/取消终态，但 MinerU 仍在处理该内部任务，当前解析槽位被历史任务占用。';
+        result.diagnosis.blockingMineruTaskId = actualProcessingMineruTaskId;
+        result.diagnosis.blockingLuceonTaskId = actualProcessingLuceonTaskInfo.id;
+        result.diagnosis.safeToAutoRecover = false;
+      } else {
+        result.diagnosis.status = 'busy';
+        result.diagnosis.kind = 'luceon-processing';
+        result.diagnosis.message = 'MinerU 正被 Luceon 已知任务占用';
+        result.diagnosis.blockingMineruTaskId = actualProcessingMineruTaskId;
+      }
     } else {
       result.diagnosis.status = 'blocked';
       result.diagnosis.kind = 'orphan-processing-blocker';
