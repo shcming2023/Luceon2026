@@ -378,14 +378,32 @@ export class ParseTaskWorker {
         await this.updateTaskWithRetry(task.id, {
           state: 'running',
           stage: mineruStatus === 'queued' || mineruStatus === 'pending' ? 'mineru-queued' : 'mineru-processing',
+          errorMessage: '',
           message: `纠偏恢复：Luceon 误判 failed，但 MinerU 仍在 ${mineruStatus}，已纠正为 running`,
           metadata: {
             ...(task.metadata || {}),
             mineruStatus,
             recoveredFromMisjudgedFailed: true,
+            previousState: 'failed',
+            previousErrorMessage: task.errorMessage || task.message || '',
             recoveredAt: new Date().toISOString()
           }
         }, { enqueueOnFailure: true });
+
+        // 同步 Material：不再显示 failed
+        if (task.materialId) {
+          await this.updateMaterialWithRetry(task.materialId, {
+            status: 'processing',
+            mineruStatus: mineruStatus === 'queued' || mineruStatus === 'pending' ? 'queued' : 'processing',
+            aiStatus: 'pending',
+            metadata: {
+              processingStage: mineruStatus === 'queued' || mineruStatus === 'pending' ? 'mineru-queued' : 'mineru-processing',
+              processingMsg: `纠偏恢复：MinerU 仍在 ${mineruStatus}`,
+              processingUpdatedAt: new Date().toISOString()
+            }
+          }, { enqueueOnFailure: true });
+        }
+
         await logTaskEvent({
           taskId: task.id, taskType: 'parse', level: 'warn',
           event: 'misjudged-failed-corrected',
@@ -403,14 +421,32 @@ export class ParseTaskWorker {
         await this.updateTaskWithRetry(task.id, {
           state: 'running',
           stage: 'result-fetching',
+          errorMessage: '',
           message: `纠偏恢复：MinerU 已完成，正在拉取结果入库`,
           metadata: {
             ...(task.metadata || {}),
             mineruStatus: 'completed',
             recoveredFromMisjudgedFailed: true,
+            previousState: 'failed',
+            previousErrorMessage: task.errorMessage || task.message || '',
             recoveredAt: new Date().toISOString()
           }
         }, { enqueueOnFailure: true });
+
+        // 同步 Material：标记 MinerU 已完成，等待结果入库
+        if (task.materialId) {
+          await this.updateMaterialWithRetry(task.materialId, {
+            status: 'processing',
+            mineruStatus: 'completed',
+            aiStatus: 'pending',
+            metadata: {
+              processingStage: 'result-fetching',
+              processingMsg: '纠偏恢复：MinerU 已完成，正在拉取结果入库',
+              processingUpdatedAt: new Date().toISOString()
+            }
+          }, { enqueueOnFailure: true });
+        }
+
         await logTaskEvent({
           taskId: task.id, taskType: 'parse', level: 'warn',
           event: 'misjudged-failed-corrected',
@@ -784,6 +820,7 @@ export class ParseTaskWorker {
         stage: 'complete',
         state: 'ai-pending',
         progress: 100,
+        errorMessage: '',
         message: 'MinerU 解析完成，产物已落库，等待 AI 元数据识别',
         metadata: {
           ...(task.metadata || {}),
@@ -800,7 +837,9 @@ export class ParseTaskWorker {
       }, 'worker-completed');
 
       await this.updateMaterialWithRetry(task.materialId, {
+        status: 'processing',
         mineruStatus: 'completed',
+        aiStatus: 'pending',
         metadata: {
           ...(materialInfo.metadata || {}),
           markdownObjectName,
@@ -895,7 +934,7 @@ export class ParseTaskWorker {
         });
       } else {
         console.warn(`[task-worker] AI Job creation failed for task ${task.id}: ${result.reason}`);
-        // 创建失败
+        // 创建失败——仅标记 AI 阶段问题，不回滚 MinerU 成果
         await logTaskEvent({
           taskId: task.id,
           taskType: 'parse',
@@ -904,6 +943,15 @@ export class ParseTaskWorker {
           message: `AI Metadata Job 创建失败: ${result.reason}`,
           payload: { reason: result.reason },
         });
+        if (task.materialId) {
+          await this.updateMaterialWithRetry(task.materialId, {
+            aiStatus: 'create-failed',
+            metadata: {
+              aiCreateFailedReason: result.reason,
+              processingUpdatedAt: new Date().toISOString()
+            }
+          }, { enqueueOnFailure: true });
+        }
       }
     } catch (error) {
       // 兜底：创建过程本身异常，只记日志不影响 ParseTask 状态
@@ -916,6 +964,15 @@ export class ParseTaskWorker {
         message: `AI Metadata Job 创建异常: ${error.message}`,
         payload: { error: error.message },
       });
+      if (task.materialId) {
+        await this.updateMaterialWithRetry(task.materialId, {
+          aiStatus: 'create-failed',
+          metadata: {
+            aiCreateFailedReason: error.message,
+            processingUpdatedAt: new Date().toISOString()
+          }
+        }, { enqueueOnFailure: true });
+      }
     }
   }
 
