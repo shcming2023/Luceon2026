@@ -840,6 +840,7 @@ export function TaskDetailPage() {
                             case 'suspected-stale': return 'bg-orange-100 text-orange-700';
                             case 'stale-critical': return 'bg-red-100 text-red-700';
                             case 'failed-confirmed': return 'bg-red-100 text-red-700';
+                            case 'log-observation-stale': return 'bg-amber-100 text-amber-700';
                             default: return 'bg-slate-200 text-slate-600';
                           }
                         })()}`}>
@@ -854,11 +855,30 @@ export function TaskDetailPage() {
                               'suspected-stale': '疑似停滞',
                               'stale-critical': '严重停滞',
                               'failed-confirmed': '日志确认失败',
+                              'log-observation-stale': '日志观测滞后',
                             };
                             return labels[h] || h || '—';
                           })()}
                         </span>
                       </div>
+                      {/* 日志观测滞后警告 */}
+                      {((task.metadata.mineruObservedProgress as any).observationStale ||
+                        String(task.metadata.mineruProgressHealth) === 'log-observation-stale') && (
+                        <div className="mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-md">
+                          <p className="text-xs font-medium text-amber-800">
+                            ⚠ MinerU 仍在处理，但日志观测通道滞后，当前进度可能不是最新。
+                          </p>
+                          {(task.metadata.mineruObservedProgress as any).phase && (
+                            <p className="text-xs text-amber-700 mt-1">
+                              最后可见进度：{(task.metadata.mineruObservedProgress as any).phase} {(task.metadata.mineruObservedProgress as any).current ?? '?'}/{(task.metadata.mineruObservedProgress as any).total ?? '?'}
+                              {(task.metadata.mineruObservedProgress as any).latestWindow && (() => {
+                                const w = (task.metadata.mineruObservedProgress as any).latestWindow;
+                                return ` · 窗口 ${w.windowCurrent ?? '—'}/${w.windowTotal ?? '—'} · 页 ${w.pageStart ?? '—'}-${w.pageEnd ?? '—'}/${w.pageTotal ?? '—'}`;
+                              })()}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

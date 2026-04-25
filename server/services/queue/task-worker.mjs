@@ -121,6 +121,7 @@ export class ParseTaskWorker {
    * 仅在恰好有 1 个 processing 任务时归因进度（避免串任务）。
    * 使用结构化活性等级（v1.1）替代旧 5/15 分钟时间窗口。
    * 事件日志使用语义去重 key，只在关键变化时写事件（避免刷屏）。
+   * 当日志文件观测通道滞后时，标记 log-observation-stale，不误判 failed。
    *
    * @param {Array} tasks - 当前所有任务列表
    * @returns {Promise<void>}
@@ -160,10 +161,11 @@ export class ParseTaskWorker {
 
       // 仅在 key 变化时写事件日志
       if (keyChanged && eventKey) {
-        // 选择事件类型
         let eventName = 'mineru-progress-observed';
         if (health === 'failed-confirmed') {
           eventName = 'mineru-log-failed-confirmed';
+        } else if (health === 'log-observation-stale') {
+          eventName = 'mineru-activity-level-changed';
         } else if (win && (!prevKey || !prevKey.includes(`window=${win.windowCurrent}/${win.windowTotal}`))) {
           eventName = 'mineru-window-started';
         } else if (logProgress.phase && (!prevKey || !prevKey.includes(`phase=${logProgress.phase}`))) {
@@ -172,17 +174,17 @@ export class ParseTaskWorker {
           eventName = 'mineru-activity-level-changed';
         }
 
-        // 构造结构化文案
         const parts = [];
         if (logProgress.phase) parts.push(`${logProgress.phase} ${logProgress.current ?? '?'}/${logProgress.total ?? '?'}`);
         if (win) parts.push(`窗口 ${win.windowCurrent}/${win.windowTotal} · 页 ${win.pageStart}-${win.pageEnd}/${win.pageTotal}`);
         parts.push(health);
+        if (logProgress.observationStale) parts.push('日志观测通道滞后');
         const message = parts.join(' · ');
 
         await logTaskEvent({
           taskId: targetTask.id,
           taskType: 'parse',
-          level: health === 'failed-confirmed' ? 'error' : 'info',
+          level: health === 'failed-confirmed' ? 'error' : (health === 'log-observation-stale' ? 'warn' : 'info'),
           event: eventName,
           message,
           payload: {
@@ -191,7 +193,8 @@ export class ParseTaskWorker {
             phase: logProgress.phase || null,
             current: logProgress.current ?? null,
             total: logProgress.total ?? null,
-            window: win || null
+            window: win || null,
+            observationStale: logProgress.observationStale || false
           }
         });
       }
@@ -1098,31 +1101,62 @@ export class ParseTaskWorker {
     }
   }
 
+  /**
+   * 通用状态转换：更新任务并写事件日志。
+   * progress-update 事件使用语义去重 key 降噪，只有 state/stage/message 语义变化时才写事件。
+   * 其他事件类型（stage-changed, worker-picked, ...）不受限制。
+   *
+   * @param {object} task - 当前任务对象
+   * @param {object} update - 要写入的更新内容
+   * @param {string} eventName - 事件名称
+   * @param {string} [level='info'] - 事件级别
+   * @returns {Promise<void>}
+   */
   async transition(task, update, eventName, level = 'info') {
     const success = await this.updateTaskWithRetry(task.id, update, { enqueueOnFailure: true });
-    if (success) {
-      await logTaskEvent({
-        taskId: task.id,
-        event: eventName,
-        level,
-        message: update.message || `Status changed to ${update.state}`,
-        payload: update
-      });
-      // SSE 事件广播（若已注入事件总线）
-      if (this.eventBus?.emit) {
-        try {
-          this.eventBus.emit('task-update', {
-            taskId: task.id,
-            event: eventName,
-            level,
-            update,
-            at: new Date().toISOString(),
-          });
-        } catch (e) {
-          console.warn(`[task-worker] eventBus emit failed: ${e.message}`);
-        }
+    if (!success) return;
+
+    // SSE 事件广播（若已注入事件总线）——始终广播，保证 UI 实时刷新
+    if (this.eventBus?.emit) {
+      try {
+        this.eventBus.emit('task-update', {
+          taskId: task.id,
+          event: eventName,
+          level,
+          update,
+          at: new Date().toISOString(),
+        });
+      } catch (e) {
+        console.warn(`[task-worker] eventBus emit failed: ${e.message}`);
       }
     }
+
+    // progress-update 事件降噪：构造语义 key，同 key 不重复写事件日志
+    if (eventName === 'progress-update') {
+      const semanticKey = [
+        `state=${update.state || task.state || ''}`,
+        `stage=${update.stage || task.stage || ''}`,
+        `message=${update.message || ''}`,
+      ].join('|');
+      const prevKey = task.metadata?.progressEventKey || '';
+      if (semanticKey === prevKey) {
+        // key 未变，不写事件日志（但 SSE 和 task update 已完成）
+        return;
+      }
+      // 更新 progressEventKey（不覆盖其他字段）
+      await this.updateTaskWithRetry(task.id, {
+        metadata: { ...(task.metadata || {}), progressEventKey: semanticKey }
+      }, { enqueueOnFailure: true });
+    }
+
+    // 写事件日志
+    await logTaskEvent({
+      taskId: task.id,
+      event: eventName,
+      level,
+      message: update.message || `Status changed to ${update.state}`,
+      payload: update
+    });
   }
 
   sleep(ms) {

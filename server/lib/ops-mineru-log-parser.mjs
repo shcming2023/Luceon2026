@@ -21,10 +21,14 @@
  * - suspected-stale:       曾有业务信号但近期无更新
  * - stale-critical:        长时间无业务信号更新
  * - failed-confirmed:      检测到明确错误信号
+ * - log-observation-stale:  MinerU 仍在处理但日志文件观测通道滞后
  */
 
 import fs from 'fs';
 import path from 'path';
+
+/** 日志文件新鲜度阈值（毫秒），超过此时间视为观测通道滞后。可通过环境变量覆盖。 */
+export const MINERU_LOG_STALE_MS = Number(process.env.MINERU_LOG_STALE_MS) || 120_000;
 
 /**
  * 解析 tqdm 进度行。
@@ -363,6 +367,17 @@ export async function parseLatestMineruProgress(minObservedAt, previousObservati
     if (logTime < minTime) {
       return null;
     }
+  }
+
+  // 日志观测新鲜度裁决：日志文件 mtime 距当前超过阈值 → log-observation-stale
+  const logAge = Date.now() - new Date(bestResult.logFileUpdatedAt).getTime();
+  bestResult.observerCheckedAt = new Date().toISOString();
+  if (logAge > MINERU_LOG_STALE_MS) {
+    bestResult.observationStale = true;
+    bestResult.observationStaleReason = 'container-visible MinerU log file is stale while MinerU API is still processing';
+    bestResult.activityLevel = 'log-observation-stale';
+  } else {
+    bestResult.observationStale = false;
   }
 
   return bestResult;

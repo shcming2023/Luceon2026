@@ -17,9 +17,16 @@
  * 10. 事件日志去重：相同 key 不重复写事件
  * 11. 事件日志去重：phase/current 变化时写事件
  * 12. api-alive-only 在列表中不显示"正在推进"
+ * 13. 日志新鲜：mtime 新鲜 → active-progress（不 stale）
+ * 14. 日志滞后：mtime 超阈值 → log-observation-stale，不 failed
+ * 15. progress-update 事件降噪：相同 message 不重复写事件
+ * 16. progress-update 事件降噪：stage 变化写事件
+ * 17. progress-update 事件降噪：mineruLastStatusAt 单独变不写事件
+ * 18. failed-confirmed 仍写 error 事件
+ * 19. log-observation-stale 在列表显示"日志观测滞后"
  */
 
-import { parseTqdmLine, classifyLogLine, determineActivityLevel, parseLatestMineruProgress } from '../lib/ops-mineru-log-parser.mjs';
+import { parseTqdmLine, classifyLogLine, determineActivityLevel, parseLatestMineruProgress, MINERU_LOG_STALE_MS } from '../lib/ops-mineru-log-parser.mjs';
 import { ParseTaskWorker } from '../services/queue/task-worker.mjs';
 import fs from 'fs';
 import path from 'path';
@@ -392,6 +399,141 @@ async function run() {
     assert(!display.includes('正在推进'), 'api-alive-only must not say 正在推进');
     assert(display.includes('未见业务进展'), 'api-alive-only should say 未见业务进展');
     console.log('Test 12 Pass ✅\n');
+  }
+
+  // ─── Test 13: 日志新鲜：mtime 新鲜 → 不 stale ───
+  console.log('Test 13: 日志 mtime 新鲜 → observationStale=false');
+  {
+    const scratchPath = path.join(process.cwd(), 'uat', 'scratch');
+    const mockLog = path.join(scratchPath, 'mineru-api.log');
+    fs.writeFileSync(mockLog, 'Predict: 52%|█████▊    | 14/27 [02:04<01:52,  8.66s/it]\n');
+    const stats = fs.statSync(mockLog);
+    const pastTime = new Date(stats.mtimeMs - 10000).toISOString();
+    const result = await parseLatestMineruProgress(pastTime);
+    assert(result !== null, 'Should have result');
+    assert(result.observationStale === false, 'Fresh log should NOT be stale');
+    assert(result.activityLevel === 'active-progress', 'Fresh log should be active-progress');
+    assert(result.observerCheckedAt, 'observerCheckedAt should be set');
+    console.log('Test 13 Pass ✅\n');
+  }
+
+  // ─── Test 14: 日志滞后：mtime 超阈值 → log-observation-stale，不 failed ───
+  console.log('Test 14: 日志 mtime 超阈值 → log-observation-stale');
+  {
+    const scratchPath = path.join(process.cwd(), 'uat', 'scratch');
+    const mockLog = path.join(scratchPath, 'mineru-api.log');
+    // 写入日志并将 mtime 设为超过阈值的旧时间
+    fs.writeFileSync(mockLog, 'Predict: 8%|█         | 5/64 [01:00<12:00]\n');
+    const staleTime = Date.now() - MINERU_LOG_STALE_MS - 60000; // 比阈值多老 1 分钟
+    fs.utimesSync(mockLog, new Date(staleTime), new Date(staleTime));
+    const pastTime = new Date(staleTime - 10000).toISOString();
+    const result = await parseLatestMineruProgress(pastTime);
+    assert(result !== null, 'Stale log should still return result (not null)');
+    assert(result.observationStale === true, 'Should be marked observationStale');
+    assert(result.activityLevel === 'log-observation-stale', 'Activity should be log-observation-stale');
+    assert(result.observationStaleReason && result.observationStaleReason.includes('stale'), 'Should have stale reason');
+    // 关键：不得是 failed-confirmed
+    assert(result.activityLevel !== 'failed-confirmed', 'Must NOT be failed-confirmed');
+    // 原始解析结果仍可读
+    assert(result.phase === 'Predict', 'Phase should still be readable');
+    assert(result.current === 5, 'Current should be 5');
+    console.log('Test 14 Pass ✅\n');
+  }
+
+  // ─── Test 15: progress-update 事件降噪 — 相同 message 不重复写事件 ───
+  console.log('Test 15: transition progress-update 降噪：相同 key 不写事件');
+  {
+    const worker = new ParseTaskWorker({ minioContext: {}, eventBus: { emit: () => {} } });
+    let updateCalls = 0;
+    let lastUpdate = null;
+    worker.updateTaskWithRetry = async (_id, update) => { updateCalls++; lastUpdate = update; return true; };
+
+    const update1 = { message: 'MinerU queued', stage: 'mineru-processing' };
+    const task = { id: 't15', state: 'running', metadata: {} };
+
+    // 第 1 次：无 prevKey，应写事件
+    await worker.transition(task, update1, 'progress-update');
+    assert(updateCalls === 2, 'First call: 1 for main update + 1 for progressEventKey update');
+    const key1 = lastUpdate?.metadata?.progressEventKey;
+    assert(key1 && key1.includes('stage=mineru-processing'), 'Key should include stage');
+
+    // 第 2 次：相同 message/stage → key 不变 → 不写事件
+    updateCalls = 0;
+    const task2 = { ...task, metadata: { progressEventKey: key1 } };
+    await worker.transition(task2, update1, 'progress-update');
+    assert(updateCalls === 1, 'Second call: only 1 for main update, no event write');
+    console.log('Test 15 Pass ✅\n');
+  }
+
+  // ─── Test 16: progress-update 事件降噪 — stage 变化写事件 ───
+  console.log('Test 16: transition progress-update：stage 变化写事件');
+  {
+    const worker = new ParseTaskWorker({ minioContext: {}, eventBus: { emit: () => {} } });
+    let updateCalls = 0;
+    let lastUpdate = null;
+    worker.updateTaskWithRetry = async (_id, update) => { updateCalls++; lastUpdate = update; return true; };
+
+    const prevKey = 'state=running|stage=mineru-processing|message=MinerU queued';
+    const task = { id: 't16', state: 'running', metadata: { progressEventKey: prevKey } };
+    // stage 变为 store
+    const update = { message: 'Storing results', stage: 'store' };
+    await worker.transition(task, update, 'progress-update');
+    // 应该写 2 次：main update + progressEventKey update
+    assert(updateCalls === 2, 'Stage change should trigger event (2 updates)');
+    assert(lastUpdate?.metadata?.progressEventKey.includes('stage=store'), 'New key should reflect new stage');
+    console.log('Test 16 Pass ✅\n');
+  }
+
+  // ─── Test 17: mineruLastStatusAt 单独变不写事件 ───
+  console.log('Test 17: mineruLastStatusAt 变化 + 相同 message/stage → 不写事件');
+  {
+    const worker = new ParseTaskWorker({ minioContext: {}, eventBus: { emit: () => {} } });
+    let updateCalls = 0;
+    worker.updateTaskWithRetry = async () => { updateCalls++; return true; };
+
+    const prevKey = 'state=running|stage=mineru-processing|message=MinerU processing';
+    const task = { id: 't17', state: 'running', metadata: { progressEventKey: prevKey } };
+    // 只变 metadata.mineruLastStatusAt，message/stage 不变
+    const update = { message: 'MinerU processing', stage: 'mineru-processing', metadata: { mineruLastStatusAt: new Date().toISOString() } };
+    await worker.transition(task, update, 'progress-update');
+    assert(updateCalls === 1, 'Only 1 update (main), no event write because key unchanged');
+    console.log('Test 17 Pass ✅\n');
+  }
+
+  // ─── Test 18: failed-confirmed 仍写 error 事件 ───
+  console.log('Test 18: failed-confirmed 仍写 error 事件');
+  {
+    const scratchPath = path.join(process.cwd(), 'uat', 'scratch');
+    const mockLog = path.join(scratchPath, 'mineru-api.log');
+    fs.writeFileSync(mockLog, 'ERROR: CUDA out of memory\n');
+    const stats = fs.statSync(mockLog);
+    const pastTime = new Date(stats.mtimeMs - 10000).toISOString();
+
+    const worker = new ParseTaskWorker({ minioContext: {}, eventBus: { emit: () => {} } });
+    let lastMetadata = null;
+    worker.updateTaskWithRetry = async (_id, update) => { lastMetadata = update.metadata; return true; };
+
+    const task = { id: 't18', state: 'running', metadata: { mineruStatus: 'processing', mineruStartedAt: pastTime } };
+    await worker.observeMineruProgress([task]);
+    assert(lastMetadata?.mineruProgressHealth === 'failed-confirmed', 'Should be failed-confirmed');
+    assert(lastMetadata?.mineruProgressEventKey.includes('activity=failed-confirmed'), 'Event key should include failed-confirmed');
+    console.log('Test 18 Pass ✅\n');
+  }
+
+  // ─── Test 19: log-observation-stale 在列表显示"日志观测滞后" ───
+  console.log('Test 19: log-observation-stale 在任务列表展示');
+  {
+    const obs = { activityLevel: 'log-observation-stale', observationStale: true, phase: 'Predict', current: 5, total: 64 };
+    const level = obs.activityLevel;
+    let display = '';
+    if (level === 'log-observation-stale' || obs.observationStale) {
+      const hint = obs.phase ? ` · 最后可见 ${obs.phase} ${obs.current ?? '?'}/${obs.total ?? '?'}` : '';
+      display = `MinerU 正在解析 · 日志观测滞后${hint}`;
+    }
+    assert(display.includes('日志观测滞后'), 'Should say 日志观测滞后');
+    assert(display.includes('最后可见 Predict 5/64'), 'Should show last-known progress');
+    assert(!display.includes('正在推进'), 'Should not say 正在推进');
+    console.log('Test 19 Pass ✅\n');
   }
 
   // ─── Summary ───
