@@ -599,10 +599,11 @@ async function run() {
   console.log('Test 21: A-Sample (pipeline + auto + table=true)');
   {
     const lines = [
-      '2026-04-20 10:00:00 | INFO | document-shape: page_count=27',
-      '2026-04-20 10:00:01 | INFO | Predict Layout:  37%|███       | 10/27',
-      '2026-04-20 10:00:02 | INFO | Predict Table-ocr:  33%|███       | 5/15',
-      '2026-04-20 10:00:03 | INFO | Predict OCR:  74%|███████   | 20/27',
+      '2026-04-20 10:00:00 | INFO | document-shape: page_count=24',
+      '2026-04-20 10:00:01 | INFO | Layout Predict:  41%|████      | 10/24',
+      '2026-04-20 10:00:02 | INFO | Table-ocr rec ch:  33%|███       | 5/15',
+      '2026-04-20 10:00:03 | INFO | OCR-rec Predict:  74%|███████   | 20/24',
+      '2026-04-20 10:00:04 | INFO | Processing pages:  100%|██████████| 24/24',
     ];
     const scratchPath = path.join(process.cwd(), 'uat', 'scratch');
     fs.mkdirSync(scratchPath, { recursive: true });
@@ -613,9 +614,9 @@ async function run() {
     const { parseLatestMineruProgress } = await import('../lib/ops-mineru-log-parser.mjs');
     const latestObservation = await parseLatestMineruProgress(null, null, { backendRequested: 'pipeline', enableTable: true, parseMethod: 'auto' });
     assert(latestObservation.backendProfile === 'pipeline', 'Backend should be pipeline');
-    assert(latestObservation.stage?.rawPhase === 'Predict OCR', 'Last phase should be Predict OCR');
-    assert(latestObservation.stage?.unitType === 'document-pages', 'OCR total=27 should be inferred as document-pages');
-    assert(latestObservation.document?.totalPages === 27, 'Total pages should be extracted from document-shape');
+    assert(latestObservation.stage?.rawPhase === 'Processing pages', 'Last phase should be Processing pages');
+    assert(latestObservation.stage?.unitType === 'document-pages', 'Processing pages total=24 should be inferred as document-pages');
+    assert(latestObservation.document?.totalPages === 24, 'Total pages should be extracted from document-shape');
     console.log('Test 21 Pass ✅\n');
   }
 
@@ -624,8 +625,8 @@ async function run() {
   {
     const lines = [
       '2026-04-20 10:00:00 | INFO | document-shape: page_count=12',
-      '2026-04-20 10:00:01 | INFO | Predict Layout:  41%|████      | 5/12',
-      '2026-04-20 10:00:03 | INFO | Predict OCR:  83%|████████  | 10/12',
+      '2026-04-20 10:00:01 | INFO | Layout Predict:  41%|████      | 5/12',
+      '2026-04-20 10:00:03 | INFO | OCR-det:  83%|████████  | 10/12',
     ];
     const mockLog = path.join(process.cwd(), 'uat', 'scratch', 'mineru-api.log');
     fs.writeFileSync(mockLog, lines.join('\n'));
@@ -634,8 +635,8 @@ async function run() {
     const { parseLatestMineruProgress } = await import('../lib/ops-mineru-log-parser.mjs');
     const latestObservation = await parseLatestMineruProgress(null, null, { backendRequested: 'pipeline', enableTable: false, parseMethod: 'ocr' });
     assert(latestObservation.backendProfile === 'pipeline', 'Backend should be pipeline');
-    assert(latestObservation.stage?.rawPhase === 'Predict OCR', 'Last phase should be Predict OCR');
-    assert(latestObservation.stage?.unitType === 'document-pages', 'OCR total=12 should be inferred as document-pages');
+    assert(latestObservation.stage?.rawPhase === 'OCR-det', 'Last phase should be OCR-det');
+    assert(latestObservation.stage?.unitType === 'ocr-recognition-blocks', 'OCR-det should be inferred as ocr-recognition-blocks');
     console.log('Test 22 Pass ✅\n');
   }
 

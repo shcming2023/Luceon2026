@@ -357,16 +357,16 @@ export async function parseLatestMineruProgress(minObservedAt, previousObservati
           }
         } else {
           // pipeline
-          if (document.totalPages && latestProgress?.total === document.totalPages) {
+          if (normalizedPhase === 'Processing pages' || normalizedPhase === 'Layout' || normalizedPhase.includes('Predict Layout') || normalizedPhase.includes('Layout Predict')) {
               unitType = 'document-pages';
-          } else if (normalizedPhase === 'Processing pages' || normalizedPhase === 'Layout' || normalizedPhase.includes('Predict Layout')) {
-              unitType = 'document-pages';
-          } else if (normalizedPhase.includes('Table-ocr') || normalizedPhase === 'Table' || normalizedPhase.includes('Predict Table-ocr')) {
+          } else if (normalizedPhase.includes('Table')) {
               unitType = 'table-regions';
-          } else if (normalizedPhase.includes('OCR') || normalizedPhase === 'OCR-rec') {
+          } else if (normalizedPhase.includes('OCR')) {
               unitType = 'ocr-recognition-blocks';
           } else if (normalizedPhase === 'Seal') {
               unitType = 'seal-units';
+          } else if (document.totalPages && latestProgress?.total === document.totalPages) {
+              unitType = 'document-pages';
           }
         }
 

@@ -142,6 +142,18 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
     if (!mineruTaskId) throw new Error('MinerU 未返回任务 id');
 
     // P0 Task 1: 拿到 mineruTaskId 后立即更新 metadata
+    const executionProfile = {
+      ...(task.metadata?.mineruExecutionProfile || {}),
+      backendEffective: effectiveBackend,
+      backendRequested: backend,
+      parseMethod: finalParseMethod,
+      enableOcr,
+      enableFormula,
+      enableTable,
+      ocrLanguage,
+      maxPages
+    };
+
     await updateProgress({
       progress: 20,
       message: `任务已提交，内部ID: ${mineruTaskId}`,
@@ -150,6 +162,7 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
         mineruTaskId,
         mineruStatus: 'submitted',
         mineruSubmittedAt: new Date().toISOString(),
+        mineruExecutionProfile: executionProfile
       }
     });
 
@@ -176,6 +189,21 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
           mineruStatus = 'queued';
         }
 
+        // Sidecar log parsing
+        let observation = null;
+        if (mineruStatus === 'processing') {
+          try {
+            const { parseLatestMineruProgress } = await import('../lib/ops-mineru-log-parser.mjs');
+            observation = await parseLatestMineruProgress(
+               startedAt || task.metadata?.mineruStartedAt || new Date().toISOString(),
+               task.metadata?.mineruObservedProgress,
+               executionProfile
+            );
+          } catch (e) {
+            // ignore
+          }
+        }
+
         await updateProgress({
           stage,
           state: 'running',
@@ -187,7 +215,9 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
             mineruStatus,
             mineruQueuedAhead: queuedAhead,
             mineruStartedAt: startedAt,
-            mineruLastStatusAt: new Date().toISOString()
+            mineruLastStatusAt: new Date().toISOString(),
+            mineruExecutionProfile: executionProfile,
+            ...(observation ? { mineruObservedProgress: observation } : {})
           }
         });
       });
@@ -440,6 +470,21 @@ export async function resumeWithLocalMinerU({ task, material, mineruTaskId, time
       mineruStatus = 'queued';
     }
 
+    // Sidecar log parsing
+    let observation = null;
+    if (mineruStatus === 'processing') {
+      try {
+        const { parseLatestMineruProgress } = await import('../lib/ops-mineru-log-parser.mjs');
+        observation = await parseLatestMineruProgress(
+           startedAt || task.metadata?.mineruStartedAt || new Date().toISOString(),
+           task.metadata?.mineruObservedProgress,
+           task.metadata?.mineruExecutionProfile
+        );
+      } catch (e) {
+        // ignore
+      }
+    }
+
     await updateProgress({
       stage,
       state: 'running',
@@ -451,7 +496,8 @@ export async function resumeWithLocalMinerU({ task, material, mineruTaskId, time
         mineruStatus,
         mineruQueuedAhead: queuedAhead,
         mineruStartedAt: startedAt,
-        mineruLastStatusAt: new Date().toISOString()
+        mineruLastStatusAt: new Date().toISOString(),
+        ...(observation ? { mineruObservedProgress: observation } : {})
       }
     });
   });
