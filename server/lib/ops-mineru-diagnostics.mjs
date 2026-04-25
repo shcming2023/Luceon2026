@@ -80,6 +80,7 @@ export function registerMineruDiagnosticsRoutes(app, getDbBaseUrl) {
       result.diagnosis.status = 'error';
       result.diagnosis.message = '无法连接到 db-server 获取 Luceon 任务';
       return res.json(result);
+    }
     // 3. Diagnosis Logic
     if (result.mineru.processingTasks === 0) {
       result.diagnosis.status = 'healthy';
