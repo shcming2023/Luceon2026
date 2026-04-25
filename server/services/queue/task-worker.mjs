@@ -1143,10 +1143,13 @@ export class ParseTaskWorker {
         // key 未变，不写事件日志（但 SSE 和 task update 已完成）
         return;
       }
-      // 更新 progressEventKey（不覆盖其他字段）
+      // 更新 progressEventKey 到 DB
       await this.updateTaskWithRetry(task.id, {
         metadata: { ...(task.metadata || {}), progressEventKey: semanticKey }
       }, { enqueueOnFailure: true });
+      // 同步更新内存对象，避免长轮询中旧 task 对象导致去重失效
+      if (!task.metadata) task.metadata = {};
+      task.metadata.progressEventKey = semanticKey;
     }
 
     // 写事件日志

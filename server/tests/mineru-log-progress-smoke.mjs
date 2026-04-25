@@ -24,6 +24,7 @@
  * 17. progress-update 事件降噪：mineruLastStatusAt 单独变不写事件
  * 18. failed-confirmed 仍写 error 事件
  * 19. log-observation-stale 在列表显示"日志观测滞后"
+ * 20. 连续 10 次相同 progress-update：task update + SSE 可执行，事件日志只写 1 条
  */
 
 import { parseTqdmLine, classifyLogLine, determineActivityLevel, parseLatestMineruProgress, MINERU_LOG_STALE_MS } from '../lib/ops-mineru-log-parser.mjs';
@@ -51,6 +52,19 @@ function assert(condition, message) {
 
 async function run() {
   console.log('=== MinerU Log Structured Activity Signal Smoke Test (v1.1) ===\n');
+
+  // ── 环境隔离：所有测试只读 scratch 日志，不读真实生产日志 ──
+  const scratchPath = path.join(process.cwd(), 'uat', 'scratch');
+  if (!fs.existsSync(scratchPath)) fs.mkdirSync(scratchPath, { recursive: true });
+  const origLogPath = process.env.MINERU_LOG_PATH;
+  const origErrLogPath = process.env.MINERU_ERR_LOG_PATH;
+  const scratchLog = path.join(scratchPath, 'mineru-api.log');
+  const scratchErrLog = path.join(scratchPath, 'mineru-api.err.log');
+  process.env.MINERU_LOG_PATH = scratchLog;
+  process.env.MINERU_ERR_LOG_PATH = scratchErrLog;
+  // 清理旧 scratch 文件，确保干净起点
+  try { fs.unlinkSync(scratchLog); } catch (_) {}
+  try { fs.unlinkSync(scratchErrLog); } catch (_) {}
 
   // ─── Test 1: tqdm 进度行解析 ───
   console.log('Test 1: tqdm 进度行解析');
@@ -535,6 +549,57 @@ async function run() {
     assert(!display.includes('正在推进'), 'Should not say 正在推进');
     console.log('Test 19 Pass ✅\n');
   }
+
+  // ─── Test 20: 连续 10 次相同 progress-update：task update + SSE 可执行，事件日志只写 1 条 ───
+  console.log('Test 20: 连续 10 次相同 progress-update → 事件只写 1 条');
+  {
+    let sseCount = 0;
+    let taskUpdateCount = 0;
+    let eventLogCount = 0;
+    let lastUpdate = null;
+
+    const worker = new ParseTaskWorker({
+      minioContext: {},
+      eventBus: { emit: () => { sseCount++; } }
+    });
+    worker.updateTaskWithRetry = async (_id, update) => {
+      taskUpdateCount++;
+      lastUpdate = update;
+      return true;
+    };
+    // 推断事件写入次数：
+    // key 变化 → 2 次 updateTaskWithRetry (main + key update) + logTaskEvent
+    // key 不变 → 1 次 updateTaskWithRetry (main only)，transition() 提前 return
+
+    const update = { message: 'MinerU processing poll', stage: 'mineru-processing' };
+    const task = { id: 't20', state: 'running', metadata: {} };
+
+    // 第 1 次调用
+    await worker.transition(task, update, 'progress-update');
+    assert(taskUpdateCount === 2, 'Call 1: 2 updates (main + key)');
+    assert(sseCount === 1, 'Call 1: 1 SSE');
+    const firstKey = task.metadata?.progressEventKey;
+    assert(firstKey && firstKey.includes('stage=mineru-processing'), 'Key should be set in memory');
+
+    // 第 2-10 次调用（相同 message/stage）
+    for (let i = 2; i <= 10; i++) {
+      await worker.transition(task, update, 'progress-update');
+    }
+    // 总计：第 1 次 2 + 后续 9 次 * 1 = 11
+    assert(taskUpdateCount === 11, `Total: 11 task updates (got ${taskUpdateCount})`);
+    // SSE 总计 10
+    assert(sseCount === 10, `Total: 10 SSE events (got ${sseCount})`);
+    // key 仍然相同，事件日志只在第 1 次写了
+    // 验证方式：taskUpdateCount 应为 11（不是 20），因为同 key 不触发第二次 key update
+    assert(task.metadata?.progressEventKey === firstKey, 'Key should remain same after 10 identical calls');
+    console.log('Test 20 Pass ✅\n');
+  }
+
+  // ── 环境恢复 ──
+  if (origLogPath !== undefined) process.env.MINERU_LOG_PATH = origLogPath;
+  else delete process.env.MINERU_LOG_PATH;
+  if (origErrLogPath !== undefined) process.env.MINERU_ERR_LOG_PATH = origErrLogPath;
+  else delete process.env.MINERU_ERR_LOG_PATH;
 
   // ─── Summary ───
   console.log(`\n=== Results: ${testsPassed} passed, ${testsFailed} failed ===`);
