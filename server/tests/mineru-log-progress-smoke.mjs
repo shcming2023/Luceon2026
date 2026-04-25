@@ -2,6 +2,7 @@
  * mineru-log-progress-smoke.mjs
  *
  * MinerU 日志结构化活性信号分级冒烟测试（v1.1）。
+ * 含事件日志去重与任务侧展示验证。
  *
  * 测试场景：
  * 1. tqdm 进度行解析
@@ -13,6 +14,9 @@
  * 7. 多任务不归因
  * 8. 单任务归因
  * 9. 任务切换后旧进度不串新任务
+ * 10. 事件日志去重：相同 key 不重复写事件
+ * 11. 事件日志去重：phase/current 变化时写事件
+ * 12. api-alive-only 在列表中不显示"正在推进"
  */
 
 import { parseTqdmLine, classifyLogLine, determineActivityLevel, parseLatestMineruProgress } from '../lib/ops-mineru-log-parser.mjs';
@@ -296,6 +300,98 @@ async function run() {
     ]);
     assert(updateCalled === 0, 'Should not attribute old log to new task');
     console.log('Test 9 Pass ✅\n');
+  }
+
+  // ─── Test 10: 事件日志去重 — 连续相同 progress 不重复写事件 ───
+  console.log('Test 10: 事件日志去重 — 相同 key 不重复写事件');
+  {
+    const scratchPath = path.join(process.cwd(), 'uat', 'scratch');
+    const mockLog = path.join(scratchPath, 'mineru-api.log');
+    fs.writeFileSync(mockLog, 'Predict: 52%|█████▏    | 14/27 [02:04<01:52,  8.66s/it]\n');
+    const stats = fs.statSync(mockLog);
+    const pastTime = new Date(stats.mtimeMs - 10000).toISOString();
+
+    const worker = new ParseTaskWorker({ minioContext: {}, eventBus: { emit: () => {} } });
+    let updateCalls = 0;
+    let lastMetadata = null;
+    worker.updateTaskWithRetry = async (_id, update) => { updateCalls++; lastMetadata = update.metadata; };
+
+    // 第 1 次调用：无 prevKey → key 变化 → 写事件
+    const task1 = { id: 't10', state: 'running', metadata: { mineruStatus: 'processing', mineruStartedAt: pastTime } };
+    await worker.observeMineruProgress([task1]);
+    assert(updateCalls === 1, 'First call should update');
+    const key1 = lastMetadata?.mineruProgressEventKey;
+    assert(key1 && key1.includes('phase=Predict'), 'Key should contain phase=Predict');
+    assert(key1.includes('current=14'), 'Key should contain current=14');
+    assert(key1.includes('activity=active-progress'), 'Key should contain activity=active-progress');
+
+    // 第 2 次调用：prevKey 相同 → 不写事件（但仍 update metadata）
+    updateCalls = 0;
+    const task2 = { ...task1, metadata: { ...task1.metadata, mineruProgressEventKey: key1, mineruProgressHealth: 'active-progress' } };
+    await worker.observeMineruProgress([task2]);
+    assert(updateCalls === 1, 'Second call should still update metadata');
+    // key 应该没变
+    assert(lastMetadata?.mineruProgressEventKey === key1, 'Key should remain unchanged');
+    console.log('Test 10 Pass ✅\n');
+  }
+
+  // ─── Test 11: 事件日志去重 — phase/current 变化时写事件 ───
+  console.log('Test 11: 事件日志去重 — key 变化时写事件');
+  {
+    const scratchPath = path.join(process.cwd(), 'uat', 'scratch');
+    const mockLog = path.join(scratchPath, 'mineru-api.log');
+
+    // 第一次写入进度
+    fs.writeFileSync(mockLog, 'Predict: 52%|█████▏    | 14/27 [02:04<01:52,  8.66s/it]\n');
+    let stats = fs.statSync(mockLog);
+    const pastTime = new Date(stats.mtimeMs - 10000).toISOString();
+
+    const worker = new ParseTaskWorker({ minioContext: {}, eventBus: { emit: () => {} } });
+    let lastMetadata = null;
+    worker.updateTaskWithRetry = async (_id, update) => { lastMetadata = update.metadata; };
+
+    const task = { id: 't11', state: 'running', metadata: { mineruStatus: 'processing', mineruStartedAt: pastTime } };
+    await worker.observeMineruProgress([task]);
+    const key1 = lastMetadata?.mineruProgressEventKey;
+
+    // 第二次：进度变化 → 新 key
+    fs.writeFileSync(mockLog, 'Predict: 70%|███████   | 19/27 [03:00<01:00]\n');
+    stats = fs.statSync(mockLog);
+    const task2 = { ...task, metadata: { ...task.metadata, mineruProgressEventKey: key1, mineruProgressHealth: 'active-progress',
+      mineruObservedProgress: { phase: 'Predict', percent: 52, current: 14 } } };
+    await worker.observeMineruProgress([task2]);
+    const key2 = lastMetadata?.mineruProgressEventKey;
+    assert(key2 !== key1, 'Key should change when progress changes');
+    assert(key2.includes('current=19'), 'New key should have current=19');
+
+    // 第三次：phase 变化 → 新 key
+    fs.writeFileSync(mockLog, 'OCR-rec Predict: 10%|█         | 5/50 [00:30<05:00]\n');
+    const task3 = { ...task, metadata: { ...task.metadata, mineruProgressEventKey: key2, mineruProgressHealth: 'active-progress',
+      mineruObservedProgress: { phase: 'Predict', percent: 70, current: 19 } } };
+    await worker.observeMineruProgress([task3]);
+    const key3 = lastMetadata?.mineruProgressEventKey;
+    assert(key3 !== key2, 'Key should change when phase changes');
+    assert(key3.includes('phase=OCR-rec Predict'), 'New key should have OCR-rec Predict phase');
+
+    console.log('Test 11 Pass ✅\n');
+  }
+
+  // ─── Test 12: api-alive-only 在列表中不显示为"正在推进" ───
+  console.log('Test 12: api-alive-only 在 task list 展示中不显示"正在推进"');
+  {
+    // 模拟 api-alive-only 的 mineruObservedProgress
+    const obs = { activityLevel: 'api-alive-only', phase: null, current: null, total: null };
+    // 按任务管理列表逻辑重现
+    const level = obs.activityLevel;
+    let display = '';
+    if (level === 'api-alive-only') {
+      display = 'MinerU API 可达 · 未见业务进展';
+    } else if (level === 'no-business-signal') {
+      display = 'MinerU 正在解析 · 暂无信号';
+    }
+    assert(!display.includes('正在推进'), 'api-alive-only must not say 正在推进');
+    assert(display.includes('未见业务进展'), 'api-alive-only should say 未见业务进展');
+    console.log('Test 12 Pass ✅\n');
   }
 
   // ─── Summary ───

@@ -120,6 +120,7 @@ export class ParseTaskWorker {
    * 观测 MinerU 日志进度并更新任务元数据。
    * 仅在恰好有 1 个 processing 任务时归因进度（避免串任务）。
    * 使用结构化活性等级（v1.1）替代旧 5/15 分钟时间窗口。
+   * 事件日志使用语义去重 key，只在关键变化时写事件（避免刷屏）。
    *
    * @param {Array} tasks - 当前所有任务列表
    * @returns {Promise<void>}
@@ -127,23 +128,73 @@ export class ParseTaskWorker {
   async observeMineruProgress(tasks) {
     try {
       const processingTasks = tasks.filter(t => t.metadata?.mineruStatus === 'processing' && t.state === 'running');
-      if (processingTasks.length !== 1) return; // Only attribute when exactly 1 processing task exists
+      if (processingTasks.length !== 1) return;
 
       const targetTask = processingTasks[0];
       const minObservedAt = targetTask.metadata?.mineruStartedAt || targetTask.updatedAt || targetTask.createdAt;
       const logProgress = await parseLatestMineruProgress(minObservedAt, targetTask.metadata?.mineruObservedProgress);
       if (!logProgress) return;
 
-      // 活性等级直接来自 log parser 的结构化裁决
       const health = logProgress.activityLevel || 'no-business-signal';
+
+      // 构造语义去重 key
+      const win = logProgress.latestWindow;
+      const eventKey = [
+        win ? `window=${win.windowCurrent}/${win.windowTotal}` : '',
+        logProgress.phase ? `phase=${logProgress.phase}` : '',
+        logProgress.current != null ? `current=${logProgress.current}` : '',
+        `activity=${health}`,
+      ].filter(Boolean).join('|');
+
+      const prevKey = targetTask.metadata?.mineruProgressEventKey || '';
+      const keyChanged = eventKey !== prevKey;
 
       await this.updateTaskWithRetry(targetTask.id, {
         metadata: {
           ...targetTask.metadata,
           mineruObservedProgress: logProgress,
-          mineruProgressHealth: health
+          mineruProgressHealth: health,
+          mineruProgressEventKey: eventKey
         }
       }, { enqueueOnFailure: true });
+
+      // 仅在 key 变化时写事件日志
+      if (keyChanged && eventKey) {
+        // 选择事件类型
+        let eventName = 'mineru-progress-observed';
+        if (health === 'failed-confirmed') {
+          eventName = 'mineru-log-failed-confirmed';
+        } else if (win && (!prevKey || !prevKey.includes(`window=${win.windowCurrent}/${win.windowTotal}`))) {
+          eventName = 'mineru-window-started';
+        } else if (logProgress.phase && (!prevKey || !prevKey.includes(`phase=${logProgress.phase}`))) {
+          eventName = 'mineru-phase-changed';
+        } else if (health !== (targetTask.metadata?.mineruProgressHealth || '')) {
+          eventName = 'mineru-activity-level-changed';
+        }
+
+        // 构造结构化文案
+        const parts = [];
+        if (logProgress.phase) parts.push(`${logProgress.phase} ${logProgress.current ?? '?'}/${logProgress.total ?? '?'}`);
+        if (win) parts.push(`窗口 ${win.windowCurrent}/${win.windowTotal} · 页 ${win.pageStart}-${win.pageEnd}/${win.pageTotal}`);
+        parts.push(health);
+        const message = parts.join(' · ');
+
+        await logTaskEvent({
+          taskId: targetTask.id,
+          taskType: 'parse',
+          level: health === 'failed-confirmed' ? 'error' : 'info',
+          event: eventName,
+          message,
+          payload: {
+            eventKey,
+            activityLevel: health,
+            phase: logProgress.phase || null,
+            current: logProgress.current ?? null,
+            total: logProgress.total ?? null,
+            window: win || null
+          }
+        });
+      }
     } catch (err) {
       console.error(`[task-worker] observeMineruProgress error: ${err.message}`);
     }

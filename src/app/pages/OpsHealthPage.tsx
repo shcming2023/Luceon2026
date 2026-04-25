@@ -291,8 +291,9 @@ export function OpsHealthPage() {
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                       <Activity className="w-4 h-4" />
-                      MinerU 日志观测状态
+                      MinerU 全局日志观测（系统诊断）
                     </h3>
+                    <span className="text-[9px] text-slate-400 font-medium">单任务进度请到任务详情页查看</span>
                     {diagnostics.logObservation ? (() => {
                       const level = diagnostics.logObservation.activityLevel || 'no-business-signal';
                       const levelConfig: Record<string, { bg: string; text: string; label: string }> = {

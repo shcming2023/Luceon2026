@@ -374,11 +374,26 @@ export function TaskManagementPage() {
                           <div className="flex items-center gap-2">
                             <span className={`inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-full ${stateBadgeClass(t.state, t.stage)}`}>
                               {t.stage === 'mineru-queued' ? 'MinerU 排队中' :
-                               t.stage === 'mineru-processing' ? (
-                                 t.metadata?.mineruObservedProgress
-                                   ? `正在解析 · ${(t.metadata.mineruObservedProgress as any).phase} ${(t.metadata.mineruObservedProgress as any).current}/${(t.metadata.mineruObservedProgress as any).total}`
-                                   : 'MinerU 正在解析'
-                               ) :
+                               t.stage === 'mineru-processing' ? (() => {
+                                 const obs = t.metadata?.mineruObservedProgress as any;
+                                 if (!obs) return 'MinerU 正在解析';
+                                 const level = obs.activityLevel || t.metadata?.mineruProgressHealth || '';
+                                 // api-alive-only 不得显示为正在推进
+                                 if (level === 'api-alive-only') return 'MinerU API 可达 · 未见业务进展';
+                                 if (level === 'no-business-signal') return 'MinerU 正在解析 · 暂无信号';
+                                 const parts: string[] = ['正在解析'];
+                                 if (obs.phase && obs.current != null && obs.total != null) {
+                                   parts.push(`${obs.phase} ${obs.current}/${obs.total}`);
+                                 }
+                                 const win = obs.latestWindow;
+                                 if (win) {
+                                   parts.push(`窗口 ${win.windowCurrent}/${win.windowTotal} · 页 ${win.pageStart}-${win.pageEnd}/${win.pageTotal}`);
+                                 }
+                                 if (!obs.phase && level === 'active-business-log') {
+                                   parts.push('检测到 MinerU 业务日志');
+                                 }
+                                 return parts.join(' · ');
+                               })() :
                                zhLabelForState(t.state)}
                             </span>
                             {(() => {
