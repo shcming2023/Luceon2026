@@ -293,11 +293,25 @@ export function OpsHealthPage() {
                       <Activity className="w-4 h-4" />
                       MinerU 日志观测状态
                     </h3>
-                    {diagnostics.logObservation ? (
-                      <div className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
-                        Active
-                      </div>
-                    ) : (
+                    {diagnostics.logObservation ? (() => {
+                      const level = diagnostics.logObservation.activityLevel || 'no-business-signal';
+                      const levelConfig: Record<string, { bg: string; text: string; label: string }> = {
+                        'active-progress':     { bg: 'bg-green-100', text: 'text-green-700', label: 'Active · 进度推进中' },
+                        'active-stage-change': { bg: 'bg-green-100', text: 'text-green-700', label: 'Active · 阶段切换' },
+                        'active-business-log': { bg: 'bg-blue-100',  text: 'text-blue-700',  label: 'Active · 业务日志' },
+                        'api-alive-only':      { bg: 'bg-yellow-100',text: 'text-yellow-700',label: 'API 可达 · 无业务信号' },
+                        'no-business-signal':  { bg: 'bg-slate-200', text: 'text-slate-600',  label: '无业务信号' },
+                        'suspected-stale':     { bg: 'bg-orange-100',text: 'text-orange-700',label: '可能停滞' },
+                        'stale-critical':      { bg: 'bg-red-100',   text: 'text-red-700',   label: '严重停滞' },
+                        'failed-confirmed':    { bg: 'bg-red-100',   text: 'text-red-700',   label: '检测到错误' },
+                      };
+                      const cfg = levelConfig[level] || levelConfig['no-business-signal'];
+                      return (
+                        <div className={`${cfg.bg} ${cfg.text} px-2 py-0.5 rounded text-[10px] font-bold`}>
+                          {cfg.label}
+                        </div>
+                      );
+                    })() : (
                       <div className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
                         No Data
                       </div>
@@ -311,18 +325,38 @@ export function OpsHealthPage() {
                           该进度来自仍在运行的 MinerU 内部任务，但 Luceon 侧任务已 failed。
                         </div>
                       )}
-                      <p className="text-xs text-slate-500 mb-2">最近真实进度</p>
-                      <div className="bg-white rounded-xl p-3 border border-slate-200">
-                        <p className="text-sm font-bold text-slate-800">
-                          {diagnostics.logObservation.phase} {diagnostics.logObservation.current}/{diagnostics.logObservation.total}
-                        </p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-blue-500 rounded-full" style={{ width: `${diagnostics.logObservation.percent}%` }} />
+                      {diagnostics.logObservation.phase && (
+                        <>
+                          <p className="text-xs text-slate-500 mb-2">最近解析进度</p>
+                          <div className="bg-white rounded-xl p-3 border border-slate-200">
+                            <p className="text-sm font-bold text-slate-800">
+                              {diagnostics.logObservation.phase} {diagnostics.logObservation.current}/{diagnostics.logObservation.total}
+                            </p>
+                            <div className="flex items-center gap-2 mt-2">
+                              <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-blue-500 rounded-full" style={{ width: `${diagnostics.logObservation.percent}%` }} />
+                              </div>
+                              <span className="text-xs text-slate-500">{diagnostics.logObservation.percent}%</span>
+                            </div>
                           </div>
-                          <span className="text-xs text-slate-500">{diagnostics.logObservation.percent}%</span>
+                        </>
+                      )}
+                      {diagnostics.logObservation.latestWindow && (
+                        <div className="bg-white rounded-xl p-3 border border-slate-200 mt-2">
+                          <p className="text-xs text-slate-500 mb-1">Hybrid 窗口</p>
+                          <p className="text-sm font-medium text-slate-700">
+                            窗口 {diagnostics.logObservation.latestWindow.windowCurrent}/{diagnostics.logObservation.latestWindow.windowTotal} · 页面 {diagnostics.logObservation.latestWindow.pageStart}-{diagnostics.logObservation.latestWindow.pageEnd}/{diagnostics.logObservation.latestWindow.pageTotal}
+                          </p>
                         </div>
-                      </div>
+                      )}
+                      {diagnostics.logObservation.signalSummary && (
+                        <div className="mt-3 text-[11px] text-slate-500 grid grid-cols-2 gap-x-4 gap-y-1">
+                          <span>业务进度信号: <b className="text-slate-700">{diagnostics.logObservation.signalSummary.progressCount}</b></span>
+                          <span>业务日志信号: <b className="text-slate-700">{diagnostics.logObservation.signalSummary.businessLogCount}</b></span>
+                          <span>API 噪声信号: <b className="text-slate-400">{diagnostics.logObservation.signalSummary.apiNoiseCount}</b></span>
+                          <span>错误信号: <b className={diagnostics.logObservation.signalSummary.errorCount > 0 ? 'text-red-600' : 'text-slate-700'}>{diagnostics.logObservation.signalSummary.errorCount}</b></span>
+                        </div>
+                      )}
                       <p className="text-xs text-slate-500 mt-3">
                         是否可唯一归因：{diagnostics.luceon.mineruProcessingTasks.length === 1 ? '是' : '否 (无法唯一归因)'}
                       </p>

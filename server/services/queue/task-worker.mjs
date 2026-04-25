@@ -116,6 +116,14 @@ export class ParseTaskWorker {
     }
   }
 
+  /**
+   * 观测 MinerU 日志进度并更新任务元数据。
+   * 仅在恰好有 1 个 processing 任务时归因进度（避免串任务）。
+   * 使用结构化活性等级（v1.1）替代旧 5/15 分钟时间窗口。
+   *
+   * @param {Array} tasks - 当前所有任务列表
+   * @returns {Promise<void>}
+   */
   async observeMineruProgress(tasks) {
     try {
       const processingTasks = tasks.filter(t => t.metadata?.mineruStatus === 'processing' && t.state === 'running');
@@ -126,14 +134,8 @@ export class ParseTaskWorker {
       const logProgress = await parseLatestMineruProgress(minObservedAt, targetTask.metadata?.mineruObservedProgress);
       if (!logProgress) return;
 
-      const now = Date.now();
-      const observedTime = new Date(logProgress.observedAt).getTime();
-      let health = 'active';
-      if (now - observedTime > 15 * 60 * 1000) {
-        health = 'stale-critical';
-      } else if (now - observedTime > 5 * 60 * 1000) {
-        health = 'stale-warning';
-      }
+      // 活性等级直接来自 log parser 的结构化裁决
+      const health = logProgress.activityLevel || 'no-business-signal';
 
       await this.updateTaskWithRetry(targetTask.id, {
         metadata: {
