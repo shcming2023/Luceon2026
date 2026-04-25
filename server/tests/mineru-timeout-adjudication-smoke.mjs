@@ -230,13 +230,14 @@ async function runTest() {
     assert(!hasRunning, 'Task should NOT be changed to running');
 
     const evidenceUpdate = taskUpdates.find(u => u.state === 'failed');
-    assert(evidenceUpdate?.message?.includes('MinerU API 明确返回'), 'Failed message should contain MinerU API evidence');
-    assert(evidenceUpdate?.message?.includes('corrupted file'), 'Failed message should contain MinerU error detail');
-    assert(evidenceUpdate?.metadata?.failureEvidenceSource === 'MinerU API', 'Metadata should have failureEvidenceSource');
+    assert(evidenceUpdate?.message?.includes('MinerU 已确认失败'), 'Failed message should contain MinerU confirmed failure');
+    assert(evidenceUpdate?.errorMessage?.includes('corrupted file'), 'Failed errorMessage should contain MinerU error detail');
+    assert(evidenceUpdate?.metadata?.mineruFailureSource === 'mineru-api', 'Metadata should have mineruFailureSource');
 
-    // Material 不应被纠偏为 processing
-    const matProcessing = materialUpdates.some(u => u.status === 'processing');
-    assert(!matProcessing, 'Material should NOT be changed to processing when MinerU confirmed failed');
+    // Material 应被同步失败（aiStatus=pending）
+    const matFailed = materialUpdates.find(u => u.status === 'failed');
+    assert(matFailed !== undefined, 'Material should be synced to failed when MinerU confirmed failed');
+    assert(matFailed?.aiStatus === 'pending', 'Material.aiStatus should be pending (not failed)');
 
     globalThis.fetch = originalFetch;
     console.log('Test 3 Pass ✅\n');
@@ -624,9 +625,9 @@ async function runTest() {
     // 断言：任务仍为 failed
     const failUpdate = taskUpdates.find(u => u.state === 'failed');
     assert(failUpdate !== undefined, '8: Task should remain failed');
-    assert(failUpdate?.message?.includes('MinerU API 明确返回'), '8: message should have MinerU evidence');
-    // errorMessage 未被清空（recoverMisjudgedFailedTasks 的 isFailed 分支不设 errorMessage）
-    assert(failUpdate?.errorMessage === undefined, '8: errorMessage should NOT be set/cleared by confirmed-failed path');
+    assert(failUpdate?.message?.includes('MinerU 已确认失败'), '8: message should have MinerU confirmed failure');
+    // errorMessage 现在由 confirmed-failed 分支设置（包含 MinerU 错误详情）
+    assert(failUpdate?.errorMessage?.includes('MinerU API failed:'), '8: errorMessage should contain MinerU API failure detail');
 
     // Step 2: cleanupStaleErrorMessages 也不应触及 failed 任务
     const cleanupUpdates = [];

@@ -101,6 +101,9 @@ export class ParseTaskWorker {
 
     await this.observeMineruProgress(tasks);
 
+    // P0: 每轮 tick 检查 MinerU API 是否已确认失败（running 任务终态同步）
+    await this.syncMineruApiFailedState(tasks);
+
     // 每轮 tick 顺便检查一次 stale-running 任务（不阻塞 pending 调度）
     await this.recoverStaleRunningTasks(tasks);
 
@@ -233,12 +236,14 @@ export class ParseTaskWorker {
           localEndpoint = localEndpoint.replace(/\/+$/, '');
 
           let mineruStatus = null;
+          let mineruResponseData = null;
           let fetchError = null;
 
           try {
             const tRes = await fetch(`${localEndpoint}/tasks/${mineruTaskId}`, { signal: AbortSignal.timeout(3000) });
             if (tRes.ok) {
               const tData = await tRes.json();
+              mineruResponseData = tData;
               mineruStatus = String(tData.status || tData.state || tData.task_status || tData.data?.status || tData.data?.state).toLowerCase();
             } else if (tRes.status === 404) {
               mineruStatus = 'not_found';
@@ -280,11 +285,50 @@ export class ParseTaskWorker {
                }, { enqueueOnFailure: true });
                this.resumeMineruTask(task, mineruTaskId).catch(err => console.error(`[task-worker] Error resuming task ${task.id}:`, err));
             } else if (isFailed) {
-               await this.transition(task, {
+               const mineruError = mineruResponseData?.error || mineruResponseData?.message || '无详细错误';
+               const errorSummary = String(mineruError).slice(0, 500);
+               await this.updateTaskWithRetry(task.id, {
                  state: 'failed',
-                 message: '重启恢复：检测到 MinerU 执行失败',
-                 metadata: { ...task.metadata, mineruStatus: 'failed' }
-               }, 'worker-failed', 'error');
+                 stage: 'mineru-failed',
+                 progress: 100,
+                 message: 'MinerU 已确认失败',
+                 errorMessage: `MinerU API failed: ${errorSummary}`,
+                 metadata: {
+                   ...task.metadata,
+                   mineruTaskId: mineruTaskId,
+                   mineruStatus: 'failed',
+                   mineruFailedAt: mineruResponseData?.completed_at || new Date().toISOString(),
+                   mineruFailureSource: 'mineru-api',
+                   mineruFailureReason: errorSummary
+                 }
+               }, { enqueueOnFailure: true });
+               // Material 同步失败
+               if (task.materialId) {
+                 await this.updateMaterialWithRetry(task.materialId, {
+                   status: 'failed',
+                   mineruStatus: 'failed',
+                   aiStatus: 'pending',
+                   metadata: {
+                     processingStage: 'mineru-failed',
+                     processingMsg: `MinerU 已确认失败：${errorSummary}`,
+                     mineruFailureSource: 'mineru-api',
+                     mineruFailureReason: errorSummary
+                   }
+                 }, { enqueueOnFailure: true });
+               }
+               // 事件日志
+               await logTaskEvent({
+                 taskId: task.id,
+                 taskType: 'parse',
+                 level: 'error',
+                 event: 'mineru-failed-confirmed',
+                 message: 'MinerU API 已确认失败',
+                 payload: {
+                   mineruTaskId,
+                   mineruStatus: 'failed',
+                   error: errorSummary
+                 }
+               });
             } else if (mineruStatus === 'not_found') {
                await this.transition(task, {
                  state: 'failed',
@@ -348,6 +392,130 @@ export class ParseTaskWorker {
       await this.cleanupStaleErrorMessages(tasks);
     } catch (err) {
       console.error(`[task-worker] runRecoveryScan error: ${err.message}`);
+    }
+  }
+
+  /**
+   * P0: 每轮 tick 检查 running 状态的 MinerU 任务是否已被 MinerU API 确认失败。
+   * 当 MinerU API 返回 failed/error/canceled 时，将 Luceon ParseTask 和 Material 同步到失败终态。
+   *
+   * 仅处理：
+   * - engine=local-mineru
+   * - state=running
+   * - stage=mineru-processing/mineru-queued/result-fetching
+   * - metadata.mineruTaskId 存在
+   *
+   * 不允许：
+   * - 重新提交 MinerU 任务
+   * - 自动重试
+   * - 重启 MinerU
+   *
+   * 事件只记录一次（通过检查 task.stage !== 'mineru-failed' 避免重复）。
+   *
+   * @param {Array} tasks - 当前所有任务列表
+   * @returns {Promise<void>}
+   */
+  async syncMineruApiFailedState(tasks) {
+    const eligibleStages = ['mineru-processing', 'mineru-queued', 'result-fetching'];
+    const candidates = tasks.filter(t =>
+      t.engine === 'local-mineru' &&
+      t.state === 'running' &&
+      eligibleStages.includes(t.stage) &&
+      t.metadata?.mineruTaskId
+    );
+
+    if (candidates.length === 0) return;
+
+    for (const task of candidates) {
+      const mineruTaskId = task.metadata.mineruTaskId;
+      const localEndpointRaw = task.optionsSnapshot?.localEndpoint;
+      if (!localEndpointRaw) continue;
+
+      let localEndpoint = localEndpointRaw;
+      if (localEndpoint.includes('localhost') || localEndpoint.includes('127.0.0.1')) {
+        localEndpoint = localEndpoint.replace(/localhost|127\.0\.0\.1/g, 'host.docker.internal');
+      }
+      localEndpoint = localEndpoint.replace(/\/+$/, '');
+
+      let mineruStatus = null;
+      let mineruData = null;
+
+      try {
+        const tRes = await fetch(`${localEndpoint}/tasks/${mineruTaskId}`, { signal: AbortSignal.timeout(5000) });
+        if (tRes.ok) {
+          mineruData = await tRes.json();
+          mineruStatus = String(mineruData.status || mineruData.state || '').toLowerCase();
+        } else if (tRes.status === 404) {
+          // 404: 不与 confirmed failed 混淆，保留已有策略（交给 recoverStaleRunning 或 recovery scan）
+          continue;
+        } else {
+          // 非 200/404：网络异常，跳过
+          continue;
+        }
+      } catch (e) {
+        // 网络不可达：跳过，不做判定
+        continue;
+      }
+
+      if (!mineruStatus) continue;
+
+      const isFailed = ['failed', 'error', 'failure', 'canceled', 'cancelled'].includes(mineruStatus);
+      if (!isFailed) continue;
+
+      // MinerU 已确认失败：同步 Luceon 终态
+      const mineruError = mineruData?.error || mineruData?.message || '无详细错误';
+      const errorSummary = String(mineruError).slice(0, 500);
+
+      console.log(`[task-worker] syncMineruApiFailedState: Task ${task.id} MinerU ${mineruTaskId} confirmed ${mineruStatus}: ${errorSummary}`);
+
+      // 1. 更新 ParseTask
+      await this.updateTaskWithRetry(task.id, {
+        state: 'failed',
+        stage: 'mineru-failed',
+        progress: 100,
+        message: 'MinerU 已确认失败',
+        errorMessage: `MinerU API failed: ${errorSummary}`,
+        metadata: {
+          ...(task.metadata || {}),
+          mineruTaskId,
+          mineruStatus: 'failed',
+          mineruFailedAt: mineruData?.completed_at || new Date().toISOString(),
+          mineruFailureSource: 'mineru-api',
+          mineruFailureReason: errorSummary
+        }
+      }, { enqueueOnFailure: true });
+
+      // 2. 更新 Material
+      if (task.materialId) {
+        await this.updateMaterialWithRetry(task.materialId, {
+          status: 'failed',
+          mineruStatus: 'failed',
+          aiStatus: 'pending',
+          metadata: {
+            processingStage: 'mineru-failed',
+            processingMsg: `MinerU 已确认失败：${errorSummary}`,
+            mineruFailureSource: 'mineru-api',
+            mineruFailureReason: errorSummary
+          }
+        }, { enqueueOnFailure: true });
+      }
+
+      // 3. 写入事件日志（仅一次，因为下次扫描时 stage 已是 mineru-failed，state 已是 failed）
+      await logTaskEvent({
+        taskId: task.id,
+        taskType: 'parse',
+        level: 'error',
+        event: 'mineru-failed-confirmed',
+        message: 'MinerU API 已确认失败',
+        payload: {
+          mineruTaskId,
+          mineruStatus: 'failed',
+          error: errorSummary
+        }
+      });
+
+      // 释放 processingMap（若被占用）
+      processingMap.delete(task.id);
     }
   }
 
@@ -517,29 +685,49 @@ export class ParseTaskWorker {
         );
 
       } else if (isFailed) {
-        // MinerU 也确认失败：保持 failed 但补充证据
-        const evidenceMsg = `MinerU API 明确返回 ${mineruStatus}: ${mineruData?.error || mineruData?.message || '无详细错误'}`;
-        if (!task.message?.includes('MinerU API 明确返回')) {
+        // MinerU 也确认失败：保持 failed 但补充证据与标准字段
+        const mineruError = mineruData?.error || mineruData?.message || '无详细错误';
+        const errorSummary = String(mineruError).slice(0, 500);
+        if (!task.message?.includes('MinerU 已确认失败') && !task.stage?.includes('mineru-failed')) {
           await this.updateTaskWithRetry(task.id, {
             state: 'failed',
-            message: `[failed 已确认] ${evidenceMsg}`,
+            stage: 'mineru-failed',
+            progress: 100,
+            message: 'MinerU 已确认失败',
+            errorMessage: `MinerU API failed: ${errorSummary}`,
             metadata: {
               ...(task.metadata || {}),
-              mineruStatus,
-              failureEvidenceSource: 'MinerU API',
-              failureConfirmedAt: new Date().toISOString()
+              mineruTaskId,
+              mineruStatus: 'failed',
+              mineruFailedAt: mineruData?.completed_at || new Date().toISOString(),
+              mineruFailureSource: 'mineru-api',
+              mineruFailureReason: errorSummary
             }
           }, { enqueueOnFailure: true });
+          // Material 同步失败
+          if (task.materialId) {
+            await this.updateMaterialWithRetry(task.materialId, {
+              status: 'failed',
+              mineruStatus: 'failed',
+              aiStatus: 'pending',
+              metadata: {
+                processingStage: 'mineru-failed',
+                processingMsg: `MinerU 已确认失败：${errorSummary}`,
+                mineruFailureSource: 'mineru-api',
+                mineruFailureReason: errorSummary
+              }
+            }, { enqueueOnFailure: true });
+          }
           await logTaskEvent({
-            taskId: task.id, taskType: 'parse', level: 'info',
-            event: 'failed-confirmed-by-mineru',
-            message: evidenceMsg,
-            payload: { mineruTaskId, mineruStatus }
+            taskId: task.id, taskType: 'parse', level: 'error',
+            event: 'mineru-failed-confirmed',
+            message: 'MinerU API 已确认失败',
+            payload: { mineruTaskId, mineruStatus: 'failed', error: errorSummary }
           });
         }
 
       } else if (mineruStatus === 'not_found') {
-        // MinerU 404：任务记录已丢失，保持 failed
+        // MinerU 404：任务记录已丢失，保持 failed，不与 confirmed failed 混淆
         if (!task.message?.includes('MinerU 任务记录已丢失')) {
           await this.updateTaskWithRetry(task.id, {
             state: 'failed',
