@@ -50,7 +50,7 @@ export async function readTail(filePath, bytes = 4096) {
   });
 }
 
-export async function parseLatestMineruProgress(minObservedAt) {
+export async function parseLatestMineruProgress(minObservedAt, previousObservation = null) {
   const logPaths = [
     process.env.MINERU_ERR_LOG_PATH || '/Users/concm/ops/logs/mineru-api.err.log',
     process.env.MINERU_LOG_PATH || '/Users/concm/ops/logs/mineru-api.log',
@@ -73,10 +73,18 @@ export async function parseLatestMineruProgress(minObservedAt) {
       // Split by \r or \n since tqdm often uses \r to overwrite lines
       const lines = content.split(/[\r\n]+/);
       let localBest = null;
+      let lastContextTime = null;
       for (const line of lines) {
+        const tsMatch = line.match(/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/);
+        if (tsMatch) {
+            lastContextTime = tsMatch[0];
+        }
         const parsed = parseTqdmLine(line);
         if (parsed) {
           localBest = parsed;
+          if (lastContextTime) {
+              localBest.contextTime = new Date(lastContextTime).toISOString();
+          }
         }
       }
 
@@ -85,7 +93,7 @@ export async function parseLatestMineruProgress(minObservedAt) {
           latestMtime = stats.mtimeMs;
           bestProgress = {
             ...localBest,
-            observedAt: new Date(stats.mtimeMs).toISOString()
+            logFileUpdatedAt: new Date(stats.mtimeMs).toISOString()
           };
         }
       }
@@ -94,8 +102,28 @@ export async function parseLatestMineruProgress(minObservedAt) {
     }
   }
 
-  if (bestProgress && minObservedAt) {
-    const logTime = new Date(bestProgress.observedAt).getTime();
+  if (!bestProgress) return null;
+
+  let lastProgressObservedAt = bestProgress.logFileUpdatedAt;
+  const now = new Date().toISOString();
+
+  if (bestProgress.contextTime) {
+      lastProgressObservedAt = bestProgress.contextTime;
+  } else if (previousObservation) {
+      if (previousObservation.percent === bestProgress.percent && previousObservation.phase === bestProgress.phase) {
+          lastProgressObservedAt = previousObservation.lastProgressObservedAt || previousObservation.observedAt || bestProgress.logFileUpdatedAt;
+      } else {
+          lastProgressObservedAt = now;
+      }
+  } else {
+      lastProgressObservedAt = now;
+  }
+
+  bestProgress.lastProgressObservedAt = lastProgressObservedAt;
+  bestProgress.observedAt = lastProgressObservedAt; // Maintain compatibility
+
+  if (minObservedAt) {
+    const logTime = new Date(bestProgress.logFileUpdatedAt).getTime();
     const minTime = new Date(minObservedAt).getTime();
     if (logTime < minTime) {
       // Log is older than the current task's start time -> it's a stale log from a previous task

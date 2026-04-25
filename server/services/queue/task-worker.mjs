@@ -123,7 +123,7 @@ export class ParseTaskWorker {
 
       const targetTask = processingTasks[0];
       const minObservedAt = targetTask.metadata?.mineruStartedAt || targetTask.updatedAt || targetTask.createdAt;
-      const logProgress = await parseLatestMineruProgress(minObservedAt);
+      const logProgress = await parseLatestMineruProgress(minObservedAt, targetTask.metadata?.mineruObservedProgress);
       if (!logProgress) return;
 
       const now = Date.now();
