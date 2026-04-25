@@ -217,7 +217,8 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
             mineruStartedAt: startedAt,
             mineruLastStatusAt: new Date().toISOString(),
             mineruExecutionProfile: executionProfile,
-            ...(observation ? { mineruObservedProgress: observation } : {})
+            ...(observation ? { mineruObservedProgress: observation } : {}),
+            ...(statusPayload._synthetic_warn ? { _synthetic_warn: statusPayload._synthetic_warn, _synthetic_warn_msg: statusPayload._synthetic_warn_msg } : {})
           }
         });
       });
@@ -678,17 +679,32 @@ function createMultipartStream({ boundary, fields, fileFieldName, fileName, mime
 async function waitMinerUTask(localEndpoint, taskId, timeoutMs, onProgress) {
   const deadline = Date.now() + timeoutMs;
   let lastKnownStatus = 'unknown';
+  let lastPayload = { status: 'processing' };
+
   while (Date.now() < deadline) {
-    const response = await fetch(`${localEndpoint}/tasks/${encodeURIComponent(taskId)}`, { signal: AbortSignal.timeout(10000) });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(`查询状态失败: HTTP ${response.status}`);
-    
-    if (onProgress) await onProgress(payload);
-    
-    const status = String(payload?.status || payload?.state || payload?.task_status || payload?.data?.status || payload?.data?.state).toLowerCase();
-    lastKnownStatus = status;
-    if (['done', 'success', 'completed', 'succeeded', 'finished', 'complete'].includes(status)) return payload;
-    if (['failed', 'error', 'failure', 'canceled', 'cancelled'].includes(status)) throw new Error(payload?.error || payload?.message || '任务执行失败');
+    try {
+      const response = await fetch(`${localEndpoint}/tasks/${encodeURIComponent(taskId)}`, { signal: AbortSignal.timeout(10000) });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(`查询状态失败: HTTP ${response.status}`);
+      
+      lastPayload = payload;
+      const status = String(payload?.status || payload?.state || payload?.task_status || payload?.data?.status || payload?.data?.state).toLowerCase();
+      lastKnownStatus = status;
+
+      if (onProgress) await onProgress(payload);
+      
+      if (['done', 'success', 'completed', 'succeeded', 'finished', 'complete'].includes(status)) return payload;
+      if (['failed', 'error', 'failure', 'canceled', 'cancelled'].includes(status)) throw new Error(payload?.error || payload?.message || '任务执行失败');
+    } catch (err) {
+      if (err.name === 'AbortError' || err.name === 'TimeoutError' || String(err.message).includes('fetch failed')) {
+        // Option A: Catch aborts and continue, using last known payload
+        if (onProgress) {
+          await onProgress({ ...lastPayload, _synthetic_warn: 'mineru-status-query-timeout', _synthetic_warn_msg: err.message });
+        }
+      } else {
+        throw err;
+      }
+    }
     
     await new Promise(r => setTimeout(r, 1500));
   }

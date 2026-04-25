@@ -662,10 +662,35 @@ app.patch('/tasks/:id', (req, res) => {
   const id = req.params.id;
   const existing = dbCache.parseTasks[id];
   if (!existing) { res.status(404).json({ error: 'not found' }); return; }
+  
+  let mergedMetadata = { ...(existing.metadata || {}) };
+  if (req.body?.metadata) {
+    mergedMetadata = { ...mergedMetadata, ...req.body.metadata };
+    // Field-level merge for mineruExecutionProfile to prevent rollback of backendEffective
+    if (existing.metadata?.mineruExecutionProfile && req.body.metadata.mineruExecutionProfile) {
+      const incomingProfile = req.body.metadata.mineruExecutionProfile;
+      const existingProfile = existing.metadata.mineruExecutionProfile;
+      
+      const mergedProfile = { ...existingProfile, ...incomingProfile };
+      // Protect specific keys from being overwritten by null/undefined/empty string
+      const protectedKeys = [
+        'backendEffective', 'backendEffectiveReason', 'backendRequested',
+        'parseMethod', 'enableOcr', 'enableFormula', 'enableTable',
+        'ocrLanguage', 'maxPages'
+      ];
+      for (const key of protectedKeys) {
+        if (incomingProfile[key] === null || incomingProfile[key] === undefined || incomingProfile[key] === '') {
+          mergedProfile[key] = existingProfile[key]; // Restore existing
+        }
+      }
+      mergedMetadata.mineruExecutionProfile = mergedProfile;
+    }
+  }
+
   const merged = {
     ...existing,
     ...req.body,
-    ...(req.body?.metadata ? { metadata: { ...(existing.metadata || {}), ...req.body.metadata } } : {}),
+    metadata: mergedMetadata,
     updatedAt: new Date().toISOString(),
   };
   dbCache.parseTasks[id] = merged;
