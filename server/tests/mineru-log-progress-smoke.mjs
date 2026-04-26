@@ -216,14 +216,14 @@ async function run() {
 
     const stats = fs.statSync(mockLog);
 
-    // 正常读取（未来时间排除测试）
-    const futureTime = new Date(stats.mtimeMs + 10000).toISOString();
+    // 正常读取（未来时间排除测试：minObservedAt 远晚于日志中的时间戳，所有行都应被切片过滤）
+    const futureTime = '2026-04-26T12:00:00.000Z';
     const staleResult = await parseLatestMineruProgress(futureTime);
     assert(staleResult !== null, 'Should return object for old log');
-    assert(staleResult.activityLevel === 'log-observation-unattributed', 'Should reject stale log (future minObservedAt) by returning unattributed');
+    assert(staleResult.activityLevel === 'log-observation-unattributed' || !staleResult.signals?.hasBusinessSignal, 'Should reject stale log (future minObservedAt) by returning unattributed or no business signal');
 
-    // 正常读取
-    const pastTime = new Date(stats.mtimeMs - 10000).toISOString();
+    // 正常读取（minObservedAt 早于日志内容时间戳 2026-04-25 10:00:00 → 业务信号合法）
+    const pastTime = '2026-04-25T01:00:00.000Z';
     const validResult = await parseLatestMineruProgress(pastTime);
     assert(validResult !== null, 'Should accept valid log');
     assert(validResult.phase === 'Predict', 'Phase should be Predict');
@@ -284,8 +284,8 @@ async function run() {
     const scratchPath = path.join(process.cwd(), 'uat', 'scratch');
     const mockLog = path.join(scratchPath, 'mineru-api.log');
     fs.writeFileSync(mockLog, 'Predict: 52%|█████▏    | 14/27 [02:04<01:52,  8.66s/it]\n');
-    const stats = fs.statSync(mockLog);
-    const pastTime = new Date(stats.mtimeMs - 10000).toISOString();
+    // 无 minObservedAt → 不做任务段切片，所有行参与解析
+    const pastTime = null;
 
     const worker = new ParseTaskWorker({ minioContext: {}, eventBus: { emit: () => {} } });
     let updateCalled = 0;
@@ -332,8 +332,8 @@ async function run() {
     const scratchPath = path.join(process.cwd(), 'uat', 'scratch');
     const mockLog = path.join(scratchPath, 'mineru-api.log');
     fs.writeFileSync(mockLog, 'Predict: 52%|█████▏    | 14/27 [02:04<01:52,  8.66s/it]\n');
-    const stats = fs.statSync(mockLog);
-    const pastTime = new Date(stats.mtimeMs - 10000).toISOString();
+    // 无 minObservedAt → 不做任务段切片
+    const pastTime = null;
 
     const worker = new ParseTaskWorker({ minioContext: {}, eventBus: { emit: () => {} } });
     let updateCalls = 0;
@@ -368,7 +368,8 @@ async function run() {
     // 第一次写入进度
     fs.writeFileSync(mockLog, 'Predict: 52%|█████▏    | 14/27 [02:04<01:52,  8.66s/it]\n');
     let stats = fs.statSync(mockLog);
-    const pastTime = new Date(stats.mtimeMs - 10000).toISOString();
+    // 无 minObservedAt → 不做任务段切片
+    const pastTime = null;
 
     const worker = new ParseTaskWorker({ minioContext: {}, eventBus: { emit: () => {} } });
     let lastMetadata = null;
@@ -425,7 +426,8 @@ async function run() {
     const mockLog = path.join(scratchPath, 'mineru-api.log');
     fs.writeFileSync(mockLog, 'Predict: 52%|█████▊    | 14/27 [02:04<01:52,  8.66s/it]\n');
     const stats = fs.statSync(mockLog);
-    const pastTime = new Date(stats.mtimeMs - 10000).toISOString();
+    // 无 minObservedAt → 不做任务段切片
+    const pastTime = null;
     const result = await parseLatestMineruProgress(pastTime);
     assert(result !== null, 'Should have result');
     assert(result.observationStale === false, 'Fresh log should NOT be stale');
@@ -443,8 +445,8 @@ async function run() {
     fs.writeFileSync(mockLog, 'Predict: 8%|█         | 5/64 [01:00<12:00]\n');
     const staleTime = Date.now() - MINERU_LOG_STALE_MS - 60000; // 比阈值多老 1 分钟
     fs.utimesSync(mockLog, new Date(staleTime), new Date(staleTime));
-    const pastTime = new Date(staleTime - 10000).toISOString();
-    const result = await parseLatestMineruProgress(pastTime);
+    // 无 minObservedAt → 不做行级切片，让 mtime 新鲜度裁决生效
+    const result = await parseLatestMineruProgress(null);
     assert(result !== null, 'Stale log should still return result (not null)');
     assert(result.observationStale === true, 'Should be marked observationStale');
     assert(result.activityLevel === 'log-observation-stale', 'Activity should be log-observation-stale');
@@ -524,7 +526,8 @@ async function run() {
     const mockLog = path.join(scratchPath, 'mineru-api.log');
     fs.writeFileSync(mockLog, 'ERROR: CUDA out of memory\n');
     const stats = fs.statSync(mockLog);
-    const pastTime = new Date(stats.mtimeMs - 10000).toISOString();
+    // 无 minObservedAt → 不做行级切片
+    const pastTime = null;
 
     const worker = new ParseTaskWorker({ minioContext: {}, eventBus: { emit: () => {} } });
     let lastMetadata = null;
@@ -684,20 +687,13 @@ async function run() {
     fs.writeFileSync(mockErrLog, errLines.join('\n'));
     fs.writeFileSync(mockOutLog, outLines.join('\n'));
     
-    // Make stdout log newer than stderr log
-    const errMtime = new Date('2026-04-20T10:00:05Z').getTime();
-    const outMtime = new Date('2026-04-20T10:00:15Z').getTime();
-    
-    fs.utimesSync(mockErrLog, new Date(errMtime), new Date(errMtime));
-    fs.utimesSync(mockOutLog, new Date(outMtime), new Date(outMtime));
-    
     process.env.MINERU_ERR_LOG_PATH = mockErrLog;
     process.env.MINERU_LOG_PATH = mockOutLog;
 
     const { parseLatestMineruProgress } = await import('../lib/ops-mineru-log-parser.mjs');
     
-    // Test with minObservedAt earlier than both
-    const minObservedAt = '2026-04-20T09:59:00Z';
+    // Test with minObservedAt earlier than log content timestamps (日志中为 2026-04-20 10:00:xx 本地时间)
+    const minObservedAt = '2026-04-20T01:00:00Z';
     const latestObservation = await parseLatestMineruProgress(minObservedAt, null, { backendRequested: 'pipeline' });
     
     assert(latestObservation.activityLevel !== 'log-observation-unattributed', 'Should not be unattributed when valid business logs exist');
@@ -708,6 +704,124 @@ async function run() {
     
     console.log('Test 24 Pass ✅\n');
   }
+
+  // ─── Test 25: 连续任务日志切片 — 当前任务 Predict 9/24 不被旧 Table-ocr rec ch 336/349 覆盖 ───
+  console.log('Test 25: 连续任务 err.log 切片 — 当前任务 Predict 不被旧 Table-ocr 覆盖');
+  {
+    const mockErrLog = path.join(scratchPath, 'mineru-api.err.log');
+    const mockOutLog = path.join(scratchPath, 'mineru-api.log');
+    
+    // 构造同一个 err.log：先有旧任务 Table-ocr，再有当前任务 Hybrid + Predict
+    const errLines = [
+      // ── 上一任务的日志（旧时间戳） ──
+      '2026-04-26 10:00:00.000 | INFO | Hybrid processing-window run. page_count=16',
+      '2026-04-26 10:00:01.000 | INFO | Hybrid processing window 1/1: pages 1-16/16',
+      'Predict:   0%|          | 0/16 [00:00<?, ?it/s]',
+      'Predict: 100%|██████████| 16/16 [01:20<00:00, 5.00s/it]',
+      '2026-04-26 10:01:30.000 | INFO | table-ocr started',
+      'Table-ocr rec ch:  96%|█████████▋| 336/349 [00:45<00:02, 7.47it/s]',
+      '',
+      // ── 当前任务的日志（新时间戳） ──
+      '2026-04-26 11:33:33.096 | INFO | Hybrid processing-window run. page_count=24',
+      '2026-04-26 11:33:34.714 | INFO | Hybrid processing window 1/1: pages 1-24/24',
+      '',
+      'Predict:   0%|          | 0/24 [00:00<?, ?it/s]',
+      'Predict:   4%|▍         | 1/24 [00:08<03:04, 8.00s/it]',
+      'Predict:  38%|███▊      | 9/24 [01:12<02:00, 8.00s/it]'
+    ];
+    
+    fs.writeFileSync(mockErrLog, errLines.join('\n'));
+    // stdout 只有 API noise
+    fs.writeFileSync(mockOutLog, 'GET /health 200\n');
+    
+    process.env.MINERU_ERR_LOG_PATH = mockErrLog;
+    process.env.MINERU_LOG_PATH = mockOutLog;
+    
+    // minObservedAt 设为当前任务开始后（旧任务的 Table-ocr 必须被排除）
+    // 日志时间戳为本地时间（UTC+8），JS 解析后为 UTC
+    // 旧任务最后时间戳 2026-04-26 10:01:30 → UTC 02:01:30Z
+    // 当前任务时间戳 2026-04-26 11:33:33 → UTC 03:33:33Z
+    // minObservedAt 设在两者之间
+    const minObservedAt = new Date('2026-04-26 11:00:00').toISOString();
+    
+    const result = await parseLatestMineruProgress(minObservedAt, null, { backendRequested: 'hybrid-auto-engine' });
+    
+    assert(result !== null, 'Should return result');
+    assert(result.phase === 'Predict', `Phase should be Predict, got: ${result.phase}`);
+    assert(result.current === 9, `Current should be 9, got: ${result.current}`);
+    assert(result.total === 24, `Total should be 24, got: ${result.total}`);
+    assert(result.activityLevel === 'active-progress', `ActivityLevel should be active-progress, got: ${result.activityLevel}`);
+    
+    // 关键：不得返回 Table-ocr rec ch
+    assert(result.phase !== 'Table-ocr rec ch', 'Must NOT return old Table-ocr rec ch phase');
+    assert(result.rawLine === null || !result.rawLine.includes('336/349'), 'Must NOT contain old 336/349 progress');
+    
+    // stage 必须反映当前任务的 Predict 相位
+    assert(result.stage !== null, 'Stage should be present');
+    assert(result.stage.rawPhase === 'Predict', `Stage rawPhase should be Predict, got: ${result.stage?.rawPhase}`);
+    assert(result.stage.current === 9, `Stage current should be 9, got: ${result.stage?.current}`);
+    assert(result.stage.total === 24, `Stage total should be 24, got: ${result.stage?.total}`);
+    
+    // window 应反映当前任务的 Hybrid window (pages 1-24/24)
+    assert(result.window !== null, 'Window should be present');
+    assert(result.window.pageTotal === 24, `Window pageTotal should be 24, got: ${result.window?.pageTotal}`);
+    
+    // businessSignals 不应包含旧任务信号
+    const hasOldTableOcr = result.businessSignals?.some(s => 
+      s.raw?.includes('336/349') || s.raw?.includes('Table-ocr')
+    );
+    assert(!hasOldTableOcr, 'businessSignals must NOT contain old Table-ocr signals');
+    
+    console.log('Test 25 Pass ✅\n');
+  }
+
+  // ─── Test 26: 旧上下文无时间戳 tqdm 丢弃 — 不把旧 tqdm 当当前任务进度 ───
+  console.log('Test 26: 旧上下文 tqdm 丢弃 — 旧时间戳 + 无时间戳 tqdm 不串到新任务');
+  {
+    const mockErrLog = path.join(scratchPath, 'mineru-api.err.log');
+    const mockOutLog = path.join(scratchPath, 'mineru-api.log');
+    
+    // 构造：只有旧时间戳 + 无时间戳 tqdm，且 minObservedAt 晚于旧时间戳
+    const errLines = [
+      '2026-04-26 08:00:00.000 | INFO | Hybrid processing-window run. page_count=16',
+      '2026-04-26 08:00:01.000 | INFO | Hybrid processing window 1/1: pages 1-16/16',
+      'Predict:  50%|█████     | 8/16 [01:00<01:00, 8.00s/it]',
+      'Table-ocr rec ch:  96%|█████████▋| 336/349 [00:45<00:02, 7.47it/s]'
+    ];
+    
+    fs.writeFileSync(mockErrLog, errLines.join('\n'));
+    fs.writeFileSync(mockOutLog, '');
+    
+    process.env.MINERU_ERR_LOG_PATH = mockErrLog;
+    process.env.MINERU_LOG_PATH = mockOutLog;
+    
+    // minObservedAt 设为远晚于旧时间戳
+    const minObservedAt = '2026-04-26T10:00:00.000Z';
+    
+    const result = await parseLatestMineruProgress(minObservedAt, null, null);
+    
+    assert(result !== null, 'Should return result (not null)');
+    
+    // 不得把旧 tqdm 当当前任务进度
+    // 行级切片后所有业务信号都应被过滤掉
+    const isUnattributed = (
+      result.activityLevel === 'log-observation-unattributed' ||
+      result.activityLevel === 'log-observation-no-business-signal' ||
+      result.activityLevel === 'api-alive-only' ||
+      result.activityLevel === 'log-observation-stale' ||
+      // 日志文件存在但无当前任务业务信号
+      !result.signals?.hasBusinessSignal
+    );
+    assert(isUnattributed, `Should not have valid business signal for current task, got activityLevel: ${result.activityLevel}`);
+    
+    // 关键：phase 不应是旧任务的 Predict 或 Table-ocr
+    if (result.phase) {
+      assert(false, `Phase should be null (no current task signals), but got: ${result.phase}`);
+    }
+    
+    console.log('Test 26 Pass ✅\n');
+  }
+
 
   // ── 环境恢复 ──
   if (origLogPath !== undefined) process.env.MINERU_LOG_PATH = origLogPath;

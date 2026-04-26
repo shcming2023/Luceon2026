@@ -288,12 +288,39 @@ export async function parseLatestMineruProgress(minObservedAt, previousObservati
       let previousPhase = previousObservation?.phase || null;
       const businessSignals = [];
 
+      // ── 任务段切片：按 minObservedAt 丢弃旧任务日志行 ──
+      // 核心逻辑：
+      // 1. 带时间戳的行 → 更新 lastContextTime；若早于 minObservedAt → 跳过
+      // 2. 无时间戳的 tqdm 行 → 继承 lastContextTime；若 lastContextTime 早于 minObservedAt 或无上下文 → 跳过
+      // 3. mtime 只用于日志源可达性/新鲜度判定，不用于业务信号归因
+      const minObservedMs = minObservedAt ? new Date(minObservedAt).getTime() : 0;
+
       for (const line of lines) {
         const classified = classifyLogLine(line);
         if (!classified) continue;
 
+        // 更新时间戳上下文（无论是否被过滤，都要维护 lastContextTime）
         if (classified.timestamp) {
           lastContextTime = classified.timestamp;
+        }
+
+        // ── 任务段切片过滤 ──
+        // 计算当前行的有效时间戳：自身时间戳 > 继承最近上下文时间戳 > null
+        const effectiveTime = classified.timestamp || lastContextTime;
+
+        if (minObservedMs > 0) {
+          if (effectiveTime) {
+            // 有效时间戳早于当前任务开始时间 → 属于旧任务，丢弃
+            const effectiveMs = new Date(effectiveTime).getTime();
+            if (effectiveMs < minObservedMs) {
+              continue;
+            }
+          } else {
+            // 无任何时间戳上下文（文件开头的裸 tqdm 行）→ 无法归因，丢弃
+            if (classified.signalType !== 'api-noise') {
+              continue;
+            }
+          }
         }
 
         switch (classified.signalType) {
@@ -305,8 +332,11 @@ export async function parseLatestMineruProgress(minObservedAt, previousObservati
             }
             previousPhase = classified.detail.phase;
             latestProgress = classified.detail;
+            // 设置 contextTime：优先使用自身时间戳，其次继承上下文
             if (classified.timestamp) {
               latestProgress.contextTime = new Date(classified.timestamp).toISOString();
+            } else if (lastContextTime) {
+              latestProgress.contextTime = new Date(lastContextTime).toISOString();
             }
             lastBusinessSignalTime = classified.timestamp || lastContextTime;
             break;
@@ -472,8 +502,9 @@ export async function parseLatestMineruProgress(minObservedAt, previousObservati
       const mtimeMs = new Date(res.logFileUpdatedAt).getTime();
       c.businessMs = businessMs;
       c.mtimeMs = mtimeMs;
-      // 一个日志文件只要有业务信号且 mtime 没有比 minObservedAt 早，就被视为有合法业务信号
-      c.hasValidBusiness = res.signals.hasBusinessSignal && mtimeMs >= minObservedMs;
+      // 一个日志文件在行级切片后仍有业务信号 → 合法业务信号
+      // 注意：mtime 仅用于日志源可达性/新鲜度，不用于业务信号归因
+      c.hasValidBusiness = res.signals.hasBusinessSignal;
     }
     
     candidates.sort((a, b) => {
