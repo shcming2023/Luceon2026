@@ -604,6 +604,15 @@ export async function parseLatestMineruProgress(minObservedAt, previousObservati
     bestResult.observationStale = true;
     bestResult.observationStaleReason = 'container-visible MinerU log file is stale while MinerU API is still processing';
     bestResult.activityLevel = 'log-observation-stale';
+    // Patch 16.2.6: 挂载一致性诊断信息，帮助运维判断是 Docker bind mount 延迟还是真实停滞
+    bestResult.mountDiagnostic = {
+      logAgeMs: logAge,
+      logStaleThresholdMs: MINERU_LOG_STALE_MS,
+      containerPath: bestResult.logSource?.logSourcePath || null,
+      containerMtime: bestResult.logFileUpdatedAt,
+      containerSize: bestResult.logSource?.logSourceSize || null,
+      suggestion: 'Check host file with: ls -li /Users/concm/ops/logs/mineru-api.err.log && docker exec cms-upload-server ls -li /host/mineru-logs/mineru-api.err.log — if inode/size/mtime differ, the bind mount is not consistent. Ensure docker-compose uses :consistent flag and start-mineru-api.sh touches files before exec.'
+    };
   } else {
     bestResult.observationStale = false;
   }

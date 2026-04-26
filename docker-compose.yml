@@ -106,7 +106,9 @@ services:
       - MINERU_ERR_LOG_PATH=/host/mineru-logs/mineru-api.err.log
       - MINERU_LOG_PATH=/host/mineru-logs/mineru-api.log
     volumes:
-      - /Users/concm/ops/logs:/host/mineru-logs:ro
+      # ⚠️ Patch 16.2.6: :consistent 确保 macOS Docker Desktop 上宿主机日志追加即时可见
+      # 不使用默认的 cached/delegated，否则容器内日志文件 mtime/size 会滞后数分钟
+      - /Users/concm/ops/logs:/host/mineru-logs:ro,consistent
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8788/health"]
       interval: 30s
