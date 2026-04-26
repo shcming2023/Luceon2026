@@ -60,3 +60,6 @@ Thumbs.db
 
 # proxy-server 仅供局域网直连运行，不打包进 Docker 镜像
 server/proxy-server.mjs
+
+# Build output
+output/

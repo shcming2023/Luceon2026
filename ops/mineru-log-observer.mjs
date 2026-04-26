@@ -1,4 +1,3 @@
-import fetch from 'node-fetch';
 import { parseLatestMineruProgress } from '../server/lib/ops-mineru-log-parser.mjs';
 
 const UPLOAD_SERVER_URL = process.env.UPLOAD_SERVER_URL || 'http://localhost:8788';
