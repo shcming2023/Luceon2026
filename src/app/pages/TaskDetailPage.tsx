@@ -800,6 +800,12 @@ export function TaskDetailPage() {
                         当前日志语义
                       </h3>
                       <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 space-y-2">
+                        <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                          <span className="text-xs text-slate-500">观测来源</span>
+                          <span className="text-sm font-medium text-slate-800">
+                            {obs.observer === 'host-mineru-log-observer' ? '宿主机 Sidecar' : '容器本地读取'}
+                          </span>
+                        </div>
                         {obs.backendProfile && (
                           <div className="flex justify-between items-center">
                             <span className="text-xs text-slate-500">backendProfile</span>

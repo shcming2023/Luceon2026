@@ -415,6 +415,9 @@ export function TaskManagementPage() {
                                    } else if (obs.document && obs.document.totalPages) {
                                       parts.push(`文档 ${obs.document.totalPages}页`);
                                    }
+                                   if (obs.observer === 'host-mineru-log-observer') {
+                                      parts.push('(Sidecar)');
+                                   }
                                    return parts.join(' · ');
                                  }
 
@@ -428,6 +431,9 @@ export function TaskManagementPage() {
                                  }
                                  if (!obs.phase && level === 'active-business-log') {
                                    parts.push('检测到 MinerU 业务日志');
+                                 }
+                                 if (obs.observer === 'host-mineru-log-observer') {
+                                   parts.push('(Sidecar)');
                                  }
                                  return parts.join(' · ');
                                })() :

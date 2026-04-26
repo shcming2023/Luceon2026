@@ -47,6 +47,7 @@ import { taskEventBus } from './lib/task-events-bus.mjs';
 import { registerMineruDiagnosticsRoutes } from './lib/ops-mineru-diagnostics.mjs';
 import { ParseTaskWorker } from './services/queue/task-worker.mjs';
 import { AiMetadataWorker } from './services/ai/metadata-worker.mjs';
+import { logTaskEvent } from './services/logging/task-events.mjs';
 
 const app = express();
 const port = Number(process.env.UPLOAD_PORT || 8788);
@@ -556,6 +557,140 @@ app.get('/ops/health', async (req, res) => {
 });
 
 registerMineruDiagnosticsRoutes(app, () => process.env.DB_BASE_URL || 'http://localhost:8789');
+
+app.get('/ops/mineru/active-task', async (req, res) => {
+  const dbBaseUrl = process.env.DB_BASE_URL || 'http://localhost:8789';
+  try {
+    const tRes = await fetch(`${dbBaseUrl}/tasks`);
+    if (!tRes.ok) return res.status(500).json({ error: 'db error' });
+    const tasks = await tRes.json();
+    const eligibleTasks = tasks.filter(t =>
+      t.engine === 'local-mineru' &&
+      t.state === 'running' &&
+      ['mineru-processing', 'mineru-queued', 'result-fetching'].includes(t.stage)
+    );
+    if (eligibleTasks.length === 1) {
+      return res.json({ activeTask: eligibleTasks[0] });
+    }
+    return res.json({ activeTask: null });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+let globalLogObservation = null;
+
+app.get('/ops/mineru/global-observation', (req, res) => {
+  res.json({ observation: globalLogObservation });
+});
+
+app.post('/ops/mineru-log-observation', async (req, res) => {
+  const snapshot = req.body;
+  if (!snapshot || snapshot.observer !== 'host-mineru-log-observer') {
+    return res.status(400).json({ error: 'invalid snapshot' });
+  }
+
+  const dbBaseUrl = process.env.DB_BASE_URL || 'http://localhost:8789';
+  let tasks = [];
+  try {
+    const tRes = await fetch(`${dbBaseUrl}/tasks`);
+    if (tRes.ok) tasks = await tRes.json();
+  } catch (e) {
+    return res.status(500).json({ error: 'db unreachable' });
+  }
+
+  const eligibleTasks = tasks.filter(t =>
+    t.engine === 'local-mineru' &&
+    t.state === 'running' &&
+    ['mineru-processing', 'mineru-queued', 'result-fetching'].includes(t.stage)
+  );
+
+  if (eligibleTasks.length !== 1) {
+    globalLogObservation = { ...snapshot, attribution: 'unattributed', unattributedReason: 'not exactly 1 active task' };
+    return res.json({ ok: true, attributed: false, reason: 'not exactly 1 active task' });
+  }
+
+  const task = eligibleTasks[0];
+  const startTimeMs = new Date(task.metadata?.mineruStartedAt || task.createdAt || 0).getTime();
+  const obsTimeMs = new Date(snapshot.contextTime || snapshot.observedAt || snapshot.logFileUpdatedAt || 0).getTime();
+
+  if (obsTimeMs > 0 && obsTimeMs < startTimeMs) {
+    globalLogObservation = { ...snapshot, attribution: 'stale', unattributedReason: 'old context time' };
+    return res.json({ ok: true, attributed: false, reason: 'old context time' });
+  }
+
+  if (snapshot.activityLevel === 'api-alive-only') {
+    globalLogObservation = { ...snapshot, attribution: 'api-noise', unattributedReason: 'api noise only' };
+    return res.json({ ok: true, attributed: false, reason: 'api noise' });
+  }
+
+  globalLogObservation = { ...snapshot, attribution: task.id };
+
+  // 写入 ParseTask metadata 并实现事件降噪
+  const obs = snapshot;
+  const logStatus = obs.logSource?.logSourceSelectedReason || (obs.logSource?.logSourceExists ? 'exists' : 'missing');
+  const activityLevel = obs.activityLevel || '';
+  const phase = obs.phase || '';
+  const windowIdx = obs.window?.index || '';
+  const pageStart = obs.window?.pageStart || '';
+  const unitType = obs.stage?.unitType || '';
+
+  const semanticKey = [
+    `state=${task.state}`,
+    `stage=${task.stage}`,
+    `message=${task.message}`,
+    `logStatus=${logStatus}`,
+    `activity=${activityLevel}`,
+    `phase=${phase}`,
+    `window=${windowIdx}`,
+    `page=${pageStart}`,
+    `unitType=${unitType}`
+  ].join('|');
+
+  const prevKey = task.metadata?.progressEventKey || '';
+
+  const patch = {
+    metadata: {
+      ...(task.metadata || {}),
+      mineruObservedProgress: snapshot
+    }
+  };
+
+  if (semanticKey !== prevKey) {
+    patch.metadata.progressEventKey = semanticKey;
+  }
+
+  try {
+    const updateRes = await fetch(`${dbBaseUrl}/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch)
+    });
+
+    if (updateRes.ok && semanticKey !== prevKey) {
+      // 写入事件日志
+      await logTaskEvent({
+        taskId: task.id,
+        taskType: 'parse',
+        level: 'info',
+        event: 'progress-update',
+        message: task.message,
+        payload: patch
+      });
+      // 触发 SSE
+      taskEventBus.emit('task-update', {
+        taskId: task.id,
+        event: 'progress-update',
+        level: 'info',
+        update: patch,
+        at: new Date().toISOString()
+      });
+    }
+    return res.json({ ok: true, attributed: true, taskId: task.id });
+  } catch (e) {
+    return res.status(500).json({ error: 'failed to update task' });
+  }
+});
 
 function toDownloadUrl(url) {
   if (!url) return '';
@@ -3706,6 +3841,126 @@ app.post('/delete-material', async (req, res) => {
     }
   }
   res.json({ ok: true, results, errors });
+});
+
+app.get('/ops/mineru-active-task', async (req, res) => {
+  try {
+    const tasksResp = await fetch(`${DB_BASE_URL}/tasks`);
+    if (!tasksResp.ok) throw new Error('获取任务列表失败');
+    const tasks = await tasksResp.json();
+    const processingTasks = tasks.filter(t => t.metadata?.mineruStatus === 'processing' && t.state === 'running');
+    if (processingTasks.length !== 1) {
+      return res.json({ active: false });
+    }
+    const t = processingTasks[0];
+    res.json({
+      active: true,
+      taskId: t.id,
+      minObservedAt: t.metadata?.mineruStartedAt || t.updatedAt || t.createdAt,
+      executionProfile: t.metadata?.mineruExecutionProfile || null
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/ops/mineru-log-observation', async (req, res) => {
+  const snapshot = req.body;
+  if (!snapshot || snapshot.source !== 'host-sidecar') {
+    return res.status(400).json({ error: '无效的快照数据' });
+  }
+
+  try {
+    const tasksResp = await fetch(`${DB_BASE_URL}/tasks`);
+    if (!tasksResp.ok) throw new Error('获取任务列表失败');
+    const tasks = await tasksResp.json();
+    
+    const processingTasks = tasks.filter(t => t.metadata?.mineruStatus === 'processing' && t.state === 'running');
+    if (processingTasks.length !== 1) {
+       return res.status(409).json({ error: '当前无唯一的活跃任务' });
+    }
+    
+    const targetTask = processingTasks[0];
+    
+    const minObservedAt = targetTask.metadata?.mineruStartedAt || targetTask.updatedAt || targetTask.createdAt;
+    const minObservedMs = minObservedAt ? new Date(minObservedAt).getTime() : 0;
+    
+    const snapMs = snapshot.contextTime ? new Date(snapshot.contextTime).getTime() : new Date(snapshot.logFileUpdatedAt).getTime();
+    if (snapMs < minObservedMs) {
+       return res.status(409).json({ error: '日志早于当前任务启动时间，拒绝归因' });
+    }
+    
+    const health = snapshot.activityLevel || 'no-business-signal';
+    const win = snapshot.latestWindow;
+    const eventKey = [
+      win ? `window=${win.windowCurrent}/${win.windowTotal}` : '',
+      snapshot.phase ? `phase=${snapshot.phase}` : '',
+      snapshot.current != null ? `current=${snapshot.current}` : '',
+      `activity=${health}`,
+    ].filter(Boolean).join('|');
+
+    const prevKey = targetTask.metadata?.mineruProgressEventKey || '';
+    const keyChanged = eventKey !== prevKey;
+
+    const updateRes = await fetch(`${DB_BASE_URL}/tasks/${encodeURIComponent(targetTask.id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        metadata: {
+          ...targetTask.metadata,
+          mineruObservedProgress: snapshot,
+          mineruProgressHealth: health,
+          mineruProgressEventKey: eventKey,
+          mineruObservationSource: 'host-sidecar'
+        }
+      })
+    });
+    
+    if (!updateRes.ok) throw new Error('更新任务进度失败');
+
+    if (keyChanged && eventKey) {
+      let eventName = 'mineru-progress-observed';
+      if (health === 'failed-confirmed') {
+        eventName = 'mineru-log-failed-confirmed';
+      } else if (health === 'log-observation-stale') {
+        eventName = 'mineru-activity-level-changed';
+      } else if (win && (!prevKey || !prevKey.includes(`window=${win.windowCurrent}/${win.windowTotal}`))) {
+        eventName = 'mineru-window-started';
+      } else if (snapshot.phase && (!prevKey || !prevKey.includes(`phase=${snapshot.phase}`))) {
+        eventName = 'mineru-phase-changed';
+      } else if (health !== (targetTask.metadata?.mineruProgressHealth || '')) {
+        eventName = 'mineru-activity-level-changed';
+      }
+
+      const parts = [];
+      if (snapshot.phase) parts.push(`${snapshot.phase} ${snapshot.current ?? '?'}/${snapshot.total ?? '?'}`);
+      if (win) parts.push(`窗口 ${win.windowCurrent}/${win.windowTotal} · 页 ${win.pageStart}-${win.pageEnd}/${win.pageTotal}`);
+      parts.push(health);
+      if (snapshot.observationStale) parts.push('日志观测通道滞后');
+      const message = parts.join(' · ');
+
+      await logTaskEvent({
+        taskId: targetTask.id,
+        taskType: 'parse',
+        level: health === 'failed-confirmed' ? 'error' : (health === 'log-observation-stale' ? 'warn' : 'info'),
+        event: eventName,
+        message,
+        payload: {
+          eventKey,
+          activityLevel: health,
+          phase: snapshot.phase || null,
+          current: snapshot.current ?? null,
+          total: snapshot.total ?? null,
+          window: win || null,
+          observationStale: snapshot.observationStale || false
+        }
+      });
+    }
+
+    res.json({ ok: true, taskId: targetTask.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.use((err, req, res, _next) => {
