@@ -27,6 +27,11 @@ else
     echo "Warning: conda not found in PATH, attempting to proceed anyway"
 fi
 
-# 启动 MinerU API，将输出重定向到日志文件
-# stdbuf -oL 开启行缓冲，确保日志能被侧车即时观测
-exec stdbuf -oL mineru-api --host 0.0.0.0 --port 8083 >> "$LOG_FILE" 2>> "$ERR_FILE"
+# 启动 MinerU API，将输出重定向到日志文件。
+# GNU/Linux 优先使用 stdbuf 开启行缓冲；macOS 默认没有 stdbuf，
+# 此时通过 PYTHONUNBUFFERED=1 保证 Python 输出尽快刷入日志。
+if command -v stdbuf >/dev/null 2>&1; then
+    exec stdbuf -oL mineru-api --host 0.0.0.0 --port 8083 >> "$LOG_FILE" 2>> "$ERR_FILE"
+else
+    exec env PYTHONUNBUFFERED=1 mineru-api --host 0.0.0.0 --port 8083 >> "$LOG_FILE" 2>> "$ERR_FILE"
+fi
