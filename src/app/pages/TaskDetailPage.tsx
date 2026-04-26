@@ -808,54 +808,99 @@ export function TaskDetailPage() {
                             </span>
                           </div>
                         )}
-                        {/* 当前阶段 & 进度 */}
-                        {obs.stage ? (
-                          <>
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs text-slate-500">当前阶段</span>
-                              <span className="text-sm font-medium text-slate-800">
-                                {obs.stage.rawPhase || '—'}
-                                {obs.stage.unitType === 'model-units' && ' (模型单元)'}
-                                {obs.stage.unitType === 'ocr-recognition-blocks' && ' (OCR识别块)'}
-                                {obs.stage.unitType === 'table-regions' && ' (表格识别)'}
-                              </span>
+                        {obs.activityLevel && obs.activityLevel.startsWith('log-observation-') ? (
+                          <div className="space-y-2 p-2 bg-amber-50/50 rounded border border-amber-100">
+                            <div className="flex items-start gap-2">
+                              <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                              <div>
+                                <p className="text-sm font-medium text-amber-800">
+                                  MinerU 仍在处理，但日志观测通道滞后/不可用
+                                </p>
+                                <p className="text-xs text-amber-700 mt-0.5">
+                                  {obs.observationStaleReason || '未知原因'}
+                                </p>
+                              </div>
                             </div>
-                            {(obs.stage.current != null) && (
-                              <div className="flex justify-between items-center">
-                                <span className="text-xs text-slate-500">阶段进度</span>
-                                <span className="text-sm font-medium text-slate-800">
-                                  {obs.stage.current}/{obs.stage.total ?? '?'}
-                                  {obs.stage.percent != null && ` （${obs.stage.percent}%）`}
-                                </span>
-                              </div>
-                            )}
-                            {/* 百分比进度条 */}
-                            {obs.stage.percent != null && (
-                              <div className="flex items-center gap-2">
-                                <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                                  <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${obs.stage.percent}%` }} />
+                            
+                            {obs.logSource && (
+                              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 text-xs border-t border-amber-100/50 pt-2">
+                                <div className="col-span-2">
+                                  <span className="text-slate-500">日志路径: </span>
+                                  <span className="text-slate-700 font-mono break-all">{obs.logSource.logSourcePath || '—'}</span>
                                 </div>
-                                <span className="text-xs font-mono text-slate-500 w-8 text-right">{obs.stage.percent}%</span>
+                                <div>
+                                  <span className="text-slate-500">最后更新: </span>
+                                  <span className="text-slate-700">
+                                    {obs.logSource.logSourceMtime ? new Date(obs.logSource.logSourceMtime).toLocaleString() : '—'}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-slate-500">距今: </span>
+                                  <span className="text-slate-700">
+                                    {obs.logSource.logSourceAgeMs != null ? `${Math.floor(obs.logSource.logSourceAgeMs / 1000)} 秒` : '—'}
+                                  </span>
+                                </div>
+                                <div className="col-span-2">
+                                  <span className="text-slate-500">检查时间: </span>
+                                  <span className="text-slate-700">
+                                    {obs.observerCheckedAt || obs.logSource.observerCheckedAt ? new Date(obs.observerCheckedAt || obs.logSource.observerCheckedAt).toLocaleString() : '—'}
+                                  </span>
+                                </div>
                               </div>
                             )}
-                          </>
+                          </div>
                         ) : (
                           <>
-                            {/* 旧格式兼容 */}
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs text-slate-500">当前阶段</span>
-                              <span className="text-sm font-medium text-slate-800">
-                                {obs.phase || '暂无结构化日志信号'}
-                              </span>
-                            </div>
-                            {obs.current != null && (
-                              <div className="flex justify-between items-center">
-                                <span className="text-xs text-slate-500">阶段进度</span>
-                                <span className="text-sm font-medium text-slate-800">
-                                  {obs.current}/{obs.total ?? '?'}
-                                  {obs.percent != null && ` （${obs.percent}%）`}
-                                </span>
-                              </div>
+                            {/* 当前阶段 & 进度 */}
+                            {obs.stage ? (
+                              <>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-xs text-slate-500">当前阶段</span>
+                                  <span className="text-sm font-medium text-slate-800">
+                                    {obs.stage.rawPhase || '—'}
+                                    {obs.stage.unitType === 'model-units' && ' (模型单元)'}
+                                    {obs.stage.unitType === 'ocr-recognition-blocks' && ' (OCR识别块)'}
+                                    {obs.stage.unitType === 'table-regions' && ' (表格识别)'}
+                                  </span>
+                                </div>
+                                {(obs.stage.current != null) && (
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-xs text-slate-500">阶段进度</span>
+                                    <span className="text-sm font-medium text-slate-800">
+                                      {obs.stage.current}/{obs.stage.total ?? '?'}
+                                      {obs.stage.percent != null && ` （${obs.stage.percent}%）`}
+                                    </span>
+                                  </div>
+                                )}
+                                {/* 百分比进度条 */}
+                                {obs.stage.percent != null && (
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                                      <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${obs.stage.percent}%` }} />
+                                    </div>
+                                    <span className="text-xs font-mono text-slate-500 w-8 text-right">{obs.stage.percent}%</span>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                {/* 旧格式兼容 */}
+                                <div className="flex justify-between items-center">
+                                  <span className="text-xs text-slate-500">当前阶段</span>
+                                  <span className="text-sm font-medium text-slate-800">
+                                    {obs.phase || '暂无结构化日志信号'}
+                                  </span>
+                                </div>
+                                {obs.current != null && (
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-xs text-slate-500">阶段进度</span>
+                                    <span className="text-sm font-medium text-slate-800">
+                                      {obs.current}/{obs.total ?? '?'}
+                                      {obs.percent != null && ` （${obs.percent}%）`}
+                                    </span>
+                                  </div>
+                                )}
+                              </>
                             )}
                           </>
                         )}

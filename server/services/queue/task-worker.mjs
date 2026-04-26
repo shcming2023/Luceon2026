@@ -1326,10 +1326,22 @@ export class ParseTaskWorker {
 
     // progress-update 事件降噪：构造语义 key，同 key 不重复写事件日志
     if (eventName === 'progress-update') {
+      const obs = update.metadata?.mineruObservedProgress || {};
+      const logStatus = obs.logSource?.logSourceSelectedReason || (obs.logSource?.logSourceExists ? 'exists' : 'missing');
+      const activityLevel = obs.activityLevel || '';
+      const phase = obs.phase || '';
+      const windowIdx = obs.window?.index || '';
+      const pageStart = obs.window?.pageStart || '';
+
       const semanticKey = [
         `state=${update.state || task.state || ''}`,
         `stage=${update.stage || task.stage || ''}`,
         `message=${update.message || ''}`,
+        `logStatus=${logStatus}`,
+        `activity=${activityLevel}`,
+        `phase=${phase}`,
+        `window=${windowIdx}`,
+        `page=${pageStart}`
       ].join('|');
       const prevKey = task.metadata?.progressEventKey || '';
       if (semanticKey === prevKey) {

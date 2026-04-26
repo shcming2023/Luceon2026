@@ -219,7 +219,8 @@ async function run() {
     // 正常读取（未来时间排除测试）
     const futureTime = new Date(stats.mtimeMs + 10000).toISOString();
     const staleResult = await parseLatestMineruProgress(futureTime);
-    assert(staleResult === null, 'Should reject stale log (future minObservedAt)');
+    assert(staleResult !== null, 'Should return object for old log');
+    assert(staleResult.activityLevel === 'log-observation-unattributed', 'Should reject stale log (future minObservedAt) by returning unattributed');
 
     // 正常读取
     const pastTime = new Date(stats.mtimeMs - 10000).toISOString();
@@ -314,12 +315,14 @@ async function run() {
 
     const worker = new ParseTaskWorker({ minioContext: {}, eventBus: { emit: () => {} } });
     let updateCalled = 0;
-    worker.updateTaskWithRetry = async () => { updateCalled++; };
+    let lastUpdate = null;
+    worker.updateTaskWithRetry = async (_id, update) => { updateCalled++; lastUpdate = update; };
 
     await worker.observeMineruProgress([
       { id: 'new-task', state: 'running', metadata: { mineruStatus: 'processing', mineruStartedAt: futureStart } }
     ]);
-    assert(updateCalled === 0, 'Should not attribute old log to new task');
+    assert(updateCalled === 1, 'Should attribute with unattributed level');
+    assert(lastUpdate?.metadata?.mineruProgressHealth === 'log-observation-unattributed', 'Health should be log-observation-unattributed');
     console.log('Test 9 Pass ✅\n');
   }
 
@@ -505,7 +508,7 @@ async function run() {
     let updateCalls = 0;
     worker.updateTaskWithRetry = async () => { updateCalls++; return true; };
 
-    const prevKey = 'state=running|stage=mineru-processing|message=MinerU processing';
+    const prevKey = 'state=running|stage=mineru-processing|message=MinerU processing|logStatus=missing|activity=|phase=|window=|page=';
     const task = { id: 't17', state: 'running', metadata: { progressEventKey: prevKey } };
     // 只变 metadata.mineruLastStatusAt，message/stage 不变
     const update = { message: 'MinerU processing', stage: 'mineru-processing', metadata: { mineruLastStatusAt: new Date().toISOString() } };
@@ -540,11 +543,11 @@ async function run() {
     const obs = { activityLevel: 'log-observation-stale', observationStale: true, phase: 'Predict', current: 5, total: 64 };
     const level = obs.activityLevel;
     let display = '';
-    if (level === 'log-observation-stale' || obs.observationStale) {
+    if (level.startsWith('log-observation-') || obs.observationStale) {
       const hint = obs.phase ? ` · 最后可见 ${obs.phase} ${obs.current ?? '?'}/${obs.total ?? '?'}` : '';
-      display = `MinerU 正在解析 · 日志观测滞后${hint}`;
+      display = `MinerU 正在解析 · 日志观测滞后/不可用${hint}`;
     }
-    assert(display.includes('日志观测滞后'), 'Should say 日志观测滞后');
+    assert(display.includes('日志观测滞后/不可用'), 'Should say 日志观测滞后/不可用');
     assert(display.includes('最后可见 Predict 5/64'), 'Should show last-known progress');
     assert(!display.includes('正在推进'), 'Should not say 正在推进');
     console.log('Test 19 Pass ✅\n');

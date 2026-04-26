@@ -233,14 +233,44 @@ export async function parseLatestMineruProgress(minObservedAt, previousObservati
 
   let bestResult = null;
   let latestMtime = 0;
+  let selectedLogSource = null;
+  let fallbackLogSource = null;
+  const observerCheckedAt = new Date().toISOString();
 
   for (const filePath of logPaths) {
-    try {
-      if (!fs.existsSync(filePath)) continue;
-      const stats = fs.statSync(filePath);
-      const content = await readTail(filePath, 16384); // 读取 16KB 以覆盖更多信号
-      if (!content) continue;
+    const logSource = {
+      logSourcePath: filePath,
+      logSourceExists: false,
+      logSourceReadable: false,
+      logSourceSize: 0,
+      logSourceMtime: null,
+      logSourceAgeMs: null,
+      observerCheckedAt
+    };
 
+    try {
+      if (!fs.existsSync(filePath)) {
+        if (!fallbackLogSource) {
+          fallbackLogSource = { ...logSource, logSourceSelectedReason: 'file-not-found' };
+        }
+        continue;
+      }
+      
+      logSource.logSourceExists = true;
+      const stats = fs.statSync(filePath);
+      logSource.logSourceSize = stats.size;
+      logSource.logSourceMtime = new Date(stats.mtimeMs).toISOString();
+      logSource.logSourceAgeMs = Date.now() - stats.mtimeMs;
+
+      const content = await readTail(filePath, 16384); // 读取 16KB 以覆盖更多信号
+      if (!content) {
+        if (!fallbackLogSource || !fallbackLogSource.logSourceExists) {
+          fallbackLogSource = { ...logSource, logSourceSelectedReason: 'unreadable-or-empty' };
+        }
+        continue;
+      }
+      
+      logSource.logSourceReadable = true;
       const lines = content.split(/[\r\n]+/);
 
       // 信号统计
@@ -309,10 +339,15 @@ export async function parseLatestMineruProgress(minObservedAt, previousObservati
       }
 
       const signalSummary = { progressCount, stageChangeCount, businessLogCount, apiNoiseCount, errorCount, lastBusinessSignalTime };
-      const activityLevel = determineActivityLevel(signalSummary, previousObservation, latestProgress);
+      let activityLevel = determineActivityLevel(signalSummary, previousObservation, latestProgress);
+      
+      if (activityLevel === 'no-business-signal') {
+        activityLevel = 'log-observation-no-business-signal';
+      }
 
-      if (stats.mtimeMs > latestMtime) {
+      if (stats.mtimeMs >= latestMtime) {
         latestMtime = stats.mtimeMs;
+        selectedLogSource = { ...logSource, logSourceSelectedReason: 'latest-mtime' };
 
         let backendProfile = executionProfile?.backendEffective || executionProfile?.backendRequested || executionProfile?.backend || 'pipeline';
 
@@ -428,7 +463,38 @@ export async function parseLatestMineruProgress(minObservedAt, previousObservati
     }
   }
 
-  if (!bestResult) return null;
+  // 兜底日志不可达状态
+  if (!bestResult) {
+    const finalLogSource = fallbackLogSource || {
+      logSourcePath: logPaths[1],
+      logSourceExists: false,
+      logSourceReadable: false,
+      logSourceSize: 0,
+      logSourceMtime: null,
+      logSourceAgeMs: null,
+      logSourceSelectedReason: 'default-fallback',
+      observerCheckedAt
+    };
+
+    let activityLevel = 'log-observation-unavailable';
+    let observationStaleReason = 'no valid business signal found';
+    
+    if (!finalLogSource.logSourceExists) {
+      activityLevel = 'log-observation-missing';
+      observationStaleReason = 'log file does not exist';
+    } else if (!finalLogSource.logSourceReadable) {
+      activityLevel = 'log-observation-unreadable';
+      observationStaleReason = 'log file is unreadable or empty';
+    }
+
+    return {
+      activityLevel,
+      observationStale: true,
+      observationStaleReason,
+      logSource: finalLogSource,
+      observerCheckedAt
+    };
+  }
 
   // 计算 lastProgressObservedAt（只看业务信号时间，不看 API 噪声时间）
   const now = new Date().toISOString();
@@ -457,14 +523,22 @@ export async function parseLatestMineruProgress(minObservedAt, previousObservati
     const logTime = new Date(bestResult.logFileUpdatedAt).getTime();
     const minTime = new Date(minObservedAt).getTime();
     if (logTime < minTime) {
-      return null;
+      // 保留之前可用的信息，但修改 activityLevel 为 unattributed
+      bestResult.activityLevel = 'log-observation-unattributed';
+      bestResult.observationStale = true;
+      bestResult.observationStaleReason = 'log file mtime is older than task start time, likely from previous task';
+      bestResult.logSource = selectedLogSource;
+      bestResult.observerCheckedAt = observerCheckedAt;
+      return bestResult;
     }
   }
 
   // 日志观测新鲜度裁决：日志文件 mtime 距当前超过阈值 → log-observation-stale
   const logAge = Date.now() - new Date(bestResult.logFileUpdatedAt).getTime();
-  bestResult.observerCheckedAt = new Date().toISOString();
-  if (logAge > MINERU_LOG_STALE_MS) {
+  bestResult.observerCheckedAt = observerCheckedAt;
+  bestResult.logSource = selectedLogSource;
+
+  if (logAge > MINERU_LOG_STALE_MS && bestResult.activityLevel !== 'failed-confirmed') {
     bestResult.observationStale = true;
     bestResult.observationStaleReason = 'container-visible MinerU log file is stale while MinerU API is still processing';
     bestResult.activityLevel = 'log-observation-stale';

@@ -378,10 +378,10 @@ export function TaskManagementPage() {
                                  const obs = t.metadata?.mineruObservedProgress as any;
                                  if (!obs) return 'MinerU 正在解析';
                                  const level = obs.activityLevel || t.metadata?.mineruProgressHealth || '';
-                                 // 日志观测通道滞后
-                                 if (level === 'log-observation-stale' || obs.observationStale) {
+                                 // 日志观测通道滞后或不可用
+                                 if (level.startsWith('log-observation-') || obs.observationStale) {
                                    const hint = obs.phase ? ` · 最后可见 ${obs.phase} ${obs.current ?? '?'}/${obs.total ?? '?'}` : '';
-                                   return `MinerU 正在解析 · 日志观测滞后${hint}`;
+                                   return `MinerU 正在解析 · 日志观测滞后/不可用${hint}`;
                                  }
                                  // api-alive-only 不得显示为正在推进
                                  if (level === 'api-alive-only') return 'MinerU API 可达 · 未见业务进展';

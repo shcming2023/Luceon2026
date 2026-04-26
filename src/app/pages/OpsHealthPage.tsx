@@ -305,6 +305,11 @@ export function OpsHealthPage() {
                         'suspected-stale':     { bg: 'bg-orange-100',text: 'text-orange-700',label: '可能停滞' },
                         'stale-critical':      { bg: 'bg-red-100',   text: 'text-red-700',   label: '严重停滞' },
                         'failed-confirmed':    { bg: 'bg-red-100',   text: 'text-red-700',   label: '检测到错误' },
+                        'log-observation-missing': { bg: 'bg-orange-100', text: 'text-orange-700', label: '日志通道 · 文件丢失' },
+                        'log-observation-unreadable': { bg: 'bg-orange-100', text: 'text-orange-700', label: '日志通道 · 无法读取' },
+                        'log-observation-stale': { bg: 'bg-orange-100', text: 'text-orange-700', label: '日志通道 · 严重滞后' },
+                        'log-observation-no-business-signal': { bg: 'bg-orange-100', text: 'text-orange-700', label: '日志通道 · 无有效信号' },
+                        'log-observation-unattributed': { bg: 'bg-slate-200', text: 'text-slate-600', label: '日志通道 · 无归因信号' },
                       };
                       const cfg = levelConfig[level] || levelConfig['no-business-signal'];
                       return (
