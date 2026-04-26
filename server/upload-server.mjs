@@ -558,21 +558,108 @@ app.get('/ops/health', async (req, res) => {
 
 registerMineruDiagnosticsRoutes(app, () => process.env.DB_BASE_URL || 'http://localhost:8789');
 
+/**
+ * P0 修复：GET /ops/mineru/active-task
+ * 从 DB 反推 MinerU 占用图，不再仅依赖 worker 内存。
+ * 覆盖场景：
+ *   - running + mineruTaskId → currentProcessingTask/queuedTasks
+ *   - pending/upload + mineruTaskId → driftTasks（状态漂移检测）
+ *   - completed + parsedFilesCount 空 → completedButNotIngestedTasks
+ *   - 可选：查询 MinerU API 获取 ground truth（?queryApi=true）
+ *
+ * @returns {Object} 包含 currentProcessingTask, queuedTasks, completedButNotIngestedTasks, driftTasks
+ */
 app.get('/ops/mineru/active-task', async (req, res) => {
   const dbBaseUrl = process.env.DB_BASE_URL || 'http://localhost:8789';
+  const queryApi = req.query.queryApi === 'true';
+
   try {
     const tRes = await fetch(`${dbBaseUrl}/tasks`);
     if (!tRes.ok) return res.status(500).json({ error: 'db error' });
     const tasks = await tRes.json();
-    const eligibleTasks = tasks.filter(t =>
+
+    // 1. 正常活跃任务：state=running + mineruTaskId + 符合条件的 stage
+    const runningWithMineru = tasks.filter(t =>
       t.engine === 'local-mineru' &&
       t.state === 'running' &&
+      t.metadata?.mineruTaskId &&
       ['mineru-processing', 'mineru-queued', 'result-fetching'].includes(t.stage)
     );
-    if (eligibleTasks.length === 1) {
-      return res.json({ activeTask: eligibleTasks[0] });
+
+    // 2. 漂移任务：state=pending 或 state=running+stage=upload 但有 mineruTaskId
+    const driftTasks = tasks.filter(t =>
+      t.engine === 'local-mineru' &&
+      t.metadata?.mineruTaskId &&
+      (
+        t.state === 'pending' ||
+        (t.state === 'running' && (t.stage === 'upload' || t.stage === 'process'))
+      )
+    );
+
+    // 3. MinerU completed 但 Luceon 未入库（parsedFilesCount 为空或 0）
+    const completedButNotIngested = tasks.filter(t =>
+      t.engine === 'local-mineru' &&
+      t.metadata?.mineruTaskId &&
+      t.metadata?.mineruStatus === 'completed' &&
+      (!t.metadata?.parsedFilesCount || t.metadata.parsedFilesCount === 0) &&
+      t.state !== 'failed'
+    );
+
+    // 兼容旧接口：activeTask 仍指向首个 running 任务
+    let activeTask = null;
+    if (runningWithMineru.length === 1) {
+      activeTask = runningWithMineru[0];
+    } else if (runningWithMineru.length === 0 && driftTasks.length === 1) {
+      activeTask = driftTasks[0]; // 漂移任务也算占用 MinerU
     }
-    return res.json({ activeTask: null });
+
+    const result = {
+      activeTask,
+      currentProcessingTask: runningWithMineru.find(t => t.stage === 'mineru-processing') || null,
+      queuedTasks: runningWithMineru.filter(t => t.stage === 'mineru-queued').map(t => ({ id: t.id, mineruTaskId: t.metadata?.mineruTaskId })),
+      completedButNotIngestedTasks: completedButNotIngested.map(t => ({ id: t.id, mineruTaskId: t.metadata?.mineruTaskId, state: t.state, stage: t.stage })),
+      driftTasks: driftTasks.map(t => ({ id: t.id, mineruTaskId: t.metadata?.mineruTaskId, state: t.state, stage: t.stage })),
+    };
+
+    // 可选：查询 MinerU API 获取 ground truth
+    if (queryApi) {
+      let localEndpoint = process.env.LOCAL_MINERU_ENDPOINT || 'http://host.docker.internal:8083';
+      try {
+        const setResp = await fetch(`${dbBaseUrl}/settings`, { signal: AbortSignal.timeout(1000) });
+        if (setResp.ok) {
+          const settings = await setResp.json();
+          if (settings?.mineruConfig?.localEndpoint) localEndpoint = settings.mineruConfig.localEndpoint;
+        }
+      } catch (ee) { /* use default */ }
+      if (localEndpoint.includes('localhost') || localEndpoint.includes('127.0.0.1')) {
+        localEndpoint = localEndpoint.replace(/localhost|127\.0\.0\.1/g, 'host.docker.internal');
+      }
+      localEndpoint = localEndpoint.replace(/\/+$/, '');
+
+      const apiChecks = [];
+      const allMineruTaskIds = [...new Set(
+        [...runningWithMineru, ...driftTasks, ...completedButNotIngested]
+          .map(t => t.metadata?.mineruTaskId)
+          .filter(Boolean)
+      )];
+
+      for (const mTaskId of allMineruTaskIds) {
+        try {
+          const mRes = await fetch(`${localEndpoint}/tasks/${mTaskId}`, { signal: AbortSignal.timeout(3000) });
+          if (mRes.ok) {
+            const mData = await mRes.json();
+            apiChecks.push({ mineruTaskId: mTaskId, status: mData.status || mData.state, startedAt: mData.started_at });
+          } else {
+            apiChecks.push({ mineruTaskId: mTaskId, status: `http-${mRes.status}` });
+          }
+        } catch (e) {
+          apiChecks.push({ mineruTaskId: mTaskId, status: 'unreachable', error: e.message });
+        }
+      }
+      result.mineruApiChecks = apiChecks;
+    }
+
+    return res.json(result);
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }

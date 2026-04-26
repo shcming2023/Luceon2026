@@ -432,7 +432,18 @@ export class ParseTaskWorker {
   }
 
   /**
-   * 日常轮询时的超时自愈：对 running/result-store 持续超时的任务自动重置为 pending
+   * 日常轮询时的超时自愈：对 running/result-store 持续超时的任务自动重置为 pending。
+   *
+   * P0 硬约束：metadata.mineruTaskId 存在时，**禁止重置为 pending**。
+   * 改为查询 MinerU API 裁决实际状态，并按裁决结果路由：
+   *   - queued/processing → 保持 running，后台接管（不重提交）
+   *   - completed → result-fetching，拉取结果入库
+   *   - failed → failed/mineru-failed
+   *   - 404 → failed/manual-audit
+   *   - 网络不可达 → 保持 running，不重提交
+   *
+   * @param {Array} tasks - 当前所有任务列表
+   * @returns {Promise<void>}
    */
   async recoverStaleRunningTasks(tasks) {
     const now = Date.now();
@@ -443,6 +454,14 @@ export class ParseTaskWorker {
       if (!updatedAt) continue;
       const timeoutMs = Number(task.optionsSnapshot?.localTimeout || 3600) * 1000;
       if ((now - updatedAt) <= (timeoutMs + STALE_GRACE_MS)) continue;
+
+      // P0：已提交 MinerU 的任务禁止重置为 pending，须查询 MinerU API 裁决
+      const mineruTaskId = task.metadata?.mineruTaskId;
+      if (mineruTaskId && task.engine === 'local-mineru') {
+        await this._adjudicateStaleWithMineruApi(task, mineruTaskId, 'stale-running-adjudication');
+        continue;
+      }
+
       await this.updateTaskWithRetry(task.id, {
         state: 'pending',
         stage: 'upload',
@@ -458,6 +477,185 @@ export class ParseTaskWorker {
         message: '日常扫描发现运行超时，已重置为 pending',
         payload: { previousState: task.state, previousUpdatedAt: task.updatedAt, timeoutMs },
       });
+    }
+  }
+
+  /**
+   * P0 内部方法：对已有 mineruTaskId 的 stale/pending 任务，查询 MinerU API 裁决实际状态。
+   * 按 MinerU 返回值将 Luceon 任务路由到正确的状态，禁止重新 POST /tasks。
+   *
+   * @param {Object} task - 当前任务对象
+   * @param {string} mineruTaskId - MinerU 内部任务 ID
+   * @param {string} eventSource - 事件来源标识，用于日志追踪
+   * @returns {Promise<void>}
+   */
+  async _adjudicateStaleWithMineruApi(task, mineruTaskId, eventSource) {
+    const localEndpointRaw = task.optionsSnapshot?.localEndpoint;
+    if (!localEndpointRaw) {
+      // 无法查询 MinerU，保持 running 不重提交
+      console.warn(`[task-worker] ${eventSource}: Task ${task.id} has mineruTaskId=${mineruTaskId} but no localEndpoint, keeping current state`);
+      return;
+    }
+
+    let localEndpoint = localEndpointRaw;
+    if (localEndpoint.includes('localhost') || localEndpoint.includes('127.0.0.1')) {
+      localEndpoint = localEndpoint.replace(/localhost|127\.0\.0\.1/g, 'host.docker.internal');
+    }
+    localEndpoint = localEndpoint.replace(/\/+$/, '');
+
+    let mineruStatus = null;
+    let mineruData = null;
+
+    try {
+      const tRes = await fetch(`${localEndpoint}/tasks/${mineruTaskId}`, { signal: AbortSignal.timeout(5000) });
+      if (tRes.ok) {
+        mineruData = await tRes.json();
+        mineruStatus = String(mineruData.status || mineruData.state || '').toLowerCase();
+      } else if (tRes.status === 404) {
+        mineruStatus = 'not_found';
+      }
+    } catch (e) {
+      // 网络不可达 → 保持当前状态，不重提交
+      console.warn(`[task-worker] ${eventSource}: Task ${task.id} MinerU API unreachable: ${e.message}, keeping current state`);
+      await this.updateTaskWithRetry(task.id, {
+        updatedAt: new Date().toISOString(),
+        message: `${eventSource}: MinerU API 不可达 (${e.message})，保持当前状态不重提交`,
+      }, { enqueueOnFailure: true });
+      return;
+    }
+
+    if (!mineruStatus) return;
+
+    const isProcessing = ['processing', 'running'].includes(mineruStatus);
+    const isQueued = ['queued', 'pending'].includes(mineruStatus);
+    const isDone = ['done', 'success', 'completed', 'succeeded', 'finished', 'complete'].includes(mineruStatus);
+    const isFailed = ['failed', 'error', 'failure', 'canceled', 'cancelled'].includes(mineruStatus);
+
+    if (isProcessing || isQueued) {
+      // MinerU 仍在工作 → 保持 running，后台接管
+      const stage = isQueued ? 'mineru-queued' : 'mineru-processing';
+      console.log(`[task-worker] ${eventSource}: Task ${task.id} MinerU ${mineruTaskId} still ${mineruStatus}, keeping running`);
+      await this.updateTaskWithRetry(task.id, {
+        state: 'running',
+        stage,
+        message: `${eventSource}: MinerU 仍在 ${mineruStatus}，保持 running 不重提交`,
+        updatedAt: new Date().toISOString(),
+        metadata: { ...(task.metadata || {}), mineruStatus },
+      }, { enqueueOnFailure: true });
+      // 同步 Material
+      if (task.materialId) {
+        await this.updateMaterialWithRetry(task.materialId, {
+          status: 'processing',
+          mineruStatus: isQueued ? 'queued' : 'processing',
+          metadata: {
+            processingStage: stage,
+            processingMsg: `${eventSource}: MinerU 仍在 ${mineruStatus}`,
+            processingUpdatedAt: new Date().toISOString(),
+          }
+        }, { enqueueOnFailure: true });
+      }
+      // 后台接管（不重新 POST）
+      this.resumeMineruTask(task, mineruTaskId).catch(err =>
+        console.error(`[task-worker] Error resuming stale task ${task.id}:`, err)
+      );
+      await logTaskEvent({
+        taskId: task.id, taskType: 'parse', level: 'warn',
+        event: 'stale-adjudicated-resume',
+        message: `${eventSource}: MinerU 仍在 ${mineruStatus}，已接管不重提交`,
+        payload: { mineruTaskId, mineruStatus, source: eventSource },
+      });
+
+    } else if (isDone) {
+      // MinerU 已完成 → result-fetching，拉取结果入库
+      console.log(`[task-worker] ${eventSource}: Task ${task.id} MinerU ${mineruTaskId} completed, entering result-fetching`);
+      await this.updateTaskWithRetry(task.id, {
+        state: 'running',
+        stage: 'result-fetching',
+        message: `${eventSource}: MinerU 已完成，正在拉取结果入库`,
+        updatedAt: new Date().toISOString(),
+        metadata: { ...(task.metadata || {}), mineruStatus: 'completed' },
+      }, { enqueueOnFailure: true });
+      if (task.materialId) {
+        await this.updateMaterialWithRetry(task.materialId, {
+          status: 'processing',
+          mineruStatus: 'completed',
+          metadata: {
+            processingStage: 'result-fetching',
+            processingMsg: `${eventSource}: MinerU 已完成，正在拉取结果入库`,
+            processingUpdatedAt: new Date().toISOString(),
+          }
+        }, { enqueueOnFailure: true });
+      }
+      this.resumeMineruTask(task, mineruTaskId).catch(err =>
+        console.error(`[task-worker] Error resuming completed stale task ${task.id}:`, err)
+      );
+      await logTaskEvent({
+        taskId: task.id, taskType: 'parse', level: 'warn',
+        event: 'stale-adjudicated-completed',
+        message: `${eventSource}: MinerU 已完成，开始拉取结果入库`,
+        payload: { mineruTaskId, source: eventSource },
+      });
+
+    } else if (isFailed) {
+      // MinerU 已失败 → failed/mineru-failed
+      const mineruError = mineruData?.error || mineruData?.message || '无详细错误';
+      const errorSummary = String(mineruError).slice(0, 500);
+      console.log(`[task-worker] ${eventSource}: Task ${task.id} MinerU ${mineruTaskId} failed: ${errorSummary}`);
+      await this.updateTaskWithRetry(task.id, {
+        state: 'failed',
+        stage: 'mineru-failed',
+        progress: 100,
+        message: 'MinerU 已确认失败',
+        errorMessage: `MinerU API failed: ${errorSummary}`,
+        metadata: {
+          ...(task.metadata || {}),
+          mineruTaskId,
+          mineruStatus: 'failed',
+          mineruFailedAt: mineruData?.completed_at || new Date().toISOString(),
+          mineruFailureSource: 'mineru-api',
+          mineruFailureReason: errorSummary,
+        }
+      }, { enqueueOnFailure: true });
+      if (task.materialId) {
+        await this.updateMaterialWithRetry(task.materialId, {
+          status: 'failed',
+          mineruStatus: 'failed',
+          aiStatus: 'pending',
+          metadata: {
+            processingStage: 'mineru-failed',
+            processingMsg: `MinerU 已确认失败：${errorSummary}`,
+            mineruFailureSource: 'mineru-api',
+            mineruFailureReason: errorSummary,
+          }
+        }, { enqueueOnFailure: true });
+      }
+      await logTaskEvent({
+        taskId: task.id, taskType: 'parse', level: 'error',
+        event: 'mineru-failed-confirmed',
+        message: `${eventSource}: MinerU API 已确认失败`,
+        payload: { mineruTaskId, mineruStatus: 'failed', error: errorSummary, source: eventSource },
+      });
+      processingMap.delete(task.id);
+
+    } else if (mineruStatus === 'not_found') {
+      // MinerU 404 → failed/manual-audit，不重提交
+      await this.updateTaskWithRetry(task.id, {
+        state: 'failed',
+        message: `${eventSource}: MinerU 任务记录已丢失 (404)，需人工审计，不重提交`,
+        metadata: {
+          ...(task.metadata || {}),
+          mineruStatus: 'not_found',
+          failureEvidenceSource: `MinerU API 404 (${eventSource})`,
+          failureConfirmedAt: new Date().toISOString(),
+        }
+      }, { enqueueOnFailure: true });
+      await logTaskEvent({
+        taskId: task.id, taskType: 'parse', level: 'error',
+        event: 'stale-adjudicated-404',
+        message: `${eventSource}: MinerU 任务 404，不重提交`,
+        payload: { mineruTaskId, source: eventSource },
+      });
+      processingMap.delete(task.id);
     }
   }
 
@@ -726,6 +924,23 @@ export class ParseTaskWorker {
     processingMap.add(task.id);
     const modeLabel = task.engine === 'local-mineru' ? 'local-mineru' : 'worker skeleton';
     console.log(`[task-worker] Picked up task: ${task.id} (${modeLabel})`);
+
+    // P0 硬约束：已有 mineruTaskId 的任务禁止重新 POST /tasks
+    // 必须改走 resumeWithLocalMinerU 路径
+    const existingMineruTaskId = task.metadata?.mineruTaskId;
+    if (existingMineruTaskId && task.engine === 'local-mineru') {
+      console.log(`[task-worker] Task ${task.id} already has mineruTaskId=${existingMineruTaskId}, routing to adjudication+resume (not re-POST)`);
+      // 必须先释放 processingMap，否则 fire-and-forget 的 resumeMineruTask
+      // 会因为 processingMap.has(task.id) === true 而立即退出
+      processingMap.delete(task.id);
+      try {
+        await this._adjudicateStaleWithMineruApi(task, existingMineruTaskId, 'pending-has-mineruTaskId');
+      } catch (err) {
+        console.error(`[task-worker] Task ${task.id} adjudication failed: ${err.message}`);
+        // 裁决失败也不重新提交，保持当前状态
+      }
+      return;
+    }
 
     try {
       if (task.engine === 'local-mineru') {
