@@ -2,7 +2,7 @@
  * parsed-list-large-prefix-smoke.mjs
  * 验证大产物 prefix 在 /list 和 /parsed-zip 下的行为。
  */
-import fetch from 'node-fetch';
+
 
 const UPLOAD_SERVER_URL = process.env.UPLOAD_SERVER_URL || 'http://localhost:8081/__proxy/upload';
 

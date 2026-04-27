@@ -1171,6 +1171,43 @@ function normalizeCanonicalStatesOnStartup() {
     console.log(`[db-server] startup-migration: cleaned parsedArtifacts from ${artifactsCleaned} records (externalized to MinIO)`);
   }
 
+  // ── P0 OOM Patch 2.1: 历史大 taskEvents payload 启动瘦身 ──
+  let eventsPayloadSlimmed = 0;
+  for (const e of Object.values(dbCache.taskEvents || {})) {
+    if (e.payload && typeof e.payload === 'object' && !e.payloadSlimmed) {
+      let needsSlimming = false;
+      const payloadStr = JSON.stringify(e.payload);
+      
+      // 如果 payload 中含有完整 metadata 或者 parsedArtifacts，或者大小超过了 8KB
+      if (e.payload.metadata || e.payload.parsedArtifacts || payloadStr.length > 8192) {
+        needsSlimming = true;
+      }
+      
+      if (needsSlimming) {
+        const p = e.payload;
+        const meta = p.metadata || {};
+        e.payload = {
+          parsedFilesCount: p.parsedFilesCount || meta.parsedFilesCount,
+          parsedPrefix: p.parsedPrefix || meta.parsedPrefix,
+          artifactManifestObjectName: p.artifactManifestObjectName || meta.artifactManifestObjectName,
+          mineruTaskId: p.mineruTaskId || meta.mineruTaskId,
+          state: p.state,
+          stage: p.stage,
+          progress: p.progress,
+          message: typeof p.message === 'string' ? p.message.substring(0, 500) : p.message,
+          error: typeof p.error === 'string' ? p.error.substring(0, 500) : p.error,
+          errorMessage: typeof p.errorMessage === 'string' ? p.errorMessage.substring(0, 500) : p.errorMessage,
+        };
+        e.payloadSlimmed = true;
+        eventsPayloadSlimmed++;
+        dirty = true;
+      }
+    }
+  }
+  if (eventsPayloadSlimmed > 0) {
+    console.log(`[db-server] startup-migration: slimmed payloads for ${eventsPayloadSlimmed} historic taskEvents`);
+  }
+
   // ── P0 OOM Patch 6: taskEvents 压缩保留策略 ──
   // 每个 taskId 最多保留最近 50 条事件，防止 progress-update 写放大导致 10000+ 事件
   const MAX_EVENTS_PER_TASK = 50;

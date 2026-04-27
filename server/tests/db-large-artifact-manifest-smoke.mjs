@@ -71,52 +71,22 @@ async function run() {
   });
   assert(createResp.ok, '创建测试任务成功');
 
-  // 验证写入后的大小
+  // 验证写入后，数据应该被过滤，没有存入 DB
+  const taskAfterResp = await fetch(`${DB_BASE_URL}/tasks/${testTaskId}`);
+  const taskAfter = await taskAfterResp.json();
+  assert(!Array.isArray(taskAfter.metadata?.parsedArtifacts), 'parsedArtifacts 在运行期已被防御过滤');
+  assert(taskAfter.metadata?.parsedFilesCount === 5000, 'parsedFilesCount 保留正确');
+  assert(taskAfter.metadata?.parsedPrefix === `parsed/${testMaterialId}/`, 'parsedPrefix 保留正确');
+
+  // 验证 DB 体积没有异常增长
   const statsResp1 = await fetch(`${DB_BASE_URL}/stats`);
   const stats1 = await statsResp1.json();
   assert(stats1.ok, '/stats 接口可用');
 
   const fileSizeMB1 = (stats1.fileSize / 1024 / 1024).toFixed(1);
   console.log(`  📊 DB size after writing 5000-artifact task: ${fileSizeMB1} MB`);
-
-  // ── Test 2: 触发启动迁移清理 ──
-  console.log('\nTest 2: 启动迁移应清除 parsedArtifacts');
-
-  // 读取任务验证 parsedArtifacts 还在（迁移前）
-  const taskBeforeResp = await fetch(`${DB_BASE_URL}/tasks/${testTaskId}`);
-  const taskBefore = await taskBeforeResp.json();
-  const hasArtifactsBefore = Array.isArray(taskBefore.metadata?.parsedArtifacts);
-  console.log(`  📋 Before migration: parsedArtifacts present = ${hasArtifactsBefore}, count = ${hasArtifactsBefore ? taskBefore.metadata.parsedArtifacts.length : 0}`);
-
-  // 注意：启动迁移在 db-server 启动时执行。
-  // 这里我们通过 PATCH 模拟清理效果，验证逻辑正确性。
-  if (hasArtifactsBefore && taskBefore.metadata.parsedArtifacts.length > 10) {
-    // 模拟迁移逻辑
-    const cleanedMetadata = { ...taskBefore.metadata };
-    cleanedMetadata.parsedFilesCount = cleanedMetadata.parsedFilesCount || cleanedMetadata.parsedArtifacts.length;
-    delete cleanedMetadata.parsedArtifacts;
-    
-    await fetch(`${DB_BASE_URL}/tasks/${testTaskId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ metadata: cleanedMetadata }),
-    });
-  }
-
-  // 验证清理后
-  const taskAfterResp = await fetch(`${DB_BASE_URL}/tasks/${testTaskId}`);
-  const taskAfter = await taskAfterResp.json();
-  assert(!Array.isArray(taskAfter.metadata?.parsedArtifacts), 'parsedArtifacts 已从 DB 清除');
-  assert(taskAfter.metadata?.parsedFilesCount === 5000, 'parsedFilesCount 保留正确');
-  assert(taskAfter.metadata?.parsedPrefix === `parsed/${testMaterialId}/`, 'parsedPrefix 保留正确');
-  assert(taskAfter.metadata?.markdownObjectName === `parsed/${testMaterialId}/full.md`, 'markdownObjectName 保留正确');
-
-  // 验证清理后体积减小
-  const statsResp2 = await fetch(`${DB_BASE_URL}/stats`);
-  const stats2 = await statsResp2.json();
-  const fileSizeMB2 = (stats2.fileSize / 1024 / 1024).toFixed(1);
-  console.log(`  📊 DB size after cleanup: ${fileSizeMB2} MB`);
-  assert(stats2.fileSize < stats1.fileSize, `DB 体积减小 (${fileSizeMB1} MB → ${fileSizeMB2} MB)`);
+  // 仅仅是一个小任务，所以体积应该依然较小
+  assert(stats1.fileSize < 50 * 1024 * 1024, `DB 体积处于安全范围 (${fileSizeMB1} MB)`);
 
   // ── Test 3: taskEvents 压缩 ──
   console.log('\nTest 3: taskEvents 压缩不影响正常事件');

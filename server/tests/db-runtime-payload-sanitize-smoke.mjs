@@ -4,7 +4,7 @@
  * 1. POST/PATCH /tasks 不写入 parsedArtifacts
  * 2. PATCH metadata 浅合并时正确处理显式删除
  */
-import fetch from 'node-fetch';
+
 
 const DB_BASE_URL = process.env.DB_BASE_URL || 'http://localhost:8789';
 let passed = 0;

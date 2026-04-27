@@ -3859,13 +3859,35 @@ async function loadPersistedConfig() {
 
 // ─── 辅助：列出桶内指定前缀下的所有对象 ──────────────────────
 async function listAllObjects(bucket, prefix) {
-  return new Promise((resolve, reject) => {
-    const objects = [];
-    const stream = getMinioClient().listObjectsV2(bucket, prefix, true);
-    stream.on('data', (obj) => { if (obj.name) objects.push(obj); });
-    stream.on('end', () => resolve(objects));
-    stream.on('error', reject);
-  });
+  const client = getMinioClient();
+  const objects = [];
+  let continuationToken = '';
+  
+  // P0 Patch 2.1: 手动使用内部 listObjectsV2Query 分页，限制每次 maxKeys=500
+  // 绕开 fast-xml-parser 默认 1000 个 entities 的解析上限，彻底解决 Entity expansion limit exceeded
+  do {
+    const res = await client.listObjectsV2Query(
+      bucket,
+      prefix || '',
+      continuationToken,
+      '',    // delimiter
+      500,   // maxKeys
+      ''     // startAfter
+    );
+
+    if (res && res.objects) {
+      // res.objects 中各项包含 name, size, lastModified
+      objects.push(...res.objects);
+    }
+
+    if (res && res.isTruncated && res.nextContinuationToken) {
+      continuationToken = res.nextContinuationToken;
+    } else {
+      continuationToken = '';
+    }
+  } while (continuationToken);
+
+  return objects;
 }
 
 async function removeAllObjects(bucket, prefix = '') {
