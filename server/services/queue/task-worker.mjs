@@ -302,6 +302,9 @@ export class ParseTaskWorker {
 
       // P1 Patch 7.1: 补偿清理已恢复/已完成任务上残留的旧 errorMessage
       await this.cleanupStaleErrorMessages(tasks);
+
+      // P1 Patch: 补偿清理 Material.metadata 中残留的 mineruStatus = 'processing'
+      await this.cleanupStaleMineruStatus();
     } catch (err) {
       console.error(`[task-worker] runRecoveryScan error: ${err.message}`);
     }
@@ -920,6 +923,53 @@ export class ParseTaskWorker {
     }
   }
 
+  /**
+   * P1 Patch: 补偿清理 Material.metadata 中残留的 mineruStatus = 'processing'
+   * 仅处理顶层 mineruStatus=completed 但 metadata.mineruStatus=processing 的 Material。
+   * 幂等、非破坏性清理，不修改其他 metadata 字段。
+   */
+  async cleanupStaleMineruStatus() {
+    const DB_BASE_URL = process.env.DB_BASE_URL || 'http://localhost:8789';
+    try {
+      const resp = await fetch(`${DB_BASE_URL}/materials`);
+      if (!resp.ok) return;
+      const materials = await resp.json();
+      
+      const candidates = materials.filter(m => 
+        m.mineruStatus === 'completed' && 
+        m.metadata?.mineruStatus === 'processing'
+      );
+      
+      for (const m of candidates) {
+        let processingStage = 'mineru-completed';
+        let processingMsg = 'MinerU 解析完成，等待 AI 元数据识别';
+        
+        if (m.aiStatus === 'analyzed') {
+           if (m.status === 'reviewing') {
+              processingStage = 'review';
+              processingMsg = 'AI 识别完成，待人工复核';
+           } else {
+              processingStage = 'completed';
+              processingMsg = 'AI 识别完成';
+           }
+        }
+        
+        await this.updateMaterialWithRetry(m.id, {
+          metadata: {
+            ...(m.metadata || {}),
+            mineruStatus: 'completed',
+            processingStage,
+            processingMsg
+          }
+        }, { enqueueOnFailure: true });
+        
+        console.log(`[task-worker] cleanupStaleMineruStatus: Material ${m.id} residual metadata.mineruStatus fixed`);
+      }
+    } catch (e) {
+      console.error(`[task-worker] cleanupStaleMineruStatus failed: ${e.message}`);
+    }
+  }
+
   async processTask(task) {
     processingMap.add(task.id);
     const modeLabel = task.engine === 'local-mineru' ? 'local-mineru' : 'worker skeleton';
@@ -1086,6 +1136,7 @@ export class ParseTaskWorker {
           mineruStatus: 'completed',
           metadata: {
             ...(materialInfo.metadata || {}),
+            mineruStatus: 'completed',
             markdownObjectName,
             parsedPrefix,
             parsedFilesCount,
@@ -1312,6 +1363,7 @@ export class ParseTaskWorker {
         aiStatus: 'pending',
         metadata: {
           ...(materialInfo.metadata || {}),
+          mineruStatus: 'completed',
           markdownObjectName,
           parsedPrefix,
           parsedFilesCount,
