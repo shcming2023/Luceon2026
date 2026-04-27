@@ -29,6 +29,8 @@ build/
 
 # 测试文件（含测试 PDF，体积较大）
 test/
+testpdf/
+TestPdf/
 
 # UAT 报告（仅文档，不需要进入镜像）
 UATReport/
