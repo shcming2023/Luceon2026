@@ -45,10 +45,23 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
             return {
               ...incoming,
-              items: (incoming.items ?? []).map((it) => ({
-                ...it,
-                updatedAt: (it as { updatedAt?: number }).updatedAt ?? it.createdAt ?? Date.now(),
-              })),
+              items: (incoming.items ?? []).map((it) => {
+                const updatedAt = (it as { updatedAt?: number }).updatedAt ?? it.createdAt ?? Date.now();
+                const isRunningPhase = it.status === 'uploading' || it.status === 'task-created' || it.status === 'tracking' || it.status === 'mineru' || it.status === 'ai';
+                // 超过 10 分钟视为“超过阈值”的旧 active 项
+                if (isRunningPhase && Date.now() - updatedAt > 600_000) {
+                  return {
+                    ...it,
+                    status: 'error',
+                    message: '历史残留，需清理/重试',
+                    updatedAt: Date.now(),
+                  };
+                }
+                return {
+                  ...it,
+                  updatedAt,
+                };
+              }),
             };
           })(),
         } : {}),

@@ -251,7 +251,7 @@ function handleDbWriteError(operation: string, err: unknown) {
   console.warn(`[db-sync] ${operation} failed (count=${dbFailCount}):`, msg);
   if (dbFailCount >= DB_FAIL_TOAST_THRESHOLD && !dbFailToastShown) {
     dbFailToastShown = true;
-    toast.error('数据同步服务连接异常，数据已保存到本地缓存，但服务端可能未同步。', { duration: 8000 });
+    toast.error(`数据同步服务连接异常（${operation} ${msg}），数据已保存到本地缓存，但服务端可能未同步。`, { duration: 8000 });
     // 30 秒后重置弹窗状态，允许再次提示
     setTimeout(() => { dbFailToastShown = false; }, 30000);
   }

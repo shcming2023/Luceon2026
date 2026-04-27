@@ -16,7 +16,6 @@ import { BatchProcessingController, BatchProgressFab, BatchUploadModal } from '.
 
 /* ── 侧边栏主导航（PRD v0.4 §10.3） ──────────────────── */
 const SIDE_NAV = [
-  { name: '新建任务',   href: '/workspace', icon: PlusCircle },
   { name: '任务管理',   href: '/tasks',     icon: ListTodo },
   { name: '成果库',     href: '/library',   icon: GraduationCap },
 ];

@@ -172,12 +172,25 @@ export function deriveMaterialTaskView(
       view.hasStateDrift = true;
       view.driftReason = '任务显示完成但缺少解析产物';
     }
+    // P0/P1 修复：3. 任务已完成但 Material 元数据仍残留 processing
+    if (ts === 'completed' && material.metadata?.mineruStatus === 'processing') {
+      view.hasStateDrift = true;
+      view.driftReason = 'Material 元数据残留 processing';
+    }
   } else if (tasksLoaded) {
     // 只有在任务列表确实加载完成，且依然找不到任务时，才报告漂移
     // 无任务但素材处于 processing
     if (material.status === 'processing') {
       view.hasStateDrift = true;
-      view.driftReason = '素材处于处理中但找不到关联任务';
+      view.driftReason = '暂无关联任务 / 需审计';
+      // 强制把显示状态改为需审计，避免显示“正在解析”
+      view.displayStatus = '暂无关联任务 / 需审计';
+    } else if (material.metadata?.mineruStatus === 'processing') {
+      view.hasStateDrift = true;
+      view.driftReason = '暂无关联任务 / 需审计';
+      view.displayStatus = '暂无关联任务 / 需审计';
+    } else {
+      view.displayStatus = '暂无关联任务 / 需审计';
     }
   }
 

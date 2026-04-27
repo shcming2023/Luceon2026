@@ -106,6 +106,26 @@ export class ParseTaskWorker {
     await this.recoverStaleRunningTasks(tasks);
 
     const pendingTasks = tasks.filter(t => t.state === 'pending');
+    
+    // P0 Patch: ParseTask FIFO 调度收口
+    pendingTasks.sort((a, b) => {
+      // 1. 已有 mineruTaskId 的恢复接管任务优先
+      const aHasMineru = !!a.metadata?.mineruTaskId;
+      const bHasMineru = !!b.metadata?.mineruTaskId;
+      if (aHasMineru && !bHasMineru) return -1;
+      if (!aHasMineru && bHasMineru) return 1;
+
+      // 2. 普通 pending 严格按 createdAt ASC
+      const aTime = new Date(a.createdAt || 0).getTime();
+      const bTime = new Date(b.createdAt || 0).getTime();
+      if (aTime !== bTime) {
+        return aTime - bTime;
+      }
+      
+      // 3. 时间相同时按 id ASC
+      return String(a.id).localeCompare(String(b.id));
+    });
+
     const available = Math.max(0, MAX_CONCURRENT_TASKS - processingMap.size);
     let started = 0;
     for (const task of pendingTasks) {

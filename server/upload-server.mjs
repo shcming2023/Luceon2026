@@ -616,7 +616,15 @@ app.get('/ops/mineru/active-task', async (req, res) => {
     const result = {
       activeTask,
       currentProcessingTask: runningWithMineru.find(t => t.stage === 'mineru-processing') || null,
-      queuedTasks: runningWithMineru.filter(t => t.stage === 'mineru-queued').map(t => ({ id: t.id, mineruTaskId: t.metadata?.mineruTaskId })),
+      queuedTasks: runningWithMineru
+        .filter(t => t.stage === 'mineru-queued')
+        .sort((a, b) => {
+          const aTime = new Date(a.createdAt || 0).getTime();
+          const bTime = new Date(b.createdAt || 0).getTime();
+          if (aTime !== bTime) return aTime - bTime;
+          return String(a.id).localeCompare(String(b.id));
+        })
+        .map(t => ({ id: t.id, mineruTaskId: t.metadata?.mineruTaskId })),
       completedButNotIngestedTasks: completedButNotIngested.map(t => ({ id: t.id, mineruTaskId: t.metadata?.mineruTaskId, state: t.state, stage: t.stage })),
       driftTasks: driftTasks.map(t => ({ id: t.id, mineruTaskId: t.metadata?.mineruTaskId, state: t.state, stage: t.stage })),
     };

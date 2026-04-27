@@ -208,7 +208,10 @@ export function BatchProcessingController() {
         const taskId = String(it.taskId || '').trim();
         if (!taskId) continue;
         fetchWithTimeout(`/__proxy/db/tasks/${encodeURIComponent(taskId)}`, { timeoutMs: 8000 })
-          .then((r) => (r.ok ? r.json().catch(() => null) : Promise.reject(new Error(`HTTP ${r.status}`))))
+          .then((r) => {
+            if (r.status === 404) return Promise.reject(new Error('HTTP 404'));
+            return r.ok ? r.json().catch(() => null) : Promise.reject(new Error(`HTTP ${r.status}`));
+          })
           .then((task) => {
             const stateKey = String(task?.state || '').trim();
             const stageKey = String(task?.stage || '').trim();
@@ -269,7 +272,20 @@ export function BatchProcessingController() {
               },
             });
           })
-          .catch(() => {});
+          .catch((err) => {
+            if (err instanceof Error && err.message === 'HTTP 404') {
+              dispatch({
+                type: 'BATCH_UPDATE_ITEM',
+                payload: {
+                  id: it.id,
+                  updates: {
+                    status: 'error',
+                    message: '无关联任务 / 需审计',
+                  },
+                },
+              });
+            }
+          });
       }
     }, 2000);
     return () => window.clearInterval(timer);

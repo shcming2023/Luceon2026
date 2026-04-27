@@ -66,14 +66,18 @@ export function AssetDetailPage() {
   const [titleDraft, setTitleDraft] = useState(detail?.title ?? '');
 
   const [mineruMarkdown, setMineruMarkdown] = useState<string>('');
-  const mineruRunning = material?.mineruStatus === 'processing';
-  const mineruProgress = Number(material?.metadata?.processingProgress || 0);
-  const mineruProgressMsg = material?.metadata?.processingMsg || (mineruRunning ? '处理中...' : '');
-  const mineruRetryCount = 0;
-
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
   const [submittingMineru, setSubmittingMineru] = useState(false);
   const [relatedTasks, setRelatedTasks] = useState<ParseTask[]>([]);
+  
+  // P0 Patch: 资产详情页运行态事实源统一
+  const taskView = deriveMaterialTaskView(material, relatedTasks);
+  const currentTask = taskView.currentTask;
+  
+  const mineruRunning = currentTask ? deriveTaskBucket(currentTask.state) === 'processing' : false;
+  const mineruProgress = currentTask?.progress || 0;
+  const mineruProgressMsg = currentTask?.message || (mineruRunning ? '处理中...' : '');
+  const mineruRetryCount = 0;
 
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
   const originalRefreshTimerRef = useRef<number | null>(null);
@@ -544,7 +548,16 @@ export function AssetDetailPage() {
               const view = deriveMaterialTaskView(material!, relatedTasks);
               const task = view.currentTask;
               if (!task) {
-                return <p className="text-sm text-gray-400 text-center py-6 border-2 border-dashed border-gray-50 rounded-lg">暂无关联任务</p>;
+                return (
+                  <div className="text-center py-6 border-2 border-dashed border-gray-100 rounded-lg bg-gray-50 flex flex-col items-center gap-2">
+                    <AlertTriangle size={20} className="text-amber-500" />
+                    <p className="text-sm font-bold text-gray-700">暂无关联任务 / 需审计</p>
+                    <p className="text-xs text-gray-500 max-w-[200px]">找不到与此素材关联的解析任务。如果这是一条残留数据，请前往审计中心处理，或重新发起解析。</p>
+                    <div className="flex gap-2 mt-2">
+                      <button onClick={() => navigate('/audit')} className="px-3 py-1.5 bg-white border border-gray-200 rounded text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">前往一致性审计</button>
+                    </div>
+                  </div>
+                );
               }
               
               const isFailed = task.state === 'failed';
