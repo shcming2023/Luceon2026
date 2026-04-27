@@ -22,7 +22,7 @@ import React, {
   createContext, useContext, useReducer, useEffect, useRef, useState,
 } from 'react';
 import { toast } from 'sonner';
-import type { AppState, AppAction, AiConfig, MinerUConfig, MinioConfig, Material, AssetDetail, ProcessTask, Task, Product, FlexibleTag, AiRule, AiRuleSettings, BatchProcessingState } from './types';
+import type { AppState, AppAction, AiConfig, MinerUConfig, MinioConfig, Material, AssetDetail, ProcessTask, Task, Product, FlexibleTag, AiRule, AiRuleSettings } from './types';
 import { appReducer } from './appReducer';
 import {
   initialMaterials,
@@ -336,7 +336,7 @@ const initialState: AppState = {
   processTasks:     loadFromStorage(LS.PROCESS_TASKS, initialProcessTasks),
   tasks:            loadFromStorage(LS.TASKS, initialTasks),
   products:         loadFromStorage(LS.PRODUCTS, initialProducts),
-  batchProcessing:  loadFromStorage(LS.BATCH_PROCESSING, initialBatchProcessing),
+  batchProcessing:  initialBatchProcessing, // P1 Patch: 不再从 localStorage 恢复，始终空队列
   flexibleTags:     loadFromStorage(LS.FLEXIBLE_TAGS, initialFlexibleTags),
   aiRules:          loadFromStorage(LS.AI_RULES, initialAiRules),
   aiRuleSettings:   loadFromStorage(LS.AI_RULE_SETTINGS, initialAiRuleSettings),
@@ -416,7 +416,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               processTasks:   processTasks ?? undefined,
               tasks:          tasks ?? undefined,
               products:       products ?? undefined,
-              batchProcessing: (settings?.batchProcessing as BatchProcessingState | undefined) ?? undefined,
+              // P1 Patch: batchProcessing 不再从 DB 恢复（由 reducer HYDRATE_FROM_DB 强制清空）
               flexibleTags:   flexibleTags ?? undefined,
               aiRules:        aiRules ?? undefined,
               aiRuleSettings: (settings?.aiRuleSettings as AiRuleSettings | undefined) ?? undefined,
@@ -457,9 +457,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             processTasks:   state.processTasks,
             tasks:          state.tasks,
             products:       state.products,
-            settings: {
-              batchProcessing: state.batchProcessing,
-            },
+            // P1 Patch: batchProcessing 不再 seed 到 DB
             flexibleTags:   state.flexibleTags,
             aiRules:        state.aiRules,
             aiRuleSettings: state.aiRuleSettings,
@@ -690,11 +688,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dbPut('/secrets', extractSecretsPayload({ aiConfig: state.aiConfig, mineruConfig: state.mineruConfig, minioConfig: state.minioConfig }));
   }, [state.minioConfig]);
 
-  useEffect(() => {
-    saveToStorage(LS.BATCH_PROCESSING, state.batchProcessing);
-    if (!hydratedRef.current) return;
-    dbPut('/settings/batchProcessing', state.batchProcessing);
-  }, [state.batchProcessing]);
+  // P1 Patch: batchProcessing 不再持久化到 localStorage 和 db-server。
+  // 它是纯内存的短生命周期队列，刷新即清空。
 
   // ── 后端批处理队列状态轮询（已移除）──────────────────
   useEffect(() => {

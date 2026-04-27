@@ -29,42 +29,14 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         ...(p.processTasks   !== undefined ? { processTasks:   p.processTasks }   : {}),
         ...(p.tasks          !== undefined ? { tasks:          p.tasks }          : {}),
         ...(p.products       !== undefined ? { products:       p.products }       : {}),
-        ...(p.batchProcessing !== undefined ? {
-          batchProcessing: (() => {
-            // P0 Patch 9: 如果当前内存中已有运行态（有文件、正在运行、或弹窗已开启），
-            // 则拒绝用 DB 的空状态覆盖内存，防止竞态导致弹窗关闭。
-            const current = state.batchProcessing;
-            const hasActiveMemory = current.items.length > 0 || current.running || current.uiOpen;
-            const incoming = p.batchProcessing;
-            const isIncomingEmpty = (incoming.items ?? []).length === 0 && !incoming.running && !incoming.uiOpen;
-
-            if (hasActiveMemory && isIncomingEmpty) {
-              console.log('[Reducer] HYDRATE_FROM_DB: Protected active batchProcessing from empty hydration');
-              return current;
-            }
-
-            return {
-              ...incoming,
-              items: (incoming.items ?? []).map((it) => {
-                const updatedAt = (it as { updatedAt?: number }).updatedAt ?? it.createdAt ?? Date.now();
-                const isRunningPhase = it.status === 'uploading' || it.status === 'task-created' || it.status === 'tracking' || it.status === 'mineru' || it.status === 'ai';
-                // 超过 10 分钟视为“超过阈值”的旧 active 项
-                if (isRunningPhase && Date.now() - updatedAt > 600_000) {
-                  return {
-                    ...it,
-                    status: 'error',
-                    message: '历史残留，需清理/重试',
-                    updatedAt: Date.now(),
-                  };
-                }
-                return {
-                  ...it,
-                  updatedAt,
-                };
-              }),
-            };
-          })(),
-        } : {}),
+        // P1 Patch: 批处理队列不再从 DB 恢复历史。
+        // 刷新页面后始终从空队列开始，避免恢复旧的 tracking/completed/failed 列表。
+        batchProcessing: {
+          items: [],
+          running: false,
+          paused: false,
+          uiOpen: false,
+        },
         ...(p.flexibleTags   !== undefined ? { flexibleTags:   p.flexibleTags }   : {}),
         ...(p.aiRules        !== undefined ? { aiRules:        p.aiRules }        : {}),
         ...(p.aiRuleSettings !== undefined ? { aiRuleSettings: p.aiRuleSettings } : {}),

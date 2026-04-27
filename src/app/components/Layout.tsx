@@ -12,7 +12,7 @@ import {
   ShieldCheck,
   Activity,
 } from 'lucide-react';
-import { BatchProcessingController, BatchProgressFab, BatchUploadModal } from './BatchUploadModal';
+import { BatchProcessingController } from './BatchUploadModal';
 
 /* ── 侧边栏主导航（PRD v0.4 §10.3） ──────────────────── */
 const SIDE_NAV = [
@@ -143,8 +143,6 @@ export function Layout({ children }: LayoutProps) {
         <main className="flex-1 overflow-y-auto">
           {children}
           <BatchProcessingController />
-          <BatchUploadModal />
-          <BatchProgressFab />
         </main>
       </div>
     </div>

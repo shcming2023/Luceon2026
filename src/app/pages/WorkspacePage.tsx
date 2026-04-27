@@ -24,7 +24,7 @@ export function WorkspacePage() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
-  const { upload, uploading, progress } = useFileUpload();
+  const { upload, uploading } = useFileUpload();
   const [tasks, setTasks] = useState<ParseTask[]>([]);
   const [tasksLoaded, setTasksLoaded] = useState(false);
 
@@ -195,10 +195,9 @@ export function WorkspacePage() {
           <p className="text-sm text-gray-500 mt-0.5">
             资料 {counts.all} · 待处理 {counts.pending} · 处理中 {counts.processing} · 失败 {counts.failed} · 完成 {counts.completed}
           </p>
-          {progress && (
-            <div className="text-sm text-gray-500 mt-1">
-              上传进度：{progress.done}/{progress.total}
-              {progress.failed > 0 && <span className="text-red-500">（失败 {progress.failed}）</span>}
+          {uploading && (
+            <div className="text-sm text-blue-600 mt-1 animate-pulse">
+              正在提交文件…
             </div>
           )}
         </div>

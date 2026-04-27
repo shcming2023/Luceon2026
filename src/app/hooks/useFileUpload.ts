@@ -1,14 +1,30 @@
-import { useCallback, useMemo } from 'react';
+/**
+ * useFileUpload Hook（P1 Patch: 列表退场重构）
+ *
+ * 负责文件校验、队列注册和自动启动 BatchProcessingController。
+ * 上传后仅 toast 提示，不弹出列表 UI。
+ * 进度信息不再由前端本地队列提供，一律到 /cms/tasks 查看。
+ */
+
+import { useCallback } from 'react';
 import { toast } from 'sonner';
 import { useAppStore } from '../../store/appContext';
 import { batchRegisterFiles } from '../components/BatchUploadModal';
- 
-type UploadProgress = { done: number; total: number; failed: number; succeeded: number };
- 
+
+/**
+ * 文件上传 Hook。
+ * 校验文件后加入本地队列并自动启动 BatchProcessingController。
+ * @returns upload 函数与 uploading 状态
+ */
 export function useFileUpload() {
   const { state, dispatch } = useAppStore();
   const bp = state.batchProcessing;
- 
+
+  /**
+   * 校验单个文件是否可上传。
+   * @param file - 待校验的 File 对象
+   * @returns 校验结果
+   */
   const validateFile = useCallback((file: File) => {
     const maxSize = (state.mineruConfig.maxFileSize || 0) > 0 ? state.mineruConfig.maxFileSize : 200 * 1024 * 1024;
     if (file.size > maxSize) {
@@ -24,14 +40,24 @@ export function useFileUpload() {
     }
     return { valid: true as const };
   }, [state.mineruConfig.maxFileSize]);
- 
+
+  /**
+   * 将文件列表加入上传队列并自动启动提交。
+   * 仅 toast 提示文件数量，不弹出可见列表。
+   * @param files - 待上传的 File 数组
+   */
   const upload = useCallback(async (files: File[]) => {
     const list = Array.from(files || []);
     if (list.length === 0) return;
 
     const invalidFiles = list.filter((f) => !validateFile(f).valid);
     const validFiles = list.filter((f) => validateFile(f).valid);
-    if (validFiles.length === 0) return;
+    if (validFiles.length === 0) {
+      if (invalidFiles.length > 0) {
+        toast.error(`${invalidFiles.length} 个文件不符合上传规范，已过滤`);
+      }
+      return;
+    }
 
     if (invalidFiles.length > 0) toast.error(`发现 ${invalidFiles.length} 个不符合规范的文件被过滤`);
 
@@ -45,7 +71,8 @@ export function useFileUpload() {
 
     // 必须先注册内存句柄，再派发状态
     batchRegisterFiles(items.map((it) => ({ id: it.id, file: it.file })));
-    
+
+    // P1 Patch: 不打开 UI，openUi 固定为 false
     dispatch({
       type: 'BATCH_ADD_FILES',
       payload: {
@@ -55,27 +82,22 @@ export function useFileUpload() {
           fileSize: it.file.size,
           path: it.filePath,
         })),
-        openUi: true,
+        openUi: false,
       },
     });
 
+    // Toast 提示：正在提交
+    toast.info(`正在提交 ${validFiles.length} 个文件…`, {
+      description: '任务状态请在「任务管理」页面查看',
+      duration: 3000,
+    });
+
     // 确保队列处于运行状态
-    if (bp.running) {
-      toast.success(`已加入上传队列 (${items.length} 个文件)`);
-    }
     dispatch({ type: 'BATCH_SET_PAUSED', payload: { paused: false } });
     dispatch({ type: 'BATCH_SET_RUNNING', payload: { running: true } });
   }, [dispatch, validateFile]);
 
   const uploading = bp.running && !bp.paused;
-  const progress = useMemo<UploadProgress | null>(() => {
-    if (bp.items.length === 0) return null;
-    const terminal = new Set(['completed', 'review-pending', 'failed', 'canceled', 'error', 'skipped']);
-    const done = bp.items.filter((i) => terminal.has(i.status)).length;
-    const failed = bp.items.filter((i) => i.status === 'failed' || i.status === 'canceled' || i.status === 'error').length;
-    const succeeded = bp.items.filter((i) => i.status === 'completed' || i.status === 'review-pending').length;
-    return { done, total: bp.items.length, failed, succeeded };
-  }, [bp.items]);
- 
-  return { upload, uploading, progress };
+
+  return { upload, uploading };
 }
