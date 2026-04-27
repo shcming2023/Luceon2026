@@ -64,6 +64,28 @@ export class ParseTaskWorker {
     });
   }
 
+  /**
+   * P0 OOM 修复：将完整 parsedArtifacts 清单写入 MinIO manifest 文件，
+   * DB 只保存摘要字段，避免单个大 PDF 5000+ 条 artifacts 膨胀内存。
+   *
+   * @param {string} materialId - 关联的素材 ID
+   * @param {Array} parsedArtifacts - 完整的解析产物清单
+   * @returns {Promise<string>} manifest 对象名 (parsed/{materialId}/artifact-manifest.json)
+   */
+  async writeArtifactManifest(materialId, parsedArtifacts) {
+    const manifestObjectName = `parsed/${materialId}/artifact-manifest.json`;
+    const manifest = {
+      materialId,
+      generatedAt: new Date().toISOString(),
+      totalFiles: parsedArtifacts.length,
+      artifacts: parsedArtifacts,
+    };
+    const buf = Buffer.from(JSON.stringify(manifest, null, 2), 'utf-8');
+    await this.minioContext.saveObject(manifestObjectName, buf, 'application/json');
+    console.log(`[task-worker] Wrote artifact manifest: ${manifestObjectName} (${parsedArtifacts.length} items, ${(buf.length / 1024).toFixed(1)} KB)`);
+    return manifestObjectName;
+  }
+
   start() {
     if (this.isRunning) return;
     this.isRunning = true;
@@ -1131,6 +1153,16 @@ export class ParseTaskWorker {
           }
         }
 
+        // P0 OOM 修复：parsedArtifacts 写入 MinIO manifest，DB 只保存摘要
+        let artifactManifestObjectName = null;
+        if (parsedArtifacts.length > 0 && this.minioContext) {
+          try {
+            artifactManifestObjectName = await this.writeArtifactManifest(task.materialId, parsedArtifacts);
+          } catch (e) {
+            console.warn(`[task-worker] Failed to write artifact manifest: ${e.message}`);
+          }
+        }
+
         await this.transition(task, {
           stage: 'complete',
           state: 'ai-pending',
@@ -1143,7 +1175,8 @@ export class ParseTaskWorker {
             mineruTaskId,
             parsedPrefix,
             parsedFilesCount,
-            parsedArtifacts,
+            // P0 OOM: 不再写入完整 parsedArtifacts 到 DB
+            artifactManifestObjectName,
             zipObjectName: zipObjectName || undefined,
             artifactIncomplete,
             parsedAt: new Date().toISOString()
@@ -1160,7 +1193,8 @@ export class ParseTaskWorker {
             markdownObjectName,
             parsedPrefix,
             parsedFilesCount,
-            parsedArtifacts,
+            // P0 OOM: 不再写入完整 parsedArtifacts 到 DB
+            artifactManifestObjectName,
             zipObjectName: zipObjectName || undefined,
             processingStage: 'mineru-completed',
             processingMsg: 'MinerU 解析完成，等待 AI 元数据识别',
@@ -1357,6 +1391,16 @@ export class ParseTaskWorker {
         });
       }
 
+      // P0 OOM 修复：parsedArtifacts 写入 MinIO manifest
+      let artifactManifestObjectName = null;
+      if (parsedArtifacts.length > 0 && this.minioContext) {
+        try {
+          artifactManifestObjectName = await this.writeArtifactManifest(task.materialId, parsedArtifacts);
+        } catch (e) {
+          console.warn(`[task-worker] Failed to write artifact manifest (resume): ${e.message}`);
+        }
+      }
+
       await this.transition(task, {
         stage: 'complete',
         state: 'ai-pending',
@@ -1369,7 +1413,8 @@ export class ParseTaskWorker {
           mineruTaskId,
           parsedPrefix,
           parsedFilesCount,
-          parsedArtifacts,
+          // P0 OOM: 不再写入完整 parsedArtifacts 到 DB
+          artifactManifestObjectName,
           zipObjectName: zipObjectName || undefined,
           artifactIncomplete,
           parsedAt: new Date().toISOString()
@@ -1387,7 +1432,8 @@ export class ParseTaskWorker {
           markdownObjectName,
           parsedPrefix,
           parsedFilesCount,
-          parsedArtifacts,
+          // P0 OOM: 不再写入完整 parsedArtifacts 到 DB
+          artifactManifestObjectName,
           zipObjectName: zipObjectName || undefined,
           processingStage: 'ai',
           processingMsg: '解析完成，等待 AI 元数据识别',
@@ -1494,7 +1540,7 @@ export class ParseTaskWorker {
         artifactQuality,
         parsedPrefix,
         parsedFilesCount: parsedArtifacts.length,
-        parsedArtifacts,
+        // P0 OOM: parsedArtifacts 不写入 DB（handleCompletedEmpty 路径）
       }
     }, { enqueueOnFailure: true });
 
@@ -1645,6 +1691,16 @@ export class ParseTaskWorker {
         payload: { retryMineruTaskId: retryResult.mineruTaskId, retryProfile, markdownObjectName },
       });
 
+      // P0 OOM 修复：parsedArtifacts 写入 MinIO manifest
+      let artifactManifestObjectName = null;
+      if (parsedArtifacts.length > 0 && this.minioContext) {
+        try {
+          artifactManifestObjectName = await this.writeArtifactManifest(task.materialId, parsedArtifacts);
+        } catch (e) {
+          console.warn(`[task-worker] Failed to write artifact manifest (OCR retry): ${e.message}`);
+        }
+      }
+
       // 写入正常完成态
       await this.transition(task, {
         stage: 'complete',
@@ -1658,7 +1714,8 @@ export class ParseTaskWorker {
           mineruTaskId: retryResult.mineruTaskId,
           parsedPrefix,
           parsedFilesCount,
-          parsedArtifacts,
+          // P0 OOM: 不再写入完整 parsedArtifacts 到 DB
+          artifactManifestObjectName,
           zipObjectName: zipObjectName || undefined,
           emptyMarkdownRetryMineruTaskId: retryResult.mineruTaskId,
           emptyMarkdownRetryCompletedAt: new Date().toISOString(),
@@ -1677,7 +1734,8 @@ export class ParseTaskWorker {
             markdownObjectName,
             parsedPrefix,
             parsedFilesCount,
-            parsedArtifacts,
+            // P0 OOM: 不再写入完整 parsedArtifacts 到 DB
+            artifactManifestObjectName,
             zipObjectName: zipObjectName || undefined,
             processingStage: 'mineru-completed',
             processingMsg: 'OCR 降级重试成功，等待 AI 元数据识别',

@@ -122,11 +122,17 @@ export class AiMetadataWorker {
   /**
    * 恢复长时间卡住的 running job
    * 规则：state=running 且 updatedAt 超过 timeoutMs + 60s → 标记 failed 或 reset 为 pending
+   * P0 OOM Patch: 同一 aiJobId 的 ai-stale-running-recovered 事件不重复写入
    */
   async recoverStaleRunningJobs(jobs) {
     const runningJobs = jobs.filter(j => j.state === 'running');
     const now = Date.now();
     const GRACE_PERIOD_MS = 60000; // 60 秒额外缓冲
+
+    // P0 OOM: 初始化去重集合（进程级，不跨重启）
+    if (!this._staleRecoveredJobIds) {
+      this._staleRecoveredJobIds = new Set();
+    }
 
     for (const job of runningJobs) {
       if (!job.updatedAt) continue;
@@ -135,6 +141,17 @@ export class AiMetadataWorker {
       const staleThreshold = updatedAt + this.defaultTimeoutMs + GRACE_PERIOD_MS;
       
       if (now > staleThreshold) {
+        // P0 OOM: 同一 aiJobId 不重复写 stale 恢复事件
+        if (this._staleRecoveredJobIds.has(job.id)) {
+          // 仍然重置状态，但不写事件
+          await updateJob(job.id, {
+            state: 'pending',
+            message: '因长时间卡住，已自动重置为 pending 状态',
+            updatedAt: new Date().toISOString()
+          });
+          continue;
+        }
+
         console.warn(`[ai-worker] Stale running job detected: ${job.id}, updatedAt=${job.updatedAt}`);
         
         await logTaskEvent({
@@ -150,6 +167,8 @@ export class AiMetadataWorker {
             staleThresholdMs: this.defaultTimeoutMs + GRACE_PERIOD_MS
           }
         });
+
+        this._staleRecoveredJobIds.add(job.id);
 
         // 重置为 pending，等待下次扫描处理
         await updateJob(job.id, {

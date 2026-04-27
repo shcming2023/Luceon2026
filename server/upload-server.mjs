@@ -3119,7 +3119,7 @@ app.post('/parse/analyze', async (req, res) => {
             markdownUrl: mdUrl,
             parsedPrefix: mineruResult.parsedPrefix || `parsed/${materialId}/`,
             parsedFilesCount: Number(mineruResult.parsedFilesCount || 1),
-            parsedArtifacts: Array.isArray(mineruResult.parsedArtifacts) ? mineruResult.parsedArtifacts : [],
+            // P0 OOM: parsedArtifacts 不再写入 DB，完整清单由 MinIO artifact-manifest.json 持有
             zipObjectName: mineruResult.zipObjectName || undefined,
             processingStage: '',
             processingMsg: '解析完成'
@@ -3349,8 +3349,9 @@ app.post('/parsed-zip', async (req, res) => {
 
     const zip = new JSZip();
 
-    // 并发读取，每批最多 10 个
-    const BATCH_SIZE = 10;
+    // P0 OOM Patch: 大产物集使用更小的批次避免并发内存爆炸
+    // 5000+ 图片是大 PDF 的合法场景，不能裁剪/跳过
+    const BATCH_SIZE = objects.length > 1000 ? 5 : 10;
     for (let i = 0; i < objects.length; i += BATCH_SIZE) {
       const batch = objects.slice(i, i + BATCH_SIZE);
       await Promise.all(batch.map(async (obj) => {
@@ -3359,6 +3360,10 @@ app.post('/parsed-zip', async (req, res) => {
         const relativePath = obj.name.startsWith(prefix) ? obj.name.slice(prefix.length) : obj.name;
         zip.file(relativePath, buffer);
       }));
+      // 大文件集每 100 批输出进度日志
+      if (objects.length > 500 && i > 0 && i % (BATCH_SIZE * 100) === 0) {
+        console.log(`[upload-server] /parsed-zip: progress ${i}/${objects.length} files packed for material ${materialId}`);
+      }
     }
 
     const zipBuffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
@@ -3367,7 +3372,7 @@ app.post('/parsed-zip', async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="parsed-${materialId}.zip"`);
     res.setHeader('Content-Length', String(zipBuffer.length));
     res.send(zipBuffer);
-    console.log(`[upload-server] /parsed-zip: sent ${(zipBuffer.length / 1024).toFixed(1)} KB for material ${materialId}`);
+    console.log(`[upload-server] /parsed-zip: sent ${(zipBuffer.length / 1024 / 1024).toFixed(1)} MB (${objects.length} files) for material ${materialId}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error('[upload-server] /parsed-zip failed:', message);
@@ -3697,11 +3702,12 @@ app.post('/settings/ai-models', async (req, res) => {
 });
 
 // ─── 接口：GET /list ───────────────────────────────────────────
-// 列出 MinIO 指定 prefix 下的所有文件，并为每个对象生成预签名 URL
-// Query: ?prefix=parsed/123
-// Response: { objects: [{ objectName, name, size, lastModified, presignedUrl }], total }
+// 列出 MinIO 指定 prefix 下的所有文件
+// P0 OOM Patch: 支持分页和可选 presign，防止大产物（5000+ 文件）导致内存爆炸
+// Query: ?prefix=parsed/123[&page=1&pageSize=200&presign=true]
+// Response: { objects: [...], total, page, pageSize, totalPages }
 app.get('/list', async (req, res) => {
-  const { prefix } = req.query;
+  const { prefix, page: pageStr, pageSize: pageSizeStr, presign: presignStr } = req.query;
   if (!prefix || typeof prefix !== 'string') {
     res.status(400).json({ error: '缺少 prefix 参数' });
     return;
@@ -3710,44 +3716,56 @@ app.get('/list', async (req, res) => {
   try {
     const client = getMinioClient();
     const bucket = getParsedBucket();
-    const objects = [];
 
-    await new Promise((resolve, reject) => {
-      const stream = client.listObjectsV2(bucket, prefix, true);
-      stream.on('data', (obj) => {
-        if (obj.name) objects.push(obj);
-      });
-      stream.on('end', resolve);
-      stream.on('error', reject);
-    });
+    // 使用 listAllObjects 内部分页列举全部对象（MinIO SDK 自动分页）
+    const allObjects = await listAllObjects(bucket, prefix);
+    const total = allObjects.length;
 
-    // 为每个对象生成预签名 URL
-    const result = await Promise.all(
-      objects.map(async (obj) => {
-        let presignedUrl = '';
-        try {
-          presignedUrl = rewritePresignedUrl(await client.presignedGetObject(bucket, obj.name, getPresignedExpiry()));
-        } catch (e) {
-          console.warn(`[upload-server] presign failed for ${obj.name}:`, e.message);
-        }
-        // 提取短文件名（去掉 prefix 部分）
-        const name = obj.name.replace(/^.*\//, '');
-        return {
-          objectName: obj.name,
-          name: name || obj.name,
-          size: obj.size ?? 0,
-          lastModified: obj.lastModified ? new Date(obj.lastModified).toISOString() : '',
-          presignedUrl,
-        };
-      }),
-    );
+    // 分页参数
+    const page = Math.max(1, parseInt(pageStr, 10) || 1);
+    const pageSize = Math.min(1000, Math.max(1, parseInt(pageSizeStr, 10) || 200));
+    const doPresign = presignStr !== 'false'; // 默认 true，可通过 ?presign=false 关闭
+    const totalPages = Math.ceil(total / pageSize);
 
-    res.json({ objects: result, total: result.length });
+    // 切片当前页
+    const start = (page - 1) * pageSize;
+    const pageItems = allObjects.slice(start, start + pageSize);
+
+    // 为当前页对象生成预签名 URL（限流：每批 20 个）
+    const PRESIGN_BATCH = 20;
+    const result = [];
+
+    for (let i = 0; i < pageItems.length; i += PRESIGN_BATCH) {
+      const batch = pageItems.slice(i, i + PRESIGN_BATCH);
+      const batchResults = await Promise.all(
+        batch.map(async (obj) => {
+          let presignedUrl = '';
+          if (doPresign) {
+            try {
+              presignedUrl = rewritePresignedUrl(await client.presignedGetObject(bucket, obj.name, getPresignedExpiry()));
+            } catch (e) {
+              console.warn(`[upload-server] presign failed for ${obj.name}:`, e.message);
+            }
+          }
+          const name = obj.name.replace(/^.*\//, '');
+          return {
+            objectName: obj.name,
+            name: name || obj.name,
+            size: obj.size ?? 0,
+            lastModified: obj.lastModified ? new Date(obj.lastModified).toISOString() : '',
+            presignedUrl,
+          };
+        }),
+      );
+      result.push(...batchResults);
+    }
+
+    res.json({ objects: result, total, page, pageSize, totalPages });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.warn('[upload-server] /list failed (returning empty):', message);
     // MinIO 不可用时返回空列表，防止前端溯源卡片崩溃
-    res.json({ objects: [], total: 0 });
+    res.json({ objects: [], total: 0, page: 1, pageSize: 200, totalPages: 0 });
   }
 });
 

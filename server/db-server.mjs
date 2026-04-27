@@ -729,6 +729,51 @@ app.post('/task-events', (req, res) => {
   res.json({ ok: true, id: item.id });
 });
 
+/**
+ * 删除单个 taskEvent（P0 OOM Patch: 支持运维清理和自动化测试）
+ * @route DELETE /task-events/:id
+ * @param {string} id - 事件 ID
+ * @returns {{ ok: boolean }} 删除结果
+ */
+app.delete('/task-events/:id', (req, res) => {
+  const id = decodeURIComponent(req.params.id);
+  if (!dbCache.taskEvents[id]) {
+    res.status(404).json({ error: 'Not found' });
+    return;
+  }
+  delete dbCache.taskEvents[id];
+  writeDB();
+  res.json({ ok: true });
+});
+
+/**
+ * 批量删除 taskEvents（P0 OOM Patch: 支持运维压缩操作）
+ * @route DELETE /task-events
+ * @body {{ ids?: string[], taskId?: string }} - 按 id 列表或 taskId 删除
+ * @returns {{ ok: boolean, deleted: number }} 删除结果
+ */
+app.delete('/task-events', (req, res) => {
+  const { ids, taskId } = req.body || {};
+  let deleted = 0;
+  if (Array.isArray(ids)) {
+    for (const id of ids) {
+      if (dbCache.taskEvents[id]) {
+        delete dbCache.taskEvents[id];
+        deleted++;
+      }
+    }
+  } else if (taskId) {
+    for (const [id, e] of Object.entries(dbCache.taskEvents)) {
+      if (String(e.taskId) === String(taskId)) {
+        delete dbCache.taskEvents[id];
+        deleted++;
+      }
+    }
+  }
+  if (deleted > 0) writeDB();
+  res.json({ ok: true, deleted });
+});
+
 // ─── AI Metadata Jobs ─────────────────────────────────────────
 
 app.get('/ai-metadata-jobs', (req, res) => {
@@ -1065,6 +1110,57 @@ function normalizeCanonicalStatesOnStartup() {
     dirty = true;
   }
 
+  // ── P0 OOM Patch 5: 清除 DB 中残留的 parsedArtifacts 大数组 ──
+  // parsedArtifacts 现已外置到 MinIO artifact-manifest.json，
+  // DB 只保留 parsedFilesCount + artifactManifestObjectName。
+  let artifactsCleaned = 0;
+  for (const t of Object.values(dbCache.parseTasks)) {
+    if (Array.isArray(t.metadata?.parsedArtifacts) && t.metadata.parsedArtifacts.length > 10) {
+      const count = t.metadata.parsedArtifacts.length;
+      t.metadata.parsedFilesCount = t.metadata.parsedFilesCount || count;
+      delete t.metadata.parsedArtifacts;
+      artifactsCleaned++;
+      dirty = true;
+    }
+  }
+  for (const m of Object.values(dbCache.materials)) {
+    if (Array.isArray(m.metadata?.parsedArtifacts) && m.metadata.parsedArtifacts.length > 10) {
+      const count = m.metadata.parsedArtifacts.length;
+      m.metadata.parsedFilesCount = m.metadata.parsedFilesCount || count;
+      delete m.metadata.parsedArtifacts;
+      artifactsCleaned++;
+      dirty = true;
+    }
+  }
+  if (artifactsCleaned > 0) {
+    console.log(`[db-server] startup-migration: cleaned parsedArtifacts from ${artifactsCleaned} records (externalized to MinIO)`);
+  }
+
+  // ── P0 OOM Patch 6: taskEvents 压缩保留策略 ──
+  // 每个 taskId 最多保留最近 50 条事件，防止 progress-update 写放大导致 10000+ 事件
+  const MAX_EVENTS_PER_TASK = 50;
+  const eventsByTask = {};
+  for (const e of Object.values(dbCache.taskEvents || {})) {
+    const tid = e.taskId || '_global';
+    if (!eventsByTask[tid]) eventsByTask[tid] = [];
+    eventsByTask[tid].push(e);
+  }
+  let eventsCompacted = 0;
+  for (const [tid, events] of Object.entries(eventsByTask)) {
+    if (events.length <= MAX_EVENTS_PER_TASK) continue;
+    // 按时间降序，保留最新的 50 条
+    events.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    const toDelete = events.slice(MAX_EVENTS_PER_TASK);
+    for (const e of toDelete) {
+      delete dbCache.taskEvents[e.id];
+      eventsCompacted++;
+    }
+  }
+  if (eventsCompacted > 0) {
+    console.log(`[db-server] startup-compaction: pruned ${eventsCompacted} excess task events (max ${MAX_EVENTS_PER_TASK}/task)`);
+    dirty = true;
+  }
+
   if (dirty) {
     console.log('[db-server] startup-migration: normalized legacy states, synced materials, and deduplicated events');
     writeDB();
@@ -1082,6 +1178,22 @@ try {
 const server = app.listen(port, () => {
   console.log(`[db-server] listening on http://localhost:${port}`);
   console.log(`[db-server] Data file: ${DATA_PATH}`);
+  // P0 OOM Patch: 启动体积诊断
+  try {
+    const dbSizeBytes = Buffer.byteLength(JSON.stringify(dbCache), 'utf-8');
+    const dbSizeMB = (dbSizeBytes / 1024 / 1024).toFixed(1);
+    const eventsCount = Object.keys(dbCache.taskEvents || {}).length;
+    const tasksCount = Object.keys(dbCache.parseTasks || {}).length;
+    const materialsCount = Object.keys(dbCache.materials || {}).length;
+    console.log(`[db-server] DB size: ${dbSizeMB} MB | tasks=${tasksCount} materials=${materialsCount} events=${eventsCount}`);
+    if (dbSizeBytes > 50 * 1024 * 1024) {
+      console.warn(`[db-server] ⚠️  WARNING: DB in-memory size is ${dbSizeMB} MB — HIGH OOM RISK. Prune taskEvents or check for residual parsedArtifacts.`);
+    } else if (dbSizeBytes > 20 * 1024 * 1024) {
+      console.warn(`[db-server] ⚠️  NOTICE: DB in-memory size is ${dbSizeMB} MB — approaching limit. Monitor growth.`);
+    }
+  } catch (e) {
+    console.warn('[db-server] Size diagnostic failed:', e.message);
+  }
 });
 
 // ─── 优雅停机：确保进程退出前内存数据落盘 ─────────────────────
