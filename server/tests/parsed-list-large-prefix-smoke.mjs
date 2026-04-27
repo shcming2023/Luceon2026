@@ -11,7 +11,16 @@ async function run() {
   const targetPrefix = 'parsed/2994194655610866/';
   
   console.log(`Test 1: GET /list?prefix=${targetPrefix}`);
-  const listResp = await fetch(`${UPLOAD_SERVER_URL}/list?prefix=${targetPrefix}&pageSize=10`);
+  let listResp;
+  try {
+    listResp = await fetch(`${UPLOAD_SERVER_URL}/list?prefix=${targetPrefix}&pageSize=10`);
+  } catch (e) {
+    if (e.code === 'ECONNREFUSED' || e.cause?.code === 'ECONNREFUSED') {
+      console.error('\n❌ 错误: 真实服务不可达！请在 Lucia 部署环境执行 docker compose up -d --build 后运行。');
+      process.exit(1);
+    }
+    throw e;
+  }
   if (!listResp.ok) {
     console.error(`❌ /list failed with status: ${listResp.status}`);
     process.exit(1);

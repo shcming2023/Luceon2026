@@ -27,19 +27,28 @@ async function run() {
 
   // 1. POST /tasks 带有大 parsedArtifacts
   console.log('Test 1: POST /tasks 应该过滤 parsedArtifacts');
-  const createResp = await fetch(`${DB_BASE_URL}/tasks`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      id: taskId,
-      materialId,
-      metadata: {
-        parsedFilesCount: 50,
-        parsedArtifacts: [{ name: 'fake', size: 100 }],
-        artifactManifestObjectName: 'fake.json'
-      }
-    })
-  });
+  let createResp;
+  try {
+    createResp = await fetch(`${DB_BASE_URL}/tasks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: taskId,
+        materialId,
+        metadata: {
+          parsedFilesCount: 50,
+          parsedArtifacts: [{ name: 'fake', size: 100 }],
+          artifactManifestObjectName: 'fake.json'
+        }
+      })
+    });
+  } catch (e) {
+    if (e.code === 'ECONNREFUSED' || e.cause?.code === 'ECONNREFUSED') {
+      console.error('\n❌ 错误: 真实服务不可达！请在 Lucia 部署环境执行 docker compose up -d --build 后运行。');
+      process.exit(1);
+    }
+    throw e;
+  }
   assert(createResp.ok, '创建任务成功');
 
   const t1 = await (await fetch(`${DB_BASE_URL}/tasks/${taskId}`)).json();
