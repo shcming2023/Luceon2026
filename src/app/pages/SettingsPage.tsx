@@ -1228,8 +1228,8 @@ export function SettingsPage() {
                     value={mineruForm.localBackend || 'pipeline'}
                     onChange={(v) => updateMineru({ localBackend: v })}
                     options={[
-                      { value: 'pipeline', label: 'pipeline（默认/稳定）' },
-                      { value: 'hybrid-auto-engine', label: 'hybrid-auto-engine（视觉增强/大文件慎用）' },
+                      { value: 'pipeline', label: 'pipeline（推荐/默认）' },
+                      { value: 'hybrid-auto-engine', label: 'hybrid-auto-engine（旧版兼容）' },
                       { value: 'vlm-auto-engine', label: 'vlm-auto-engine（高精度/耗时）' },
                     ]}
                   />

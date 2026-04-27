@@ -67,8 +67,10 @@ const RE_DOC_SHAPE = /page_count\s*=\s*(\d+)|window_size\s*=\s*(\d+)|total_windo
 const RE_ENGINE_CONFIG = /Using\s+(transformers|pytorch|onnx)|hybrid\s+batch\s+ratio|batch_size\s*=|model_path\s*=/i;
 /** API 轮询噪声：GET /health, GET /tasks/{id} */
 const RE_API_NOISE = /(?:GET|"GET)\s+\/(?:health|tasks\/[\w-]+)/i;
-/** 错误信号 */
-const RE_ERROR = /\b(?:ERROR|FATAL|Exception|Traceback|OutOfMemoryError|CUDA\s*error|segfault|killed)\b/i;
+/** 确认型错误信号：完整 traceback、明确异常类型 → 可判定 failed-confirmed */
+const RE_ERROR_CONFIRMED = /\b(?:RuntimeError|Exception|Traceback|OutOfMemoryError|CUDA\s*error|MPS\s+backend\s+out\s+of\s+memory|segfault|killed|torch\.cat|split_with_sizes|index\s+\S+\s+is\s+out\s+of\s+bounds|FATAL)\b/i;
+/** 裸 Error:/ERROR: 行 → 仅视为 error-signal-observed，不判定 failed-confirmed */
+const RE_ERROR_BARE = /^\s*(?:Error|ERROR)\s*:/;
 /** 日志行时间戳 */
 const RE_TIMESTAMP = /(\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2})/;
 
@@ -91,9 +93,14 @@ export function classifyLogLine(line) {
     return { signalType: 'progress', detail: tqdm, timestamp };
   }
 
-  // 2. 错误信号
-  if (RE_ERROR.test(line)) {
-    return { signalType: 'error', detail: { rawLine: line.trim() }, timestamp };
+  // 2. 确认型错误信号（完整 traceback / 明确异常类型）
+  if (RE_ERROR_CONFIRMED.test(line)) {
+    return { signalType: 'error', detail: { rawLine: line.trim(), confirmed: true }, timestamp };
+  }
+
+  // 2.5 裸 Error:/ERROR: 行 → 仅作为 warning 信号，不判定 failed-confirmed
+  if (RE_ERROR_BARE.test(line)) {
+    return { signalType: 'error-signal', detail: { rawLine: line.trim(), confirmed: false }, timestamp };
   }
 
   // 3. Hybrid window 信号
@@ -176,9 +183,10 @@ export async function readTail(filePath, bytes = 8192) {
  * @returns {string} 活性等级
  */
 export function determineActivityLevel(signalSummary, previousObservation, currentProgress) {
-  const { progressCount, stageChangeCount, businessLogCount, apiNoiseCount, errorCount } = signalSummary;
+  const { progressCount, stageChangeCount, businessLogCount, apiNoiseCount, errorCount, errorSignalCount } = signalSummary;
 
-  // 明确错误
+  // 仅确认型错误（Traceback / RuntimeError / CUDA error 等）可判定 failed-confirmed
+  // 裸 Error:/ERROR: 不计入 errorCount，只计入 errorSignalCount
   if (errorCount > 0) return 'failed-confirmed';
 
   // 有 tqdm 进度
@@ -279,6 +287,7 @@ export async function parseLatestMineruProgress(minObservedAt, previousObservati
       let businessLogCount = 0;
       let apiNoiseCount = 0;
       let errorCount = 0;
+      let errorSignalCount = 0;
 
       let latestProgress = null;
       let latestWindow = null;
@@ -379,6 +388,12 @@ export async function parseLatestMineruProgress(minObservedAt, previousObservati
             lastBusinessSignalTime = classified.timestamp || lastContextTime;
             break;
 
+          case 'error-signal':
+            // 裸 Error:/ERROR: → 仅记录为 warning 信号，不影响 failed-confirmed 裁决
+            errorSignalCount++;
+            lastBusinessSignalTime = classified.timestamp || lastContextTime;
+            break;
+
           case 'api-noise':
             apiNoiseCount++;
             // 不更新 lastBusinessSignalTime
@@ -386,7 +401,7 @@ export async function parseLatestMineruProgress(minObservedAt, previousObservati
         }
       }
 
-      const signalSummary = { progressCount, stageChangeCount, businessLogCount, apiNoiseCount, errorCount, lastBusinessSignalTime };
+      const signalSummary = { progressCount, stageChangeCount, businessLogCount, apiNoiseCount, errorCount, errorSignalCount, lastBusinessSignalTime };
       let activityLevel = determineActivityLevel(signalSummary, previousObservation, latestProgress);
       
       if (activityLevel === 'no-business-signal') {
@@ -469,8 +484,10 @@ export async function parseLatestMineruProgress(minObservedAt, previousObservati
 
       let signals = {
           hasBusinessSignal: businessLogCount > 0 || progressCount > 0 || stageChangeCount > 0,
-          hasApiNoiseOnly: apiNoiseCount > 0 && progressCount === 0 && businessLogCount === 0 && errorCount === 0,
-          hasErrorSignal: errorCount > 0
+          hasApiNoiseOnly: apiNoiseCount > 0 && progressCount === 0 && businessLogCount === 0 && errorCount === 0 && errorSignalCount === 0,
+          hasErrorSignal: errorCount > 0,
+          hasErrorSignalOnly: errorSignalCount > 0 && errorCount === 0,
+          errorSignalCount
       };
 
       let windowObj = null;

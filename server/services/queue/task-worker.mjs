@@ -1025,6 +1025,12 @@ export class ParseTaskWorker {
           zipObjectName = mineruResult.zipObjectName || null;
           artifactIncomplete = mineruResult.artifactIncomplete === true;
 
+          // ── P0 completed-empty 检测 ──
+          if (mineruResult.markdownEmpty === true) {
+            const emptyHandled = await this.handleCompletedEmpty(task, materialInfo, mineruResult);
+            if (emptyHandled) return; // 已处理（重试或终态），不继续正常流程
+          }
+
           await logTaskEvent({
             taskId: task.id,
             taskType: 'parse',
@@ -1163,8 +1169,20 @@ export class ParseTaskWorker {
       }
 
       console.error(`[task-worker] Task ${task.id} failed: ${error.message}`);
+      // P0: 确保 failed 终态不残留 mineru-processing/processing
+      // 从 taskClient 读取最新 task（因为 updateProgress 可能已通过 transition 更新了 mineruTaskId）
+      let hasMineruTaskId = Boolean(task.metadata?.mineruTaskId);
+      if (!hasMineruTaskId) {
+        try {
+          const allTasks = await this.taskClient.getAllTasks();
+          const latestTask = allTasks.find(t => t.id === task.id);
+          if (latestTask?.metadata?.mineruTaskId) hasMineruTaskId = true;
+        } catch (_e) { /* ignore, use in-memory fallback */ }
+      }
+      const failedStage = hasMineruTaskId ? 'mineru-failed' : 'execution-failed';
       await this.transition(task, {
         state: 'failed',
+        stage: failedStage,
         errorMessage: error.message,
         message: `[${modeLabel}] 执行失败: ${error.message}`
       }, 'worker-failed', 'error');
@@ -1172,10 +1190,10 @@ export class ParseTaskWorker {
       if (task.materialId) {
         await this.updateMaterialWithRetry(task.materialId, {
           status: 'failed',
-          mineruStatus: 'failed',
-          aiStatus: 'failed',
+          mineruStatus: hasMineruTaskId ? 'failed' : 'pending',
+          aiStatus: 'pending',
           metadata: {
-            processingStage: '',
+            processingStage: failedStage,
             processingMsg: `解析失败: ${error.message}`,
             processingUpdatedAt: new Date().toISOString(),
           }
@@ -1231,6 +1249,13 @@ export class ParseTaskWorker {
       const parsedFilesCount = Number(mineruResult.parsedFilesCount || parsedArtifacts.length || 1);
       const zipObjectName = mineruResult.zipObjectName || null;
       const artifactIncomplete = mineruResult.artifactIncomplete === true;
+
+      // ── P0 completed-empty 检测（resume 路径） ──
+      if (mineruResult.markdownEmpty === true) {
+        const materialInfo = task.optionsSnapshot?.material || {};
+        const emptyHandled = await this.handleCompletedEmpty(task, materialInfo, mineruResult);
+        if (emptyHandled) return; // 已处理
+      }
 
       await logTaskEvent({
         taskId: task.id,
@@ -1322,6 +1347,291 @@ export class ParseTaskWorker {
       }
     } finally {
       processingMap.delete(task.id);
+    }
+  }
+
+  /**
+   * P0: 处理 MinerU completed 但 Markdown 为空的 completed-empty 语义。
+   *
+   * 1. 写入 artifact-empty-detected 事件
+   * 2. 设置 artifact-empty 状态和 artifactQuality metadata
+   * 3. 如果符合 OCR 降级重试条件，执行一次重试
+   * 4. 如果不符合或重试后仍为空，设置最终失败态
+   *
+   * @param {Object} task - 当前 ParseTask
+   * @param {Object} materialInfo - 关联的 Material 信息
+   * @param {Object} mineruResult - local-adapter 返回的结果（含 markdownEmpty=true）
+   * @returns {Promise<boolean>} true 表示已完成处理（调用方应 return），false 表示未处理
+   */
+  async handleCompletedEmpty(task, materialInfo, mineruResult) {
+    const mineruTaskId = mineruResult.mineruTaskId || task.metadata?.mineruTaskId;
+    const parsedPrefix = mineruResult.parsedPrefix || `parsed/${task.materialId}/`;
+    const parsedArtifacts = mineruResult.parsedArtifacts || [];
+
+    // 构建 artifactQuality 结构化信息
+    const artifactQuality = {
+      status: 'completed-empty-markdown',
+      reason: 'MinerU API completed but markdown/content_list is empty',
+      markdownBytes: 0,
+      contentListItems: 0,
+      hasMiddleJson: parsedArtifacts.some(a => String(a.relativePath || '').includes('middle')),
+      hasModelJson: parsedArtifacts.some(a => String(a.relativePath || '').includes('model')),
+      hasOriginPdf: parsedArtifacts.some(a => String(a.relativePath || '').endsWith('.pdf')),
+    };
+
+    // 写入 artifact-empty-detected 事件
+    await logTaskEvent({
+      taskId: task.id,
+      taskType: 'parse',
+      level: 'warn',
+      event: 'artifact-empty-detected',
+      message: 'MinerU API completed 但 Markdown 为空',
+      payload: { mineruTaskId, artifactQuality, parsedPrefix, parsedFilesCount: parsedArtifacts.length },
+    });
+
+    // ── 检查 OCR 降级重试条件 ──
+    const canRetry = (
+      task.metadata?.emptyMarkdownRetryAttempted !== true &&
+      task.engine === 'local-mineru' &&
+      task.state !== 'canceled' &&
+      task.optionsSnapshot?.localEndpoint
+    );
+
+    if (canRetry) {
+      // 尝试 OCR 降级重试
+      const retrySuccess = await this.retryWithOcrDegradation(task, materialInfo, mineruResult);
+      if (retrySuccess) return true; // 重试成功，已进入正常后续流程
+      // 重试失败（仍为空或异常），进入最终失败态
+    }
+
+    // ── 设置 artifact-empty 最终失败态 ──
+    const failMsg = task.metadata?.emptyMarkdownRetryAttempted
+      ? 'OCR 降级重试后仍未产出可用 Markdown'
+      : 'MinerU 已完成但未产出可用 Markdown';
+
+    await this.updateTaskWithRetry(task.id, {
+      state: 'failed',
+      stage: 'artifact-empty',
+      progress: 100,
+      errorMessage: failMsg,
+      message: failMsg,
+      metadata: {
+        ...(task.metadata || {}),
+        mineruTaskId,
+        mineruStatus: 'artifact-empty',
+        artifactQuality,
+        parsedPrefix,
+        parsedFilesCount: parsedArtifacts.length,
+        parsedArtifacts,
+      }
+    }, { enqueueOnFailure: true });
+
+    // Material 同步
+    if (task.materialId) {
+      await this.updateMaterialWithRetry(task.materialId, {
+        status: 'failed',
+        mineruStatus: 'artifact-empty',
+        aiStatus: 'pending',
+        metadata: {
+          ...(materialInfo.metadata || {}),
+          processingStage: 'artifact-empty',
+          processingMsg: failMsg,
+          artifactQuality,
+          processingUpdatedAt: new Date().toISOString(),
+        }
+      }, { enqueueOnFailure: true });
+    }
+
+    processingMap.delete(task.id);
+    return true;
+  }
+
+  /**
+   * P0: 对 completed-empty 任务执行一次 OCR 降级重试。
+   *
+   * 重试参数：backend=pipeline, parseMethod=ocr, enableOcr=true, enableTable=false, enableFormula=false
+   * 重试创建新的 MinerU task，但仍归属于同一个 ParseTask，不创建新 Material / ParseTask。
+   * 仅执行一次（通过 emptyMarkdownRetryAttempted 守卫）。
+   *
+   * @param {Object} task - 当前 ParseTask
+   * @param {Object} materialInfo - Material 信息
+   * @param {Object} mineruResult - 上次空 Markdown 结果
+   * @returns {Promise<boolean>} true 表示重试成功（产出非空 Markdown），false 表示仍为空或异常
+   */
+  async retryWithOcrDegradation(task, materialInfo, mineruResult) {
+    const retryProfile = {
+      backend: 'pipeline',
+      parseMethod: 'ocr',
+      enableOcr: true,
+      enableTable: false,
+      enableFormula: false,
+    };
+
+    // 标记已尝试重试（BEFORE 重试，防止异常后无限循环）
+    await this.updateTaskWithRetry(task.id, {
+      state: 'running',
+      stage: 'artifact-empty-ocr-retry',
+      message: '检测到 Markdown 为空，正在尝试 OCR 降级重试...',
+      metadata: {
+        ...(task.metadata || {}),
+        emptyMarkdownRetryAttempted: true,
+        emptyMarkdownRetryProfile: retryProfile,
+        emptyMarkdownRetryStartedAt: new Date().toISOString(),
+      }
+    }, { enqueueOnFailure: true });
+
+    // 写入重试开始事件
+    await logTaskEvent({
+      taskId: task.id,
+      taskType: 'parse',
+      level: 'info',
+      event: 'artifact-empty-ocr-retry-started',
+      message: 'OCR 降级重试已启动',
+      payload: { retryProfile, previousMineruTaskId: mineruResult.mineruTaskId },
+    });
+
+    try {
+      // 获取原始文件流
+      const objectName = materialInfo.objectName || task.optionsSnapshot?.material?.objectName;
+      if (!objectName || !this.minioContext?.getFileStream) {
+        console.error(`[task-worker] OCR retry: 无法获取原始文件流 for task ${task.id}`);
+        await logTaskEvent({
+          taskId: task.id, taskType: 'parse', level: 'error',
+          event: 'artifact-empty-ocr-retry-failed',
+          message: 'OCR 降级重试失败：无法获取原始文件流',
+          payload: { reason: 'missing-file-stream' },
+        });
+        return false;
+      }
+
+      const fileStream = await this.minioContext.getFileStream(objectName);
+
+      // 构建 OCR 重试的 task options
+      const retryTask = {
+        ...task,
+        optionsSnapshot: {
+          ...(task.optionsSnapshot || {}),
+          backend: retryProfile.backend,
+          parseMethod: retryProfile.parseMethod,
+          enableOcr: retryProfile.enableOcr,
+          enableTable: retryProfile.enableTable,
+          enableFormula: retryProfile.enableFormula,
+        }
+      };
+
+      const retryResult = await this.mineruProcessor({
+        task: retryTask,
+        material: materialInfo,
+        fileStream,
+        fileName: materialInfo.fileName || 'document.pdf',
+        mimeType: materialInfo.mimeType || 'application/pdf',
+        timeoutMs: Number(task.optionsSnapshot?.localTimeout || 3600) * 1000,
+        minioContext: this.minioContext,
+        updateProgress: async (updateInfo) => {
+          const eventName = updateInfo.stage === 'store' ? 'stage-changed' : 'progress-update';
+          await this.transition(task, {
+            ...updateInfo,
+            message: `[OCR \u964d\u7ea7\u91cd\u8bd5] ${updateInfo.message || ''}`,
+          }, eventName);
+        }
+      });
+
+      // 检查重试结果
+      if (retryResult.markdownEmpty === true) {
+        // 重试后仍为空
+        await logTaskEvent({
+          taskId: task.id, taskType: 'parse', level: 'warn',
+          event: 'artifact-empty-ocr-retry-failed',
+          message: 'OCR 降级重试后 Markdown 仍为空',
+          payload: { retryMineruTaskId: retryResult.mineruTaskId, retryProfile },
+        });
+        // 更新 metadata 保留重试的 mineruTaskId
+        task.metadata = {
+          ...(task.metadata || {}),
+          emptyMarkdownRetryAttempted: true,
+          emptyMarkdownRetryMineruTaskId: retryResult.mineruTaskId,
+          emptyMarkdownRetryCompletedAt: new Date().toISOString(),
+          emptyMarkdownRetryResult: 'still-empty',
+        };
+        return false;
+      }
+
+      // 重试成功！Markdown 非空
+      const markdownObjectName = retryResult.objectName;
+      const parsedPrefix = retryResult.parsedPrefix || `parsed/${task.materialId}/`;
+      const parsedArtifacts = Array.isArray(retryResult.parsedArtifacts) ? retryResult.parsedArtifacts : [];
+      const parsedFilesCount = Number(retryResult.parsedFilesCount || parsedArtifacts.length || 1);
+      const zipObjectName = retryResult.zipObjectName || null;
+
+      await logTaskEvent({
+        taskId: task.id, taskType: 'parse', level: 'info',
+        event: 'artifact-empty-ocr-retry-completed',
+        message: 'OCR 降级重试成功，已产出非空 Markdown',
+        payload: { retryMineruTaskId: retryResult.mineruTaskId, retryProfile, markdownObjectName },
+      });
+
+      // 写入正常完成态
+      await this.transition(task, {
+        stage: 'complete',
+        state: 'ai-pending',
+        progress: 100,
+        message: 'OCR 降级重试成功，MinerU 解析完成，等待 AI 元数据识别',
+        metadata: {
+          ...(task.metadata || {}),
+          mineruStatus: 'completed',
+          markdownObjectName,
+          mineruTaskId: retryResult.mineruTaskId,
+          parsedPrefix,
+          parsedFilesCount,
+          parsedArtifacts,
+          zipObjectName: zipObjectName || undefined,
+          emptyMarkdownRetryMineruTaskId: retryResult.mineruTaskId,
+          emptyMarkdownRetryCompletedAt: new Date().toISOString(),
+          emptyMarkdownRetryResult: 'success',
+          parsedAt: new Date().toISOString()
+        },
+        completedAt: new Date().toISOString()
+      }, 'worker-completed');
+
+      // Material 同步
+      if (task.materialId) {
+        await this.updateMaterialWithRetry(task.materialId, {
+          mineruStatus: 'completed',
+          metadata: {
+            ...(materialInfo.metadata || {}),
+            markdownObjectName,
+            parsedPrefix,
+            parsedFilesCount,
+            parsedArtifacts,
+            zipObjectName: zipObjectName || undefined,
+            processingStage: 'mineru-completed',
+            processingMsg: 'OCR 降级重试成功，等待 AI 元数据识别',
+            processingUpdatedAt: new Date().toISOString()
+          }
+        }, { enqueueOnFailure: true });
+      }
+
+      // 触发 AI Job
+      await this.tryCreateAiJob(task, markdownObjectName);
+      return true;
+
+    } catch (retryErr) {
+      console.error(`[task-worker] OCR retry failed for task ${task.id}: ${retryErr.message}`);
+      await logTaskEvent({
+        taskId: task.id, taskType: 'parse', level: 'error',
+        event: 'artifact-empty-ocr-retry-failed',
+        message: `OCR 降级重试异常: ${retryErr.message}`,
+        payload: { error: retryErr.message, retryProfile },
+      });
+      // 更新 metadata
+      task.metadata = {
+        ...(task.metadata || {}),
+        emptyMarkdownRetryAttempted: true,
+        emptyMarkdownRetryCompletedAt: new Date().toISOString(),
+        emptyMarkdownRetryResult: 'error',
+        emptyMarkdownRetryError: retryErr.message,
+      };
+      return false;
     }
   }
 

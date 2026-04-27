@@ -366,14 +366,28 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
       }
     }
 
-    if (!markdown) throw new Error('提取到的 Markdown 内容为空');
+    // completed-empty 语义：MinerU 已完成但 Markdown 为空
+    // 不抛异常，返回结构化结果供 task-worker 判断
+    if (!markdown) {
+      return {
+        markdown: '',
+        markdownEmpty: true,
+        mineruTaskId,
+        objectName: fullMdObjectName,
+        parsedPrefix,
+        parsedFilesCount: parsedArtifacts.length,
+        parsedArtifacts,
+        zipObjectName: hasMineruZip ? zipObjectName : null,
+        artifactIncomplete: realArtifacts.length === 0,
+      };
+    }
 
     await updateProgress({ stage: 'store', state: 'result-store', progress: 90, message: '正在保存产物到 MinIO...' });
 
     await minioContext.saveMarkdown(fullMdObjectName, markdown);
     pushArtifact('full.md', fullMdObjectName, Buffer.byteLength(markdown, 'utf-8'), 'text/markdown');
 
-    const realArtifacts = parsedArtifacts.filter((a) => {
+    const realArtifacts2 = parsedArtifacts.filter((a) => {
       const rp = String(a.relativePath || '');
       if (rp === 'full.md') return false;
       if (rp === 'mineru-result.json') return false;
@@ -381,7 +395,7 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
       return true;
     });
 
-    const artifactIncomplete = realArtifacts.length === 0;
+    const artifactIncomplete2 = realArtifacts2.length === 0;
 
     return {
       markdown,
@@ -391,7 +405,7 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
       parsedFilesCount: parsedArtifacts.length,
       parsedArtifacts,
       zipObjectName: hasMineruZip ? zipObjectName : null,
-      artifactIncomplete,
+      artifactIncomplete: artifactIncomplete2,
     };
 
   } else {
@@ -615,14 +629,27 @@ export async function resumeWithLocalMinerU({ task, material, mineruTaskId, time
     }
   }
 
-  if (!markdown) throw new Error('提取到的 Markdown 内容为空');
+  // completed-empty 语义：MinerU 已完成但 Markdown 为空
+  if (!markdown) {
+    return {
+      markdown: '',
+      markdownEmpty: true,
+      mineruTaskId,
+      objectName: fullMdObjectName,
+      parsedPrefix,
+      parsedFilesCount: parsedArtifacts.length,
+      parsedArtifacts,
+      zipObjectName: hasMineruZip ? zipObjectName : null,
+      artifactIncomplete: realArtifacts.length === 0,
+    };
+  }
 
   await updateProgress({ stage: 'store', state: 'result-store', progress: 90, message: '正在保存产物到 MinIO...' });
 
   await minioContext.saveMarkdown(fullMdObjectName, markdown);
   pushArtifact('full.md', fullMdObjectName, Buffer.byteLength(markdown, 'utf-8'), 'text/markdown');
 
-  const realArtifacts = parsedArtifacts.filter((a) => {
+  const realArtifacts2 = parsedArtifacts.filter((a) => {
     const rp = String(a.relativePath || '');
     if (rp === 'full.md') return false;
     if (rp === 'mineru-result.json') return false;
@@ -630,7 +657,7 @@ export async function resumeWithLocalMinerU({ task, material, mineruTaskId, time
     return true;
   });
 
-  const artifactIncomplete = realArtifacts.length === 0;
+  const artifactIncomplete2 = realArtifacts2.length === 0;
 
   return {
     markdown,
@@ -640,7 +667,7 @@ export async function resumeWithLocalMinerU({ task, material, mineruTaskId, time
     parsedFilesCount: parsedArtifacts.length,
     parsedArtifacts,
     zipObjectName: hasMineruZip ? zipObjectName : null,
-    artifactIncomplete,
+    artifactIncomplete: artifactIncomplete2,
   };
 }
 

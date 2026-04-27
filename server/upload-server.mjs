@@ -2421,23 +2421,40 @@ app.post('/tasks', upload.single('file'), async (req, res) => {
       console.warn('[upload-server] /tasks: 获取 mineruConfig 失败，使用默认值', e.message);
     }
 
+    let dbBackend = mineruConfig.localBackend || mineruConfig.backend || 'pipeline';
+    let requestedBackend = req.body.backend || dbBackend;
+    let backendEffectiveReason = 'resolved-by-local-adapter';
+    
+    // P0: 运行时配置收口
+    // 如果没有在 API 中显式请求 hybrid（即 req.body.backend 为空），
+    // 且 DB 中的默认值是 hybrid-auto-engine，则不得回退到 DB 旧的 hybrid 默认
+    if (!req.body.backend && (dbBackend === 'hybrid-auto-engine' || dbBackend === 'hybrid')) {
+      requestedBackend = 'pipeline';
+      backendEffectiveReason = 'prevent-hybrid-drift-no-explicit-request';
+    } else if (req.body.backend === 'hybrid-auto-engine') {
+      backendEffectiveReason = 'explicit-request-retained';
+    } else if (requestedBackend === 'hybrid-auto-engine') {
+      // 兼容 UI 可能通过其他方式设置的 hybrid
+      backendEffectiveReason = 'explicit-settings-retained';
+    }
+
     const optionsSnapshot = {
       localEndpoint: mineruConfig.localEndpoint || 'http://host.docker.internal:8083',
       localTimeout: mineruConfig.localTimeout || 3600,
-      backend: mineruConfig.localBackend || mineruConfig.backend || 'pipeline',
       ocrLanguage: mineruConfig.localOcrLanguage || mineruConfig.ocrLanguage || 'ch',
       enableOcr: mineruConfig.enableOcr,
       enableFormula: mineruConfig.enableFormula,
       enableTable: mineruConfig.enableTable,
       maxPages: mineruConfig.localMaxPages || mineruConfig.maxPages || 1000,
       ...req.body,
+      backend: requestedBackend, // 确保不被 req.body 上的脏数据覆盖
       material
     };
 
     const mineruExecutionProfile = {
-      backendRequested: optionsSnapshot.backend,
+      backendRequested: requestedBackend,
       backendEffective: null,
-      backendEffectiveReason: 'resolved-by-local-adapter',
+      backendEffectiveReason: backendEffectiveReason,
       parseMethod: optionsSnapshot.parseMethod || 'auto',
       enableOcr: optionsSnapshot.enableOcr !== false && optionsSnapshot.enableOcr !== 'false',
       enableFormula: optionsSnapshot.enableFormula !== false && optionsSnapshot.enableFormula !== 'false',

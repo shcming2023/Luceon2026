@@ -147,7 +147,7 @@ export const initialMinerUConfig: MinerUConfig = {
   apiEndpoint: 'https://mineru.net/api/v4/extract/task',
   apiKey: '',  // 请在系统设置页面配置 MinerU API Key，或通过环境变量注入
   timeout: 1200,
-  modelVersion: 'vlm',
+  modelVersion: 'pipeline',
   enableOcr: false,
   enableFormula: true,
   enableTable: true,
