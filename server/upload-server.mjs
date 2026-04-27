@@ -3348,31 +3348,31 @@ app.post('/parsed-zip', async (req, res) => {
     console.log(`[upload-server] /parsed-zip: packing ${objects.length} files for material ${materialId}`);
 
     const zip = new JSZip();
+    const client = getMinioClient();
 
-    // P0 OOM Patch: 大产物集使用更小的批次避免并发内存爆炸
-    // 5000+ 图片是大 PDF 的合法场景，不能裁剪/跳过
-    const BATCH_SIZE = objects.length > 1000 ? 5 : 10;
-    for (let i = 0; i < objects.length; i += BATCH_SIZE) {
-      const batch = objects.slice(i, i + BATCH_SIZE);
-      await Promise.all(batch.map(async (obj) => {
-        const buffer = await getObjectBuffer(parsedBucket, obj.name);
-        // 去掉 parsed/{materialId}/ 前缀，保留相对路径
-        const relativePath = obj.name.startsWith(prefix) ? obj.name.slice(prefix.length) : obj.name;
-        zip.file(relativePath, buffer);
-      }));
-      // 大文件集每 100 批输出进度日志
-      if (objects.length > 500 && i > 0 && i % (BATCH_SIZE * 100) === 0) {
-        console.log(`[upload-server] /parsed-zip: progress ${i}/${objects.length} files packed for material ${materialId}`);
-      }
+    // P0 OOM Patch 2: 大产物集完全流式处理，禁止将 5000+ 文件 Buffer 读入内存
+    for (const obj of objects) {
+      const relativePath = obj.name.startsWith(prefix) ? obj.name.slice(prefix.length) : obj.name;
+      // 直接把 MinIO 流交给 JSZip
+      const stream = await client.getObject(parsedBucket, obj.name);
+      zip.file(relativePath, stream);
     }
-
-    const zipBuffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="parsed-${materialId}.zip"`);
-    res.setHeader('Content-Length', String(zipBuffer.length));
-    res.send(zipBuffer);
-    console.log(`[upload-server] /parsed-zip: sent ${(zipBuffer.length / 1024 / 1024).toFixed(1)} MB (${objects.length} files) for material ${materialId}`);
+    
+    // 生成流并导向响应，streamFiles: true 让 JSZip 避免一次性缓冲
+    zip.generateNodeStream({ streamFiles: true, compression: 'DEFLATE' })
+      .pipe(res)
+      .on('finish', () => {
+        console.log(`[upload-server] /parsed-zip: stream finished for material ${materialId} (${objects.length} files)`);
+      })
+      .on('error', (err) => {
+        console.error(`[upload-server] /parsed-zip: stream error for material ${materialId}:`, err);
+        // 如果 header 还没发，能报错，否则只能强行关连接
+        if (!res.headersSent) res.status(500).json({ error: err.message });
+      });
+
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error('[upload-server] /parsed-zip failed:', message);

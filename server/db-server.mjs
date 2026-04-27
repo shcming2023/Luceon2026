@@ -1,3 +1,4 @@
+console.log("Starting db-server.mjs");
 /**
  * db-server.mjs — 持久化 REST API（JSON 文件存储）
  *
@@ -77,6 +78,33 @@ app.use((req, _res, next) => {
 });
 
 // ─── JSON 文件读写 ─────────────────────────────────────────────
+
+// P0 Patch 2: DB 运行期大 payload 防御，防止 metadata.parsedArtifacts 进入 DB 事实源
+function sanitizeDbPayload(obj) {
+  if (!obj) return obj;
+  
+  // 1. 清理顶层
+  if (Array.isArray(obj.parsedArtifacts)) {
+    obj.parsedFilesCount = obj.parsedFilesCount || obj.parsedArtifacts.length;
+    delete obj.parsedArtifacts;
+  } else if ('parsedArtifacts' in obj) {
+    delete obj.parsedArtifacts;
+  }
+  
+  // 2. 清理 metadata 层
+  if (obj.metadata && typeof obj.metadata === 'object') {
+    if (Array.isArray(obj.metadata.parsedArtifacts)) {
+      obj.metadata.parsedFilesCount = obj.metadata.parsedFilesCount || obj.metadata.parsedArtifacts.length;
+      delete obj.metadata.parsedArtifacts;
+    }
+    // [关键防御] 如果 metadata.parsedArtifacts 明确被设置为 null/空/占位符（例如在 PATCH 中用来作为删除标记）
+    // 或者即使是旧数据残留，只要经过写入防御，一律剔除
+    else if ('parsedArtifacts' in obj.metadata) {
+      delete obj.metadata.parsedArtifacts;
+    }
+  }
+  return obj;
+}
 
 const EMPTY_DB = {
   materials: {},       // id → Material
@@ -433,7 +461,9 @@ app.get('/materials/:id', (req, res) => {
 app.post('/materials', (req, res) => {
   const item = req.body;
   if (!item?.id) { res.status(400).json({ error: '缺少 id' }); return; }
-  dbCache.materials[String(item.id)] = item;
+  const sid = String(item.id);
+  dbCache.materials[sid] = item;
+  sanitizeDbPayload(dbCache.materials[sid]);
   writeDB();
   res.json({ ok: true, id: item.id });
 });
@@ -441,6 +471,7 @@ app.post('/materials', (req, res) => {
 app.put('/materials/:id', (req, res) => {
   const id = String(req.params.id);
   dbCache.materials[id] = { ...req.body, id: req.body.id ?? id };
+  sanitizeDbPayload(dbCache.materials[id]);
   writeDB();
   res.json({ ok: true, id });
 });
@@ -454,6 +485,7 @@ app.patch('/materials/:id', (req, res) => {
     ...req.body,
     ...(req.body.metadata ? { metadata: { ...existing.metadata, ...req.body.metadata } } : {}),
   };
+  sanitizeDbPayload(merged);
   dbCache.materials[id] = merged;
   writeDB();
   res.json({ ok: true, id, data: merged });
@@ -522,6 +554,7 @@ app.post('/materials/bulk-patch', (req, res) => {
           ...updatesCopy,
         };
       }
+      sanitizeDbPayload(dbCache.materials[sid]);
       updated.push(id);
     }
   }
@@ -627,6 +660,7 @@ app.post('/tasks', (req, res) => {
     createdAt: new Date().toISOString(),
     ...item
   };
+  sanitizeDbPayload(dbCache.parseTasks[sid]);
   writeDB();
   
   if (isNew) {
@@ -693,6 +727,7 @@ app.patch('/tasks/:id', (req, res) => {
     metadata: mergedMetadata,
     updatedAt: new Date().toISOString(),
   };
+  sanitizeDbPayload(merged);
   dbCache.parseTasks[id] = merged;
   writeDB();
   res.json({ ok: true, id });
