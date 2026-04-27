@@ -24,13 +24,16 @@ export default function App() {
           <Layout>
             <ErrorBoundary>
               <Routes>
-                <Route path="/" element={<Navigate to="/workspace" replace />} />
+                <Route path="/" element={<Navigate to="/tasks" replace />} />
 
                 {/* ── 子系统一：EduAsset CMS ─────────────────────── */}
-                <Route path="/workspace" element={<WorkspacePage />} />
                 <Route path="/tasks" element={<TaskManagementPage />} />
                 <Route path="/tasks/:id" element={<TaskDetailPage />} />
-                <Route path="/source-materials" element={<Navigate to="/workspace" replace />} />
+                {/* P1 Patch: /workspace 、/source-materials 均重定向到 /tasks */}
+                <Route path="/workspace" element={<Navigate to="/tasks" replace />} />
+                <Route path="/source-materials" element={<Navigate to="/tasks" replace />} />
+                {/* Legacy 入口，不作为主入口 */}
+                <Route path="/legacy/workspace" element={<WorkspacePage />} />
                 <Route path="/legacy/source-materials" element={<SourceMaterialsPage />} />
                 {/* 资产详情：解析结果查看、字段编辑、AI 规则配置 */}
                 <Route path="/asset/:id" element={<AssetDetailPage />} />
@@ -51,7 +54,7 @@ export default function App() {
                 <Route path="/backup/latex" element={<LatexToolPage />} />
 
                 {/* 兜底重定向 */}
-                <Route path="*" element={<Navigate to="/workspace" replace />} />
+                <Route path="*" element={<Navigate to="/tasks" replace />} />
               </Routes>
             </ErrorBoundary>
           </Layout>

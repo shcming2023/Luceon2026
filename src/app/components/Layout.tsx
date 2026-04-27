@@ -1,14 +1,12 @@
 import type { ReactNode } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import {
-  FolderOpen,
   Settings,
   FileText,
   BookOpen,
   Bell,
   GraduationCap,
   ListTodo,
-  PlusCircle,
   ShieldCheck,
   Activity,
 } from 'lucide-react';
@@ -47,7 +45,7 @@ export function Layout({ children }: LayoutProps) {
       <header className="h-14 bg-white/60 backdrop-blur-md border-b border-slate-200 flex-shrink-0 z-50">
         <div className="h-full px-8 flex items-center justify-between">
           <div className="flex items-center gap-8">
-            <Link to="/workspace" className="font-bold text-lg text-blue-700 whitespace-nowrap">
+            <Link to="/tasks" className="font-bold text-lg text-blue-700 whitespace-nowrap">
               EduDoc Platform
             </Link>
           </div>

@@ -590,12 +590,12 @@ export function SourceMaterialsPage() {
               重置
             </button>
             <button
-              onClick={() => navigate('/workspace')}
+              onClick={() => navigate('/tasks')}
               className="flex items-center gap-1.5 px-4 py-2 text-sm text-white bg-blue-600 rounded-xl hover:bg-blue-700 font-semibold transition-colors"
               type="button"
             >
               <Upload size={15} />
-              前往工作台上传
+              前往任务管理
             </button>
           </div>
         </div>

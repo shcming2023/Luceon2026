@@ -227,11 +227,22 @@ export function AssetDetailPage() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isDirty]);
 
+  /**
+   * P1 Patch: 智能返回逻辑。
+   * 优先使用浏览器 history 返回上一页；
+   * 如果无历史记录（直接访问该页），默认跳转 /library。
+   * 不再返回 /workspace。
+   */
   const handleBackToList = () => {
     if (isDirty && !window.confirm('当前元数据尚未保存，确定离开此页面吗？')) {
       return;
     }
-    navigate('/workspace');
+    // 浏览器 history.length > 2 表示有可返回页（“2”是因为某些浏览器初始 length=1）
+    if (window.history.length > 2) {
+      navigate(-1);
+    } else {
+      navigate('/library');
+    }
   };
 
   const handleSaveTitle = async () => {
@@ -296,7 +307,7 @@ export function AssetDetailPage() {
           onClick={handleBackToList}
           className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 mb-4"
         >
-          <ArrowLeft size={16} /> 返回工作台
+          <ArrowLeft size={16} /> 返回上一页
         </button>
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
           资产 #{id} 不存在或已被删除
@@ -443,7 +454,7 @@ export function AssetDetailPage() {
           onClick={handleBackToList}
           className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 mb-3"
         >
-          <ArrowLeft size={15} /> 返回工作台
+          <ArrowLeft size={15} /> 返回上一页
         </button>
         <div className="flex items-start justify-between gap-4">
           <div>

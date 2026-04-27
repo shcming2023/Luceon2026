@@ -14,9 +14,12 @@ import {
   ShieldCheck,
   AlertTriangle,
   CheckCircle2,
+  Upload,
+  FolderPlus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { deriveTaskBucket, ParseTask, TaskBucket } from '../utils/taskView';
+import { useFileUpload } from '../hooks/useFileUpload';
 
 /**
  * TaskManagementPage — 任务管理
@@ -81,6 +84,11 @@ export function TaskManagementPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const sseRef = useRef<EventSource | null>(null);
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
+
+  // P1 Patch: 复用 useFileUpload hook，任务管理页直接发起上传
+  const { upload, uploading } = useFileUpload();
 
   const fetchTasks = async () => {
     setLoading(true);
@@ -261,12 +269,44 @@ export function TaskManagementPage() {
           <p className="text-sm text-gray-500 mt-1">监控文档解析与 AI 元数据提取的全生命周期（实时）。</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => navigate('/workspace')}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-500 transition-colors shadow-sm"
-          >
-            <FileText className="w-4 h-4" /> 新建任务
-          </button>
+          {/* P1 Patch: 直接在任务管理页发起上传，不再跳转 /workspace */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(e) => { const files = Array.from(e.target.files ?? []); e.target.value = ''; void upload(files); }}
+            accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png,.md"
+          />
+          <input
+            ref={folderInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(e) => { const files = Array.from(e.target.files ?? []); e.target.value = ''; void upload(files); }}
+            accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png,.md"
+          />
+          <div className="flex bg-blue-600 rounded-lg overflow-hidden text-white text-sm shadow-sm">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center gap-2 px-4 py-2 hover:bg-blue-500 transition-colors disabled:opacity-60"
+            >
+              <Upload className="w-4 h-4" /> 上传文件
+            </button>
+            <div className="w-px bg-blue-500 my-2" />
+            <button
+              onClick={() => {
+                const el = folderInputRef.current as unknown as { webkitdirectory?: boolean; directory?: boolean; setAttribute?: (k: string, v: string) => void } | null;
+                if (el) { el.webkitdirectory = true; el.directory = true; el.setAttribute?.('webkitdirectory', ''); el.setAttribute?.('directory', ''); }
+                folderInputRef.current?.click();
+              }}
+              disabled={uploading}
+              className="flex items-center gap-2 px-3 py-2 hover:bg-blue-500 transition-colors disabled:opacity-60"
+            >
+              <FolderPlus className="w-4 h-4" /> 文件夹
+            </button>
+          </div>
           <button
             onClick={fetchTasks}
             disabled={loading}
@@ -350,17 +390,29 @@ export function TaskManagementPage() {
                         />
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex flex-col gap-1">
+                        <div className="flex flex-col gap-1 min-w-0 max-w-[280px]">
+                          {/* P1 Patch: 主显示上传文件名，task id 为次级信息 */}
                           <button
                             onClick={() => navigate(`/tasks/${encodeURIComponent(t.id)}`)}
-                            className="font-semibold text-blue-600 hover:underline text-left truncate max-w-[240px]"
+                            className="font-semibold text-gray-900 hover:text-blue-600 text-left truncate text-sm"
+                            title={(t as any).fileName || (t as any).metadata?.fileName || (t as any).optionsSnapshot?.material?.fileName || t.id}
                           >
-                            {t.id}
+                            {(t as any).fileName
+                              || (t as any).metadata?.fileName
+                              || (t as any).optionsSnapshot?.material?.fileName
+                              || (() => {
+                                const mat = materials.find(m => String(m.id) === String(t.materialId));
+                                return mat?.metadata?.fileName || mat?.title || null;
+                              })()
+                              || '未命名文件'}
                           </button>
+                          <div className="flex items-center gap-1.5 text-[11px] text-gray-400 font-mono truncate">
+                            <span className="truncate" title={t.id}>Task: {t.id.length > 16 ? t.id.slice(0, 16) + '…' : t.id}</span>
+                            {t.retryOf ? <span className="text-amber-600">(重试自 {t.retryOf.slice(0, 12)}…)</span> : null}
+                          </div>
                           <div className="flex items-center gap-1.5 text-xs text-gray-400">
                             <Clock size={12} />
                             {t.stage || '准备中'}
-                            {t.retryOf ? <span className="text-amber-600">（重试自 {t.retryOf}）</span> : null}
                           </div>
                         </div>
                       </td>
