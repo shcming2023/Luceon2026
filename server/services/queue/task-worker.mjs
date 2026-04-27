@@ -1492,7 +1492,10 @@ export class ParseTaskWorker {
 
     try {
       // 获取原始文件流
-      const objectName = materialInfo.objectName || task.optionsSnapshot?.material?.objectName;
+      const objectName = materialInfo.objectName
+        || materialInfo.metadata?.objectName
+        || task.optionsSnapshot?.material?.objectName
+        || task.optionsSnapshot?.material?.metadata?.objectName;
       if (!objectName || !this.minioContext?.getFileStream) {
         console.error(`[task-worker] OCR retry: 无法获取原始文件流 for task ${task.id}`);
         await logTaskEvent({

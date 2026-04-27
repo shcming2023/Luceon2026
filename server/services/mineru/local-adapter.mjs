@@ -366,6 +366,16 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
       }
     }
 
+    const realArtifacts2 = parsedArtifacts.filter((a) => {
+      const rp = String(a.relativePath || '');
+      if (rp === 'full.md') return false;
+      if (rp === 'mineru-result.json') return false;
+      if (rp === 'mineru-result.zip') return false;
+      return true;
+    });
+
+    const artifactIncomplete2 = realArtifacts2.length === 0;
+
     // completed-empty 语义：MinerU 已完成但 Markdown 为空
     // 不抛异常，返回结构化结果供 task-worker 判断
     if (!markdown) {
@@ -378,7 +388,7 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
         parsedFilesCount: parsedArtifacts.length,
         parsedArtifacts,
         zipObjectName: hasMineruZip ? zipObjectName : null,
-        artifactIncomplete: realArtifacts.length === 0,
+        artifactIncomplete: artifactIncomplete2,
       };
     }
 
@@ -386,16 +396,6 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
 
     await minioContext.saveMarkdown(fullMdObjectName, markdown);
     pushArtifact('full.md', fullMdObjectName, Buffer.byteLength(markdown, 'utf-8'), 'text/markdown');
-
-    const realArtifacts2 = parsedArtifacts.filter((a) => {
-      const rp = String(a.relativePath || '');
-      if (rp === 'full.md') return false;
-      if (rp === 'mineru-result.json') return false;
-      if (rp === 'mineru-result.zip') return false;
-      return true;
-    });
-
-    const artifactIncomplete2 = realArtifacts2.length === 0;
 
     return {
       markdown,
@@ -629,6 +629,16 @@ export async function resumeWithLocalMinerU({ task, material, mineruTaskId, time
     }
   }
 
+  const realArtifacts2 = parsedArtifacts.filter((a) => {
+    const rp = String(a.relativePath || '');
+    if (rp === 'full.md') return false;
+    if (rp === 'mineru-result.json') return false;
+    if (rp === 'mineru-result.zip') return false;
+    return true;
+  });
+
+  const artifactIncomplete2 = realArtifacts2.length === 0;
+
   // completed-empty 语义：MinerU 已完成但 Markdown 为空
   if (!markdown) {
     return {
@@ -640,7 +650,7 @@ export async function resumeWithLocalMinerU({ task, material, mineruTaskId, time
       parsedFilesCount: parsedArtifacts.length,
       parsedArtifacts,
       zipObjectName: hasMineruZip ? zipObjectName : null,
-      artifactIncomplete: realArtifacts.length === 0,
+      artifactIncomplete: artifactIncomplete2,
     };
   }
 
@@ -648,16 +658,6 @@ export async function resumeWithLocalMinerU({ task, material, mineruTaskId, time
 
   await minioContext.saveMarkdown(fullMdObjectName, markdown);
   pushArtifact('full.md', fullMdObjectName, Buffer.byteLength(markdown, 'utf-8'), 'text/markdown');
-
-  const realArtifacts2 = parsedArtifacts.filter((a) => {
-    const rp = String(a.relativePath || '');
-    if (rp === 'full.md') return false;
-    if (rp === 'mineru-result.json') return false;
-    if (rp === 'mineru-result.zip') return false;
-    return true;
-  });
-
-  const artifactIncomplete2 = realArtifacts2.length === 0;
 
   return {
     markdown,
