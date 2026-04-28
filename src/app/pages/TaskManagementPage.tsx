@@ -296,8 +296,27 @@ export function TaskManagementPage() {
     }
   };
 
+  const unlinkedMaterialsCount = useMemo(() => {
+    if (tasks.length === 0 && materials.length > 0) {
+      return materials.length;
+    }
+    return 0;
+  }, [tasks, materials]);
+
   return (
     <div className="p-6 h-full flex flex-col space-y-5 max-w-[1400px] mx-auto">
+      {unlinkedMaterialsCount > 0 && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-600" />
+          <div>
+            <h4 className="font-semibold text-sm mb-1">发现未清理的产物记录</h4>
+            <p className="text-sm">
+              当前任务列表已空，但仍有 {unlinkedMaterialsCount} 条素材/产物记录未清理。
+              为了彻底清空测试环境，请前往「成果库」点击顶部的「清理全部素材 (测试环境)」按钮执行级联删除。
+            </p>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">任务管理</h1>

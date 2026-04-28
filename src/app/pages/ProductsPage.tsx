@@ -118,6 +118,8 @@ export function ProductsPage() {
   const [pdfPreviewId, setPdfPreviewId] = useState<number | null>(null);
 
   // ── 高级筛选选项（动态从数据中提取）──────────────────────
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
   const advancedOptions = useMemo(() => {
     const unique = (values: (string | undefined)[]) =>
       [...new Set(values.map((v) => v?.trim()).filter(Boolean) as string[])].sort((a, b) =>
@@ -216,6 +218,21 @@ export function ProductsPage() {
   const { currentItems, currentPage, totalPages, goToPage, hasPrev, hasNext, prevPage, nextPage } =
     usePagination(filtered);
   const pageNumbers = getPageNumbers(currentPage, totalPages);
+
+  const handleSelectAll = () => {
+    if (selectedIds.size === currentItems.length && currentItems.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(currentItems.map((m: any) => m.id)));
+    }
+  };
+
+  const toggleSelect = (id: number) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedIds(next);
+  };
 
   // ── 统计摘要 ─────────────────────────────────────────────
   const totalCount = state.materials.length;
@@ -344,24 +361,60 @@ export function ProductsPage() {
     aiStatusFilter !== 'analyzed';
 
   // ── 级联删除 ─────────────────────────────────────────────
-  const handleDeleteProduct = useCallback(async (id: string | number) => {
-    if (!window.confirm('确定要删除此成果吗？\n\n警告：此操作将执行全量级联删除，彻底清空以下内容，且不可撤销：\n- 原始文件\n- parsed 解析产物 (Markdown / ZIP / images)\n- 关联任务\n- AI job\n- task events\n\n确定继续吗？')) return;
-    
+  const executeDelete = useCallback(async (materialIds: (string | number)[], promptTitle = '删除成果') => {
+    if (materialIds.length === 0) return;
     try {
-      const res = await fetch('/__proxy/upload/delete/materials', {
+      const dryRes = await fetch('/__proxy/upload/delete/materials', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ materialIds: [id], mode: 'cascade', dryRun: false })
+        body: JSON.stringify({ materialIds, mode: 'cascade', dryRun: true, force: false })
       });
-      if (!res.ok) {
-        const payload = await res.json().catch(() => ({}));
-        throw new Error(payload.error || `HTTP ${res.status}`);
-      }
-      toast.success('级联删除成功，相关记录与产物已彻底清理。');
+      if (!dryRes.ok) throw new Error(`HTTP ${dryRes.status}`);
+      const { summary } = await dryRes.json();
+
+      const msg = `预演检查结果：
+- 待删 Materials：${summary.materials}
+- 待删 Tasks：${summary.tasks}
+- 待删 AI Jobs：${summary.aiJobs}
+- 待删 Events：${summary.taskEvents}
+- 待删 原始对象：${summary.originalObjects}
+- 待删 解析产物：${summary.parsedObjects}
+- 运行中任务：${summary.runningTasks}
+
+确定要执行级联删除吗？此操作不可撤销！`;
+      if (!window.confirm(msg)) return;
+
+      const force = summary.runningTasks > 0;
+      const execRes = await fetch('/__proxy/upload/delete/materials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ materialIds, mode: 'cascade', dryRun: false, force })
+      });
+      
+      if (!execRes.ok) throw new Error(`HTTP ${execRes.status}`);
+      toast.success(`${promptTitle}成功，相关记录与产物已彻底清理。`);
+      setSelectedIds(new Set());
     } catch (err) {
-      toast.error('级联删除失败', { description: String(err) });
+      toast.error(`${promptTitle}失败`, { description: String(err) });
     }
   }, []);
+
+  const handleDeleteProduct = useCallback((id: string | number) => {
+    executeDelete([id], '删除成果');
+  }, [executeDelete]);
+
+  const handleBatchDelete = useCallback(() => {
+    executeDelete(Array.from(selectedIds), '批量删除');
+  }, [executeDelete, selectedIds]);
+
+  const handleClearAllResiduals = useCallback(() => {
+    const allMaterialIds = state.materials.map(m => m.id);
+    if (allMaterialIds.length === 0) {
+      toast.info('当前没有需要清理的记录。');
+      return;
+    }
+    executeDelete(allMaterialIds, '清理残留素材');
+  }, [executeDelete, state.materials]);
 
   // ────────────────────────────────────────────────────────
   return (
@@ -378,6 +431,14 @@ export function ProductsPage() {
                 <span className="ml-1 text-slate-400">（全库 {totalCount} 条）</span>
               )}
             </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleClearAllResiduals}
+              className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 rounded-xl font-medium transition-colors border border-red-200 text-sm flex items-center gap-2"
+            >
+              <Trash2 size={16} /> 清理全部素材 (测试环境)
+            </button>
           </div>
         </div>
 
@@ -438,6 +499,27 @@ export function ProductsPage() {
                 </button>
               </div>
             </div>
+
+            {/* 批量操作工具栏 */}
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-3 mb-4 bg-blue-50/50 p-2.5 rounded-xl border border-blue-100/50">
+                <span className="text-sm font-medium text-blue-800 ml-2">
+                  已选择 {selectedIds.size} 项
+                </span>
+                <button
+                  onClick={handleBatchDelete}
+                  className="px-3 py-1.5 bg-red-100 text-red-600 text-sm font-medium rounded-lg hover:bg-red-200 transition-colors flex items-center gap-1.5"
+                >
+                  <Trash2 size={14} /> 批量级联删除
+                </button>
+                <button
+                  onClick={() => setSelectedIds(new Set())}
+                  className="px-3 py-1.5 text-slate-500 hover:text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-100 transition-colors"
+                >
+                  取消
+                </button>
+              </div>
+            )}
 
             {/* 快捷状态筛选行 */}
             <div className="flex items-center gap-2 flex-wrap">
@@ -522,6 +604,14 @@ export function ProductsPage() {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.size === currentItems.length && currentItems.length > 0}
+                      onChange={handleSelectAll}
+                      className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                    />
+                  </th>
                   <th className="px-4 py-3 text-left font-semibold text-slate-600 text-xs uppercase tracking-wide">资料名称</th>
                   <th className="px-4 py-3 text-left font-semibold text-slate-600 text-xs uppercase tracking-wide">类型</th>
                   <th className="px-4 py-3 text-left font-semibold text-slate-600 text-xs uppercase tracking-wide">解析状态</th>
@@ -571,6 +661,14 @@ export function ProductsPage() {
                         className="hover:bg-slate-50 cursor-pointer transition-colors"
                         onClick={() => navigate(`/asset/${m.id}`)}
                       >
+                        <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(m.id)}
+                            onChange={() => toggleSelect(m.id)}
+                            className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                          />
+                        </td>
                         <td className="px-4 py-3.5">
                           <div className="flex items-center gap-3">
                             <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${tc.bg}`}>
@@ -683,7 +781,7 @@ export function ProductsPage() {
                             {/* 删除成果 */}
                             <button
                               onClick={(e) => { e.stopPropagation(); handleDeleteProduct(m.id); }}
-                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                               title="级联删除"
                             >
                               <Trash2 size={14} />
@@ -778,6 +876,14 @@ export function ProductsPage() {
                     className="relative aspect-video bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center cursor-pointer"
                     onClick={() => navigate(`/asset/${m.id}`)}
                   >
+                    <div className="absolute top-3 right-3 z-10" onClick={e => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(m.id)}
+                        onChange={() => toggleSelect(m.id)}
+                        className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 shadow-sm"
+                      />
+                    </div>
                     <FileText className={`w-14 h-14 ${tc.text} opacity-30`} />
                     <div className="absolute top-3 left-3">
                       <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold text-white ${tc.badge}`}>
@@ -863,6 +969,13 @@ export function ProductsPage() {
                           <Archive size={11} /> ZIP
                         </a>
                       )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteProduct(m.id); }}
+                        className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg text-red-600 hover:bg-red-50 font-medium transition-colors ml-auto"
+                        title="级联删除"
+                      >
+                        <Trash2 size={11} /> 删除
+                      </button>
                     </div>
                   </div>
 
