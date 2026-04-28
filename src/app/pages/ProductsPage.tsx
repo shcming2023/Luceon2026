@@ -129,46 +129,87 @@ export function ProductsPage() {
     };
   }, [state.materials]);
 
-  // ── 筛选 + 排序 ──────────────────────────────────────────
-  const filtered = useMemo(() => {
-    // 1. 成果库事实源收口：只展示真正有“成果”的记录
-    const baseList = state.materials.filter((m) => {
-      if (m.mineruStatus === 'completed') return true;
-      if (Number(m.metadata?.parsedFilesCount) > 0) return true;
-      
+  // ── 数据富化与收口 ──────────────────────────────────────────
+  const enrichedMaterials = useMemo(() => {
+    return state.materials.map((m: any) => {
+      const assetDetails: any = state.assetDetails[m.id] || {};
       const latestTask = [...state.processTasks, ...state.tasks]
-        .filter((t: any) => t.materialId === String(m.id) || t.materialId === m.id)
+        .filter((t: any) => String(t.materialId) === String(m.id))
         .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0] as any;
+
+      const rawCount = m.metadata?.parsedFilesCount ?? latestTask?.metadata?.parsedFilesCount ?? latestTask?.parsedFilesCount ?? assetDetails.metadata?.parsedFilesCount;
+      const parsedFilesCount = Number(rawCount) || 0;
+      const parsedCountDisplay = rawCount !== undefined && rawCount !== null ? String(rawCount) : '—';
+
+      const hasProductEvidence = !!(m.metadata?.markdownObjectName || m.metadata?.parsedPrefix || m.mineruZipUrl || parsedFilesCount > 0);
+
+      let derivedMineruStatus = 'processing';
+      let derivedAiStatus = m.aiStatus || 'pending';
+      let statusDisplay = '';
+      let statusColor = 'text-slate-500';
+
+      const isTaskState = (states: string[]) => latestTask && states.includes(latestTask.state);
       
       if (latestTask) {
-        if (['completed', 'ai-pending', 'ai-running', 'review-pending'].includes(latestTask.state)) {
-          if (Number(latestTask.metadata?.parsedFilesCount || latestTask.parsedFilesCount) > 0) {
-            return true;
-          }
-        }
+        if (isTaskState(['completed', 'done'])) { derivedMineruStatus = 'completed'; statusDisplay = '解析完成'; statusColor = 'text-green-600'; }
+        else if (isTaskState(['ai-pending', 'ai-running'])) { derivedMineruStatus = 'completed'; derivedAiStatus = isTaskState(['ai-running']) ? 'analyzing' : 'pending'; statusDisplay = 'AI 处理中'; statusColor = 'text-blue-600'; }
+        else if (isTaskState(['review-pending'])) { derivedMineruStatus = 'completed'; derivedAiStatus = 'analyzed'; statusDisplay = '待审核'; statusColor = 'text-orange-600'; }
+        else if (isTaskState(['failed', 'artifact-empty', 'mineru-failed', 'canceled'])) { derivedMineruStatus = 'failed'; statusDisplay = '解析失败'; statusColor = 'text-red-600'; }
+        else if (isTaskState(['pending'])) { derivedMineruStatus = 'pending'; statusDisplay = '待解析'; statusColor = 'text-slate-500'; }
+        else { derivedMineruStatus = 'processing'; statusDisplay = '处理中'; statusColor = 'text-blue-600'; }
+      } else {
+        if (m.mineruStatus === 'completed' || m.status === 'completed') { derivedMineruStatus = 'completed'; statusDisplay = '解析完成'; statusColor = 'text-green-600'; }
+        else if (m.mineruStatus === 'failed' || m.status === 'failed') { derivedMineruStatus = 'failed'; statusDisplay = '解析失败'; statusColor = 'text-red-600'; }
+        else if (m.mineruStatus === 'pending') { derivedMineruStatus = 'pending'; statusDisplay = '待解析'; statusColor = 'text-slate-500'; }
+        else { derivedMineruStatus = m.mineruStatus === 'processing' ? 'processing' : (m.mineruStatus || '未知'); statusDisplay = '处理中'; statusColor = 'text-blue-600'; }
       }
-      return false;
-    });
 
-    let list = baseList;
-    if (mineruStatusFilter !== 'all') list = list.filter((m) => m.mineruStatus === mineruStatusFilter);
-    if (aiStatusFilter !== 'all')     list = list.filter((m) => m.aiStatus === aiStatusFilter);
-    if (subjectFilter !== 'all')      list = list.filter((m) => m.metadata?.subject === subjectFilter);
-    if (gradeFilter !== 'all')        list = list.filter((m) => m.metadata?.grade === gradeFilter);
-    if (languageFilter !== 'all')     list = list.filter((m) => m.metadata?.language === languageFilter);
-    if (typeFilter !== 'all')         list = list.filter((m) => getMaterialType(m) === typeFilter);
+      // 准入条件
+      const isSuccessful = derivedMineruStatus === 'completed';
+      const isNotFailed = derivedMineruStatus !== 'failed' 
+        && !['failed', 'artifact-empty', 'mineru-failed', 'canceled'].includes(m.mineruStatus) 
+        && !['failed', 'artifact-empty', 'mineru-failed', 'canceled'].includes(m.status);
+      const isUsable = isSuccessful && isNotFailed && hasProductEvidence;
+
+      const title = m.title || m.fileName || m.metadata?.fileName || assetDetails.name || assetDetails.title || assetDetails.fileName || String(m.id);
+      const rawSize = m.sizeBytes || m.metadata?.sizeBytes || assetDetails.sizeBytes;
+      const sizeDisplay = rawSize > 0 ? formatBytes(rawSize as number) : '—';
+      const rawTime = m.uploadTimestamp || m.createTime || m.metadata?.uploadTimestamp || assetDetails.uploadTimestamp;
+      const timeDisplay = rawTime && rawTime !== '刚刚' ? new Date(rawTime).toLocaleString() : '—';
+
+      return {
+        ...m,
+        _enriched: {
+          title, sizeDisplay, timeDisplay, parsedCountDisplay, statusDisplay, statusColor,
+          derivedMineruStatus, derivedAiStatus, isUsable
+        }
+      };
+    });
+  }, [state.materials, state.processTasks, state.tasks, state.assetDetails]);
+
+  // ── 筛选 + 排序 ──────────────────────────────────────────
+  const filtered = useMemo(() => {
+    let list = enrichedMaterials.filter((m: any) => m._enriched.isUsable);
+
+    if (mineruStatusFilter !== 'all') list = list.filter((m: any) => m._enriched.derivedMineruStatus === mineruStatusFilter);
+    if (aiStatusFilter !== 'all')     list = list.filter((m: any) => m._enriched.derivedAiStatus === aiStatusFilter);
+    if (subjectFilter !== 'all')      list = list.filter((m: any) => m.metadata?.subject === subjectFilter);
+    if (gradeFilter !== 'all')        list = list.filter((m: any) => m.metadata?.grade === gradeFilter);
+    if (languageFilter !== 'all')     list = list.filter((m: any) => m.metadata?.language === languageFilter);
+    if (typeFilter !== 'all')         list = list.filter((m: any) => getMaterialType(m) === typeFilter);
+    
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter(
-        (m) =>
-          m.title.toLowerCase().includes(q) ||
+        (m: any) =>
+          m._enriched.title.toLowerCase().includes(q) ||
           getMaterialTags(m).some((t: string) => t.toLowerCase().includes(q)) ||
           (m.metadata?.subject || '').toLowerCase().includes(q) ||
-          (m.metadata?.grade || '').toLowerCase().includes(q),
+          (m.metadata?.grade || '').toLowerCase().includes(q)
       );
     }
     return sortMaterials(list, sort);
-  }, [state.materials, mineruStatusFilter, aiStatusFilter, subjectFilter, gradeFilter, languageFilter, typeFilter, search, sort]);
+  }, [enrichedMaterials, mineruStatusFilter, aiStatusFilter, subjectFilter, gradeFilter, languageFilter, typeFilter, search, sort]);
 
   const { currentItems, currentPage, totalPages, goToPage, hasPrev, hasNext, prevPage, nextPage } =
     usePagination(filtered);
@@ -486,34 +527,14 @@ export function ProductsPage() {
                   </tr>
                 )}
                 {currentItems.map((m: any) => {
-                  const assetDetails: any = state.assetDetails[m.id] || {};
-                  const latestTask = [...state.processTasks, ...state.tasks]
-                    .filter((t: any) => t.materialId === String(m.id) || t.materialId === m.id)
-                    .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0] as any;
+                  const en = m._enriched;
+                  const title = en.title;
+                  const sizeDisplay = en.sizeDisplay;
+                  const timeDisplay = en.timeDisplay;
+                  const parsedCountDisplay = en.parsedCountDisplay;
+                  const statusDisplay = en.statusDisplay;
+                  const statusColor = en.statusColor;
 
-                  const title = m.title || m.fileName || m.metadata?.fileName || assetDetails.name || assetDetails.title || assetDetails.fileName || String(m.id);
-                  const rawSize = m.sizeBytes || m.metadata?.sizeBytes || assetDetails.sizeBytes;
-                  const sizeDisplay = rawSize > 0 ? formatBytes(rawSize as number) : '—';
-                  
-                  const rawTime = m.uploadTimestamp || m.createTime || m.metadata?.uploadTimestamp || assetDetails.uploadTimestamp;
-                  const timeDisplay = rawTime && rawTime !== '刚刚' ? new Date(rawTime).toLocaleString() : '—';
-
-                  const rawCount = m.metadata?.parsedFilesCount || latestTask?.metadata?.parsedFilesCount || latestTask?.parsedFilesCount || assetDetails.metadata?.parsedFilesCount;
-                  const parsedCountDisplay = rawCount !== undefined && rawCount !== null ? String(rawCount) : '—';
-
-                  let statusDisplay = '';
-                  let statusColor = 'text-slate-500';
-                  if (latestTask) {
-                    if (latestTask.state === 'completed' || latestTask.state === 'done') { statusDisplay = '解析完成'; statusColor = 'text-green-600'; }
-                    else if (latestTask.state === 'ai-pending' || latestTask.state === 'ai-running') { statusDisplay = 'AI 处理中'; statusColor = 'text-blue-600'; }
-                    else if (latestTask.state === 'review-pending') { statusDisplay = '待审核'; statusColor = 'text-orange-600'; }
-                    else if (latestTask.state === 'failed') { statusDisplay = '解析失败'; statusColor = 'text-red-600'; }
-                    else { statusDisplay = '处理中'; statusColor = 'text-blue-600'; }
-                  } else {
-                    if (m.mineruStatus === 'completed' || m.status === 'completed') { statusDisplay = '解析完成'; statusColor = 'text-green-600'; }
-                    else if (m.status === 'failed') { statusDisplay = '解析失败'; statusColor = 'text-red-600'; }
-                    else { statusDisplay = m.status === 'processing' ? '处理中' : (m.status || '未知'); statusColor = 'text-blue-600'; }
-                  }
                   const mType = getMaterialType(m);
                   const mTags = getMaterialTags(m);
                   const tc = typeColor(mType);
@@ -702,34 +723,13 @@ export function ProductsPage() {
               </div>
             )}
             {currentItems.map((m: any) => {
-              const assetDetails: any = state.assetDetails[m.id] || {};
-              const latestTask = [...state.processTasks, ...state.tasks]
-                .filter((t: any) => t.materialId === String(m.id) || t.materialId === m.id)
-                .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0] as any;
-
-              const title = m.title || m.fileName || m.metadata?.fileName || assetDetails.name || assetDetails.title || assetDetails.fileName || String(m.id);
-              const rawSize = m.sizeBytes || m.metadata?.sizeBytes || assetDetails.sizeBytes;
-              const sizeDisplay = rawSize > 0 ? formatBytes(rawSize as number) : '—';
-              
-              const rawTime = m.uploadTimestamp || m.createTime || m.metadata?.uploadTimestamp || assetDetails.uploadTimestamp;
-              const timeDisplay = rawTime && rawTime !== '刚刚' ? new Date(rawTime).toLocaleString() : '—';
-
-              const rawCount = m.metadata?.parsedFilesCount || latestTask?.metadata?.parsedFilesCount || latestTask?.parsedFilesCount || assetDetails.metadata?.parsedFilesCount;
-              const parsedCountDisplay = rawCount !== undefined && rawCount !== null ? String(rawCount) : '—';
-
-              let statusDisplay = '';
-              let statusColor = 'text-slate-500';
-              if (latestTask) {
-                if (latestTask.state === 'completed' || latestTask.state === 'done') { statusDisplay = '解析完成'; statusColor = 'text-green-600'; }
-                else if (latestTask.state === 'ai-pending' || latestTask.state === 'ai-running') { statusDisplay = 'AI 处理中'; statusColor = 'text-blue-600'; }
-                else if (latestTask.state === 'review-pending') { statusDisplay = '待审核'; statusColor = 'text-orange-600'; }
-                else if (latestTask.state === 'failed') { statusDisplay = '解析失败'; statusColor = 'text-red-600'; }
-                else { statusDisplay = '处理中'; statusColor = 'text-blue-600'; }
-              } else {
-                if (m.mineruStatus === 'completed' || m.status === 'completed') { statusDisplay = '解析完成'; statusColor = 'text-green-600'; }
-                else if (m.status === 'failed') { statusDisplay = '解析失败'; statusColor = 'text-red-600'; }
-                else { statusDisplay = m.status === 'processing' ? '处理中' : (m.status || '未知'); statusColor = 'text-blue-600'; }
-              }
+              const en = m._enriched;
+              const title = en.title;
+              const sizeDisplay = en.sizeDisplay;
+              const timeDisplay = en.timeDisplay;
+              const parsedCountDisplay = en.parsedCountDisplay;
+              const statusDisplay = en.statusDisplay;
+              const statusColor = en.statusColor;
 
               const mType = getMaterialType(m);
               const mTags = getMaterialTags(m);
