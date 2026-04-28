@@ -218,12 +218,15 @@ export function ProductsPage() {
   const { currentItems, currentPage, totalPages, goToPage, hasPrev, hasNext, prevPage, nextPage } =
     usePagination(filtered);
   const pageNumbers = getPageNumbers(currentPage, totalPages);
+  const filteredIds = useMemo(() => filtered.map((m: any) => Number(m.id)), [filtered]);
+  const allFilteredSelected =
+    filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
 
   const handleSelectAll = () => {
-    if (selectedIds.size === currentItems.length && currentItems.length > 0) {
+    if (allFilteredSelected) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(currentItems.map((m: any) => m.id)));
+      setSelectedIds(new Set(filteredIds));
     }
   };
 
@@ -511,6 +514,9 @@ export function ProductsPage() {
               <div className="flex items-center gap-3 mb-4 bg-blue-50/50 p-2.5 rounded-xl border border-blue-100/50">
                 <span className="text-sm font-medium text-blue-800 ml-2">
                   已选择 {selectedIds.size} 项
+                  {filtered.length > 0 && selectedIds.size === filtered.length && (
+                    <span className="ml-1 text-blue-500">（当前筛选全部）</span>
+                  )}
                 </span>
                 <button
                   onClick={handleBatchDelete}
@@ -613,8 +619,9 @@ export function ProductsPage() {
                   <th className="px-4 py-3 w-10">
                     <input
                       type="checkbox"
-                      checked={selectedIds.size === currentItems.length && currentItems.length > 0}
+                      checked={allFilteredSelected}
                       onChange={handleSelectAll}
+                      title="选择当前筛选结果中的全部成果"
                       className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
                     />
                   </th>
