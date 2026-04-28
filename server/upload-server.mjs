@@ -2954,9 +2954,11 @@ async function handleCascadeDelete(materialIds, force = false, dryRun = true) {
     }
   }
 
-  if (summary.runningTasks > 0 && !force) {
+  if (!dryRun && summary.runningTasks > 0 && !force) {
     throw new Error(`Cannot delete because ${summary.runningTasks} tasks are currently running: ${runningTaskIds.join(', ')}`);
   }
+
+  summary.runningTaskIds = runningTaskIds;
 
   summary.materials = materials.length;
   summary.assetDetails = materials.length; // 默认与 material 1:1

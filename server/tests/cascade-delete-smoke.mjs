@@ -48,7 +48,16 @@ async function runSmokeTests() {
       body: JSON.stringify({ id: `event-${tId1}-1`, taskId: tId1, type: 'smoke' })
     });
 
-    console.log('-> Test 1: Cascade Delete Without Force (Should Fail)');
+    console.log('-> Test 1: Cascade Delete Dry Run (Should Succeed and return running task count)');
+    const dryRunRes = await fetchJson(`${API_BASE_URL}/delete/materials`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ materialIds: [mId1, mId2], mode: 'cascade', dryRun: true, force: false })
+    });
+    assert.strictEqual(dryRunRes.ok, true);
+    assert.strictEqual(dryRunRes.summary.runningTasks, 1);
+    assert.ok(dryRunRes.summary.runningTaskIds.includes(tId2));
+
+    console.log('-> Test 2: Cascade Delete Execute Without Force (Should Fail)');
     try {
       await fetchJson(`${API_BASE_URL}/delete/materials`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -57,27 +66,23 @@ async function runSmokeTests() {
       assert.fail('Should have thrown 409 conflict');
     } catch (e) {
       if (e.name === 'AssertionError') throw e;
-      console.log('Got error:', e);
       assert.strictEqual(e.status, 409, 'Status should be 409');
       assert.ok(e.error.includes('currently running'), 'Error message should mention running tasks');
     }
 
-    console.log('-> Test 2: Cascade Delete With Force (Should Succeed)');
+    console.log('-> Test 3: Cascade Delete Execute With Force (Should Succeed)');
     const res = await fetchJson(`${API_BASE_URL}/delete/materials`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ materialIds: [mId1, mId2], mode: 'cascade', dryRun: false, force: true })
     });
 
     assert.strictEqual(res.ok, true);
-    console.log('summary:', res.summary);
-    assert.strictEqual(res.ok, true);
     assert.strictEqual(res.summary.materials, 2);
     assert.strictEqual(res.summary.tasks, 2);
-    // Relax taskEvents check to just be > 0
     assert.ok(res.summary.taskEvents > 0);
     assert.strictEqual(res.summary.runningTasks, 1);
 
-    console.log('-> Test 3: Verify Data is Cleared');
+    console.log('-> Test 4: Verify Data is Cleared');
     const dbMats = await fetchJson(`${DB_BASE_URL}/materials`).catch(() => []);
     const mat1 = Object.values(dbMats).find(m => m.id === mId1);
     const mat2 = Object.values(dbMats).find(m => m.id === mId2);
@@ -101,6 +106,14 @@ async function runSmokeTests() {
     }
     console.error('❌ Smoke Test Failed:', err);
     process.exit(1);
+  } finally {
+    // Cleanup smoke records just in case
+    console.log('-> Cleaning up smoke records...');
+    await fetch(`${DB_BASE_URL}/materials/${mId1}`, { method: 'DELETE' }).catch(() => {});
+    await fetch(`${DB_BASE_URL}/materials/${mId2}`, { method: 'DELETE' }).catch(() => {});
+    await fetch(`${DB_BASE_URL}/tasks/${tId1}`, { method: 'DELETE' }).catch(() => {});
+    await fetch(`${DB_BASE_URL}/tasks/${tId2}`, { method: 'DELETE' }).catch(() => {});
+    await fetch(`${DB_BASE_URL}/task-events/event-${tId1}-1`, { method: 'DELETE' }).catch(() => {});
   }
 }
 

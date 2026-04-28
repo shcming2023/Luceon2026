@@ -1,5 +1,3 @@
-import 'dotenv/config';
-
 const UPLOAD_SERVER_URL = process.env.UPLOAD_SERVER_URL || 'http://127.0.0.1:8082';
 const DB_BASE_URL = process.env.DB_BASE_URL || 'http://127.0.0.1:8789';
 
@@ -36,10 +34,16 @@ async function main() {
       force: isForce
     };
 
+    let baseUrl = UPLOAD_SERVER_URL.replace(/\/+$/, '');
+    if (!baseUrl.endsWith('/__proxy/upload')) {
+      baseUrl += '/__proxy/upload';
+    }
+    const apiUrl = `${baseUrl}/delete/materials`;
+
     console.log(`\n${isExecute ? '⚠️ 执行模式 (EXECUTE)' : '🔍 演练模式 (DRY RUN)'}`);
-    console.log(`调用统一清理接口: POST ${UPLOAD_SERVER_URL}/__proxy/upload/delete/materials`);
+    console.log(`调用统一清理接口: POST ${apiUrl}`);
     
-    const res = await fetch(`${UPLOAD_SERVER_URL}/__proxy/upload/delete/materials`, {
+    const res = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -74,6 +78,9 @@ async function main() {
     console.log(`- MinIO 原始文件对象:   ${sum.originalObjects}`);
     console.log(`- MinIO 解析产物对象:   ${sum.parsedObjects}`);
     console.log(`- 运行中任务数:         ${sum.runningTasks}`);
+    if (sum.runningTasks > 0) {
+      console.log(`  └─ 阻塞任务 IDs:      ${sum.runningTaskIds?.join(', ')}`);
+    }
     console.log(`----------------------------------------`);
 
     if (!isExecute) {
