@@ -249,11 +249,14 @@ function handleDbWriteError(operation: string, err: unknown) {
   dbFailCount++;
   const msg = err instanceof Error ? err.message : String(err);
   console.warn(`[db-sync] ${operation} failed (count=${dbFailCount}):`, msg);
-  if (dbFailCount >= DB_FAIL_TOAST_THRESHOLD && !dbFailToastShown) {
+  
+  const isTimeout = msg.toLowerCase().includes('timeout') || msg.toLowerCase().includes('abort');
+  if (isTimeout) return; // 单次/多次 timeout 仅控制台记录，不强提示
+
+  if (dbFailCount >= 5 && !dbFailToastShown) {
     dbFailToastShown = true;
-    toast.error(`数据同步服务连接异常（${operation} ${msg}），数据已保存到本地缓存，但服务端可能未同步。`, { duration: 8000 });
-    // 30 秒后重置弹窗状态，允许再次提示
-    setTimeout(() => { dbFailToastShown = false; }, 30000);
+    toast.warning(`数据同步服务连接异常（${operation} ${msg}），已保存到本地缓存。`, { duration: 5000 });
+    setTimeout(() => { dbFailToastShown = false; }, 60000);
   }
 }
 

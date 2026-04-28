@@ -497,15 +497,20 @@ export class ParseTaskWorker {
       if (processingMap.has(task.id)) continue; // 本进程正在处理的不干预
       const updatedAt = task.updatedAt ? new Date(task.updatedAt).getTime() : 0;
       if (!updatedAt) continue;
-      const timeoutMs = Number(task.optionsSnapshot?.localTimeout || 3600) * 1000;
-      if ((now - updatedAt) <= (timeoutMs + STALE_GRACE_MS)) continue;
 
       // P0：已提交 MinerU 的任务禁止重置为 pending，须查询 MinerU API 裁决
+      // 且如果本地已脱离处理循环（不在 processingMap），只需等待短暂时间（如 60s）即可发起探测，
+      // 而不需要等待 1 小时的 timeoutMs！
       const mineruTaskId = task.metadata?.mineruTaskId;
       if (mineruTaskId && task.engine === 'local-mineru') {
-        await this._adjudicateStaleWithMineruApi(task, mineruTaskId, 'stale-running-adjudication');
+        if ((now - updatedAt) > 60_000) {
+          await this._adjudicateStaleWithMineruApi(task, mineruTaskId, 'stale-running-adjudication');
+        }
         continue;
       }
+
+      const timeoutMs = Number(task.optionsSnapshot?.localTimeout || 3600) * 1000;
+      if ((now - updatedAt) <= (timeoutMs + STALE_GRACE_MS)) continue;
 
       await this.updateTaskWithRetry(task.id, {
         state: 'pending',
@@ -1444,6 +1449,25 @@ export class ParseTaskWorker {
       await this.tryCreateAiJob(task, markdownObjectName);
 
     } catch (error) {
+      if (error instanceof MineruStillProcessingError || error?.name === 'MineruStillProcessingError') {
+        // MinerU 仍在 processing/queued：保持 running，不进入 failed
+        console.log(`[task-worker] Task ${task.id} (resume): MinerU ${error.mineruTaskId} 仍在 ${error.mineruStatus}，保持 running 等待后续轮询接管`);
+        await this.transition(task, {
+          state: 'running',
+          stage: error.mineruStatus === 'queued' ? 'mineru-queued' : 'mineru-processing',
+          message: `本地等待超时但 MinerU 仍在 ${error.mineruStatus}，后台将继续观测`,
+          metadata: {
+            ...(task.metadata || {}),
+            mineruTaskId: error.mineruTaskId,
+            mineruStatus: error.mineruStatus,
+            mineruLastStatusAt: new Date().toISOString(),
+            localTimeoutOccurred: true,
+            localTimeoutAt: new Date().toISOString()
+          }
+        }, 'mineru-timeout-but-still-processing', 'warn');
+        return;
+      }
+
       console.error(`[task-worker] Task ${task.id} failed during resume: ${error.message}`);
       await this.transition(task, {
         state: 'failed',

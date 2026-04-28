@@ -576,7 +576,16 @@ app.get('/asset-details/:id', (req, res) => {
 
 app.put('/asset-details/:id', (req, res) => {
   const id = req.params.id;
-  dbCache.assetDetails[id] = { ...req.body, id: req.body.id ?? id };
+  const existing = dbCache.assetDetails[id] || {};
+  dbCache.assetDetails[id] = {
+    ...existing,
+    ...req.body,
+    id: req.body.id ?? id,
+    metadata: {
+      ...(existing.metadata || {}),
+      ...(req.body.metadata || {})
+    }
+  };
   writeDB();
   res.json({ ok: true, id });
 });

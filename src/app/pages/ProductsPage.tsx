@@ -506,7 +506,15 @@ export function ProductsPage() {
                         <td className="px-4 py-3.5">
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-white ${tc.badge}`}>{mType}</span>
                         </td>
-                        <td className="px-4 py-3.5 text-slate-500">{m.size || formatBytes(m.sizeBytes)}</td>
+                        <td className="px-4 py-3.5 text-slate-500">
+                          {m.size && m.size !== '-' && m.size !== '0 B'
+                            ? m.size
+                            : formatBytes(
+                                m.sizeBytes ||
+                                  (state.assetDetails[m.id]?.metadata?.size as number) ||
+                                  0
+                              )}
+                        </td>
                         <td className="px-4 py-3.5">
                           <div className="flex flex-col gap-0.5">
                             {m.metadata?.subject && (
@@ -520,7 +528,13 @@ export function ProductsPage() {
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-3.5 text-slate-400 text-xs">{m.uploadTime}</td>
+                        <td className="px-4 py-3.5 text-slate-400 text-xs">
+                          {m.uploadTime && m.uploadTime !== '刚刚'
+                            ? m.uploadTime
+                            : (state.assetDetails[m.id]?.metadata?.uploadTime !== '刚刚'
+                                ? String(state.assetDetails[m.id]?.metadata?.uploadTime || '')
+                                : '') || new Date(m.uploadedAt || m.uploadTimestamp || Date.now()).toLocaleString()}
+                        </td>
                         <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-1">
                             {/* 查看详情 */}
@@ -684,8 +698,22 @@ export function ProductsPage() {
                       {m.title}
                     </h3>
                     <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-                      <span>{m.size || formatBytes(m.sizeBytes)}</span>
-                      <span>{m.uploadTime}</span>
+                      <span>
+                        {m.size && m.size !== '-' && m.size !== '0 B'
+                          ? m.size
+                          : formatBytes(
+                              m.sizeBytes ||
+                                (state.assetDetails[m.id]?.metadata?.size as number) ||
+                                0
+                            )}
+                      </span>
+                      <span>
+                        {m.uploadTime && m.uploadTime !== '刚刚'
+                          ? m.uploadTime
+                          : (state.assetDetails[m.id]?.metadata?.uploadTime !== '刚刚'
+                              ? String(state.assetDetails[m.id]?.metadata?.uploadTime || '')
+                              : '') || new Date(m.uploadedAt || m.uploadTimestamp || Date.now()).toLocaleString()}
+                      </span>
                     </div>
                     {m.metadata?.grade && (
                       <span className="text-[10px] text-slate-400 mb-2">{m.metadata.grade}</span>

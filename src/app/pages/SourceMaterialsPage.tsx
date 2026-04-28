@@ -241,6 +241,14 @@ export function SourceMaterialsPage() {
     }
     const stage = String(m.metadata?.processingStage || '').trim();
     const msg = String(m.metadata?.processingMsg || '').trim();
+    
+    // P0 Patch: 如果 top-level 状态已经推进，忽略旧的 processing 残留
+    if (stage === 'mineru' && m.mineruStatus === 'completed') {
+       if (m.aiStatus === 'analyzing') return { label: 'AI 分析中', detail: msg };
+       if (m.aiStatus === 'pending') return { label: '待分析', detail: '' };
+       return { label: '已解析', detail: '' };
+    }
+
     if (stage === 'upload') return { label: '上传中', detail: msg };
     if (stage === 'mineru') return { label: 'MinerU 解析中', detail: msg };
     if (stage === 'ai') return { label: 'AI 分析中', detail: msg };
@@ -802,9 +810,23 @@ export function SourceMaterialsPage() {
                           <td className="px-4 py-3.5">
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-white ${tc.badge}`}>{mType}</span>
                           </td>
-                          <td className="px-4 py-3.5 text-slate-500">{m.size}</td>
+                          <td className="px-4 py-3.5 text-slate-500">
+                            {m.size && m.size !== '-' && m.size !== '0 B'
+                              ? m.size
+                              : formatBytes(
+                                  m.sizeBytes ||
+                                    (state.assetDetails[m.id]?.metadata?.size as number) ||
+                                    0
+                                )}
+                          </td>
                           <td className="px-4 py-3.5 text-slate-500">{m.uploader}</td>
-                          <td className="px-4 py-3.5 text-slate-400">{m.uploadTime}</td>
+                          <td className="px-4 py-3.5 text-slate-400">
+                            {m.uploadTime && m.uploadTime !== '刚刚'
+                              ? m.uploadTime
+                              : (state.assetDetails[m.id]?.metadata?.uploadTime !== '刚刚'
+                                  ? String(state.assetDetails[m.id]?.metadata?.uploadTime || '')
+                                  : '') || new Date(m.uploadedAt || m.uploadTimestamp || Date.now()).toLocaleString()}
+                          </td>
                           {showStatusColumn && (
                             <td className="px-4 py-3.5">
                               <div className="flex flex-col gap-1">
@@ -971,8 +993,22 @@ export function SourceMaterialsPage() {
                           {m.title}
                         </h3>
                         <div className="flex items-center justify-between text-xs text-slate-500 mb-3">
-                          <span>{m.size}</span>
-                          <span>{m.uploadTime}</span>
+                          <span>
+                            {m.size && m.size !== '-' && m.size !== '0 B'
+                              ? m.size
+                              : formatBytes(
+                                  m.sizeBytes ||
+                                    (state.assetDetails[m.id]?.metadata?.size as number) ||
+                                    0
+                                )}
+                          </span>
+                          <span>
+                            {m.uploadTime && m.uploadTime !== '刚刚'
+                              ? m.uploadTime
+                              : (state.assetDetails[m.id]?.metadata?.uploadTime !== '刚刚'
+                                  ? String(state.assetDetails[m.id]?.metadata?.uploadTime || '')
+                                  : '') || new Date(m.uploadedAt || m.uploadTimestamp || Date.now()).toLocaleString()}
+                          </span>
                         </div>
                         {m.tags.length > 0 && (
                           <div className="flex gap-1 flex-wrap">
