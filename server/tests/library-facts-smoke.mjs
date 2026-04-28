@@ -4,7 +4,6 @@
  * 测试 /asset-details/:id 的 PUT merge 语义。
  */
 
-import http from 'http';
 
 let testsPassed = 0;
 let testsFailed = 0;
@@ -18,29 +17,33 @@ function assert(condition, message) {
   }
 }
 
+const DB_BASE_URL = process.env.DB_BASE_URL || 'http://127.0.0.1:8081/__proxy/db';
+
 async function request(method, path, body = null) {
-  return new Promise((resolve, reject) => {
-    const req = http.request({
-      hostname: 'localhost',
-      port: process.env.DB_PORT || 8789,
-      path,
+  try {
+    const res = await fetch(`${DB_BASE_URL}${path}`, {
       method,
-      headers: body ? { 'Content-Type': 'application/json' } : {}
-    }, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          resolve({ status: res.statusCode, data: data ? JSON.parse(data) : null });
-        } catch(e) {
-          resolve({ status: res.statusCode, data });
-        }
-      });
+      headers: body ? { 'Content-Type': 'application/json' } : {},
+      body: body ? JSON.stringify(body) : undefined
     });
-    req.on('error', reject);
-    if (body) req.write(JSON.stringify(body));
-    req.end();
-  });
+    
+    let data = null;
+    const text = await res.text();
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        data = text;
+      }
+    }
+    
+    return { status: res.status, data };
+  } catch (err) {
+    console.error(`\n❌ Failed to connect to DB Server at ${DB_BASE_URL}`);
+    console.error('Please ensure the DB Server is running or provide a correct DB_BASE_URL via environment variables.');
+    console.error(`Error Details: ${err.message}\n`);
+    process.exit(1);
+  }
 }
 
 async function runTest() {

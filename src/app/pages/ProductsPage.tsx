@@ -137,8 +137,8 @@ export function ProductsPage() {
       if (Number(m.metadata?.parsedFilesCount) > 0) return true;
       
       const latestTask = [...state.processTasks, ...state.tasks]
-        .filter((t) => t.materialId === String(m.id) || t.materialId === m.id)
-        .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0];
+        .filter((t: any) => t.materialId === String(m.id) || t.materialId === m.id)
+        .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0] as any;
       
       if (latestTask) {
         if (['completed', 'ai-pending', 'ai-running', 'review-pending'].includes(latestTask.state)) {
@@ -485,11 +485,11 @@ export function ProductsPage() {
                     </td>
                   </tr>
                 )}
-                {currentItems.map((m) => {
-                  const assetDetails = state.assetDetails[m.id] || {};
+                {currentItems.map((m: any) => {
+                  const assetDetails: any = state.assetDetails[m.id] || {};
                   const latestTask = [...state.processTasks, ...state.tasks]
-                    .filter((t) => t.materialId === String(m.id) || t.materialId === m.id)
-                    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0];
+                    .filter((t: any) => t.materialId === String(m.id) || t.materialId === m.id)
+                    .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0] as any;
 
                   const title = m.title || m.fileName || m.metadata?.fileName || assetDetails.name || assetDetails.title || assetDetails.fileName || String(m.id);
                   const rawSize = m.sizeBytes || m.metadata?.sizeBytes || assetDetails.sizeBytes;
@@ -701,11 +701,11 @@ export function ProductsPage() {
                 )}
               </div>
             )}
-            {currentItems.map((m) => {
-              const assetDetails = state.assetDetails[m.id] || {};
+            {currentItems.map((m: any) => {
+              const assetDetails: any = state.assetDetails[m.id] || {};
               const latestTask = [...state.processTasks, ...state.tasks]
-                .filter((t) => t.materialId === String(m.id) || t.materialId === m.id)
-                .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0];
+                .filter((t: any) => t.materialId === String(m.id) || t.materialId === m.id)
+                .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0] as any;
 
               const title = m.title || m.fileName || m.metadata?.fileName || assetDetails.name || assetDetails.title || assetDetails.fileName || String(m.id);
               const rawSize = m.sizeBytes || m.metadata?.sizeBytes || assetDetails.sizeBytes;
