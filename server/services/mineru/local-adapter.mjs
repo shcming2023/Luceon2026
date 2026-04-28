@@ -38,37 +38,6 @@ export class MineruStillProcessingError extends Error {
   }
 }
 
-/**
- * MinerU 本地等待超时错误。
- * 表示 Luceon 本地轮询 MinerU 超时，但并不代表 MinerU 任务本身失败。
- *
- * @property {string} mineruTaskId - 对应的 MinerU 内部任务 ID
- * @property {string} lastKnownStatus - 超时前最后一次查询到的 MinerU 状态
- */
-export class MineruTimeoutError extends Error {
-  constructor(mineruTaskId, lastKnownStatus, timeoutMs) {
-    super(`本地等待 MinerU 超时 (${Math.round(timeoutMs / 1000)}s)，但 MinerU 任务 ${mineruTaskId} 最后状态为 ${lastKnownStatus}，不代表业务失败`);
-    this.name = 'MineruTimeoutError';
-    this.mineruTaskId = mineruTaskId;
-    this.lastKnownStatus = lastKnownStatus;
-  }
-}
-
-/**
- * MinerU 仍在处理错误。
- * 表示 Luceon 等待超时后确认 MinerU 仍在 queued/processing，任务应保持 running 而非 failed。
- *
- * @property {string} mineruTaskId - 对应的 MinerU 内部任务 ID
- * @property {string} mineruStatus - MinerU 当前确认的状态（queued/processing）
- */
-export class MineruStillProcessingError extends Error {
-  constructor(mineruTaskId, mineruStatus) {
-    super(`MinerU 任务 ${mineruTaskId} 仍在 ${mineruStatus}，Luceon 本地等待已超时但任务未失败`);
-    this.name = 'MineruStillProcessingError';
-    this.mineruTaskId = mineruTaskId;
-    this.mineruStatus = mineruStatus;
-  }
-}
 
 export async function processWithLocalMinerU({ task, material, fileStream, fileName, mimeType, timeoutMs, minioContext, updateProgress }) {
   const options = task.optionsSnapshot || {};
