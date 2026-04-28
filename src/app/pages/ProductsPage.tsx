@@ -105,9 +105,9 @@ export function ProductsPage() {
   const [languageFilter, setLanguageFilter] = useState('all');
   const [typeFilter, setTypeFilter]       = useState('all');
   const [mineruStatusFilter, setMineruStatusFilter] =
-    useState<(typeof MINERU_STATUS_OPTIONS)[number]['key']>('completed');
+    useState<(typeof MINERU_STATUS_OPTIONS)[number]['key']>('all');
   const [aiStatusFilter, setAiStatusFilter] =
-    useState<(typeof AI_STATUS_OPTIONS)[number]['key']>('analyzed');
+    useState<(typeof AI_STATUS_OPTIONS)[number]['key']>('all');
 
   // 每个资料的 Markdown 展开状态（Map 不触发 re-render，用 state 存）
   const [mdStates, setMdStates] = useState<Map<number, MdState>>(new Map());
@@ -131,7 +131,26 @@ export function ProductsPage() {
 
   // ── 筛选 + 排序 ──────────────────────────────────────────
   const filtered = useMemo(() => {
-    let list = state.materials;
+    // 1. 成果库事实源收口：只展示真正有“成果”的记录
+    const baseList = state.materials.filter((m) => {
+      if (m.mineruStatus === 'completed') return true;
+      if (Number(m.metadata?.parsedFilesCount) > 0) return true;
+      
+      const latestTask = [...state.processTasks, ...state.tasks]
+        .filter((t) => t.materialId === String(m.id) || t.materialId === m.id)
+        .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0];
+      
+      if (latestTask) {
+        if (['completed', 'ai-pending', 'ai-running', 'review-pending'].includes(latestTask.state)) {
+          if (Number(latestTask.metadata?.parsedFilesCount || latestTask.parsedFilesCount) > 0) {
+            return true;
+          }
+        }
+      }
+      return false;
+    });
+
+    let list = baseList;
     if (mineruStatusFilter !== 'all') list = list.filter((m) => m.mineruStatus === mineruStatusFilter);
     if (aiStatusFilter !== 'all')     list = list.filter((m) => m.aiStatus === aiStatusFilter);
     if (subjectFilter !== 'all')      list = list.filter((m) => m.metadata?.subject === subjectFilter);
@@ -442,6 +461,8 @@ export function ProductsPage() {
                 <tr>
                   <th className="px-4 py-3 text-left font-semibold text-slate-600 text-xs uppercase tracking-wide">资料名称</th>
                   <th className="px-4 py-3 text-left font-semibold text-slate-600 text-xs uppercase tracking-wide">类型</th>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-600 text-xs uppercase tracking-wide">解析状态</th>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-600 text-xs uppercase tracking-wide">产物数</th>
                   <th className="px-4 py-3 text-left font-semibold text-slate-600 text-xs uppercase tracking-wide">大小</th>
                   <th className="px-4 py-3 text-left font-semibold text-slate-600 text-xs uppercase tracking-wide">学科 / 年级</th>
                   <th className="px-4 py-3 text-left font-semibold text-slate-600 text-xs uppercase tracking-wide">上传时间</th>
@@ -465,6 +486,34 @@ export function ProductsPage() {
                   </tr>
                 )}
                 {currentItems.map((m) => {
+                  const assetDetails = state.assetDetails[m.id] || {};
+                  const latestTask = [...state.processTasks, ...state.tasks]
+                    .filter((t) => t.materialId === String(m.id) || t.materialId === m.id)
+                    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0];
+
+                  const title = m.title || m.fileName || m.metadata?.fileName || assetDetails.name || assetDetails.title || assetDetails.fileName || String(m.id);
+                  const rawSize = m.sizeBytes || m.metadata?.sizeBytes || assetDetails.sizeBytes;
+                  const sizeDisplay = rawSize > 0 ? formatBytes(rawSize as number) : '—';
+                  
+                  const rawTime = m.uploadTimestamp || m.createTime || m.metadata?.uploadTimestamp || assetDetails.uploadTimestamp;
+                  const timeDisplay = rawTime && rawTime !== '刚刚' ? new Date(rawTime).toLocaleString() : '—';
+
+                  const rawCount = m.metadata?.parsedFilesCount || latestTask?.metadata?.parsedFilesCount || latestTask?.parsedFilesCount || assetDetails.metadata?.parsedFilesCount;
+                  const parsedCountDisplay = rawCount !== undefined && rawCount !== null ? String(rawCount) : '—';
+
+                  let statusDisplay = '';
+                  let statusColor = 'text-slate-500';
+                  if (latestTask) {
+                    if (latestTask.state === 'completed' || latestTask.state === 'done') { statusDisplay = '解析完成'; statusColor = 'text-green-600'; }
+                    else if (latestTask.state === 'ai-pending' || latestTask.state === 'ai-running') { statusDisplay = 'AI 处理中'; statusColor = 'text-blue-600'; }
+                    else if (latestTask.state === 'review-pending') { statusDisplay = '待审核'; statusColor = 'text-orange-600'; }
+                    else if (latestTask.state === 'failed') { statusDisplay = '解析失败'; statusColor = 'text-red-600'; }
+                    else { statusDisplay = '处理中'; statusColor = 'text-blue-600'; }
+                  } else {
+                    if (m.mineruStatus === 'completed' || m.status === 'completed') { statusDisplay = '解析完成'; statusColor = 'text-green-600'; }
+                    else if (m.status === 'failed') { statusDisplay = '解析失败'; statusColor = 'text-red-600'; }
+                    else { statusDisplay = m.status === 'processing' ? '处理中' : (m.status || '未知'); statusColor = 'text-blue-600'; }
+                  }
                   const mType = getMaterialType(m);
                   const mTags = getMaterialTags(m);
                   const tc = typeColor(mType);
@@ -486,7 +535,7 @@ export function ProductsPage() {
                             </div>
                             <div className="min-w-0">
                               <p className="font-medium text-slate-800 truncate max-w-xs hover:text-blue-600 transition-colors">
-                                {m.title}
+                                {title}
                               </p>
                               {mTags.length > 0 && (
                                 <div className="flex gap-1 mt-1 flex-wrap">
@@ -506,14 +555,14 @@ export function ProductsPage() {
                         <td className="px-4 py-3.5">
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-white ${tc.badge}`}>{mType}</span>
                         </td>
+                        <td className={`px-4 py-3.5 font-medium ${statusColor}`}>
+                          {statusDisplay}
+                        </td>
+                        <td className="px-4 py-3.5 text-slate-600 font-mono">
+                          {parsedCountDisplay}
+                        </td>
                         <td className="px-4 py-3.5 text-slate-500">
-                          {m.size && m.size !== '-' && m.size !== '0 B'
-                            ? m.size
-                            : formatBytes(
-                                m.sizeBytes ||
-                                  (state.assetDetails[m.id]?.metadata?.size as number) ||
-                                  0
-                              )}
+                          {sizeDisplay}
                         </td>
                         <td className="px-4 py-3.5">
                           <div className="flex flex-col gap-0.5">
@@ -529,11 +578,7 @@ export function ProductsPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3.5 text-slate-400 text-xs">
-                          {m.uploadTime && m.uploadTime !== '刚刚'
-                            ? m.uploadTime
-                            : (state.assetDetails[m.id]?.metadata?.uploadTime !== '刚刚'
-                                ? String(state.assetDetails[m.id]?.metadata?.uploadTime || '')
-                                : '') || new Date(m.uploadedAt || m.uploadTimestamp || Date.now()).toLocaleString()}
+                          {timeDisplay}
                         </td>
                         <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-1">
@@ -657,6 +702,35 @@ export function ProductsPage() {
               </div>
             )}
             {currentItems.map((m) => {
+              const assetDetails = state.assetDetails[m.id] || {};
+              const latestTask = [...state.processTasks, ...state.tasks]
+                .filter((t) => t.materialId === String(m.id) || t.materialId === m.id)
+                .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0];
+
+              const title = m.title || m.fileName || m.metadata?.fileName || assetDetails.name || assetDetails.title || assetDetails.fileName || String(m.id);
+              const rawSize = m.sizeBytes || m.metadata?.sizeBytes || assetDetails.sizeBytes;
+              const sizeDisplay = rawSize > 0 ? formatBytes(rawSize as number) : '—';
+              
+              const rawTime = m.uploadTimestamp || m.createTime || m.metadata?.uploadTimestamp || assetDetails.uploadTimestamp;
+              const timeDisplay = rawTime && rawTime !== '刚刚' ? new Date(rawTime).toLocaleString() : '—';
+
+              const rawCount = m.metadata?.parsedFilesCount || latestTask?.metadata?.parsedFilesCount || latestTask?.parsedFilesCount || assetDetails.metadata?.parsedFilesCount;
+              const parsedCountDisplay = rawCount !== undefined && rawCount !== null ? String(rawCount) : '—';
+
+              let statusDisplay = '';
+              let statusColor = 'text-slate-500';
+              if (latestTask) {
+                if (latestTask.state === 'completed' || latestTask.state === 'done') { statusDisplay = '解析完成'; statusColor = 'text-green-600'; }
+                else if (latestTask.state === 'ai-pending' || latestTask.state === 'ai-running') { statusDisplay = 'AI 处理中'; statusColor = 'text-blue-600'; }
+                else if (latestTask.state === 'review-pending') { statusDisplay = '待审核'; statusColor = 'text-orange-600'; }
+                else if (latestTask.state === 'failed') { statusDisplay = '解析失败'; statusColor = 'text-red-600'; }
+                else { statusDisplay = '处理中'; statusColor = 'text-blue-600'; }
+              } else {
+                if (m.mineruStatus === 'completed' || m.status === 'completed') { statusDisplay = '解析完成'; statusColor = 'text-green-600'; }
+                else if (m.status === 'failed') { statusDisplay = '解析失败'; statusColor = 'text-red-600'; }
+                else { statusDisplay = m.status === 'processing' ? '处理中' : (m.status || '未知'); statusColor = 'text-blue-600'; }
+              }
+
               const mType = getMaterialType(m);
               const mTags = getMaterialTags(m);
               const tc = typeColor(mType);
@@ -695,25 +769,15 @@ export function ProductsPage() {
                       className="text-sm font-semibold text-slate-900 line-clamp-2 group-hover:text-blue-600 transition-colors mb-1 cursor-pointer"
                       onClick={() => navigate(`/asset/${m.id}`)}
                     >
-                      {m.title}
+                      {title}
                     </h3>
                     <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-                      <span>
-                        {m.size && m.size !== '-' && m.size !== '0 B'
-                          ? m.size
-                          : formatBytes(
-                              m.sizeBytes ||
-                                (state.assetDetails[m.id]?.metadata?.size as number) ||
-                                0
-                            )}
-                      </span>
-                      <span>
-                        {m.uploadTime && m.uploadTime !== '刚刚'
-                          ? m.uploadTime
-                          : (state.assetDetails[m.id]?.metadata?.uploadTime !== '刚刚'
-                              ? String(state.assetDetails[m.id]?.metadata?.uploadTime || '')
-                              : '') || new Date(m.uploadedAt || m.uploadTimestamp || Date.now()).toLocaleString()}
-                      </span>
+                      <span className={`font-medium ${statusColor}`}>{statusDisplay}</span>
+                      <span className="font-mono">产物: {parsedCountDisplay}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+                      <span>{sizeDisplay}</span>
+                      <span>{timeDisplay}</span>
                     </div>
                     {m.metadata?.grade && (
                       <span className="text-[10px] text-slate-400 mb-2">{m.metadata.grade}</span>

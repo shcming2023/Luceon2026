@@ -245,9 +245,15 @@ let dbFailCount = 0;
 const DB_FAIL_TOAST_THRESHOLD = 3; // 连续失败 N 次后才弹窗提示
 let dbFailToastShown = false;
 
-function handleDbWriteError(operation: string, err: unknown) {
+function handleDbWriteError(operation: string, err: unknown, silent = false) {
   dbFailCount++;
   const msg = err instanceof Error ? err.message : String(err);
+  
+  if (silent) {
+    console.warn(`[db-sync] ${operation} failed (silent):`, msg);
+    return;
+  }
+  
   console.warn(`[db-sync] ${operation} failed (count=${dbFailCount}):`, msg);
   
   const isTimeout = msg.toLowerCase().includes('timeout') || msg.toLowerCase().includes('abort');
@@ -280,7 +286,7 @@ async function dbGet<T>(path: string): Promise<T | null> {
   }
 }
 
-async function dbPut(path: string, body: unknown): Promise<void> {
+async function dbPut(path: string, body: unknown, silent = false): Promise<void> {
   try {
     const res = await fetch(`${DB_BASE}${path}`, {
       method: 'PUT',
@@ -290,7 +296,7 @@ async function dbPut(path: string, body: unknown): Promise<void> {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     handleDbWriteSuccess();
-  } catch (err) { handleDbWriteError(`PUT ${path}`, err); }
+  } catch (err) { handleDbWriteError(`PUT ${path}`, err, silent); }
 }
 
 async function dbPatch(path: string, body: unknown): Promise<void> {
@@ -429,6 +435,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               _dataSource:    'db-server',
             },
           });
+          
+          const newMaterialFp = new Map();
+          (Array.isArray(materials) ? materials : []).forEach(m => newMaterialFp.set(m.id, JSON.stringify(sanitizeMaterialForPersistence(m))));
+          materialFingerprintsRef.current = newMaterialFp;
+
+          const newAssetFp = new Map();
+          Object.entries(assetDetails || {}).forEach(([id, detail]) => newAssetFp.set(id, JSON.stringify(detail)));
+          assetDetailFingerprintsRef.current = newAssetFp;
+
+          const newProcessFp = new Map();
+          (processTasks || []).forEach(t => newProcessFp.set(t.id, JSON.stringify(t)));
+          processTaskFingerprintsRef.current = newProcessFp;
+
+          const newTaskFp = new Map();
+          (tasks || []).forEach(t => newTaskFp.set(t.id, JSON.stringify(t)));
+          taskFingerprintsRef.current = newTaskFp;
+
+          const newProductFp = new Map();
+          (products || []).forEach(p => newProductFp.set(p.id, JSON.stringify(p)));
+          productFingerprintsRef.current = newProductFp;
+
+          const newTagFp = new Map();
+          (flexibleTags || []).forEach(t => newTagFp.set(t.id, JSON.stringify(t)));
+          tagFingerprintsRef.current = newTagFp;
+
+          const newAiRuleFp = new Map();
+          (aiRules || []).forEach(r => newAiRuleFp.set(r.id, JSON.stringify(r)));
+          aiRuleFingerprintsRef.current = newAiRuleFp;
+
           console.log(`[appContext] Hydrated from DB (${materials?.length ?? 0} materials, initialized=${isDbInitialized})`);
         } else {
           // DB 从未初始化过（全新部署）：将当前内存数据 seed 写入 DB，并打标记
@@ -477,6 +512,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             body: JSON.stringify(true),
           });
           console.log('[appContext] DB seeded and marked as initialized');
+          
+          const newMaterialFp = new Map();
+          state.materials.forEach(m => newMaterialFp.set(m.id, JSON.stringify(sanitizeMaterialForPersistence(m))));
+          materialFingerprintsRef.current = newMaterialFp;
+
+          const newAssetFp = new Map();
+          Object.entries(state.assetDetails).forEach(([id, detail]) => newAssetFp.set(id, JSON.stringify(detail)));
+          assetDetailFingerprintsRef.current = newAssetFp;
+
+          const newProcessFp = new Map();
+          state.processTasks.forEach(t => newProcessFp.set(t.id, JSON.stringify(t)));
+          processTaskFingerprintsRef.current = newProcessFp;
+
+          const newTaskFp = new Map();
+          state.tasks.forEach(t => newTaskFp.set(t.id, JSON.stringify(t)));
+          taskFingerprintsRef.current = newTaskFp;
+
+          const newProductFp = new Map();
+          state.products.forEach(p => newProductFp.set(p.id, JSON.stringify(p)));
+          productFingerprintsRef.current = newProductFp;
+
+          const newTagFp = new Map();
+          state.flexibleTags.forEach(t => newTagFp.set(t.id, JSON.stringify(t)));
+          tagFingerprintsRef.current = newTagFp;
+
+          const newAiRuleFp = new Map();
+          state.aiRules.forEach(r => newAiRuleFp.set(r.id, JSON.stringify(r)));
+          aiRuleFingerprintsRef.current = newAiRuleFp;
         }
       } catch (err) {
         console.warn('[appContext] db-server hydration failed, using localStorage fallback:', err);
@@ -550,7 +613,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const fingerprint = JSON.stringify(detail);
         if (assetDetailFingerprintsRef.current.get(id) !== fingerprint) {
           assetDetailFingerprintsRef.current.set(id, fingerprint);
-          dbPut(`/asset-details/${id}`, detail);
+          dbPut(`/asset-details/${id}`, detail, true); // silent=true 降噪
         }
       }
     }
