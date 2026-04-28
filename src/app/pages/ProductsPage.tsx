@@ -19,8 +19,10 @@ import {
   List,
   X,
   Archive,
+  Trash2,
 } from 'lucide-react';
 import { useAppStore } from '../../store/appContext';
+import { toast } from 'sonner';
 import { sortMaterials } from '../../utils/sort';
 import { usePagination, getPageNumbers } from '../../utils/pagination';
 import { fetchMinerUMarkdown } from '../../utils/mineruApi';
@@ -332,7 +334,7 @@ export function ProductsPage() {
     setAiStatusFilter('analyzed');
   };
 
-  const isFiltered =
+      const isFiltered =
     search ||
     subjectFilter !== 'all' ||
     gradeFilter !== 'all' ||
@@ -340,6 +342,26 @@ export function ProductsPage() {
     typeFilter !== 'all' ||
     mineruStatusFilter !== 'completed' ||
     aiStatusFilter !== 'analyzed';
+
+  // ── 级联删除 ─────────────────────────────────────────────
+  const handleDeleteProduct = useCallback(async (id: string | number) => {
+    if (!window.confirm('确定要删除此成果吗？\n\n警告：此操作将执行全量级联删除，彻底清空以下内容，且不可撤销：\n- 原始文件\n- parsed 解析产物 (Markdown / ZIP / images)\n- 关联任务\n- AI job\n- task events\n\n确定继续吗？')) return;
+    
+    try {
+      const res = await fetch('/__proxy/upload/delete/materials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ materialIds: [id], mode: 'cascade', dryRun: false })
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.error || `HTTP ${res.status}`);
+      }
+      toast.success('级联删除成功，相关记录与产物已彻底清理。');
+    } catch (err) {
+      toast.error('级联删除失败', { description: String(err) });
+    }
+  }, []);
 
   // ────────────────────────────────────────────────────────
   return (
@@ -658,6 +680,14 @@ export function ProductsPage() {
                                 <Archive size={14} />
                               </a>
                             )}
+                            {/* 删除成果 */}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDeleteProduct(m.id); }}
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                              title="级联删除"
+                            >
+                              <Trash2 size={14} />
+                            </button>
                           </div>
                         </td>
                       </tr>

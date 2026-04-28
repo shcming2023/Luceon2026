@@ -153,15 +153,42 @@ export function TaskManagementPage() {
     } catch { /* ignore */ }
   };
 
-  const deleteTask = async (id: string) => {
+  const batchDelete = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    
+    // Check running tasks
+    const runningTasks = ids.map(id => tasks.find(t => t.id === id)).filter(t => t && ['running', 'mineru-processing', 'ai-running', 'result-store'].includes(t.state || ''));
+    if (runningTasks.length > 0) {
+      alert('选中项包含正在处理中的任务，不允许直接硬删除。请先取消任务或等待其完成。');
+      return;
+    }
+
+    // Check material and product existence
+    const hasProducts = ids.some(id => {
+      const t = tasks.find(x => x.id === id);
+      if (!t) return false;
+      const m = materials.find(x => String(x.id) === String(t.materialId));
+      if (!m) return false;
+      const parsedCount = Number(m.metadata?.parsedFilesCount ?? t.metadata?.parsedFilesCount ?? (t as any).parsedFilesCount) || 0;
+      return parsedCount > 0 || ['completed', 'review-pending', 'ai-pending'].includes(t.state || '');
+    });
+
+    const msg = hasProducts 
+      ? '选中的任务包含已产生有效成果的记录。\n\n注意：此操作【仅删除任务记录】，不会删除 MinIO 中的原始文件、解析产物及素材记录！\n\n若要彻底清理，建议前往“成果库”删除资料（将执行全量级联删除）。\n\n确定要继续仅删除任务吗？'
+      : '确定要删除选中的任务记录吗？（仅删除任务，不影响素材和成果文件）';
+    
+    if (!window.confirm(msg)) return;
+
     try {
       const res = await fetch('/__proxy/db/tasks', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: [id] }),
+        body: JSON.stringify({ ids }),
       });
       if (!res.ok) throw new Error(`删除失败: HTTP ${res.status}`);
-      toast.success('任务已删除');
+      toast.success('所选任务已删除');
+      setSelectedIds(new Set());
       fetchTasks();
     } catch (err) {
       toast.error('删除失败', { description: String(err) });
@@ -261,6 +288,14 @@ export function TaskManagementPage() {
     });
   };
 
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredTasks.length && filteredTasks.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredTasks.map((t) => t.id)));
+    }
+  };
+
   return (
     <div className="p-6 h-full flex flex-col space-y-5 max-w-[1400px] mx-auto">
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -323,6 +358,14 @@ export function TaskManagementPage() {
           >
             <RotateCw className="w-4 h-4" /> 批量重试
           </button>
+          <button
+            onClick={batchDelete}
+            disabled={selectedIds.size === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 disabled:opacity-40 transition-colors shadow-sm"
+            title="批量删除所选任务"
+          >
+            <Trash2 className="w-4 h-4" /> 批量删除
+          </button>
         </div>
       </div>
 
@@ -354,7 +397,14 @@ export function TaskManagementPage() {
           <table className="w-full text-sm text-left">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-3 py-4 w-10"></th>
+                <th className="px-3 py-4 w-10">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.size === filteredTasks.length && filteredTasks.length > 0}
+                    onChange={toggleSelectAll}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                </th>
                 <th className="px-6 py-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">任务信息</th>
                 <th className="px-6 py-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">处理引擎</th>
                 <th className="px-6 py-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">当前状态</th>
@@ -573,7 +623,10 @@ export function TaskManagementPage() {
                             <Download size={16} />
                           </button>
                           <button
-                            onClick={() => { if (window.confirm('确定要删除此任务记录吗？')) deleteTask(t.id); }}
+                            onClick={() => {
+                              setSelectedIds(new Set([t.id]));
+                              setTimeout(batchDelete, 0);
+                            }}
                             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
                             title="删除任务"
                           >

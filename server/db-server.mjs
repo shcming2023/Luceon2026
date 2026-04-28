@@ -857,6 +857,36 @@ app.patch('/ai-metadata-jobs/:id', (req, res) => {
   res.json({ ok: true, id });
 });
 
+app.delete('/ai-metadata-jobs/:id', (req, res) => {
+  const id = req.params.id;
+  if (!dbCache.aiMetadataJobs[id]) { res.status(404).json({ error: 'not found' }); return; }
+  delete dbCache.aiMetadataJobs[id];
+  writeDB();
+  res.json({ ok: true });
+});
+
+app.delete('/ai-metadata-jobs', (req, res) => {
+  const { ids, parseTaskId } = req.body || {};
+  let deleted = 0;
+  if (Array.isArray(ids)) {
+    for (const id of ids) {
+      if (dbCache.aiMetadataJobs[id]) {
+        delete dbCache.aiMetadataJobs[id];
+        deleted++;
+      }
+    }
+  } else if (parseTaskId) {
+    for (const [id, j] of Object.entries(dbCache.aiMetadataJobs)) {
+      if (String(j.parseTaskId) === String(parseTaskId)) {
+        delete dbCache.aiMetadataJobs[id];
+        deleted++;
+      }
+    }
+  }
+  if (deleted > 0) writeDB();
+  res.json({ ok: true, deleted });
+});
+
 // ─── Products ─────────────────────────────────────────────────
 
 app.get('/products', (_req, res) => {
