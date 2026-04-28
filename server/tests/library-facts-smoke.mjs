@@ -97,7 +97,7 @@ async function runTest() {
   {
     function checkUsable(m, latestTask) {
       const parsedFilesCount = Number(m.metadata?.parsedFilesCount ?? latestTask?.parsedFilesCount) || 0;
-      const hasProductEvidence = !!(m.metadata?.markdownObjectName || m.metadata?.parsedPrefix || m.mineruZipUrl || parsedFilesCount > 0);
+      const hasProductEvidence = parsedFilesCount > 0;
 
       let derivedMineruStatus = 'processing';
       const isTaskState = (states) => latestTask && states.includes(latestTask.state);
@@ -130,8 +130,17 @@ async function runTest() {
     // 4. valid review-pending with parsed>0 -> true
     assert(checkUsable({ mineruStatus: 'completed', metadata: { parsedFilesCount: 1 } }, { state: 'review-pending' }) === true, 'review-pending with parsed>0 should be true');
 
-    // 5. valid completed with markdownObjectName -> true
-    assert(checkUsable({ mineruStatus: 'completed', metadata: { markdownObjectName: 'xxx.md' } }, null) === true, 'completed with markdown should be true');
+    // 5. completed + markdownObjectName + parsedFilesCount=0 -> false
+    assert(checkUsable({ mineruStatus: 'completed', metadata: { markdownObjectName: 'xxx.md', parsedFilesCount: 0 } }, null) === false, 'completed + markdownObjectName + parsedFilesCount=0 should be false');
+
+    // 6. completed + parsedPrefix + parsedFilesCount=0 -> false
+    assert(checkUsable({ mineruStatus: 'completed', metadata: { parsedPrefix: 'parsed/xxx/', parsedFilesCount: 0 } }, null) === false, 'completed + parsedPrefix + parsedFilesCount=0 should be false');
+
+    // 7. completed + mineruZipUrl + parsedFilesCount=0 -> false
+    assert(checkUsable({ mineruStatus: 'completed', mineruZipUrl: 'xxx.zip', metadata: { parsedFilesCount: 0 } }, null) === false, 'completed + mineruZipUrl + parsedFilesCount=0 should be false');
+
+    // 8. valid ai-pending with parsed>0 -> true
+    assert(checkUsable({ mineruStatus: 'completed', metadata: { parsedFilesCount: 10 } }, { state: 'ai-pending' }) === true, 'ai-pending with parsed>0 should be true');
 
     console.log('Test 2 Pass ✅\n');
   }

@@ -141,7 +141,7 @@ export function ProductsPage() {
       const parsedFilesCount = Number(rawCount) || 0;
       const parsedCountDisplay = rawCount !== undefined && rawCount !== null ? String(rawCount) : '—';
 
-      const hasProductEvidence = !!(m.metadata?.markdownObjectName || m.metadata?.parsedPrefix || m.mineruZipUrl || parsedFilesCount > 0);
+      const hasProductEvidence = parsedFilesCount > 0;
 
       let derivedMineruStatus = 'processing';
       let derivedAiStatus = m.aiStatus || 'pending';
