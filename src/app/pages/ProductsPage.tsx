@@ -95,7 +95,7 @@ interface MdState {
 
 export function ProductsPage() {
   const navigate = useNavigate();
-  const { state } = useAppStore();
+  const { state, dispatch } = useAppStore();
 
   // 筛选器状态
   const [search, setSearch]               = useState('');
@@ -392,12 +392,18 @@ export function ProductsPage() {
       });
       
       if (!execRes.ok) throw new Error(`HTTP ${execRes.status}`);
+      const numericIds = materialIds
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id));
+      if (numericIds.length > 0) {
+        dispatch({ type: 'DELETE_MATERIAL', payload: numericIds });
+      }
       toast.success(`${promptTitle}成功，相关记录与产物已彻底清理。`);
       setSelectedIds(new Set());
     } catch (err) {
       toast.error(`${promptTitle}失败`, { description: String(err) });
     }
-  }, []);
+  }, [dispatch]);
 
   const handleDeleteProduct = useCallback((id: string | number) => {
     executeDelete([id], '删除成果');

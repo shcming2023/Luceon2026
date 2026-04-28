@@ -170,6 +170,10 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         processTasks: state.processTasks.filter(
           (t) => t.materialId === undefined || !idSet.has(t.materialId),
         ),
+        tasks: state.tasks.filter((t) => {
+          const materialId = Number((t as any).materialId);
+          return !Number.isFinite(materialId) || !idSet.has(materialId);
+        }),
         products: state.products.filter(
           (product) =>
             !idSet.has(Number(String(product.source || '').replace(/^material:/, ''))) &&
