@@ -590,6 +590,21 @@ app.put('/asset-details/:id', (req, res) => {
   res.json({ ok: true, id });
 });
 
+app.delete('/asset-details', (req, res) => {
+  const { ids } = req.body || {};
+  let deleted = 0;
+  if (Array.isArray(ids)) {
+    for (const id of ids) {
+      if (dbCache.assetDetails[id]) {
+        delete dbCache.assetDetails[id];
+        deleted++;
+      }
+    }
+  }
+  if (deleted > 0) writeDB();
+  res.json({ ok: true, deleted });
+});
+
 // ─── Process Tasks ────────────────────────────────────────────
 
 app.get('/process-tasks', (_req, res) => {

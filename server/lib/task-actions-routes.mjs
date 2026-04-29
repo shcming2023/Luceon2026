@@ -714,16 +714,28 @@ export function registerTaskActionRoutes(app, deps = {}) {
     try {
       const { dryRun, force } = req.body || {};
       
-      const [materials, tasks, taskEvents, aiJobs, assetDetails] = await Promise.all([
+      function toCollectionArray(value) {
+        if (Array.isArray(value)) return value;
+        if (value && typeof value === 'object') return Object.values(value);
+        return [];
+      }
+
+      const [materialsRaw, tasksRaw, taskEventsRaw, aiJobsRaw, assetDetailsRaw] = await Promise.all([
         dbGet('/materials').catch(() => []),
         dbGet('/tasks').catch(() => []),
-        dbGet('/taskEvents').catch(() => []),
+        dbGet('/task-events').catch(() => []),
         dbGet('/ai-metadata-jobs').catch(() => []),
         dbGet('/asset-details').catch(() => [])
       ]);
 
-      const runningTasks = (tasks || []).filter(t => ['running', 'ai-running', 'result-store'].includes(t.state) || ['mineru-processing', 'mineru-queued'].includes(t.stage));
-      const completedMaterials = (materials || []).filter(m => m.status === 'completed');
+      const materials = toCollectionArray(materialsRaw);
+      const tasks = toCollectionArray(tasksRaw);
+      const taskEvents = toCollectionArray(taskEventsRaw);
+      const aiJobs = toCollectionArray(aiJobsRaw);
+      const assetDetails = toCollectionArray(assetDetailsRaw);
+
+      const runningTasks = tasks.filter(t => ['running', 'ai-running', 'result-store'].includes(t.state) || ['mineru-processing', 'mineru-queued'].includes(t.stage));
+      const completedMaterials = materials.filter(m => m.status === 'completed');
 
       if (!force && runningTasks.length > 0 && !dryRun) {
         return res.status(400).json({ error: '存在运行中的任务，请先勾选 force 以强制清理。' });
@@ -734,7 +746,7 @@ export function registerTaskActionRoutes(app, deps = {}) {
       const minioOriginalObjects = [];
       const minioParsedObjects = [];
 
-      (materials || []).forEach(m => {
+      materials.forEach(m => {
         if (m.metadata?.objectName) {
           minioOriginalsCountEstimate++;
           minioOriginalObjects.push(m.metadata.objectName);
@@ -745,7 +757,7 @@ export function registerTaskActionRoutes(app, deps = {}) {
           if (m.metadata?.zipObjectName) minioParsedObjects.push(m.metadata.zipObjectName);
         }
       });
-      (tasks || []).forEach(t => {
+      tasks.forEach(t => {
         if (t.metadata?.markdownObjectName || t.metadata?.zipObjectName) {
           minioParsedCountEstimate++;
           if (t.metadata?.markdownObjectName) minioParsedObjects.push(t.metadata.markdownObjectName);
@@ -758,11 +770,11 @@ export function registerTaskActionRoutes(app, deps = {}) {
           ok: true,
           dryRun: true,
           summary: {
-            deletedMaterials: (materials || []).length,
-            deletedTasks: (tasks || []).length,
-            deletedTaskEvents: (taskEvents || []).length,
-            deletedAiJobs: (aiJobs || []).length,
-            deletedAssetDetails: (assetDetails || []).length,
+            deletedMaterials: materials.length,
+            deletedTasks: tasks.length,
+            deletedTaskEvents: taskEvents.length,
+            deletedAiJobs: aiJobs.length,
+            deletedAssetDetails: assetDetails.length,
             deletedMinioOriginals: minioOriginalsCountEstimate,
             deletedMinioParsed: minioParsedCountEstimate,
           }
@@ -777,25 +789,43 @@ export function registerTaskActionRoutes(app, deps = {}) {
       }
       
       const deleteCollection = async (collName, items) => {
-        const ids = (items || []).map(i => i.id);
-        if (ids.length > 0) {
-          await fetch(`${DB_BASE_URL}/${collName}`, {
+        const ids = items.map(i => i.id).filter(Boolean);
+        if (ids.length === 0) return { ok: true, deleted: 0 };
+        try {
+          const result = await fetch(`${DB_BASE_URL}/${collName}`, {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ids })
-          }).catch(() => null);
+          });
+          if (!result.ok) {
+            return { ok: false, deleted: 0, error: `HTTP ${result.status}` };
+          }
+          return { ok: true, deleted: ids.length };
+        } catch (e) {
+          return { ok: false, deleted: 0, error: e.message };
         }
       };
 
-      await Promise.all([
+      const [resMat, resTask, resEvent, resAi, resAsset] = await Promise.all([
         deleteCollection('materials', materials),
         deleteCollection('tasks', tasks),
-        deleteCollection('taskEvents', taskEvents),
+        deleteCollection('task-events', taskEvents),
         deleteCollection('ai-metadata-jobs', aiJobs),
         deleteCollection('asset-details', assetDetails)
       ]);
 
+      const details = {
+        materials: resMat,
+        tasks: resTask,
+        taskEvents: resEvent,
+        aiJobs: resAi,
+        assetDetails: resAsset
+      };
+
+      const hasError = Object.values(details).some(r => !r.ok);
+
       // Delete MinIO objects
+      let minioError = null;
       try {
         const minioClient = deps.getMinioClient ? deps.getMinioClient() : null;
         if (minioClient) {
@@ -810,21 +840,23 @@ export function registerTaskActionRoutes(app, deps = {}) {
           }
         }
       } catch (e) {
+        minioError = e.message;
         console.warn(`[task-actions] minio reset failed: ${e.message}`);
       }
 
       return res.json({
-        ok: true,
+        ok: !hasError,
         dryRun: false,
         summary: {
-          deletedMaterials: (materials || []).length,
-          deletedTasks: (tasks || []).length,
-          deletedTaskEvents: (taskEvents || []).length,
-          deletedAiJobs: (aiJobs || []).length,
-          deletedAssetDetails: (assetDetails || []).length,
+          deletedMaterials: materials.length,
+          deletedTasks: tasks.length,
+          deletedTaskEvents: taskEvents.length,
+          deletedAiJobs: aiJobs.length,
+          deletedAssetDetails: assetDetails.length,
           deletedMinioOriginals: minioOriginalsCountEstimate,
           deletedMinioParsed: minioParsedCountEstimate,
-        }
+        },
+        details
       });
     } catch (err) {
       handleActionError(res, err);
