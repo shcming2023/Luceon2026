@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { useAppStore } from '../../store/appContext';
 import type { BatchQueueItem } from '../../store/types';
 import { generateNumericIdFromUuid } from '../../utils/id';
+import { appendMineruTaskOptions } from '../utils/mineruTaskOptions';
 
 /* ── 运行时文件句柄管理 ───────────────────────────────────── */
 
@@ -179,6 +180,8 @@ export function BatchProcessingController() {
         const formData = new FormData();
         formData.append('file', f);
         formData.append('materialId', String(materialId));
+
+        appendMineruTaskOptions(formData, state.mineruConfig);
 
         const uploadRes = await fetchWithTimeout('/__proxy/upload/tasks', {
           method: 'POST',

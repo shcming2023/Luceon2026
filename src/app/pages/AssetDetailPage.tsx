@@ -9,6 +9,7 @@ import { PreviewTabPanel } from '../components/PreviewTabPanel';
 import { ProcessPipelineCard } from '../components/ProcessPipelineCard';
 import { deriveMaterialTaskView, ParseTask, deriveTaskBucket } from '../utils/taskView';
 import { AlertTriangle, ExternalLink, RotateCw, RefreshCw, Sparkles, XCircle, ShieldCheck } from 'lucide-react';
+import { appendMineruTaskOptions } from '../utils/mineruTaskOptions';
 
 // ── 工具函数 ──────────────────────────────────────────────
 const getMaterialTags = (m: any) =>
@@ -348,6 +349,7 @@ export function AssetDetailPage() {
         formData.append('file', blob, name);
         formData.append('materialId', String(materialId));
         
+        appendMineruTaskOptions(formData, state.mineruConfig);
         const uploadResp = await fetch('/__proxy/upload/tasks', { method: 'POST', body: formData });
         const uploadResult = await uploadResp.json();
         if (!uploadResp.ok) throw new Error(uploadResult.error || `HTTP ${uploadResp.status}`);
@@ -359,6 +361,7 @@ export function AssetDetailPage() {
         formData.append('materialId', String(materialId));
         formData.append('objectName', objectName);
         
+        appendMineruTaskOptions(formData, state.mineruConfig);
         const resp = await fetch('/__proxy/upload/tasks', { method: 'POST', body: formData });
         const result = await resp.json();
         if (!resp.ok) {

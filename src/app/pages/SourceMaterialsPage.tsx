@@ -27,6 +27,7 @@ import type { TabFilter, SortOption, ViewMode } from '../../store/types';
 import { sortMaterials } from '../../utils/sort';
 import { usePagination, getPageNumbers } from '../../utils/pagination';
 import { checkLocalMinerUHealth } from '../../utils/mineruLocalApi';
+import { appendMineruTaskOptions } from '../utils/mineruTaskOptions';
 
 // ── 工具函数 ──────────────────────────────────────────────
 const getMaterialTags = (m: any) =>
@@ -432,6 +433,8 @@ export function SourceMaterialsPage() {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('materialId', String(material.id));
+
+      appendMineruTaskOptions(formData, state.mineruConfig);
 
       const res = await fetch('/__proxy/upload/tasks', {
         method: 'POST',
