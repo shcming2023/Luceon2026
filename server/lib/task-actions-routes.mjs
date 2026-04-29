@@ -714,42 +714,57 @@ export function registerTaskActionRoutes(app, deps = {}) {
     try {
       const { dryRun, force } = req.body || {};
       
-      const [materials, tasks, taskEvents, aiJobs] = await Promise.all([
+      const [materials, tasks, taskEvents, aiJobs, assetDetails] = await Promise.all([
         dbGet('/materials').catch(() => []),
         dbGet('/tasks').catch(() => []),
         dbGet('/taskEvents').catch(() => []),
-        dbGet('/ai-metadata-jobs').catch(() => [])
+        dbGet('/ai-metadata-jobs').catch(() => []),
+        dbGet('/asset-details').catch(() => [])
       ]);
 
       const runningTasks = (tasks || []).filter(t => ['running', 'ai-running', 'result-store'].includes(t.state) || ['mineru-processing', 'mineru-queued'].includes(t.stage));
       const completedMaterials = (materials || []).filter(m => m.status === 'completed');
 
       if (!force && runningTasks.length > 0 && !dryRun) {
-        return res.status(400).json({ error: '存在运行中的任务，请先勾选 force 以强制取消。' });
+        return res.status(400).json({ error: '存在运行中的任务，请先勾选 force 以强制清理。' });
       }
 
       let minioOriginalsCountEstimate = 0;
       let minioParsedCountEstimate = 0;
+      const minioOriginalObjects = [];
+      const minioParsedObjects = [];
+
       (materials || []).forEach(m => {
-        if (m.metadata?.objectName) minioOriginalsCountEstimate++;
-        if (m.metadata?.markdownObjectName || m.metadata?.zipObjectName) minioParsedCountEstimate++;
+        if (m.metadata?.objectName) {
+          minioOriginalsCountEstimate++;
+          minioOriginalObjects.push(m.metadata.objectName);
+        }
+        if (m.metadata?.markdownObjectName || m.metadata?.zipObjectName) {
+          minioParsedCountEstimate++;
+          if (m.metadata?.markdownObjectName) minioParsedObjects.push(m.metadata.markdownObjectName);
+          if (m.metadata?.zipObjectName) minioParsedObjects.push(m.metadata.zipObjectName);
+        }
       });
       (tasks || []).forEach(t => {
-        if (t.metadata?.markdownObjectName || t.metadata?.zipObjectName) minioParsedCountEstimate++;
+        if (t.metadata?.markdownObjectName || t.metadata?.zipObjectName) {
+          minioParsedCountEstimate++;
+          if (t.metadata?.markdownObjectName) minioParsedObjects.push(t.metadata.markdownObjectName);
+          if (t.metadata?.zipObjectName) minioParsedObjects.push(t.metadata.zipObjectName);
+        }
       });
 
       if (dryRun) {
         return res.json({
           ok: true,
+          dryRun: true,
           summary: {
-            materialsCount: (materials || []).length,
-            tasksCount: (tasks || []).length,
-            taskEventsCount: (taskEvents || []).length,
-            aiJobsCount: (aiJobs || []).length,
-            runningTasksCount: runningTasks.length,
-            completedMaterialsCount: completedMaterials.length,
-            minioOriginalsCountEstimate,
-            minioParsedCountEstimate,
+            deletedMaterials: (materials || []).length,
+            deletedTasks: (tasks || []).length,
+            deletedTaskEvents: (taskEvents || []).length,
+            deletedAiJobs: (aiJobs || []).length,
+            deletedAssetDetails: (assetDetails || []).length,
+            deletedMinioOriginals: minioOriginalsCountEstimate,
+            deletedMinioParsed: minioParsedCountEstimate,
           }
         });
       }
@@ -761,25 +776,56 @@ export function registerTaskActionRoutes(app, deps = {}) {
         }
       }
       
-      const matIds = (materials || []).map(m => m.id);
-      if (matIds.length > 0) {
-         await fetch(`${DB_BASE_URL}/materials`, {
-           method: 'DELETE',
-           headers: { 'Content-Type': 'application/json' },
-           body: JSON.stringify({ ids: matIds })
-         });
-      }
-      
-      const taskIds = (tasks || []).map(t => t.id);
-      if (taskIds.length > 0) {
-         await fetch(`${DB_BASE_URL}/tasks`, {
-           method: 'DELETE',
-           headers: { 'Content-Type': 'application/json' },
-           body: JSON.stringify({ ids: taskIds })
-         });
+      const deleteCollection = async (collName, items) => {
+        const ids = (items || []).map(i => i.id);
+        if (ids.length > 0) {
+          await fetch(`${DB_BASE_URL}/${collName}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids })
+          }).catch(() => null);
+        }
+      };
+
+      await Promise.all([
+        deleteCollection('materials', materials),
+        deleteCollection('tasks', tasks),
+        deleteCollection('taskEvents', taskEvents),
+        deleteCollection('ai-metadata-jobs', aiJobs),
+        deleteCollection('asset-details', assetDetails)
+      ]);
+
+      // Delete MinIO objects
+      try {
+        const minioClient = deps.getMinioClient ? deps.getMinioClient() : null;
+        if (minioClient) {
+          const rawBucket = deps.getMinioBucket ? deps.getMinioBucket() : 'eduassets';
+          const parsedBucket = deps.getParsedBucket ? deps.getParsedBucket() : 'eduassets-parsed';
+          
+          if (minioOriginalObjects.length > 0) {
+            await minioClient.removeObjects(rawBucket, minioOriginalObjects).catch(() => null);
+          }
+          if (minioParsedObjects.length > 0) {
+            await minioClient.removeObjects(parsedBucket, minioParsedObjects).catch(() => null);
+          }
+        }
+      } catch (e) {
+        console.warn(`[task-actions] minio reset failed: ${e.message}`);
       }
 
-      return res.json({ ok: true, summary: "Test environment reset completed" });
+      return res.json({
+        ok: true,
+        dryRun: false,
+        summary: {
+          deletedMaterials: (materials || []).length,
+          deletedTasks: (tasks || []).length,
+          deletedTaskEvents: (taskEvents || []).length,
+          deletedAiJobs: (aiJobs || []).length,
+          deletedAssetDetails: (assetDetails || []).length,
+          deletedMinioOriginals: minioOriginalsCountEstimate,
+          deletedMinioParsed: minioParsedCountEstimate,
+        }
+      });
     } catch (err) {
       handleActionError(res, err);
     }
