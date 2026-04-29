@@ -31,6 +31,97 @@ const DEFAULT_CANONICAL_AI_JOB_STATES = new Set([
   'failed',
 ]);
 
+export function createOrphanHelpers(deps, dbGet) {
+  const {
+    getMinioBucket,
+    getParsedBucket,
+    listAllObjects,
+    getMinioClient,
+    getStorageBackend,
+  } = deps;
+
+  async function scanOrphansInternal() {
+    if (getStorageBackend && getStorageBackend() !== 'minio') {
+      return { orphans: [], totalCount: 0, totalSize: 0 };
+    }
+
+    const dbMaterials = await dbGet('/materials').catch(() => []);
+    const knownIds = new Set(
+      (Array.isArray(dbMaterials) ? dbMaterials : [])
+        .map((m) => (m?.id != null ? String(m.id) : null))
+        .filter(Boolean),
+    );
+
+    const rawBucket = getMinioBucket();
+    const parsedBucket = getParsedBucket();
+    let rawObjects = [];
+    let parsedObjects = [];
+    try {
+      [rawObjects, parsedObjects] = await Promise.all([
+        listAllObjects(rawBucket, 'originals/'),
+        listAllObjects(parsedBucket, 'parsed/'),
+      ]);
+    } catch (e) {
+      // Bucket might not exist, ignore
+    }
+
+    const orphans = [];
+    for (const obj of rawObjects) {
+      const parts = String(obj.name || '').split('/');
+      let id = null;
+      if (parts.length >= 2) id = String(parts[1] || '').trim();
+      
+      if (!id || !knownIds.has(id)) {
+        orphans.push({ bucket: rawBucket, objectName: obj.name, size: obj.size || 0, lastModified: obj.lastModified });
+      }
+    }
+    for (const obj of parsedObjects) {
+      const parts = String(obj.name || '').split('/');
+      let id = null;
+      if (parts.length >= 2) id = String(parts[1] || '').trim();
+      
+      if (!id || !knownIds.has(id)) {
+        orphans.push({ bucket: parsedBucket, objectName: obj.name, size: obj.size || 0, lastModified: obj.lastModified });
+      }
+    }
+
+    const totalSize = orphans.reduce((sum, o) => sum + o.size, 0);
+    const orphanBucketsMap = {};
+    for (const o of orphans) {
+      if (!orphanBucketsMap[o.bucket]) {
+        orphanBucketsMap[o.bucket] = { bucket: o.bucket, objects: 0, bytes: 0 };
+      }
+      orphanBucketsMap[o.bucket].objects++;
+      orphanBucketsMap[o.bucket].bytes += o.size;
+    }
+    const orphanBuckets = Object.values(orphanBucketsMap);
+
+    return { orphans, totalCount: orphans.length, totalSize, orphanBuckets };
+  }
+
+  async function cleanupOrphansInternal() {
+    const { orphans } = await scanOrphansInternal();
+    if (orphans.length === 0) {
+      return { ok: true, removed: 0, errors: [], totalSize: 0 };
+    }
+    let removed = 0;
+    let totalSize = 0;
+    const errors = [];
+    for (const orphan of orphans) {
+      try {
+        await getMinioClient().removeObject(orphan.bucket, orphan.objectName);
+        removed += 1;
+        totalSize += orphan.size;
+      } catch (err) {
+        errors.push({ objectName: orphan.objectName, error: err?.message || String(err) });
+      }
+    }
+    return { ok: errors.length === 0, removed, errors, totalSize };
+  }
+
+  return { scanOrphansInternal, cleanupOrphansInternal };
+}
+
 export function registerConsistencyRoutes(app, deps) {
   const {
     DB_BASE_URL,
@@ -48,7 +139,6 @@ export function registerConsistencyRoutes(app, deps) {
     if (parts.length < 2) return null;
     const id = String(parts[1] || '').trim();
     if (!id) return null;
-    // 字符串 ID 全匹配，不再数字化
     return id;
   }
 
@@ -59,38 +149,7 @@ export function registerConsistencyRoutes(app, deps) {
   }
 
   // ── 对象孤儿扫描（保留，切换为字符串 ID）────────────────────
-  async function scanOrphansInternal() {
-    const dbMaterials = await dbGet('/materials');
-    const knownIds = new Set(
-      (Array.isArray(dbMaterials) ? dbMaterials : [])
-        .map((m) => (m?.id != null ? String(m.id) : null))
-        .filter(Boolean),
-    );
-
-    const rawBucket = getMinioBucket();
-    const parsedBucket = getParsedBucket();
-    const [rawObjects, parsedObjects] = await Promise.all([
-      listAllObjects(rawBucket, 'originals/'),
-      listAllObjects(parsedBucket, 'parsed/'),
-    ]);
-
-    const orphans = [];
-    for (const obj of rawObjects) {
-      const id = extractMaterialIdFromPath(obj.name);
-      if (!id || !knownIds.has(id)) {
-        orphans.push({ bucket: rawBucket, objectName: obj.name, size: obj.size || 0, lastModified: obj.lastModified });
-      }
-    }
-    for (const obj of parsedObjects) {
-      const id = extractMaterialIdFromPath(obj.name);
-      if (!id || !knownIds.has(id)) {
-        orphans.push({ bucket: parsedBucket, objectName: obj.name, size: obj.size || 0, lastModified: obj.lastModified });
-      }
-    }
-
-    const totalSize = orphans.reduce((sum, o) => sum + o.size, 0);
-    return { orphans, totalCount: orphans.length, totalSize };
-  }
+  const { scanOrphansInternal, cleanupOrphansInternal } = createOrphanHelpers(deps, dbGet);
 
   // ── 新增：状态与引用不变量扫描（PRD v0.4 §9.1 / §9.3）────
   /**
@@ -483,10 +542,6 @@ export function registerConsistencyRoutes(app, deps) {
 
   // ── 保留：孤儿对象相关路由（字符串 ID 版） ────────────────
   app.get('/audit/orphans', async (_req, res) => {
-    if (getStorageBackend() !== 'minio') {
-      res.json({ ok: true, orphans: [], totalCount: 0, totalSize: 0, note: 'non-minio backend' });
-      return;
-    }
     try {
       const { orphans, totalCount, totalSize } = await scanOrphansInternal();
       res.json({ ok: true, orphans, totalCount, totalSize });
@@ -497,29 +552,9 @@ export function registerConsistencyRoutes(app, deps) {
   });
 
   app.post('/audit/cleanup-orphans', async (_req, res) => {
-    if (getStorageBackend() !== 'minio') {
-      res.status(400).json({ error: '孤儿对象清理仅支持 MinIO 存储后端' });
-      return;
-    }
     try {
-      const { orphans } = await scanOrphansInternal();
-      if (orphans.length === 0) {
-        res.json({ ok: true, removed: 0, errors: [], totalSize: 0, note: '无孤儿对象' });
-        return;
-      }
-      let removed = 0;
-      let totalSize = 0;
-      const errors = [];
-      for (const orphan of orphans) {
-        try {
-          await getMinioClient().removeObject(orphan.bucket, orphan.objectName);
-          removed += 1;
-          totalSize += orphan.size;
-        } catch (err) {
-          errors.push({ objectName: orphan.objectName, error: err?.message || String(err) });
-        }
-      }
-      res.json({ ok: true, removed, errors, totalSize });
+      const result = await cleanupOrphansInternal();
+      res.json(result);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       res.status(500).json({ ok: false, error: message });

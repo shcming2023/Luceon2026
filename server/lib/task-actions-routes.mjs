@@ -23,6 +23,7 @@
 
 import { taskEventBus } from './task-events-bus.mjs';
 import { logTaskEvent } from '../services/logging/task-events.mjs';
+import { createOrphanHelpers } from './consistency-routes.mjs';
 
 const DB_BASE_URL = process.env.DB_BASE_URL || 'http://localhost:8789';
 
@@ -741,6 +742,8 @@ export function registerTaskActionRoutes(app, deps = {}) {
         return res.status(400).json({ error: '存在运行中的任务，请先勾选 force 以强制清理。' });
       }
 
+      const { scanOrphansInternal, cleanupOrphansInternal } = createOrphanHelpers(deps, dbGet);
+
       let minioOriginalsCountEstimate = 0;
       let minioParsedCountEstimate = 0;
       const minioOriginalObjects = [];
@@ -765,6 +768,11 @@ export function registerTaskActionRoutes(app, deps = {}) {
         }
       });
 
+      const orphanData = await scanOrphansInternal();
+      let deletedOrphanObjects = orphanData.totalCount;
+      let deletedOrphanObjectBytes = orphanData.totalSize;
+      let orphanBuckets = orphanData.orphanBuckets || [];
+
       if (dryRun) {
         return res.json({
           ok: true,
@@ -777,6 +785,9 @@ export function registerTaskActionRoutes(app, deps = {}) {
             deletedAssetDetails: assetDetails.length,
             deletedMinioOriginals: minioOriginalsCountEstimate,
             deletedMinioParsed: minioParsedCountEstimate,
+            deletedOrphanObjects,
+            deletedOrphanObjectBytes,
+            orphanBuckets,
           }
         });
       }
@@ -822,7 +833,7 @@ export function registerTaskActionRoutes(app, deps = {}) {
         assetDetails: resAsset
       };
 
-      const hasError = Object.values(details).some(r => !r.ok);
+      let hasError = Object.values(details).some(r => !r.ok);
 
       // Delete MinIO objects
       let minioError = null;
@@ -844,6 +855,19 @@ export function registerTaskActionRoutes(app, deps = {}) {
         console.warn(`[task-actions] minio reset failed: ${e.message}`);
       }
 
+      let orphanDetails = { ok: true, deleted: 0, bytes: 0 };
+      const orphanRes = await cleanupOrphansInternal();
+      orphanDetails = {
+         ok: orphanRes.ok,
+         deleted: orphanRes.removed,
+         bytes: orphanRes.totalSize
+      };
+      if (!orphanRes.ok) {
+         orphanDetails.error = orphanRes.errors?.[0]?.error || 'Orphan cleanup failed';
+      }
+      details.orphanObjects = orphanDetails;
+      if (!orphanDetails.ok) hasError = true;
+
       return res.json({
         ok: !hasError,
         dryRun: false,
@@ -855,6 +879,9 @@ export function registerTaskActionRoutes(app, deps = {}) {
           deletedAssetDetails: assetDetails.length,
           deletedMinioOriginals: minioOriginalsCountEstimate,
           deletedMinioParsed: minioParsedCountEstimate,
+          deletedOrphanObjects: orphanDetails.deleted,
+          deletedOrphanObjectBytes: orphanDetails.bytes,
+          orphanBuckets,
         },
         details
       });
