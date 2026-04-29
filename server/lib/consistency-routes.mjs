@@ -45,6 +45,11 @@ export function createOrphanHelpers(deps, dbGet) {
       return { orphans: [], totalCount: 0, totalSize: 0 };
     }
 
+    if (!listAllObjects) throw new Error('orphan scan unavailable: listAllObjects dependency missing');
+    if (!getMinioBucket) throw new Error('orphan scan unavailable: getMinioBucket dependency missing');
+    if (!getParsedBucket) throw new Error('orphan scan unavailable: getParsedBucket dependency missing');
+    if (!getMinioClient) throw new Error('orphan scan unavailable: getMinioClient dependency missing');
+
     const dbMaterials = await dbGet('/materials').catch(() => []);
     const knownIds = new Set(
       (Array.isArray(dbMaterials) ? dbMaterials : [])
@@ -62,7 +67,11 @@ export function createOrphanHelpers(deps, dbGet) {
         listAllObjects(parsedBucket, 'parsed/'),
       ]);
     } catch (e) {
-      // Bucket might not exist, ignore
+      if (e.code === 'NoSuchBucket' || (e.message && e.message.includes('NoSuchBucket'))) {
+        // Bucket might not exist, ignore
+      } else {
+        throw e;
+      }
     }
 
     const orphans = [];

@@ -3916,6 +3916,7 @@ registerTaskActionRoutes(app, {
   getMinioBucket,
   getStorageBackend,
   getParsedBucket,
+  listAllObjects,
 });
 
 // ─── 启动时从 db-server 恢复持久化配置 ────────────────────────

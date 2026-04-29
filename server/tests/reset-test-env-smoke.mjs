@@ -148,11 +148,23 @@ async function runTests() {
   assert.equal(dbStorage.minioObjects.length, 6); // untouched
   console.log('Test 1 Pass ✅');
 
+  // Test 1.5: missing listAllObjects dependency makes reset fail
+  console.log('Test 1.5: missing listAllObjects makes reset ok false (500)');
+  const originalListAllObjects = deps.listAllObjects;
+  deps.listAllObjects = null;
+  res = await mockRequest('/ops/reset-test-env', 'POST', { dryRun: true });
+  assert.equal(res.status, 500);
+  assert.equal(res.body.ok, false);
+  assert.equal(res.body.error, 'orphan scan unavailable: listAllObjects dependency missing');
+  assert.equal(res.body.details.orphanObjects.ok, false);
+  deps.listAllObjects = originalListAllObjects; // Restore
+  console.log('Test 1.5 Pass ✅');
+
   // Test 2: orphan cleanup failure makes reset ok false
   console.log('Test 2: orphan cleanup failure makes reset ok false');
   dbStorage.mockFailOrphanCleanup = true;
   res = await mockRequest('/ops/reset-test-env', 'POST', {});
-  assert.equal(res.status, 200);
+  assert.equal(res.status, 500);
   assert.equal(res.body.ok, false);
   assert.equal(res.body.details.orphanObjects.ok, false);
   assert.equal(res.body.details.orphanObjects.error, 'Simulated orphan cleanup failure');

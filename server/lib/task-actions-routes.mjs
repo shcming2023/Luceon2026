@@ -768,7 +768,18 @@ export function registerTaskActionRoutes(app, deps = {}) {
         }
       });
 
-      const orphanData = await scanOrphansInternal();
+      let orphanData;
+      try {
+        orphanData = await scanOrphansInternal();
+      } catch (err) {
+        return res.status(500).json({
+          ok: false,
+          error: err.message,
+          details: {
+            orphanObjects: { ok: false, error: err.message }
+          }
+        });
+      }
       let deletedOrphanObjects = orphanData.totalCount;
       let deletedOrphanObjectBytes = orphanData.totalSize;
       let orphanBuckets = orphanData.orphanBuckets || [];
@@ -856,17 +867,29 @@ export function registerTaskActionRoutes(app, deps = {}) {
       }
 
       let orphanDetails = { ok: true, deleted: 0, bytes: 0 };
-      const orphanRes = await cleanupOrphansInternal();
-      orphanDetails = {
-         ok: orphanRes.ok,
-         deleted: orphanRes.removed,
-         bytes: orphanRes.totalSize
-      };
-      if (!orphanRes.ok) {
-         orphanDetails.error = orphanRes.errors?.[0]?.error || 'Orphan cleanup failed';
+      try {
+        const orphanRes = await cleanupOrphansInternal();
+        orphanDetails = {
+           ok: orphanRes.ok,
+           deleted: orphanRes.removed,
+           bytes: orphanRes.totalSize
+        };
+        if (!orphanRes.ok) {
+           orphanDetails.error = orphanRes.errors?.[0]?.error || 'Orphan cleanup failed';
+        }
+      } catch (err) {
+        orphanDetails = { ok: false, error: err.message };
       }
       details.orphanObjects = orphanDetails;
       if (!orphanDetails.ok) hasError = true;
+
+      if (!orphanDetails.ok) {
+        return res.status(500).json({
+          ok: false,
+          error: orphanDetails.error,
+          details
+        });
+      }
 
       return res.json({
         ok: !hasError,
