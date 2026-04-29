@@ -479,7 +479,8 @@ export function TaskDetailPage() {
     && resourceStatus.materialExists && resourceStatus.originalExists;
   const canReAi = ['failed', 'completed', 'review-pending'].includes(String(task.state))
     && resourceStatus.materialExists && resourceStatus.markdownExists;
-  const canCancel = ['pending', 'ai-pending', 'review-pending'].includes(String(task.state));
+  const canCancel = ['pending', 'running', 'ai-pending', 'ai-running', 'review-pending', 'result-store'].includes(String(task.state)) ||
+                    ['mineru-queued', 'mineru-processing', 'submit-failed-retryable', 'result-fetching'].includes(String(task.stage));
 
   // 资源缺失提示文案
   const resourceWarning = (() => {
@@ -547,7 +548,13 @@ export function TaskDetailPage() {
             <Sparkles className="w-4 h-4" /> Re-AI
           </button>
           <button
-            onClick={() => callAction('cancel')}
+            onClick={() => {
+              const mineruTaskId = task.metadata?.mineruTaskId;
+              const msg = mineruTaskId 
+                ? '该任务已提交至 MinerU，取消操作【仅停止 Luceon 侧跟踪】，若 MinerU 已在外部环境执行，需通过运维清障确认。\n\n确定要取消吗？'
+                : '确定要取消该任务吗？';
+              if (window.confirm(msg)) callAction('cancel');
+            }}
             disabled={!canCancel}
             className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 disabled:opacity-40 transition-colors"
             title="Cancel"
@@ -857,8 +864,8 @@ export function TaskDetailPage() {
                           </div>
                         ) : (
                           <>
-                            {/* 当前阶段 & 进度 */}
-                            {obs.stage ? (
+                            {/* 当前阶段 & 进度 (仅在非滞后状态下显示) */}
+                            {obs.stage && obs.activityLevel !== 'log-observation-stale' ? (
                               <>
                                 <div className="flex justify-between items-center">
                                   <span className="text-xs text-slate-500">当前阶段</span>
@@ -888,7 +895,7 @@ export function TaskDetailPage() {
                                   </div>
                                 )}
                               </>
-                            ) : (
+                            ) : obs.activityLevel !== 'log-observation-stale' ? (
                               <>
                                 {/* 旧格式兼容 */}
                                 <div className="flex justify-between items-center">
@@ -907,7 +914,7 @@ export function TaskDetailPage() {
                                   </div>
                                 )}
                               </>
-                            )}
+                            ) : null}
                           </>
                         )}
                         
@@ -973,6 +980,7 @@ export function TaskDetailPage() {
                               case 'suspected-stale': return 'bg-orange-100 text-orange-700';
                               case 'stale-critical': return 'bg-red-100 text-red-700';
                               case 'failed-confirmed': return 'bg-red-100 text-red-700';
+                              case 'log-error-signal': return 'bg-orange-100 text-orange-700';
                               case 'log-observation-stale': return 'bg-amber-100 text-amber-700';
                               default: return 'bg-slate-200 text-slate-600';
                             }
@@ -987,7 +995,8 @@ export function TaskDetailPage() {
                                 'no-business-signal': '暂无业务信号',
                                 'suspected-stale': '疑似停滞',
                                 'stale-critical': '严重停滞',
-                                'failed-confirmed': '日志确认失败',
+                                'failed-confirmed': '已确认失败',
+                                'log-error-signal': '日志包含错误',
                                 'log-observation-stale': '日志观测滞后',
                               };
                               return labels[h] || h || '暂无结构化日志信号';

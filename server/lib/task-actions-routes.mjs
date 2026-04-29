@@ -341,21 +341,103 @@ async function reAiTask(task, deps) {
 }
 
 /**
- * cancel: 将 pending/ai-pending/review-pending 置为 canceled
- * 对 running/ai-running 状态的任务，暂不做强制打断（v0.4 由 Worker 超时自愈接管）
+ * cancel: 将活跃状态任务置为 canceled
  */
 async function cancelTask(task) {
-  const allowed = new Set(['pending', 'ai-pending', 'review-pending']);
-  if (!allowed.has(task.state)) {
-    throw new Error(`Task state ${task.state} cannot be canceled directly`);
+  // Check if task can be canceled
+  const isCancellable = ['pending', 'running', 'ai-pending', 'ai-running', 'review-pending', 'result-store'].includes(task.state) ||
+                        ['mineru-queued', 'mineru-processing', 'submit-failed-retryable', 'result-fetching'].includes(task.stage);
+                        
+  if (!isCancellable) {
+    if (!(task.state === 'failed' && task.stage === 'submit-failed-retryable')) {
+      throw new Error(`Task state ${task.state} (stage: ${task.stage}) cannot be canceled directly`);
+    }
   }
+
+  const mineruTaskId = task.metadata?.mineruTaskId;
+  let externalMineruStateAtCancel = undefined;
+  let externalMineruStateUnknown = undefined;
+
+  if (mineruTaskId) {
+    const localEndpointRaw = task.optionsSnapshot?.localEndpoint;
+    if (localEndpointRaw) {
+      let localEndpoint = localEndpointRaw;
+      if (localEndpoint.includes('localhost') || localEndpoint.includes('127.0.0.1')) {
+        localEndpoint = localEndpoint.replace(/localhost|127\.0\.0\.1/g, 'host.docker.internal');
+      }
+      localEndpoint = localEndpoint.replace(/\/+$/, '');
+      try {
+        const tRes = await fetch(`${localEndpoint}/tasks/${mineruTaskId}`, { signal: AbortSignal.timeout(3000) });
+        if (tRes.ok) {
+          const mineruData = await tRes.json();
+          externalMineruStateAtCancel = String(mineruData.status || mineruData.state || '').toLowerCase();
+        } else {
+          externalMineruStateUnknown = true;
+        }
+      } catch (e) {
+        externalMineruStateUnknown = true;
+      }
+    } else {
+      externalMineruStateUnknown = true;
+    }
+  }
+
   const update = {
     state: 'canceled',
-    message: '任务已被用户取消',
+    stage: 'canceled',
+    message: '用户已取消 / 测试终止',
     updatedAt: new Date().toISOString(),
     completedAt: new Date().toISOString(),
+    metadata: {
+      ...(task.metadata || {}),
+      canceledAt: new Date().toISOString(),
+      canceledBy: 'user'
+    }
   };
+
+  if (mineruTaskId) {
+    update.metadata.externalMineruTaskId = mineruTaskId;
+    if (externalMineruStateAtCancel !== undefined) {
+      update.metadata.externalMineruStateAtCancel = externalMineruStateAtCancel;
+    }
+    if (externalMineruStateUnknown !== undefined) {
+      update.metadata.externalMineruStateUnknown = externalMineruStateUnknown;
+    }
+    update.metadata.mineruStatus = 'canceled';
+  }
+
   await dbPatch(`/tasks/${encodeURIComponent(task.id)}`, update);
+
+  if (task.materialId) {
+    try {
+      const material = await dbGet(`/materials/${encodeURIComponent(task.materialId)}`);
+      if (material) {
+        const parsedFilesCount = material.metadata?.parsedFilesCount || task.metadata?.parsedFilesCount || 0;
+        if (parsedFilesCount > 0) {
+          await dbPatch(`/materials/${encodeURIComponent(task.materialId)}`, {
+            metadata: {
+              ...(material.metadata || {}),
+              canceledTaskAt: new Date().toISOString(),
+              canceledTaskId: task.id
+            }
+          });
+        } else {
+          await dbPatch(`/materials/${encodeURIComponent(task.materialId)}`, {
+            status: 'canceled',
+            mineruStatus: 'canceled',
+            metadata: {
+              ...(material.metadata || {}),
+              processingMsg: '用户已取消 / 测试终止',
+              processingStage: 'canceled'
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.warn(`[task-actions] cancel backfill material failed: ${e.message}`);
+    }
+  }
+
   await emitAndLog({
     taskId: task.id,
     level: 'warn',
@@ -526,6 +608,140 @@ export function registerTaskActionRoutes(app, deps = {}) {
       if (!task) return;
       const updated = await cancelTask(task);
       res.json({ ok: true, taskId: updated.id, state: updated.state });
+    } catch (err) {
+      handleActionError(res, err);
+    }
+  });
+
+  // cancel-all-live
+  app.post('/tasks/cancel-all-live', async (req, res) => {
+    try {
+      const { dryRun } = req.body || {};
+      const allTasks = await dbGet('/tasks') || [];
+      const liveTasks = allTasks.filter(t => 
+        ['pending', 'running', 'ai-pending', 'ai-running', 'review-pending', 'result-store'].includes(t.state) ||
+        ['mineru-queued', 'mineru-processing', 'submit-failed-retryable', 'result-fetching'].includes(t.stage) ||
+        (t.state === 'failed' && t.stage === 'submit-failed-retryable')
+      );
+
+      let mineruApiUnreachableCount = 0;
+      let mineruTaskIdCount = 0;
+      let pendingCount = 0;
+      let runningCount = 0;
+
+      for (const t of liveTasks) {
+        if (t.state === 'pending' || t.state === 'ai-pending' || t.state === 'review-pending') pendingCount++;
+        else runningCount++;
+        if (t.metadata?.mineruTaskId) mineruTaskIdCount++;
+        if (t.stage === 'mineru-unreachable' || t.metadata?.mineruApiUnreachableCount > 0) mineruApiUnreachableCount++;
+      }
+
+      if (dryRun) {
+        res.json({
+          ok: true,
+          summary: {
+            totalToCancel: liveTasks.length,
+            pendingCount,
+            runningCount,
+            mineruTaskIdCount,
+            mineruApiUnreachableCount
+          },
+          affectedTaskIds: liveTasks.map(t => t.id)
+        });
+        return;
+      }
+
+      const results = [];
+      for (const t of liveTasks) {
+        try {
+          await cancelTask(t);
+          results.push({ id: t.id, ok: true });
+        } catch (e) {
+          results.push({ id: t.id, ok: false, error: e.message });
+        }
+      }
+
+      res.json({
+        ok: true,
+        summary: { totalCanceled: results.filter(r => r.ok).length, totalFailed: results.filter(r => !r.ok).length },
+        results
+      });
+    } catch (err) {
+      handleActionError(res, err);
+    }
+  });
+
+  // reset-test-env
+  app.post('/ops/reset-test-env', async (req, res) => {
+    try {
+      const { dryRun, force } = req.body || {};
+      
+      const [materials, tasks, taskEvents, aiJobs] = await Promise.all([
+        dbGet('/materials').catch(() => []),
+        dbGet('/tasks').catch(() => []),
+        dbGet('/taskEvents').catch(() => []),
+        dbGet('/ai-metadata-jobs').catch(() => [])
+      ]);
+
+      const runningTasks = (tasks || []).filter(t => ['running', 'ai-running', 'result-store'].includes(t.state) || ['mineru-processing', 'mineru-queued'].includes(t.stage));
+      const completedMaterials = (materials || []).filter(m => m.status === 'completed');
+
+      if (!force && runningTasks.length > 0 && !dryRun) {
+        return res.status(400).json({ error: '存在运行中的任务，请先勾选 force 以强制取消。' });
+      }
+
+      let minioOriginalsCountEstimate = 0;
+      let minioParsedCountEstimate = 0;
+      (materials || []).forEach(m => {
+        if (m.metadata?.objectName) minioOriginalsCountEstimate++;
+        if (m.metadata?.markdownObjectName || m.metadata?.zipObjectName) minioParsedCountEstimate++;
+      });
+      (tasks || []).forEach(t => {
+        if (t.metadata?.markdownObjectName || t.metadata?.zipObjectName) minioParsedCountEstimate++;
+      });
+
+      if (dryRun) {
+        return res.json({
+          ok: true,
+          summary: {
+            materialsCount: (materials || []).length,
+            tasksCount: (tasks || []).length,
+            taskEventsCount: (taskEvents || []).length,
+            aiJobsCount: (aiJobs || []).length,
+            runningTasksCount: runningTasks.length,
+            completedMaterialsCount: completedMaterials.length,
+            minioOriginalsCountEstimate,
+            minioParsedCountEstimate,
+          }
+        });
+      }
+
+      // EXECUTE
+      if (force && runningTasks.length > 0) {
+        for (const t of runningTasks) {
+          try { await cancelTask(t); } catch (e) { /* ignore */ }
+        }
+      }
+      
+      const matIds = (materials || []).map(m => m.id);
+      if (matIds.length > 0) {
+         await fetch(`${DB_BASE_URL}/materials`, {
+           method: 'DELETE',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ ids: matIds })
+         });
+      }
+      
+      const taskIds = (tasks || []).map(t => t.id);
+      if (taskIds.length > 0) {
+         await fetch(`${DB_BASE_URL}/tasks`, {
+           method: 'DELETE',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ ids: taskIds })
+         });
+      }
+
+      return res.json({ ok: true, summary: "Test environment reset completed" });
     } catch (err) {
       handleActionError(res, err);
     }

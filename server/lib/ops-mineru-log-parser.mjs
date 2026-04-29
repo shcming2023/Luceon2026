@@ -185,9 +185,9 @@ export async function readTail(filePath, bytes = 8192) {
 export function determineActivityLevel(signalSummary, previousObservation, currentProgress) {
   const { progressCount, stageChangeCount, businessLogCount, apiNoiseCount, errorCount, errorSignalCount } = signalSummary;
 
-  // 仅确认型错误（Traceback / RuntimeError / CUDA error 等）可判定 failed-confirmed
+  // 仅确认型错误（Traceback / RuntimeError / CUDA error 等）可判定 log-error-signal
   // 裸 Error:/ERROR: 不计入 errorCount，只计入 errorSignalCount
-  if (errorCount > 0) return 'failed-confirmed';
+  if (errorCount > 0) return 'log-error-signal';
 
   // 有 tqdm 进度
   if (progressCount > 0 && currentProgress) {
@@ -639,7 +639,7 @@ export async function parseLatestMineruProgress(minObservedAt, previousObservati
   bestResult.observerCheckedAt = observerCheckedAt;
   bestResult.logSource = selectedLogSource;
 
-  if (logAge > MINERU_LOG_STALE_MS && bestResult.activityLevel !== 'failed-confirmed') {
+  if (logAge > MINERU_LOG_STALE_MS && bestResult.activityLevel !== 'log-error-signal') {
     bestResult.observationStale = true;
     bestResult.observationStaleReason = 'container-visible MinerU log file is stale while MinerU API is still processing';
     bestResult.activityLevel = 'log-observation-stale';

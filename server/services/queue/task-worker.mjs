@@ -405,15 +405,30 @@ export class ParseTaskWorker {
         if (tRes.ok) {
           mineruData = await tRes.json();
           mineruStatus = String(mineruData.status || mineruData.state || '').toLowerCase();
+          if (task.metadata?.mineruApiUnreachableCount) {
+             await this.updateTaskWithRetry(task.id, { metadata: { ...(task.metadata || {}), mineruApiUnreachableCount: 0 } });
+          }
         } else if (tRes.status === 404) {
-          // 404: 不与 confirmed failed 混淆，保留已有策略（交给 recoverStaleRunning 或 recovery scan）
+          if (task.metadata?.mineruApiUnreachableCount) {
+             await this.updateTaskWithRetry(task.id, { metadata: { ...(task.metadata || {}), mineruApiUnreachableCount: 0 } });
+          }
           continue;
         } else {
-          // 非 200/404：网络异常，跳过
           continue;
         }
       } catch (e) {
-        // 网络不可达：跳过，不做判定
+        const count = (task.metadata?.mineruApiUnreachableCount || 0) + 1;
+        if (count >= 3) {
+          await this.updateTaskWithRetry(task.id, {
+            stage: 'mineru-unreachable',
+            message: 'MinerU 服务不可达，需恢复后重新对账',
+            metadata: { ...(task.metadata || {}), mineruApiUnreachableCount: count, mineruStatus: 'unknown' }
+          }, { enqueueOnFailure: true });
+        } else {
+          await this.updateTaskWithRetry(task.id, {
+            metadata: { ...(task.metadata || {}), mineruApiUnreachableCount: count }
+          }, { enqueueOnFailure: true });
+        }
         continue;
       }
 
@@ -425,6 +440,24 @@ export class ParseTaskWorker {
       // MinerU 已确认失败：同步 Luceon 终态
       const mineruError = mineruData?.error || mineruData?.message || '无详细错误';
       const errorSummary = String(mineruError).slice(0, 500);
+
+      const isHybrid = task.metadata?.mineruExecutionProfile?.backendEffective === 'hybrid-auto-engine' || task.metadata?.mineruExecutionProfile?.backendRequested === 'hybrid-auto-engine';
+      let mineruFailureCategory = null;
+      let failureEngine = null;
+      let fallbackEligible = false;
+
+      if (errorSummary.includes('split_with_sizes') || 
+          errorSummary.includes('Image features and image tokens do not match') || 
+          errorSummary.includes('out of range integral type conversion attempted')) {
+        mineruFailureCategory = 'hybrid-vlm-runtime-failure';
+        failureEngine = 'hybrid-auto-engine';
+        fallbackEligible = true;
+      } else if (errorSummary.includes('MPS backend out of memory') || 
+                 errorSummary.includes('kIOGPUCommandBufferCallbackErrorInnocentVictim')) {
+        mineruFailureCategory = 'hybrid-mps-runtime-failure';
+        failureEngine = 'hybrid-auto-engine';
+        fallbackEligible = true;
+      }
 
       console.log(`[task-worker] syncMineruApiFailedState: Task ${task.id} MinerU ${mineruTaskId} confirmed ${mineruStatus}: ${errorSummary}`);
 
@@ -441,7 +474,10 @@ export class ParseTaskWorker {
           mineruStatus: 'failed',
           mineruFailedAt: mineruData?.completed_at || new Date().toISOString(),
           mineruFailureSource: 'mineru-api',
-          mineruFailureReason: errorSummary
+          mineruFailureReason: errorSummary,
+          mineruFailureCategory,
+          failureEngine,
+          fallbackEligible
         }
       }, { enqueueOnFailure: true });
 
@@ -564,16 +600,32 @@ export class ParseTaskWorker {
       if (tRes.ok) {
         mineruData = await tRes.json();
         mineruStatus = String(mineruData.status || mineruData.state || '').toLowerCase();
+        if (task.metadata?.mineruApiUnreachableCount) {
+          await this.updateTaskWithRetry(task.id, { metadata: { ...(task.metadata || {}), mineruApiUnreachableCount: 0 } });
+        }
       } else if (tRes.status === 404) {
         mineruStatus = 'not_found';
+        if (task.metadata?.mineruApiUnreachableCount) {
+          await this.updateTaskWithRetry(task.id, { metadata: { ...(task.metadata || {}), mineruApiUnreachableCount: 0 } });
+        }
       }
     } catch (e) {
-      // 网络不可达 → 保持当前状态，不重提交
-      console.warn(`[task-worker] ${eventSource}: Task ${task.id} MinerU API unreachable: ${e.message}, keeping current state`);
-      await this.updateTaskWithRetry(task.id, {
+      // 网络不可达
+      const count = (task.metadata?.mineruApiUnreachableCount || 0) + 1;
+      console.warn(`[task-worker] ${eventSource}: Task ${task.id} MinerU API unreachable: ${e.message}, count: ${count}`);
+      const payload = {
         updatedAt: new Date().toISOString(),
-        message: `${eventSource}: MinerU API 不可达 (${e.message})，保持当前状态不重提交`,
-      }, { enqueueOnFailure: true });
+        metadata: { ...(task.metadata || {}), mineruApiUnreachableCount: count }
+      };
+      
+      if (count >= 3) {
+        payload.stage = 'mineru-unreachable';
+        payload.message = 'MinerU 服务不可达，需恢复后重新对账';
+        payload.metadata.mineruStatus = 'unknown';
+      } else {
+        payload.message = `${eventSource}: MinerU API 不可达 (${e.message})，保持当前状态不重提交`;
+      }
+      await this.updateTaskWithRetry(task.id, payload, { enqueueOnFailure: true });
       return;
     }
 
@@ -653,6 +705,25 @@ export class ParseTaskWorker {
       // MinerU 已失败 → failed/mineru-failed
       const mineruError = mineruData?.error || mineruData?.message || '无详细错误';
       const errorSummary = String(mineruError).slice(0, 500);
+
+      const isHybrid = task.metadata?.mineruExecutionProfile?.backendEffective === 'hybrid-auto-engine' || task.metadata?.mineruExecutionProfile?.backendRequested === 'hybrid-auto-engine';
+      let mineruFailureCategory = null;
+      let failureEngine = null;
+      let fallbackEligible = false;
+
+      if (errorSummary.includes('split_with_sizes') || 
+          errorSummary.includes('Image features and image tokens do not match') || 
+          errorSummary.includes('out of range integral type conversion attempted')) {
+        mineruFailureCategory = 'hybrid-vlm-runtime-failure';
+        failureEngine = 'hybrid-auto-engine';
+        fallbackEligible = true;
+      } else if (errorSummary.includes('MPS backend out of memory') || 
+                 errorSummary.includes('kIOGPUCommandBufferCallbackErrorInnocentVictim')) {
+        mineruFailureCategory = 'hybrid-mps-runtime-failure';
+        failureEngine = 'hybrid-auto-engine';
+        fallbackEligible = true;
+      }
+
       console.log(`[task-worker] ${eventSource}: Task ${task.id} MinerU ${mineruTaskId} failed: ${errorSummary}`);
       await this.updateTaskWithRetry(task.id, {
         state: 'failed',
@@ -667,6 +738,9 @@ export class ParseTaskWorker {
           mineruFailedAt: mineruData?.completed_at || new Date().toISOString(),
           mineruFailureSource: 'mineru-api',
           mineruFailureReason: errorSummary,
+          mineruFailureCategory,
+          failureEngine,
+          fallbackEligible
         }
       }, { enqueueOnFailure: true });
       if (task.materialId) {
@@ -851,6 +925,25 @@ export class ParseTaskWorker {
         // MinerU 也确认失败：保持 failed 但补充证据与标准字段
         const mineruError = mineruData?.error || mineruData?.message || '无详细错误';
         const errorSummary = String(mineruError).slice(0, 500);
+
+        const isHybrid = task.metadata?.mineruExecutionProfile?.backendEffective === 'hybrid-auto-engine' || task.metadata?.mineruExecutionProfile?.backendRequested === 'hybrid-auto-engine';
+        let mineruFailureCategory = null;
+        let failureEngine = null;
+        let fallbackEligible = false;
+
+        if (errorSummary.includes('split_with_sizes') || 
+            errorSummary.includes('Image features and image tokens do not match') || 
+            errorSummary.includes('out of range integral type conversion attempted')) {
+          mineruFailureCategory = 'hybrid-vlm-runtime-failure';
+          failureEngine = 'hybrid-auto-engine';
+          fallbackEligible = true;
+        } else if (errorSummary.includes('MPS backend out of memory') || 
+                   errorSummary.includes('kIOGPUCommandBufferCallbackErrorInnocentVictim')) {
+          mineruFailureCategory = 'hybrid-mps-runtime-failure';
+          failureEngine = 'hybrid-auto-engine';
+          fallbackEligible = true;
+        }
+
         if (!task.message?.includes('MinerU 已确认失败') && !task.stage?.includes('mineru-failed')) {
           await this.updateTaskWithRetry(task.id, {
             state: 'failed',
@@ -864,7 +957,10 @@ export class ParseTaskWorker {
               mineruStatus: 'failed',
               mineruFailedAt: mineruData?.completed_at || new Date().toISOString(),
               mineruFailureSource: 'mineru-api',
-              mineruFailureReason: errorSummary
+              mineruFailureReason: errorSummary,
+              mineruFailureCategory,
+              failureEngine,
+              fallbackEligible
             }
           }, { enqueueOnFailure: true });
           // Material 同步失败

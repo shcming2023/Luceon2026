@@ -92,6 +92,7 @@ function getTaskMainLabel(t: any): string {
 
   if (t.stage === 'mineru-queued') return 'MinerU 排队中';
   if (t.stage === 'mineru-processing') return 'MinerU 正在解析';
+  if (t.stage === 'mineru-unreachable') return '服务不可达';
   
   return zhLabelForState(t.state);
 }
@@ -252,6 +253,115 @@ export function TaskManagementPage() {
     }
   };
 
+  const batchCancel = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    
+    const hasMineruTaskId = ids.some(id => tasks.find(t => t.id === id)?.metadata?.mineruTaskId);
+    let msg = '确定要取消选中的任务吗？';
+    if (hasMineruTaskId) {
+      msg = '注意：选中的部分任务已提交给 MinerU。\n\n取消操作【仅停止 Luceon 侧的跟踪】，若 MinerU 已在外部环境执行，需通过运维手段清障。\n\n确定要继续取消吗？';
+    }
+    
+    if (!window.confirm(msg)) return;
+
+    let successCount = 0;
+    for (const id of ids) {
+      try {
+        const res = await fetch(`/__proxy/upload/tasks/${encodeURIComponent(id)}/cancel`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (res.ok) successCount++;
+      } catch (e) { /* ignore */ }
+    }
+    toast.success(`批量取消完成：成功 ${successCount}/${ids.length}`);
+    setSelectedIds(new Set());
+    fetchTasks();
+  };
+
+  const cancelAllLive = async () => {
+    try {
+      const dryRes = await fetch('/__proxy/upload/tasks/cancel-all-live', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dryRun: true }),
+      });
+      const dryData = await dryRes.json();
+      if (!dryData.ok) throw new Error(dryData.error);
+      
+      const sum = dryData.summary;
+      if (sum.totalToCancel === 0) {
+         toast.info('没有需要取消的进行中任务');
+         return;
+      }
+      
+      const msg = `将取消 ${sum.totalToCancel} 个任务：\n` +
+                  `- Pending/Review: ${sum.pendingCount} 个\n` +
+                  `- Running: ${sum.runningCount} 个\n` +
+                  `- 含有 MinerU Task ID: ${sum.mineruTaskIdCount} 个\n` +
+                  `- MinerU API 不可达: ${sum.mineruApiUnreachableCount} 个\n\n` +
+                  `是否确认终止压测并取消所有任务？\n（注：仅停止 Luceon 侧跟踪，已发送给 MinerU 的任务需运维清障）`;
+      if (!window.confirm(msg)) return;
+      
+      const res = await fetch('/__proxy/upload/tasks/cancel-all-live', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dryRun: false }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error);
+      
+      toast.success(`成功取消 ${data.summary.totalCanceled} 个任务`);
+      fetchTasks();
+    } catch (err) {
+      toast.error('终止进行中任务失败', { description: String(err) });
+    }
+  };
+
+  const resetTestEnv = async () => {
+    try {
+      const dryRes = await fetch('/__proxy/upload/ops/reset-test-env', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dryRun: true }),
+      });
+      const dryData = await dryRes.json();
+      if (!dryData.ok) throw new Error(dryData.error);
+      
+      const sum = dryData.summary;
+      let msg = `【环境重置前置确认】\n\n` +
+                `Materials: ${sum.materialsCount}\n` +
+                `ParseTasks: ${sum.tasksCount}\n` +
+                `TaskEvents: ${sum.taskEventsCount}\n` +
+                `AiJobs: ${sum.aiJobsCount}\n` +
+                `MinIO 原文件(预估): ${sum.minioOriginalsCountEstimate}\n` +
+                `MinIO 产物(预估): ${sum.minioParsedCountEstimate}\n\n`;
+      if (sum.runningTasksCount > 0) {
+        msg += `⚠️ 当前有 ${sum.runningTasksCount} 个运行中的任务。若继续，将被强制取消。\n`;
+      }
+      if (sum.completedMaterialsCount > 0) {
+        msg += `✅ 包含 ${sum.completedMaterialsCount} 个已完成成果。它们也会被清理。\n`;
+      }
+      msg += `\n确认强制清空所有测试数据吗？（操作不可逆）`;
+      
+      if (!window.confirm(msg)) return;
+      
+      const res = await fetch('/__proxy/upload/ops/reset-test-env', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dryRun: false, force: true }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error);
+      
+      toast.success('测试环境已重置');
+      fetchTasks();
+    } catch (err) {
+      toast.error('重置失败', { description: String(err) });
+    }
+  };
+
   // ── SSE 接入（PRD v0.4 §10.2.2）───────────────────────────
   useEffect(() => {
     if (sseRef.current) return;
@@ -405,6 +515,28 @@ export function TaskManagementPage() {
           >
             <Trash2 className="w-4 h-4" /> 批量删除
           </button>
+          <button
+            onClick={batchCancel}
+            disabled={selectedIds.size === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 disabled:opacity-40 transition-colors shadow-sm"
+            title="批量取消所选任务"
+          >
+            <XCircle className="w-4 h-4" /> 批量取消
+          </button>
+          <button
+            onClick={cancelAllLive}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-orange-200 text-orange-600 rounded-lg text-sm font-medium hover:bg-orange-50 transition-colors shadow-sm"
+            title="终止压测/取消全部进行中任务"
+          >
+            <XCircle className="w-4 h-4" /> 终止全部进行中
+          </button>
+          <button
+            onClick={resetTestEnv}
+            className="flex items-center gap-2 px-4 py-2 bg-red-600 border border-red-700 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors shadow-sm"
+            title="清空库表和 MinIO 产物"
+          >
+            <Trash2 className="w-4 h-4" /> 重置测试环境
+          </button>
         </div>
       </div>
 
@@ -467,7 +599,8 @@ export function TaskManagementPage() {
                   const canRetry = t.state === 'failed';
                   const canReparse = t.state === 'failed' || t.state === 'completed' || t.state === 'review-pending' || t.state === 'canceled';
                   const canReAi = t.state === 'failed' || t.state === 'completed' || t.state === 'review-pending';
-                  const canCancel = t.state === 'pending' || t.state === 'ai-pending' || t.state === 'review-pending';
+                  const canCancel = ['pending', 'running', 'ai-pending', 'ai-running', 'review-pending', 'result-store'].includes(t.state || '') ||
+                                    ['mineru-queued', 'mineru-processing', 'submit-failed-retryable', 'result-fetching'].includes(t.stage || '');
                   return (
                     <tr key={t.id} className="hover:bg-gray-50/80 transition-colors group">
                       <td className="px-3 py-4">
@@ -535,7 +668,7 @@ export function TaskManagementPage() {
                             const obs = t.metadata?.mineruObservedProgress as any;
                             if (!obs) return null;
                             const level = obs.activityLevel || t.metadata?.mineruProgressHealth || '';
-                            if (level === 'api-alive-only' || level === 'no-business-signal') return null;
+                            if (level === 'api-alive-only' || level === 'no-business-signal' || level === 'log-observation-stale') return null;
                             
                             let phaseText = '';
                             if (obs.stage && obs.stage.rawPhase) {
@@ -554,7 +687,7 @@ export function TaskManagementPage() {
                               </p>
                             );
                           })()}
-                          {bucket === 'processing' && typeof t.progress === 'number' && (
+                          {bucket === 'processing' && typeof t.progress === 'number' && t.metadata?.mineruProgressHealth !== 'log-observation-stale' && (t.metadata?.mineruObservedProgress as any)?.activityLevel !== 'log-observation-stale' && (
                             <div className="w-32 h-1 bg-gray-100 rounded-full overflow-hidden">
                               <div className="h-full bg-blue-500 transition-all duration-700 ease-in-out" style={{ width: `${t.progress || 0}%` }} />
                             </div>
@@ -599,7 +732,13 @@ export function TaskManagementPage() {
                             <Sparkles size={16} />
                           </button>
                           <button
-                            onClick={() => callAction(t, 'cancel')}
+                            onClick={() => {
+                              const mineruTaskId = t.metadata?.mineruTaskId;
+                              const msg = mineruTaskId 
+                                ? '该任务已提交至 MinerU，取消操作【仅停止 Luceon 侧跟踪】，若 MinerU 已在外部环境执行，需通过运维清障确认。\n\n确定要取消吗？'
+                                : '确定要取消该任务吗？';
+                              if (window.confirm(msg)) callAction(t, 'cancel');
+                            }}
                             disabled={!canCancel}
                             className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all disabled:opacity-30"
                             title="Cancel"
