@@ -427,6 +427,7 @@ async function cancelTask(task) {
             mineruStatus: 'canceled',
             metadata: {
               ...(material.metadata || {}),
+              mineruStatus: 'canceled',
               processingMsg: '用户已取消 / 测试终止',
               processingStage: 'canceled'
             }
@@ -606,6 +607,40 @@ export function registerTaskActionRoutes(app, deps = {}) {
     try {
       const task = await loadTask(req, res);
       if (!task) return;
+      const { dryRun } = req.body || {};
+
+      if (dryRun) {
+        const isCancellable = ['pending', 'running', 'ai-pending', 'ai-running', 'review-pending', 'result-store'].includes(task.state) ||
+                              ['mineru-queued', 'mineru-processing', 'submit-failed-retryable', 'result-fetching'].includes(task.stage) ||
+                              (task.state === 'failed' && task.stage === 'submit-failed-retryable');
+        
+        let materialHasParsedFiles = false;
+        if (task.materialId) {
+          try {
+            const material = await dbGet(`/materials/${encodeURIComponent(task.materialId)}`);
+            if (material) {
+              const parsedFilesCount = material.metadata?.parsedFilesCount || task.metadata?.parsedFilesCount || 0;
+              if (parsedFilesCount > 0) materialHasParsedFiles = true;
+            }
+          } catch (e) { /* ignore */ }
+        }
+
+        return res.json({
+          ok: true,
+          dryRun: true,
+          taskId: task.id,
+          summary: {
+            cancellable: isCancellable,
+            state: task.state,
+            stage: task.stage,
+            hasMineruTaskId: !!task.metadata?.mineruTaskId,
+            willUpdateMaterial: !!task.materialId,
+            materialHasParsedFiles,
+            externalMineruStateUnknown: true
+          }
+        });
+      }
+
       const updated = await cancelTask(task);
       res.json({ ok: true, taskId: updated.id, state: updated.state });
     } catch (err) {
@@ -618,11 +653,14 @@ export function registerTaskActionRoutes(app, deps = {}) {
     try {
       const { dryRun } = req.body || {};
       const allTasks = await dbGet('/tasks') || [];
-      const liveTasks = allTasks.filter(t => 
-        ['pending', 'running', 'ai-pending', 'ai-running', 'review-pending', 'result-store'].includes(t.state) ||
-        ['mineru-queued', 'mineru-processing', 'submit-failed-retryable', 'result-fetching'].includes(t.stage) ||
-        (t.state === 'failed' && t.stage === 'submit-failed-retryable')
-      );
+      const liveTasks = allTasks.filter(t => {
+        if (['review-pending', 'completed', 'canceled', 'done'].includes(t.state)) return false;
+        if ((t.state === 'ai-pending' || t.state === 'review-pending') && (t.metadata?.parsedFilesCount > 0 || t.parsedFilesCount > 0)) return false;
+
+        return ['pending', 'running', 'ai-running'].includes(t.state) ||
+               ['mineru-queued', 'mineru-processing', 'result-fetching', 'submit-failed-retryable'].includes(t.stage) ||
+               (t.state === 'failed' && t.stage === 'submit-failed-retryable');
+      });
 
       let mineruApiUnreachableCount = 0;
       let mineruTaskIdCount = 0;

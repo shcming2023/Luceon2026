@@ -599,6 +599,7 @@ app.get('/ops/mineru/active-task', async (req, res) => {
     // 3. MinerU completed 但 Luceon 未接管结果（parsedFilesCount 为空或 0），包含误判 failed 的任务
     const completedButNotIngested = tasks.filter(t =>
       t.engine === 'local-mineru' &&
+      t.state !== 'canceled' &&
       t.metadata?.mineruTaskId &&
       t.metadata?.mineruStatus === 'completed' &&
       (!t.metadata?.parsedFilesCount || t.metadata.parsedFilesCount === 0)
@@ -607,12 +608,14 @@ app.get('/ops/mineru/active-task', async (req, res) => {
     // 4. 提交 MinerU 失败且可重试的任务
     const submitRetryableTasks = tasks.filter(t =>
       t.engine === 'local-mineru' &&
+      t.state !== 'canceled' &&
       (t.stage === 'submit-failed-retryable' || t.message?.includes('可重试'))
     );
 
     // 5. 需要主动接管的任务（MinerU API 已 completed 但仍需我们接管，或漂移，或卡在 failed 的可自愈任务）
     const takeoverRequiredTasks = tasks.filter(t => 
       t.engine === 'local-mineru' &&
+      t.state !== 'canceled' &&
       (
         (t.state === 'failed' && t.metadata?.mineruTaskId && t.metadata?.mineruStatus === 'completed') ||
         (t.state === 'running' && t.stage === 'mineru-processing' && t.metadata?.mineruStatus === 'completed')
