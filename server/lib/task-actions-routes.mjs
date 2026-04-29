@@ -142,6 +142,49 @@ function newTaskId() {
   return `task-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`;
 }
 
+const NEW_RUN_METADATA_CLEAR_KEYS = [
+  'mineruTaskId',
+  'mineruStatus',
+  'mineruSubmittedAt',
+  'mineruQueuedAhead',
+  'mineruStartedAt',
+  'mineruLastStatusAt',
+  'mineruObservedProgress',
+  'localTimeoutOccurred',
+  'localTimeoutAt',
+  '_synthetic_warn',
+  '_synthetic_warn_msg',
+  'submitRetries',
+  'lastSubmitError',
+  'recoveredFromMisjudgedFailed',
+  'previousState',
+  'previousErrorMessage',
+  'recoveredAt',
+  'markdownObjectName',
+  'parsedPrefix',
+  'parsedFilesCount',
+  'artifactManifestObjectName',
+  'zipObjectName',
+  'artifactIncomplete',
+  'parsedAt',
+  'aiJobId',
+  'emptyMarkdownRetryAttempted',
+  'emptyMarkdownRetryMineruTaskId',
+  'emptyMarkdownRetryError',
+  'emptyMarkdownRetryProfile',
+];
+
+export function buildMetadataForNewParseRun(metadata = {}, extra = {}) {
+  const next = { ...(metadata || {}) };
+  for (const key of NEW_RUN_METADATA_CLEAR_KEYS) {
+    delete next[key];
+  }
+  return {
+    ...next,
+    ...extra,
+  };
+}
+
 // ─── 核心动作实现 ────────────────────────────────────────────
 
 /**
@@ -174,7 +217,12 @@ async function retryTask(task, deps) {
     errorMessage: null,
     retryOf: task.id,
     aiJobId: null,
-    metadata: { ...(task.metadata || {}), retryOf: task.id, aiJobId: null },
+    metadata: buildMetadataForNewParseRun(task.metadata, {
+      retryOf: task.id,
+      aiJobId: null,
+      submitRetries: 0,
+      manualRetryRequestedAt: new Date().toISOString(),
+    }),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     completedAt: null,
@@ -217,6 +265,11 @@ async function reparseTask(task, deps) {
     progress: 0,
     message: '用户发起 Reparse，任务已置回 pending',
     errorMessage: null,
+    metadata: buildMetadataForNewParseRun(task.metadata, {
+      reparseOf: task.id,
+      submitRetries: 0,
+      manualReparseRequestedAt: new Date().toISOString(),
+    }),
     updatedAt: new Date().toISOString(),
     completedAt: null,
   };
