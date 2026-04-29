@@ -113,7 +113,7 @@ const STATE_LABELS: Record<string, string> = {
   'result-store': '产物落库',
   'ai-pending': '等待 AI',
   'ai-running': 'AI 分析中',
-  'review-pending': '待审核',
+  'review-pending': '解析完成，待人工复核',
   completed: '已完成',
   failed: '失败',
   canceled: '已取消',
@@ -158,6 +158,17 @@ export function deriveMaterialTaskView(
     taskUrl: currentTask ? `/tasks/${currentTask.id}` : undefined,
     hasStateDrift: false,
   };
+
+  // P0 Task 6: 覆盖特定状态语义
+  if (currentTask) {
+    if (currentTask.state === 'failed') {
+      if (currentTask.metadata?.mineruTaskId && currentTask.metadata?.mineruStatus === 'completed' && !currentTask.metadata?.parsedFilesCount) {
+        view.displayStatus = 'MinerU 已完成，结果待接管';
+      } else if (currentTask.stage === 'submit-failed-retryable' || currentTask.message?.includes('可重试')) {
+        view.displayStatus = '提交 MinerU 失败，可重试';
+      }
+    }
+  }
 
   // 状态漂移/需审计判断
   if (currentTask) {

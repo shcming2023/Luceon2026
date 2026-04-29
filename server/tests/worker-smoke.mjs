@@ -129,12 +129,23 @@ async function runTest() {
     metadata: {},
   };
 
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    if (url.toString().includes('/ai-metadata-jobs')) {
+      return { ok: false, status: 500, json: async () => ({ error: 'mock error' }) };
+    }
+    if (originalFetch) return originalFetch(url, options);
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+
   try {
     await parseWorker.processTask(mockTask);
   } catch (err) {
+    globalThis.fetch = originalFetch;
     console.error('❌ FAILED: ParseTaskWorker processTask threw:', err.message);
     process.exit(1);
   }
+  globalThis.fetch = originalFetch;
 
   const hasFailedUpdate = calls.updateTask.some((u) => u && u.state === 'failed');
   if (!hasFailedUpdate) {

@@ -596,27 +596,13 @@ app.get('/ops/mineru/active-task', async (req, res) => {
       )
     );
 
-    // 3. MinerU completed 但 Luceon 未接管结果（parsedFilesCount 为空或 0），包含误判 failed 的任务
+    // 3. MinerU completed 但 Luceon 未入库（parsedFilesCount 为空或 0）
     const completedButNotIngested = tasks.filter(t =>
       t.engine === 'local-mineru' &&
       t.metadata?.mineruTaskId &&
       t.metadata?.mineruStatus === 'completed' &&
-      (!t.metadata?.parsedFilesCount || t.metadata.parsedFilesCount === 0)
-    );
-
-    // 4. 提交 MinerU 失败且可重试的任务
-    const submitRetryableTasks = tasks.filter(t =>
-      t.engine === 'local-mineru' &&
-      (t.stage === 'submit-failed-retryable' || t.message?.includes('可重试'))
-    );
-
-    // 5. 需要主动接管的任务（MinerU API 已 completed 但仍需我们接管，或漂移，或卡在 failed 的可自愈任务）
-    const takeoverRequiredTasks = tasks.filter(t => 
-      t.engine === 'local-mineru' &&
-      (
-        (t.state === 'failed' && t.metadata?.mineruTaskId && t.metadata?.mineruStatus === 'completed') ||
-        (t.state === 'running' && t.stage === 'mineru-processing' && t.metadata?.mineruStatus === 'completed')
-      )
+      (!t.metadata?.parsedFilesCount || t.metadata.parsedFilesCount === 0) &&
+      t.state !== 'failed'
     );
 
     // 兼容旧接口：activeTask 仍指向首个 running 任务
@@ -641,8 +627,6 @@ app.get('/ops/mineru/active-task', async (req, res) => {
         .map(t => ({ id: t.id, mineruTaskId: t.metadata?.mineruTaskId })),
       completedButNotIngestedTasks: completedButNotIngested.map(t => ({ id: t.id, mineruTaskId: t.metadata?.mineruTaskId, state: t.state, stage: t.stage })),
       driftTasks: driftTasks.map(t => ({ id: t.id, mineruTaskId: t.metadata?.mineruTaskId, state: t.state, stage: t.stage })),
-      submitRetryableTasks: submitRetryableTasks.map(t => ({ id: t.id, state: t.state, stage: t.stage, retries: t.metadata?.submitRetries })),
-      takeoverRequiredTasks: takeoverRequiredTasks.map(t => ({ id: t.id, mineruTaskId: t.metadata?.mineruTaskId, state: t.state, stage: t.stage })),
     };
 
     // 可选：查询 MinerU API 获取 ground truth
@@ -2938,149 +2922,75 @@ app.post('/ai/test', async (req, res) => {
  * 4. 从 DB 删除所有关联的 AiMetadataJob
  * 5. 从 DB 删除 Material 记录本身
  */
-// ─── 统一级联删除逻辑 ─────────────────────────────────────
-async function handleCascadeDelete(materialIds, force = false, dryRun = true) {
+app.delete('/__proxy/upload/materials/:id', async (req, res) => {
+  const mid = req.params.id;
   const dbBaseUrl = process.env.DB_BASE_URL || 'http://localhost:8789';
-  
-  const summary = { materials: 0, assetDetails: 0, tasks: 0, aiJobs: 0, taskEvents: 0, originalObjects: 0, parsedObjects: 0, runningTasks: 0 };
-  const items = [];
-  const runningTaskIds = [];
 
-  // 1. 获取要删除的 Materials
-  let materials = [];
-  for (const mid of materialIds) {
-    const res = await fetch(`${dbBaseUrl}/materials/${encodeURIComponent(mid)}`);
-    if (res.ok) materials.push(await res.json());
-  }
-  
-  // 2. 获取关联的数据
-  const [tasksResp, jobsResp] = await Promise.all([
-    fetch(`${dbBaseUrl}/tasks`).then(r => r.json()).catch(() => []),
-    fetch(`${dbBaseUrl}/ai-metadata-jobs`).then(r => r.json()).catch(() => [])
-  ]);
-
-  const relatedTasks = (Array.isArray(tasksResp) ? tasksResp : []).filter(t => materialIds.some(mid => String(t.materialId) === String(mid)));
-  const taskIds = new Set(relatedTasks.map(t => String(t.id)));
-  const relatedJobs = (Array.isArray(jobsResp) ? jobsResp : []).filter(j => taskIds.has(String(j.parseTaskId)));
-  
-  for (const t of relatedTasks) {
-    if (['running', 'mineru-processing', 'ai-running'].includes(t.state)) {
-      summary.runningTasks++;
-      runningTaskIds.push(t.id);
+  try {
+    // 1. 获取 Material 信息
+    const matResp = await fetch(`${dbBaseUrl}/materials/${encodeURIComponent(mid)}`);
+    if (!matResp.ok) {
+      if (matResp.status === 404) return res.status(404).json({ error: '资料不存在' });
+      throw new Error(`无法获取资料信息 (HTTP ${matResp.status})`);
     }
-  }
+    const material = await matResp.json();
 
-  if (!dryRun && summary.runningTasks > 0 && !force) {
-    throw new Error(`Cannot delete because ${summary.runningTasks} tasks are currently running: ${runningTaskIds.join(', ')}`);
-  }
-
-  summary.runningTaskIds = runningTaskIds;
-
-  summary.materials = materials.length;
-  summary.assetDetails = materials.length; // 默认与 material 1:1
-  summary.tasks = relatedTasks.length;
-  summary.aiJobs = relatedJobs.length;
-
-  // fetch task events count
-  for (const tid of taskIds) {
-    const evResp = await fetch(`${dbBaseUrl}/task-events?taskId=${encodeURIComponent(tid)}`).then(r => r.json()).catch(() => []);
-    summary.taskEvents += evResp.length;
-  }
-
-  // 3. MinIO 对象统计/清理
-  const objectsToRemoveFromRaw = [];
-  const objectsToRemoveFromParsed = [];
-  
-  if (getStorageBackend() === 'minio') {
-    const minio = getMinioClient();
-    const rawBucket = getMinioBucket();
-    const parsedBucket = getParsedBucket();
-    
-    for (const mat of materials) {
-      if (mat?.metadata?.objectName) objectsToRemoveFromRaw.push(mat.metadata.objectName);
+    // 2. 清理 MinIO 文件
+    if (process.env.STORAGE_BACKEND === 'minio') {
+      const minio = getMinioClient();
+      const bucket = getMinioBucket();
+      const parsedBucket = getParsedBucket();
       
-      const parsedObjs = await listAllObjects(parsedBucket, `parsed/${mat.id}/`).catch(() => []);
-      objectsToRemoveFromParsed.push(...parsedObjs.map(o => o.name));
-      const origObjs = await listAllObjects(rawBucket, `originals/${mat.id}/`).catch(() => []);
-      objectsToRemoveFromRaw.push(...origObjs.map(o => o.name));
-    }
-    
-    summary.originalObjects = objectsToRemoveFromRaw.length;
-    summary.parsedObjects = objectsToRemoveFromParsed.length;
-
-    if (!dryRun) {
-      for (let index = 0; index < objectsToRemoveFromRaw.length; index += 50) {
-        const batch = objectsToRemoveFromRaw.slice(index, index + 50);
-        await Promise.all(batch.map(name => minio.removeObject(rawBucket, name).catch(() => {})));
+      // 删除原始文件
+      const obj = material?.metadata?.objectName;
+      if (obj) {
+        await minio.removeObject(bucket, obj).catch(e => console.warn(`[Delete] Remove original failed: ${e.message}`));
       }
-      for (let index = 0; index < objectsToRemoveFromParsed.length; index += 50) {
-        const batch = objectsToRemoveFromParsed.slice(index, index + 50);
-        await Promise.all(batch.map(name => minio.removeObject(parsedBucket, name).catch(() => {})));
-      }
-    }
-  }
-
-  // 4. DB 实际清理
-  if (!dryRun) {
-    if (materialIds.length > 0) {
-      await fetch(`${dbBaseUrl}/materials`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: materialIds })
-      }).catch(() => {});
-    }
-    if (relatedTasks.length > 0) {
-      await fetch(`${dbBaseUrl}/tasks`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: Array.from(taskIds) })
-      }).catch(() => {});
-      for (const tid of taskIds) {
-        await fetch(`${dbBaseUrl}/task-events`, {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ taskId: tid })
-        }).catch(() => {});
+      
+      // 删除解析目录 (parsed/{id}/)
+      // 注意：MinIO 没有直接的目录删除，通常需要列出并批量删除
+      try {
+        const stream = minio.listObjectsV2(parsedBucket, `parsed/${mid}/`, true);
+        const objects = [];
+        for await (const item of stream) {
+          objects.push(item.name);
+        }
+        if (objects.length > 0) {
+          await minio.removeObjects(parsedBucket, objects);
+        }
+      } catch (e) {
+        console.warn(`[Delete] Remove parsed directory failed: ${e.message}`);
       }
     }
-    if (relatedJobs.length > 0) {
-      await fetch(`${dbBaseUrl}/ai-metadata-jobs`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: relatedJobs.map(j => j.id) })
-      }).catch(() => {});
+
+    // 3. 获取并删除关联的任务与 Job
+    const [tasksResp, jobsResp] = await Promise.all([
+      fetch(`${dbBaseUrl}/tasks`).then(r => r.json()),
+      fetch(`${dbBaseUrl}/ai-metadata-jobs`).then(r => r.json())
+    ]);
+
+    const relatedTasks = (Array.isArray(tasksResp) ? tasksResp : []).filter(t => String(t.materialId) === String(mid));
+    const taskIds = new Set(relatedTasks.map(t => String(t.id)));
+    const relatedJobs = (Array.isArray(jobsResp) ? jobsResp : []).filter(j => taskIds.has(String(j.parseTaskId)));
+
+    // 顺序执行删除（避免并发压力过大）
+    for (const job of relatedJobs) {
+      await fetch(`${dbBaseUrl}/ai-metadata-jobs/${encodeURIComponent(job.id)}`, { method: 'DELETE' }).catch(() => {});
     }
-  }
+    for (const task of relatedTasks) {
+      await fetch(`${dbBaseUrl}/tasks/${encodeURIComponent(task.id)}`, { method: 'DELETE' }).catch(() => {});
+    }
 
-  return { ok: true, dryRun, summary, items };
-}
+    // 4. 删除 Material 记录
+    const finalResp = await fetch(`${dbBaseUrl}/materials/${encodeURIComponent(mid)}`, { method: 'DELETE' });
+    if (!finalResp.ok) throw new Error(`删除资料记录失败 (HTTP ${finalResp.status})`);
 
-app.delete('/materials/:id', async (req, res) => {
-  try {
-    const result = await handleCascadeDelete([req.params.id], false, false);
-    res.json(result);
+    res.json({ ok: true, message: `资料 ${mid} 及其关联数据已级联清理` });
   } catch (err) {
-    if (err.message.includes('currently running')) return res.status(409).json({ error: err.message });
-    res.status(500).json({ error: err.message });
+    console.error(`[Delete] Cascading delete failed for ${mid}:`, err);
+    res.status(500).json({ error: '级联删除失败', detail: err.message });
   }
 });
-
-app.post('/delete/materials', async (req, res) => {
-  try {
-    const { materialIds, mode, dryRun, force } = req.body || {};
-    if (!Array.isArray(materialIds)) return res.status(400).json({ error: 'materialIds required' });
-    const isDryRun = !!dryRun;
-    const isForce = !!force;
-    if (mode !== 'cascade') return res.status(400).json({ error: 'only mode="cascade" is supported' });
-    
-    const result = await handleCascadeDelete(materialIds, isForce, isDryRun);
-    res.json(result);
-  } catch (err) {
-    if (err.message.includes('currently running')) return res.status(409).json({ error: err.message });
-    res.status(500).json({ error: err.message });
-  }
-});
-
 
 app.post('/parse/analyze', async (req, res) => {
   const {

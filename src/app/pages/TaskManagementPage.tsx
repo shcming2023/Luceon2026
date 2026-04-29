@@ -68,12 +68,32 @@ function zhLabelForState(state: string | undefined): string {
     case 'result-store': return '产物落库';
     case 'ai-pending': return '等待中';
     case 'ai-running': return 'AI 分析中';
-    case 'review-pending': return '待审核';
+    case 'review-pending': return '解析完成，待人工复核';
     case 'completed': return '已完成';
     case 'failed': return '失败';
     case 'canceled': return '已取消';
     default: return state || 'pending';
   }
+}
+
+function getTaskMainLabel(t: any): string {
+  if (t.state === 'completed') return '已完成';
+  if (t.state === 'review-pending') return '解析完成，待人工复核';
+  if (t.state === 'failed') {
+    if (t.metadata?.mineruTaskId && t.metadata?.mineruStatus === 'completed' && !t.metadata?.parsedFilesCount) {
+      return 'MinerU 已完成，结果待接管';
+    }
+    if (t.stage === 'submit-failed-retryable' || t.message?.includes('可重试')) {
+      return '提交 MinerU 失败，可重试';
+    }
+    return '失败';
+  }
+  if (t.state === 'canceled') return '已取消';
+
+  if (t.stage === 'mineru-queued') return 'MinerU 排队中';
+  if (t.stage === 'mineru-processing') return 'MinerU 正在解析';
+  
+  return zhLabelForState(t.state);
 }
 
 export function TaskManagementPage() {
@@ -494,71 +514,7 @@ export function TaskManagementPage() {
                         <div className="flex flex-col gap-2">
                           <div className="flex items-center gap-2">
                             <span className={`inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-full ${stateBadgeClass(t.state, t.stage)}`}>
-                              {t.stage === 'mineru-queued' ? 'MinerU 排队中' :
-                               t.stage === 'mineru-processing' ? (() => {
-                                 const obs = t.metadata?.mineruObservedProgress as any;
-                                 if (!obs) return 'MinerU 正在解析';
-                                 const level = obs.activityLevel || t.metadata?.mineruProgressHealth || '';
-                                 // 日志观测通道滞后或不可用
-                                 if (level.startsWith('log-observation-') || obs.observationStale) {
-                                   const hint = obs.phase ? ` · 最后可见 ${obs.phase} ${obs.current ?? '?'}/${obs.total ?? '?'}` : '';
-                                   return `MinerU 正在解析 · 日志观测滞后/不可用${hint}`;
-                                 }
-                                 // api-alive-only 不得显示为正在推进
-                                 if (level === 'api-alive-only') return 'MinerU API 可达 · 未见业务进展';
-                                 if (level === 'no-business-signal') return 'MinerU 正在解析 · 暂无信号';
-
-                                 // Structural rendering
-                                 if (obs.backendProfile) {
-                                   const bp = obs.backendProfile.toLowerCase().includes('hybrid') ? 'Hybrid' : 'Pipeline';
-                                   const parts = [bp];
-                                   if (obs.stage && obs.stage.rawPhase) {
-                                      let st = obs.stage.rawPhase;
-                                      if (obs.stage.current != null && obs.stage.total != null) st += ` ${obs.stage.current}/${obs.stage.total}`;
-                                      parts.push(st);
-                                   } else if (obs.phase) {
-                                      let st = obs.phase;
-                                      if (obs.current != null && obs.total != null) st += ` ${obs.current}/${obs.total}`;
-                                      parts.push(st);
-                                   }
-                                   
-                                   const unitType = obs.stage?.unitType || '';
-                                   if (unitType === 'model-units') parts.push('模型单元');
-                                   else if (unitType === 'ocr-recognition-blocks') parts.push('OCR识别块');
-                                   else if (unitType === 'table-regions') parts.push('表格识别');
-                                   
-                                   const win = obs.window || obs.latestWindow;
-                                   if (win && win.total) {
-                                      parts.push(`窗口 ${win.index || win.windowCurrent}/${win.total || win.windowTotal}`);
-                                      if (win.pageStart && win.pageEnd) {
-                                        parts.push(`页 ${win.pageStart}-${win.pageEnd}/${win.pageTotal || '?'}`);
-                                      }
-                                   } else if (obs.document && obs.document.totalPages) {
-                                      parts.push(`文档 ${obs.document.totalPages}页`);
-                                   }
-                                   if (obs.observer === 'host-mineru-log-observer') {
-                                      parts.push('(Sidecar)');
-                                   }
-                                   return parts.join(' · ');
-                                 }
-
-                                 const parts: string[] = ['正在解析'];
-                                 if (obs.phase && obs.current != null && obs.total != null) {
-                                   parts.push(`${obs.phase} ${obs.current}/${obs.total}`);
-                                 }
-                                 const win = obs.latestWindow;
-                                 if (win) {
-                                   parts.push(`窗口 ${win.windowCurrent}/${win.windowTotal} · 页 ${win.pageStart}-${win.pageEnd}/${win.pageTotal}`);
-                                 }
-                                 if (!obs.phase && level === 'active-business-log') {
-                                   parts.push('检测到 MinerU 业务日志');
-                                 }
-                                 if (obs.observer === 'host-mineru-log-observer') {
-                                   parts.push('(Sidecar)');
-                                 }
-                                 return parts.join(' · ');
-                               })() :
-                               zhLabelForState(t.state)}
+                              {getTaskMainLabel(t)}
                             </span>
                             {(() => {
                               const diag = diagnoseStatus(t);
@@ -574,6 +530,30 @@ export function TaskManagementPage() {
                               <span className="text-[11px] font-mono font-medium text-blue-600">{t.progress || 0}%</span>
                             )}
                           </div>
+                          {(() => {
+                            if (t.state === 'completed' || t.state === 'review-pending') return null;
+                            const obs = t.metadata?.mineruObservedProgress as any;
+                            if (!obs) return null;
+                            const level = obs.activityLevel || t.metadata?.mineruProgressHealth || '';
+                            if (level === 'api-alive-only' || level === 'no-business-signal') return null;
+                            
+                            let phaseText = '';
+                            if (obs.stage && obs.stage.rawPhase) {
+                               let st = obs.stage.rawPhase;
+                               if (obs.stage.current != null && obs.stage.total != null) st += ` ${obs.stage.current}/${obs.stage.total}`;
+                               phaseText = st;
+                            } else if (obs.phase) {
+                               let st = obs.phase;
+                               if (obs.current != null && obs.total != null) st += ` ${obs.current}/${obs.total}`;
+                               phaseText = st;
+                            }
+                            if (!phaseText) return null;
+                            return (
+                              <p className="text-[11px] text-slate-500 font-mono">
+                                最后观测相位：{phaseText}
+                              </p>
+                            );
+                          })()}
                           {bucket === 'processing' && typeof t.progress === 'number' && (
                             <div className="w-32 h-1 bg-gray-100 rounded-full overflow-hidden">
                               <div className="h-full bg-blue-500 transition-all duration-700 ease-in-out" style={{ width: `${t.progress || 0}%` }} />

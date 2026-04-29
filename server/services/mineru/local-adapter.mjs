@@ -38,6 +38,17 @@ export class MineruStillProcessingError extends Error {
   }
 }
 
+/**
+ * 提交时 MinerU 不可达错误。
+ * 用于区分 "提交失败，可重试" 和普通的解析失败。
+ */
+export class MineruSubmitUnreachableError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'MineruSubmitUnreachableError';
+  }
+}
+
 
 export async function processWithLocalMinerU({ task, material, fileStream, fileName, mimeType, timeoutMs, minioContext, updateProgress }) {
   const options = task.optionsSnapshot || {};
@@ -68,7 +79,7 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
 
   // 1. Check health
   const isHealthy = await checkHealth(localEndpoint);
-  if (!isHealthy) throw new Error(`本地 MinerU 不可达: ${localEndpoint}`);
+  if (!isHealthy) throw new MineruSubmitUnreachableError(`本地 MinerU 不可达: ${localEndpoint}`);
 
   await updateProgress({ progress: 10, message: '已连接本地 MinerU，准备提交任务...' });
 
@@ -122,7 +133,7 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
     duplex: 'half',
     signal: AbortSignal.timeout(submitTimeoutMs),
   }).catch(err => {
-    throw new Error(`本地 MinerU 提交通讯失败: ${err.message}`);
+    throw new MineruSubmitUnreachableError(`本地 MinerU 提交通讯失败: ${err.message}`);
   });
 
   if (fastApiResponse.status !== 404 && fastApiResponse.status !== 405) {
@@ -461,7 +472,7 @@ export async function resumeWithLocalMinerU({ task, material, mineruTaskId, time
     : isEnabledFlag(options.responseFormatZip ?? options.response_format_zip);
 
   const isHealthy = await checkHealth(localEndpoint);
-  if (!isHealthy) throw new Error(`本地 MinerU 不可达: ${localEndpoint}`);
+  if (!isHealthy) throw new MineruSubmitUnreachableError(`本地 MinerU 不可达: ${localEndpoint}`);
 
   await updateProgress({ message: `恢复排队/处理中的任务: ${mineruTaskId}` });
   let markdown = '';

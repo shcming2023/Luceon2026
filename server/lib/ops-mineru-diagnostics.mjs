@@ -23,7 +23,10 @@ export function registerMineruDiagnosticsRoutes(app, getDbBaseUrl) {
       mineru: { endpoint: localEndpoint, healthy: false, processingTasks: 0, queuedTasks: 0, maxConcurrentRequests: 1 },
       luceon: { activeTasks: [], knownMineruTaskIds: [], mineruQueuedTasks: [], mineruProcessingTasks: [] },
       diagnosis: { status: 'unknown', kind: 'unknown', message: '', blockingMineruTaskId: null, safeToAutoRecover: false },
-      logObservation: null
+      logObservation: null,
+      takeoverRequiredTasks: [],
+      completedButNotIngestedTasks: [],
+      submitRetryableTasks: []
     };
 
     // logObservation will be populated later if there is an active processing task
@@ -58,6 +61,10 @@ export function registerMineruDiagnosticsRoutes(app, getDbBaseUrl) {
         result.luceon.activeTasks = tasks.filter(t => activeStates.includes(t.state)).map(t => t.id);
         result.luceon.mineruQueuedTasks = tasks.filter(t => t.stage === 'mineru-queued').map(t => t.id);
         result.luceon.mineruProcessingTasks = tasks.filter(t => t.stage === 'mineru-processing').map(t => t.id);
+        
+        result.completedButNotIngestedTasks = tasks.filter(t => t.state === 'failed' && t.metadata?.mineruTaskId && t.metadata?.mineruStatus === 'completed' && !t.metadata?.parsedFilesCount).map(t => t.id);
+        result.submitRetryableTasks = tasks.filter(t => (t.state === 'failed' || t.state === 'pending') && !t.metadata?.mineruTaskId && (t.stage === 'submit-failed-retryable' || t.message?.includes('可重试'))).map(t => t.id);
+        result.takeoverRequiredTasks = tasks.filter(t => t.state === 'failed' && t.metadata?.mineruTaskId && !['failed', 'completed', 'not_found', 'artifact-empty'].includes(t.metadata?.mineruStatus)).map(t => t.id);
         
         if (result.luceon.mineruProcessingTasks.length > 0) {
           const targetTaskId = result.luceon.mineruProcessingTasks[0];

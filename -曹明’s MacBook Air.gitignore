@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+output/
+
+# Environment（含敏感 API Key，绝不提交）
+.env
+.env.local
+.env.*.local
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+ops/logs/
+
+# TypeScript
+*.tsbuildinfo
+
+# Vite 缓存
+.vite/
+
+# 测试目录中的 PDF 文件（体积大，不应入库）
+test/*.pdf
+testpdf/
+TestPdf/
+
+# Playwright E2E 测试产物
+test-results/
+playwright-report/
+blob-report/
+
+# 本地运行时数据
+server/db-data.json
+
+# UAT 产物
+uat/package-lock.json
+uat/playwright-results.json
+uat/test-results/
+uat/playwright-report/
+
+# Trae / Agent 工具产物
+.trae/
+.codebuddy/
+.lucia-e2e/

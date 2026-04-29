@@ -405,6 +405,15 @@ async function runTest() {
       updateMaterial: async (_id, update) => { materialUpdates.push(update); return true; },
     };
 
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (url, options) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('/ai-metadata-jobs')) {
+        return { ok: false, status: 500, json: async () => ({ error: 'Simulated API failure' }) };
+      }
+      return originalFetch(url, options);
+    };
+
     const worker = new ParseTaskWorker({
       minioContext: {
         getFileStream: async () => ({}),
@@ -460,6 +469,7 @@ async function runTest() {
     const aiCreateFailed = materialUpdates.some(u => u.aiStatus === 'create-failed');
     assert(aiCreateFailed, 'Material.aiStatus should be create-failed (not material status failed)');
 
+    globalThis.fetch = originalFetch;
     console.log('Test 6 Pass ✅\n');
   }
 
