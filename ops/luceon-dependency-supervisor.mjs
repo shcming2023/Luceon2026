@@ -34,9 +34,26 @@ app.get('/status', async (req, res) => {
     const mineru = await checkSession('luceon-mineru');
     const sidecar = await checkSession('luceon-sidecar');
     const ollama = await checkSession('luceon-ollama');
-    res.json({ ok: true, message: 'Supervisor running', sessions: { mineru, sidecar, ollama } });
+    
+    // Check if Ollama service is reachable even if not in tmux
+    let ollamaReachable = false;
+    try {
+      const curlRes = await execPromise(`curl -s --connect-timeout 2 http://127.0.0.1:11434/api/tags`);
+      if (curlRes.stdout && curlRes.stdout.includes('models')) {
+        ollamaReachable = true;
+      }
+    } catch (e) {
+      // ignore curl failure
+    }
+
+    res.json({ 
+      ok: true, 
+      message: 'Supervisor running', 
+      sessions: { mineru, sidecar, ollama },
+      services: { ollamaReachable }
+    });
   } catch (error) {
-    res.json({ ok: true, message: 'Supervisor running', sessions: { mineru: false, sidecar: false, ollama: false } });
+    res.json({ ok: true, message: 'Supervisor running', sessions: { mineru: false, sidecar: false, ollama: false }, services: { ollamaReachable: false } });
   }
 });
 

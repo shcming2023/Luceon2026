@@ -191,7 +191,29 @@ export class AiMetadataWorker {
     console.log(`[ai-worker] Picking up job: ${job.id} (parseTask=${job.parseTaskId})`);
 
     try {
-      // 1. 获取全局设置
+      // 1. 提前获取 ParseTask 信息以校验是否取消
+      const parseTask = await getTaskById(job.parseTaskId);
+      
+      if (parseTask?.state === 'canceled' || parseTask?.metadata?.canceledAt) {
+         console.warn(`[ai-worker] Job ${job.id} skipped: ParseTask ${job.parseTaskId} is canceled.`);
+         await updateJob(job.id, {
+           state: 'skipped-canceled',
+           message: '关联解析任务已取消，AI 识别跳过',
+           updatedAt: new Date().toISOString(),
+           completedAt: new Date().toISOString()
+         });
+         await logTaskEvent({
+            taskId: job.parseTaskId,
+            taskType: 'parse',
+            event: 'ai-job-skipped-canceled',
+            level: 'warn',
+            message: '关联任务已取消，AI 元数据识别被跳过',
+            payload: { aiJobId: job.id }
+         });
+         return;
+      }
+
+      // 2. 获取全局设置
       const settings = await getSettings();
       // 优先读取 aiConfig，兼容旧的 ai
       const rawAiConfig = settings.aiConfig || settings.ai || {};
@@ -201,7 +223,7 @@ export class AiMetadataWorker {
         return await this.degradeToSkeleton(job, 'AI 功能已从控制台关闭，降级为骨架模拟');
       }
 
-      // 2. 确定 Provider 配置 (优先选择 providers 数组中启用且优先级最高的)
+      // 3. 确定 Provider 配置 (优先选择 providers 数组中启用且优先级最高的)
       let aiSettings = {};
       let providerId = 'ollama';
 
@@ -231,8 +253,7 @@ export class AiMetadataWorker {
 
       let provider = this.createProvider(providerId, aiSettings);
 
-      // 3. 获取 ParseTask 信息与 Markdown 内容
-      const parseTask = await getTaskById(job.parseTaskId);
+      // 4. 获取 Markdown 内容
       const markdownObjectName = parseTask?.metadata?.markdownObjectName || job.inputMarkdownObjectName;
       
       if (!markdownObjectName || !this.minioContext) {

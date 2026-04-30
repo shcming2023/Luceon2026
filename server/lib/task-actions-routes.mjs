@@ -789,7 +789,8 @@ export function registerTaskActionRoutes(app, deps = {}) {
       const aiJobs = toCollectionArray(aiJobsRaw);
       const assetDetails = toCollectionArray(assetDetailsRaw);
 
-      const runningTasks = tasks.filter(t => ['running', 'ai-running', 'result-store'].includes(t.state) || ['mineru-processing', 'mineru-queued'].includes(t.stage));
+      const runningTasks = tasks.filter(t => !t.metadata?.canceledAt && (['running', 'ai-running', 'result-store'].includes(t.state) || ['mineru-processing', 'mineru-queued'].includes(t.stage)));
+      const stateDriftCanceledTasks = tasks.filter(t => t.metadata?.canceledAt && t.state !== 'canceled');
       const completedMaterials = materials.filter(m => m.status === 'completed');
 
       if (!force && runningTasks.length > 0 && !dryRun) {
@@ -853,6 +854,7 @@ export function registerTaskActionRoutes(app, deps = {}) {
             deletedOrphanObjects,
             deletedOrphanObjectBytes,
             orphanBuckets,
+            stateDriftCanceledTasks: stateDriftCanceledTasks.length,
           }
         });
       }
@@ -959,6 +961,7 @@ export function registerTaskActionRoutes(app, deps = {}) {
           deletedOrphanObjects: orphanDetails.deleted,
           deletedOrphanObjectBytes: orphanDetails.bytes,
           orphanBuckets,
+          stateDriftCanceledTasks: stateDriftCanceledTasks.length,
         },
         details
       });

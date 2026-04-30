@@ -657,6 +657,18 @@ app.get('/tasks/:id', (req, res) => {
   res.json(item);
 });
 
+function normalizeCanceledTask(task) {
+  if (task?.metadata?.canceledAt || task?.state === 'canceled') {
+    return {
+      ...task,
+      state: 'canceled',
+      stage: 'canceled',
+      message: '用户已取消 / 测试终止'
+    };
+  }
+  return task;
+}
+
 app.post('/tasks', (req, res) => {
   const item = req.body;
   if (!item?.id) { res.status(400).json({ error: '缺少 id' }); return; }
@@ -680,10 +692,12 @@ app.post('/tasks', (req, res) => {
     }
   }
 
-  dbCache.parseTasks[sid] = {
+  let newTaskObj = {
     createdAt: new Date().toISOString(),
     ...item
   };
+  newTaskObj = normalizeCanceledTask(newTaskObj);
+  dbCache.parseTasks[sid] = newTaskObj;
   sanitizeDbPayload(dbCache.parseTasks[sid]);
   writeDB();
   
@@ -745,21 +759,14 @@ app.patch('/tasks/:id', (req, res) => {
     }
   }
 
-  const merged = {
+  let merged = {
     ...existing,
     ...req.body,
     metadata: mergedMetadata,
     updatedAt: new Date().toISOString(),
   };
 
-  // --- 顶层状态收敛：只要有 canceledAt，必须最终收敛为 canceled ---
-  if (merged.metadata?.canceledAt) {
-    merged.state = 'canceled';
-    merged.stage = 'canceled';
-    if (!merged.message || !merged.message.includes('已取消')) {
-      merged.message = '用户已取消 / 测试终止';
-    }
-  }
+  merged = normalizeCanceledTask(merged);
 
   sanitizeDbPayload(merged);
   dbCache.parseTasks[id] = merged;

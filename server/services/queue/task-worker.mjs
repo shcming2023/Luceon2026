@@ -119,7 +119,9 @@ export class ParseTaskWorker {
 
   async scanAndProcess() {
     await this.flushPendingPatches();
-    const tasks = await this.taskClient.getAllTasks();
+    let tasks = await this.taskClient.getAllTasks();
+    // P0 Patch: 全局排除已被取消的任务，避免被重推
+    tasks = tasks.filter(t => t.state !== 'canceled' && !t.metadata?.canceledAt);
 
     // P0: 每轮 tick 检查 MinerU API 是否已确认失败（running 任务终态同步）
     await this.syncMineruApiFailedState(tasks);
@@ -175,7 +177,9 @@ export class ParseTaskWorker {
    */
   async runRecoveryScan() {
     try {
-      const tasks = await this.taskClient.getAllTasks();
+      let tasks = await this.taskClient.getAllTasks();
+      // P0 Patch: 恢复扫描也必须排除已被取消的任务
+      tasks = tasks.filter(t => t.state !== 'canceled' && !t.metadata?.canceledAt);
       const now = Date.now();
       let recovered = 0;
       for (const task of tasks) {
