@@ -71,18 +71,18 @@ async function runTest() {
   });
 
   const dummyServer = await new Promise((resolve) => {
-    const s = dummyApp.listen(0, '0.0.0.0', () => resolve(s));
+    const s = dummyApp.listen(0, '127.0.0.1', () => resolve(s));
   });
   const dummyPort = dummyServer.address().port;
 
   // Rewrite endpoints to hit the dummy server
-  // mineru -> http://127.0.0.2:dummyPort/mineru
-  // ollama -> http://127.0.0.2:dummyPort/ollama
+  // mineru -> http://127.0.0.1:dummyPort/mineru
+  // ollama -> http://127.0.0.1:dummyPort/ollama
   const dbApp = express();
   dbApp.get('/settings', (req, res) => {
     res.json({
-      mineruConfig: { localEndpoint: `http://127.0.0.2:${dummyPort}/mineru` },
-      aiConfig: { enabled: true, providers: [{ enabled: true, priority: 1, apiEndpoint: `http://127.0.0.2:${dummyPort}/ollama` }] }
+      mineruConfig: { localEndpoint: `http://127.0.0.1:${dummyPort}/mineru` },
+      aiConfig: { enabled: true, providers: [{ enabled: true, priority: 1, apiEndpoint: `http://127.0.0.1:${dummyPort}/ollama` }] }
     });
   });
   dbApp.get('/tasks', (req, res) => res.json([]));
@@ -109,8 +109,9 @@ async function runTest() {
       DB_BASE_URL: `http://127.0.0.1:${dbPort}`,
       STORAGE_BACKEND: 'tmpfiles', // bypass MinIO actual bucket check for this test since we focus on mineru/ollama logic blocking
       ALLOW_LOCAL_AI_ENDPOINT: 'true',
-      MINIO_ENDPOINT: '127.0.0.2',
-      MINIO_PORT: String(dummyPort)
+      MINIO_ENDPOINT: '127.0.0.1',
+      MINIO_PORT: String(dummyPort),
+      DEPENDENCY_HEALTH_REWRITE_LOCAL_ENDPOINTS: 'false'
     }
   });
   
@@ -177,6 +178,7 @@ async function runTest() {
     let dataOllamaDown = await resOllamaDown.json();
     assertEqual(dataOllamaDown.dependencies.mineru.ok, true, 'mineru.ok should be true');
     assertEqual(dataOllamaDown.dependencies.ollama.ok, false, 'ollama.ok should be false');
+    assertEqual(dataOllamaDown.dependencies.ollama.blockingParse, false, 'ollama.blockingParse should be false');
     assertEqual(dataOllamaDown.blocking, false, 'blocking should be false when only ollama is down');
 
     const form3 = new FormData();

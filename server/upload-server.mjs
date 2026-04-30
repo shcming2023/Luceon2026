@@ -302,8 +302,10 @@ async function checkDependencyHealth(minioBucket) {
 
     // 3. MinerU
     let checkMineruEndpoint = mineruEndpoint;
-    if (mineruEndpoint.includes('localhost') || mineruEndpoint.includes('127.0.0.1')) {
-      checkMineruEndpoint = mineruEndpoint.replace(/localhost|127\.0\.0\.1/g, 'host.docker.internal');
+    if (process.env.DEPENDENCY_HEALTH_REWRITE_LOCAL_ENDPOINTS !== 'false') {
+      if (mineruEndpoint.includes('localhost') || mineruEndpoint.includes('127.0.0.1')) {
+        checkMineruEndpoint = mineruEndpoint.replace(/localhost|127\.0\.0\.1/g, 'host.docker.internal');
+      }
     }
     checkMineruEndpoint = checkMineruEndpoint.replace(/\/+$/, '');
     result.dependencies.mineru.endpoint = checkMineruEndpoint; // display docker rewritten endpoint
@@ -324,8 +326,10 @@ async function checkDependencyHealth(minioBucket) {
        result.dependencies.ollama.skipped = true;
     } else {
        let checkOllamaEndpoint = ollamaEndpoint;
-       if (ollamaEndpoint.includes('localhost') || ollamaEndpoint.includes('127.0.0.1')) {
-         checkOllamaEndpoint = ollamaEndpoint.replace(/localhost|127\.0\.0\.1/g, 'host.docker.internal');
+       if (process.env.DEPENDENCY_HEALTH_REWRITE_LOCAL_ENDPOINTS !== 'false') {
+         if (ollamaEndpoint.includes('localhost') || ollamaEndpoint.includes('127.0.0.1')) {
+           checkOllamaEndpoint = ollamaEndpoint.replace(/localhost|127\.0\.0\.1/g, 'host.docker.internal');
+         }
        }
        result.dependencies.ollama.endpoint = checkOllamaEndpoint;
        
