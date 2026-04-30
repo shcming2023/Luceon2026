@@ -2,7 +2,14 @@
  * metadata-standard-v0.2.mjs - AI Metadata v0.2 结构规范与验证
  */
 
-export function getDefaultV02Skeleton(source = {}, confidence = 'low', humanReviewReason = '识别失败') {
+export function getDefaultV02Skeleton(source = {}, confidence = 'low', humanReviewReason = 'json_parse_failed') {
+  const isFallback = confidence === 'low' && humanReviewReason !== '';
+  const evidence = isFallback ? [{
+    type: 'system',
+    quote_or_summary: 'AI provider failed; fallback skeleton generated',
+    supports: ['human_review_required']
+  }] : [];
+
   return {
     source: {
       material_id: source.materialId || '',
@@ -42,7 +49,7 @@ export function getDefaultV02Skeleton(source = {}, confidence = 'low', humanRevi
       retention_policy: 'keep_pending_review',
       risk_flags: []
     },
-    evidence: [],
+    evidence: evidence,
     recommended_catalog_path: '',
     catalog_change_type: 'needs_human_review'
   };
@@ -50,12 +57,12 @@ export function getDefaultV02Skeleton(source = {}, confidence = 'low', humanRevi
 
 export function validateAndNormalizeV02(rawResult, source) {
   if (!rawResult || typeof rawResult !== 'object') {
-    return getDefaultV02Skeleton(source, 'low', 'JSON解析失败');
+    return getDefaultV02Skeleton(source, 'low', 'json_parse_failed');
   }
 
   // 如果缺少 primary_facets，生成低置信度骨架
   if (!rawResult.primary_facets || typeof rawResult.primary_facets !== 'object') {
-    return getDefaultV02Skeleton(source, 'low', '缺少 primary_facets');
+    return getDefaultV02Skeleton(source, 'low', 'fields_missing');
   }
 
   const result = {
@@ -100,7 +107,13 @@ export function validateAndNormalizeV02(rawResult, source) {
 
 export function generateV02Prompt() {
   return `你是一个专业的教育资源元数据提取助手。你的任务是从提供的 Markdown 文本中提取结构化信息。
-请严格按照以下 JSON 格式返回结果，不要包含任何解释性文本或 Markdown 代码块标识。不要输出 <think> 标签或思维链过程，如果模型自带思维过程，请确保它在 JSON 块之外。
+
+**极其重要的指令：**
+1. 你的完整且唯一的输出必须是一个且仅一个有效的 JSON 对象！
+2. 绝对禁止在输出开头或结尾添加任何 Markdown 代码块标识（如 \`\`\`json 或 \`\`\`）。
+3. 绝对禁止输出任何解释性文字、开场白或结束语。
+4. 绝对禁止输出 <think> 标签或包含思维链过程。如果系统要求思考，请不要将思考过程输出到结果中。
+5. 你返回的字符串必须能被系统直接执行 JSON.parse() 解析。
 
 JSON 结构必须符合以下 AI Metadata v0.2 标准：
 {

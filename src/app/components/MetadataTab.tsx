@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Save, Tag } from 'lucide-react';
+import { Save, Tag, ShieldAlert, CheckCircle2, AlertTriangle, Search, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore } from '../../store/appContext';
 import type { Material } from '../../store/types';
@@ -211,6 +211,120 @@ export function MetadataTab({
             <button onClick={addTag} className="text-xs px-2 py-1 bg-blue-600 text-white rounded" type="button">
               添加
             </button>
+          </div>
+        )}
+
+      </section>
+
+      <section className="space-y-3 pb-4 border-b border-gray-100">
+        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1">
+          <Search size={12} className="text-blue-500" /> AI 元数据识别 v0.2 (只读)
+        </h3>
+        
+        {!material?.metadata?.aiClassificationV02 ? (
+          <div className="text-xs text-gray-400 bg-gray-50 p-3 rounded-lg border border-gray-100 text-center">
+            尚未执行 AI Metadata v0.2 识别
+          </div>
+        ) : (
+          <div className="space-y-3 text-xs bg-slate-50 p-3 rounded-lg border border-slate-200">
+            <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <div className="text-slate-500">标准版本</div>
+              <div className="text-slate-800 font-mono">{material.metadata.aiClassificationStandardVersion || 'v0.2'}</div>
+              
+              <div className="text-slate-500">Provider / Model</div>
+              <div className="text-slate-800">{material.metadata.aiClassificationProvider || '—'} / {material.metadata.aiClassificationModel || '—'}</div>
+              
+              <div className="text-slate-500">分析时间</div>
+              <div className="text-slate-800">{material.metadata.aiClassificationAnalyzedAt ? new Date(material.metadata.aiClassificationAnalyzedAt).toLocaleString('zh-CN') : '—'}</div>
+              
+              <div className="text-slate-500">输入 Hash</div>
+              <div className="text-slate-800 font-mono truncate" title={material.metadata.aiClassificationInputHash}>{material.metadata.aiClassificationInputHash ? material.metadata.aiClassificationInputHash.slice(0, 16) + '...' : '—'}</div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-200">
+              <h4 className="font-semibold text-slate-600 mb-1.5">Primary Facets</h4>
+              <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
+                <dt className="text-slate-400">Domain</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.primary_facets?.domain?.zh || '—'}</dd>
+                <dt className="text-slate-400">Collection</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.primary_facets?.collection?.zh || '—'}</dd>
+                <dt className="text-slate-400">Curriculum</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.primary_facets?.curriculum?.zh || '—'}</dd>
+                <dt className="text-slate-400">Stage</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.primary_facets?.stage?.zh || '—'}</dd>
+                <dt className="text-slate-400">Level</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.primary_facets?.level?.zh || '—'}</dd>
+                <dt className="text-slate-400">Subject</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.primary_facets?.subject?.zh || '—'}</dd>
+                <dt className="text-slate-400">Resource Type</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.primary_facets?.resource_type?.zh || '—'}</dd>
+                <dt className="text-slate-400">Role</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.primary_facets?.component_role?.zh || '—'}</dd>
+              </dl>
+            </div>
+
+            <div className="pt-2 border-t border-slate-200">
+              <h4 className="font-semibold text-slate-600 mb-1.5">Governance</h4>
+              <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
+                <dt className="text-slate-400">Confidence</dt>
+                <dd className="font-semibold">
+                  <span className={material.metadata.aiClassificationV02.governance?.confidence === 'high' ? 'text-green-600' : material.metadata.aiClassificationV02.governance?.confidence === 'medium' ? 'text-amber-600' : 'text-red-600'}>
+                    {material.metadata.aiClassificationV02.governance?.confidence || '—'}
+                  </span>
+                </dd>
+                <dt className="text-slate-400">Human Review</dt>
+                <dd>
+                  <span className={material.metadata.aiClassificationV02.governance?.human_review_required ? 'text-red-600 font-semibold flex items-center gap-1' : 'text-green-600 flex items-center gap-1'}>
+                    {material.metadata.aiClassificationV02.governance?.human_review_required ? <><AlertTriangle size={10} /> Required</> : <><CheckCircle2 size={10} /> Passed</>}
+                  </span>
+                </dd>
+                {material.metadata.aiClassificationV02.governance?.human_review_required && (
+                  <>
+                    <dt className="text-slate-400">Review Reason</dt>
+                    <dd className="text-red-600 truncate" title={material.metadata.aiClassificationV02.governance?.human_review_reason}>{material.metadata.aiClassificationV02.governance?.human_review_reason}</dd>
+                  </>
+                )}
+                <dt className="text-slate-400">Markdown Quality</dt>
+                <dd className="text-slate-700">{material.metadata.aiClassificationV02.governance?.markdown_quality || '—'}</dd>
+                
+                {material.metadata.aiClassificationV02.governance?.risk_flags?.length > 0 && (
+                  <>
+                    <dt className="text-slate-400 flex items-center gap-1"><ShieldAlert size={10} className="text-red-500" /> Risks</dt>
+                    <dd className="text-red-600">{material.metadata.aiClassificationV02.governance.risk_flags.join(', ')}</dd>
+                  </>
+                )}
+              </dl>
+            </div>
+
+            {material.metadata.aiClassificationV02.recommended_catalog_path && (
+              <div className="pt-2 border-t border-slate-200">
+                <h4 className="font-semibold text-slate-600 mb-1">Recommended Path</h4>
+                <div className="bg-white p-1.5 rounded border border-slate-200 font-mono text-[10px] text-slate-600 break-all">
+                  {material.metadata.aiClassificationV02.recommended_catalog_path}
+                </div>
+              </div>
+            )}
+
+            {material.metadata.aiClassificationV02.evidence && material.metadata.aiClassificationV02.evidence.length > 0 && (
+              <div className="pt-2 border-t border-slate-200">
+                <h4 className="font-semibold text-slate-600 mb-1.5 flex items-center gap-1">Evidence <span className="text-[9px] text-slate-400 font-normal">({material.metadata.aiClassificationV02.evidence.length})</span></h4>
+                <div className="space-y-1.5">
+                  {material.metadata.aiClassificationV02.evidence.slice(0, 8).map((ev: any, idx: number) => (
+                    <div key={idx} className="bg-white p-1.5 rounded border border-slate-200 text-[10px]">
+                      <div className="flex justify-between items-start mb-0.5">
+                        <span className="font-semibold text-slate-600 uppercase tracking-wider text-[9px]">{ev.type}</span>
+                        {ev.supports && <span className="text-blue-500 italic text-[9px]">{ev.supports.join(', ')}</span>}
+                      </div>
+                      <div className="text-slate-600 italic line-clamp-2" title={ev.quote_or_summary}>
+                        "{ev.quote_or_summary}"
+                      </div>
+                    </div>
+                  ))}
+                  {material.metadata.aiClassificationV02.evidence.length > 8 && (
+                    <div className="text-[10px] text-slate-400 text-center">...及其他 {material.metadata.aiClassificationV02.evidence.length - 8} 条证据</div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-100 flex items-start gap-1.5">
+              <Info size={12} className="text-blue-500 mt-0.5 shrink-0" />
+              <div className="text-[10px] text-blue-700 leading-relaxed">
+                <strong>提示：</strong> 推荐目录只是资料管理建议，不代表 MinIO 对象已被移动。低置信度（Low）的识别结果需要人工二次确认。
+              </div>
+            </div>
           </div>
         )}
       </section>

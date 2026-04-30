@@ -78,7 +78,7 @@ export interface MaterialMetadata {
   aiAnalyzedAt?: string;           // AI 分析完成时间（ISO 8601）
 
   // 扩展字段（兼容未来新增）
-  [key: string]: string | undefined;
+  [key: string]: any;
 }
 
 /**

@@ -393,7 +393,13 @@ export class AiMetadataWorker {
 
       const result = this.normalizeResult(resultV02); // 保持兼容性
       // 记录原始响应预览
-      result.rawPreview = String(aiResponse.result).slice(0, 1000);
+      let rawString = '';
+      if (typeof aiResponse.result === 'object' && aiResponse.result !== null) {
+        rawString = JSON.stringify(aiResponse.result);
+      } else {
+        rawString = String(aiResponse.result || '');
+      }
+      result.rawPreview = rawString.slice(0, 1000);
       result.aiClassificationStandardVersion = 'llm_text_classification_v0.2';
       result.aiClassificationAnalyzedAt = new Date().toISOString();
       result.aiClassificationProvider = aiResponse.provider;
@@ -676,7 +682,16 @@ export class AiMetadataWorker {
    * 3. 兜底尝试提取第一个 { 到最后一个 } 之间的内容
    */
   extractJson(raw) {
-    if (typeof raw === 'object' && raw !== null) return raw;
+    if (typeof raw === 'object' && raw !== null) {
+      if (raw.content && typeof raw.content === 'string' && raw.content.trim().startsWith('{')) {
+         try {
+           return this.extractJson(raw.content);
+         } catch(e) {
+           return raw;
+         }
+      }
+      return raw;
+    }
     if (!raw || typeof raw !== 'string') return {};
 
     let content = raw.trim();
