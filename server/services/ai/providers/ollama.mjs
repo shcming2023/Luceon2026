@@ -39,11 +39,12 @@ export class OllamaProvider extends BaseProvider {
         { role: 'user', content: markdownContent }
       ],
       stream: false,
-      think: false,   // 禁用思考模式（Qwen3.5 在 Ollama 0.20.7+ 默认启用思考，导致 response 为空）
+      think: false,   // 禁用思考模式（当前 Luceon 生产链路需要稳定 JSON，禁止 thinking 输出污染业务解析）
       options: {
+        think: false, // 不允许由外部 settings 覆盖
         temperature: options.temperature ?? this.temperature,
         top_p: options.top_p,
-        num_predict: options.num_predict || 1024 // 增加到 1024 应对 draft
+        num_predict: options.num_predict || 1024
       }
     };
 
@@ -67,18 +68,21 @@ export class OllamaProvider extends BaseProvider {
 
       const data = await response.json();
       const rawContent = data.message?.content || '';
+      const rawContainsThinkTag = rawContent.includes('<think>');
+      const strippedContent = this.filterThinking(rawContent);
       const duration = Date.now() - startTime;
 
       let result;
       if (options.expectJson === false) {
-        result = rawContent;
+        result = strippedContent;
       } else {
-        result = this.parseJsonRobust(rawContent);
+        result = this.parseJsonRobust(strippedContent);
         if (!result) {
           if (options.returnRawOnParseFailure) {
             return {
-              result: rawContent,
-              rawResponse: rawContent,
+              result: strippedContent,
+              rawResponse: strippedContent,
+              rawContainsThinkTag,
               parseFailed: true,
               parseError: `Failed to parse JSON from Ollama response, model: ${this.model}`,
               usage: {
@@ -92,16 +96,17 @@ export class OllamaProvider extends BaseProvider {
           }
 
           const parseErr = new Error(`Failed to parse JSON from Ollama response, model: ${this.model}`);
-          const rawTrimmed = rawContent.trim();
+          const rawTrimmed = strippedContent.trim();
           parseErr.rawContentDetails = {
-            rawContentPreview: rawContent.slice(0, 1000),
-            rawContentLength: rawContent.length,
-            rawContentHead: rawContent.slice(0, 300),
-            rawContentTail: rawContent.slice(-300),
-            rawLooksTruncated: rawContent.includes('{') && !rawTrimmed.endsWith('}') && !rawTrimmed.endsWith(']'),
-            rawContainsThinkTag: rawContent.includes('<think>'),
+            rawContentPreview: strippedContent.slice(0, 1000),
+            rawContentLength: strippedContent.length,
+            rawContentHead: strippedContent.slice(0, 300),
+            rawContentTail: strippedContent.slice(-300),
+            rawLooksTruncated: strippedContent.includes('{') && !rawTrimmed.endsWith('}') && !rawTrimmed.endsWith(']'),
+            rawContainsThinkTag,
             responseFormatRequested: options.expectJson !== false,
-            expectJson: options.expectJson
+            expectJson: options.expectJson,
+            parseErrorMessage: parseErr.message
           };
           throw parseErr;
         }
@@ -109,7 +114,8 @@ export class OllamaProvider extends BaseProvider {
 
       return {
         result,
-        rawResponse: rawContent,
+        rawResponse: strippedContent,
+        rawContainsThinkTag,
         usage: {
           total_duration_ms: duration,
           prompt_tokens: data.prompt_eval_count || 0,

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Save, Tag, ShieldAlert, CheckCircle2, AlertTriangle, Search, Info } from 'lucide-react';
+import { Save, Tag, ShieldAlert, CheckCircle2, AlertTriangle, Search, Info, Database } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore } from '../../store/appContext';
 import type { Material } from '../../store/types';
@@ -337,6 +337,48 @@ export function MetadataTab({
                   ))}
                   {material.metadata.aiClassificationV02.evidence.length > 8 && (
                     <div className="text-[10px] text-slate-400 text-center">...及其他 {material.metadata.aiClassificationV02.evidence.length - 8} 条证据</div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {material.metadata.aiClassificationRawObjectName && (
+              <div className="pt-2 border-t border-slate-200">
+                <h4 className="font-semibold text-slate-600 mb-1.5 flex items-center gap-1">
+                  <Database size={10} className="text-slate-400" /> 原始输出留痕
+                </h4>
+                <div className="bg-slate-50 p-2 rounded border border-slate-200 text-[10px] space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">阶段</span>
+                    <span className="font-mono text-slate-700">{material.metadata.aiClassificationRawObjectName.split('/').pop()?.replace('.txt', '')}</span>
+                  </div>
+                  {material.metadata.aiClassificationRepairProviderDetails?.rawContentLength && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">长度</span>
+                      <span className="text-slate-700">{material.metadata.aiClassificationRepairProviderDetails.rawContentLength} 字符</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Hash (前12位)</span>
+                    <span className="font-mono text-slate-700">{material.metadata.aiClassificationRawContentHash?.slice(0, 12) || '—'}</span>
+                  </div>
+                  {material.metadata.aiClassificationRepairProviderDetails?.rawContainsThinkTag !== undefined && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">含 Think 标签</span>
+                      <span className={material.metadata.aiClassificationRepairProviderDetails.rawContainsThinkTag ? "text-amber-600 font-semibold" : "text-slate-700"}>
+                        {material.metadata.aiClassificationRepairProviderDetails.rawContainsThinkTag ? '是' : '否'}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-0.5 pt-1 mt-1 border-t border-slate-100">
+                    <span className="text-slate-500">存储路径</span>
+                    <span className="font-mono text-[9px] text-slate-600 break-all">{material.metadata.aiClassificationRawObjectName}</span>
+                  </div>
+                  {material.metadata.aiClassificationRepairProviderDetails?.parseErrorMessage && (
+                    <div className="flex flex-col gap-0.5 pt-1 mt-1 border-t border-slate-100">
+                      <span className="text-slate-500">解析异常摘要</span>
+                      <span className="font-mono text-[9px] text-red-600">{material.metadata.aiClassificationRepairProviderDetails.parseErrorMessage}</span>
+                    </div>
                   )}
                 </div>
               </div>

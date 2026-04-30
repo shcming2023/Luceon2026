@@ -183,6 +183,61 @@ export class AiMetadataWorker {
   }
 
   /**
+   * Helper to persist raw output and generate error details
+   */
+  async _persistRawOutputSafe(job, phase, rawContent) {
+    if (!this.minioContext || typeof this.minioContext.saveObject !== 'function' || !rawContent) return {};
+    try {
+      const crypto = await import('crypto');
+      const hash = crypto.createHash('sha256').update(rawContent).digest('hex');
+      const objectName = `ai-raw/${job.materialId}/${job.id}/${phase}.txt`;
+      await this.minioContext.saveObject(objectName, Buffer.from(rawContent, 'utf-8'), 'text/plain');
+      return { rawObjectName: objectName, rawContentHash: hash };
+    } catch (err) {
+      console.warn(`[ai-worker] Failed to persist raw output for ${phase}: ${err.message}`);
+      return { rawPersistFailedReason: err.message };
+    }
+  }
+
+  _buildErrorDetails(response, expectJson, persistMeta) {
+    const rawContent = response.rawResponse || '';
+    const rawTrimmed = rawContent.trim();
+    return {
+      rawContentLength: rawContent.length,
+      rawContentHead: rawContent.slice(0, 500),
+      rawContentTail: rawContent.slice(-500),
+      rawLooksTruncated: rawContent.includes('{') && !rawTrimmed.endsWith('}') && !rawTrimmed.endsWith(']'),
+      rawContainsThinkTag: response.rawContainsThinkTag || false,
+      responseFormatRequested: expectJson !== false,
+      expectJson: expectJson !== false,
+      parseErrorMessage: response.parseError || 'Parse error',
+      ...persistMeta
+    };
+  }
+
+  async _runProviderPass(provider, job, aiSettings, prompt, options) {
+    const response = await this.executeWithFallback(provider, options.markdownContent, {
+      ...aiSettings,
+      systemPrompt: prompt,
+      temperature: options.temperature,
+      expectJson: options.expectJson,
+      num_predict: options.num_predict,
+      returnRawOnParseFailure: true
+    });
+
+    const persistMeta = await this._persistRawOutputSafe(job, options.phaseName, response.rawResponse);
+
+    if (response.parseFailed) {
+      const err = new Error(response.parseError);
+      err.details = this._buildErrorDetails(response, options.expectJson, persistMeta);
+      throw err;
+    }
+
+    response.persistMeta = persistMeta;
+    return response;
+  }
+
+  /**
    * 核心处理逻辑
    */
   async processJob(job) {
@@ -342,13 +397,19 @@ export class AiMetadataWorker {
 
       try {
         if (twoPassEnabled) {
-          aiResponse = await this.executeWithFallback(provider, markdownContent, {
-            ...aiSettings,
-            systemPrompt: generateV02DraftPrompt(),
-            expectJson: false
+          aiResponse = await this._runProviderPass(provider, job, aiSettings, generateV02DraftPrompt(), {
+            markdownContent,
+            temperature: aiSettings.temperature ?? 0.1,
+            expectJson: false,
+            phaseName: 'first-pass'
           });
         } else {
-          aiResponse = await this.executeWithFallback(provider, markdownContent, aiSettings);
+          aiResponse = await this._runProviderPass(provider, job, aiSettings, systemPrompt, {
+            markdownContent,
+            temperature: aiSettings.temperature ?? 0.1,
+            expectJson: true,
+            phaseName: 'first-pass'
+          });
         }
         
         await logTaskEvent({
@@ -409,12 +470,12 @@ export class AiMetadataWorker {
         const repairPrompt = generateV02RepairPrompt(aiResponse.result);
         try {
           console.log(`[ai-worker] First pass JSON extraction failed, attempting repair for job ${job.id}...`);
-          const repairResponse = await this.executeWithFallback(provider, "Please format the above draft into the exact strict JSON schema required.", {
-            ...aiSettings,
-            systemPrompt: repairPrompt,
+          const repairResponse = await this._runProviderPass(provider, job, aiSettings, repairPrompt, {
+            markdownContent,
             temperature: 0.1,
             expectJson: true,
-            num_predict: 3072
+            num_predict: 3072,
+            phaseName: 'repair-pass'
           });
           
           parsedResult = this.extractJson(repairResponse.result);
@@ -435,14 +496,7 @@ export class AiMetadataWorker {
           repairSucceeded = false;
           repairFailedReason = repairErr.message;
           if (repairErr.details) {
-            repairProviderDetails = {
-              rawContentPreview: repairErr.details.rawContentPreview,
-              rawContentLength: repairErr.details.rawContentLength,
-              rawLooksTruncated: repairErr.details.rawLooksTruncated,
-              rawContainsThinkTag: repairErr.details.rawContainsThinkTag,
-              responseFormatRequested: repairErr.details.responseFormatRequested,
-              expectJson: repairErr.details.expectJson
-            };
+            repairProviderDetails = repairErr.details;
           }
 
           if (repairProviderDetails?.rawLooksTruncated === true) {
@@ -459,12 +513,12 @@ export class AiMetadataWorker {
             });
 
             try {
-              const retryResponse = await this.executeWithFallback(provider, "Please format the above draft into the exact strict JSON schema required.", {
-                ...aiSettings,
-                systemPrompt: repairPrompt,
+              const retryResponse = await this._runProviderPass(provider, job, aiSettings, repairPrompt, {
+                markdownContent,
                 temperature: 0,
                 expectJson: true,
-                num_predict: 4096
+                num_predict: 4096,
+                phaseName: 'repair-retry-pass'
               });
 
               parsedResult = this.extractJson(retryResponse.result);
@@ -484,14 +538,7 @@ export class AiMetadataWorker {
               repairRetrySucceeded = false;
               repairFailedReason = retryErr.message;
               if (retryErr.details) {
-                repairProviderDetails = {
-                  rawContentPreview: retryErr.details.rawContentPreview,
-                  rawContentLength: retryErr.details.rawContentLength,
-                  rawLooksTruncated: retryErr.details.rawLooksTruncated,
-                  rawContainsThinkTag: retryErr.details.rawContainsThinkTag,
-                  responseFormatRequested: retryErr.details.responseFormatRequested,
-                  expectJson: retryErr.details.expectJson
-                };
+                repairProviderDetails = retryErr.details;
               }
               await logTaskEvent({
                 taskId: job.parseTaskId,
@@ -537,6 +584,12 @@ export class AiMetadataWorker {
       result.aiClassificationModel = jsonParseFailed ? 'skeleton' : aiResponse.model;
       result.aiClassificationInputHash = inputHash;
       result.aiClassificationV02 = resultV02;
+      
+      if (aiResponse.persistMeta) {
+        result.aiClassificationRawObjectName = aiResponse.persistMeta.rawObjectName;
+        result.aiClassificationRawContentHash = aiResponse.persistMeta.rawContentHash;
+        result.aiClassificationRawPersistFailedReason = aiResponse.persistMeta.rawPersistFailedReason;
+      }
       
       if (twoPassAttempted) {
         result.aiClassificationTwoPassAttempted = true;

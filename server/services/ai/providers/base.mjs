@@ -45,7 +45,7 @@ export class BaseProvider {
    */
   filterThinking(text) {
     if (!text) return '';
-    return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+    return text.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim();
   }
 
   /**

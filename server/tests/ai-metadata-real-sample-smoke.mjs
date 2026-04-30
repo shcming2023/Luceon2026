@@ -338,50 +338,82 @@ async function runTests() {
   worker1.executeWithFallback = originalExecute;
   worker1.transition = originalTransition;
 
-  // Case 8: OllamaProvider parse failure details
-  console.log('Case 8: OllamaProvider Parse Failure Details');
+  // Test 1: Ollama request always sends think:false
+  console.log('Test 1: Ollama request always sends think:false');
   const { OllamaProvider } = await import('../services/ai/providers/ollama.mjs');
-  
-  const mockFetchForOllama = async (url, options) => {
-    const body = JSON.parse(options.body);
-    let mockResponse = '';
-    if (body.messages[1].content === 'think_test') {
-      mockResponse = '<think>some thoughts</think>{"primary_facets": {"subject": {"zh": "数学"';
-    } else {
-      mockResponse = '{"primary_facets": {"subject": {"zh": "数学"';
-    }
-    return {
-      ok: true,
-      json: async () => ({ message: { content: mockResponse } })
-    };
-  };
-
-  const ollama = new OllamaProvider();
-  
+  let requestedThink = null;
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = mockFetchForOllama;
-  
-  try {
-    await ollama.extractMetadata('test', { expectJson: true });
-    assert.fail('Should have thrown JSON parse error');
-  } catch (err) {
-    assert.ok(err.details, 'Error should have details attached');
-    assert.equal(err.details.rawContentLength, 42);
-    assert.equal(err.details.rawLooksTruncated, true);
-    assert.equal(err.details.expectJson, true);
-    assert.equal(err.details.responseFormatRequested, true);
-  }
+  globalThis.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    requestedThink = body.think;
+    return { ok: true, json: async () => ({ message: { content: '{"a":1}' } }) };
+  };
+  const ollama1 = new OllamaProvider();
+  await ollama1.extractMetadata('test', { expectJson: true, options: { think: true } });
+  assert.equal(requestedThink, false);
+  console.log('Test 1 Pass ✅');
 
-  try {
-    await ollama.extractMetadata('think_test', { expectJson: true });
-    assert.fail('Should have thrown JSON parse error');
-  } catch (err) {
-    console.log('err.details in second call:', err.details);
-    assert.equal(err.details.rawContainsThinkTag, true);
-  }
+  // Test 2: think 内容不落盘
+  console.log('Test 2: think 内容不落盘');
+  globalThis.fetch = async (url, options) => {
+    return { ok: true, json: async () => ({ message: { content: '<think>secret reasoning</think>{"title":"ok"}' } }) };
+  };
+  let savedContent = '';
+  const mockMinio2 = {
+    getFileStream: async () => ({ [Symbol.asyncIterator]: async function* () { yield Buffer.from('mock'); } }),
+    saveObject: async (name, buf, type) => { savedContent = buf.toString('utf8'); }
+  };
+  const worker2 = new AiMetadataWorker(mockMinio2);
+  worker2.createProvider = () => new OllamaProvider();
+  worker2.transition = async (job, update) => { finalResultObj = update.result; };
+  await worker2.processJob({ id: 'test-job-t2', parseTaskId: 't2', inputMarkdownObjectName: 'x.md' });
+  assert.equal(savedContent.includes('secret reasoning'), false);
+  assert.equal(savedContent, '{"title":"ok"}');
+  assert.equal(finalResultObj.aiClassificationRawObjectName.includes('first-pass.txt'), true);
+  console.log('Test 2 Pass ✅');
+
+  // Test 3: repair 失败保存 raw object 摘要
+  console.log('Test 3: repair 失败保存 raw object 摘要');
+  let callIndex3 = 0;
+  globalThis.fetch = async (url, options) => {
+    callIndex3++;
+    if (callIndex3 === 1) return { ok: true, json: async () => ({ message: { content: 'invalid draft' } }) };
+    return { ok: true, json: async () => ({ message: { content: '{"a":1,' } }) };
+  };
+  let savedContents3 = [];
+  const mockMinio3 = {
+    getFileStream: async () => ({ [Symbol.asyncIterator]: async function* () { yield Buffer.from('mock'); } }),
+    saveObject: async (name, buf, type) => { savedContents3.push(name); }
+  };
+  const worker3 = new AiMetadataWorker(mockMinio3);
+  worker3.createProvider = () => new OllamaProvider();
+  worker3.transition = async (job, update) => { finalResultObj = update.result; };
+  await worker3.processJob({ id: 'test-job-t3', parseTaskId: 't3', inputMarkdownObjectName: 'x.md' });
+  assert.equal(finalResultObj.aiClassificationProvider, 'skeleton');
+  assert.ok(finalResultObj.aiClassificationRepairProviderDetails.rawObjectName.includes('repair-retry-pass.txt'));
+  assert.ok(finalResultObj.aiClassificationRepairProviderDetails.rawContentHash);
+  assert.ok(finalResultObj.aiClassificationRepairProviderDetails.rawContentHead);
+  assert.ok(finalResultObj.aiClassificationRepairProviderDetails.rawContentTail);
+  assert.equal(savedContents3.length, 3); // draft, repair, retry
+  console.log('Test 3 Pass ✅');
+
+  // Test 4: storage 不可用不阻断 AI
+  console.log('Test 4: storage 不可用不阻断 AI');
+  globalThis.fetch = async (url, options) => {
+    return { ok: true, json: async () => ({ message: { content: '{"title":"ok"}' } }) };
+  };
+  const mockMinio4 = {
+    getFileStream: async () => ({ [Symbol.asyncIterator]: async function* () { yield Buffer.from('mock'); } }),
+    saveObject: async (name, buf, type) => { throw new Error('MinIO is down'); }
+  };
+  const worker4 = new AiMetadataWorker(mockMinio4);
+  worker4.createProvider = () => new OllamaProvider();
+  worker4.transition = async (job, update) => { finalResultObj = update.result; };
+  await worker4.processJob({ id: 'test-job-t4', parseTaskId: 't4', inputMarkdownObjectName: 'x.md' });
+  assert.equal(finalResultObj.aiClassificationRawPersistFailedReason, 'MinIO is down');
+  console.log('Test 4 Pass ✅');
 
   globalThis.fetch = originalFetch;
-  console.log('Case 8 Pass ✅');
 
   console.log('--- AI Metadata Real Sample Smoke Test Success ---');
 }

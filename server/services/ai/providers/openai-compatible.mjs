@@ -67,17 +67,20 @@ export class OpenAiCompatibleProvider extends BaseProvider {
 
     const data = await response.json();
     const rawContent = data.choices?.[0]?.message?.content || '';
+    const rawContainsThinkTag = rawContent.includes('<think>');
+    const strippedContent = this.filterThinking(rawContent);
     const duration = Date.now() - startTime;
     let result;
     if (options.expectJson === false) {
-      result = rawContent;
+      result = strippedContent;
     } else {
-      result = this.parseJsonRobust(rawContent);
+      result = this.parseJsonRobust(strippedContent);
       if (!result) {
         if (options.returnRawOnParseFailure) {
           return {
-            result: rawContent,
-            rawResponse: rawContent,
+            result: strippedContent,
+            rawResponse: strippedContent,
+            rawContainsThinkTag,
             parseFailed: true,
             parseError: 'Failed to parse JSON from OpenAI-compatible response',
             usage: {
@@ -91,20 +94,21 @@ export class OpenAiCompatibleProvider extends BaseProvider {
         }
 
         const parseErr = new Error('Failed to parse JSON from OpenAI-compatible response');
-        const rawTrimmed = rawContent.trim();
+        const rawTrimmed = strippedContent.trim();
         parseErr.details = {
           baseUrl: this.baseUrl,
           model: this.model,
           timeoutMs: this.timeoutMs,
           durationMs: duration,
-          rawContentPreview: rawContent.slice(0, 1000),
-          rawContentLength: rawContent.length,
-          rawContentHead: rawContent.slice(0, 300),
-          rawContentTail: rawContent.slice(-300),
-          rawLooksTruncated: rawContent.includes('{') && !rawTrimmed.endsWith('}') && !rawTrimmed.endsWith(']'),
-          rawContainsThinkTag: rawContent.includes('<think>'),
+          rawContentPreview: strippedContent.slice(0, 1000),
+          rawContentLength: strippedContent.length,
+          rawContentHead: strippedContent.slice(0, 300),
+          rawContentTail: strippedContent.slice(-300),
+          rawLooksTruncated: strippedContent.includes('{') && !rawTrimmed.endsWith('}') && !rawTrimmed.endsWith(']'),
+          rawContainsThinkTag,
           responseFormatRequested: options.expectJson !== false,
-          expectJson: options.expectJson
+          expectJson: options.expectJson,
+          parseErrorMessage: parseErr.message
         };
         throw parseErr;
       }
@@ -112,7 +116,8 @@ export class OpenAiCompatibleProvider extends BaseProvider {
 
     return {
       result,
-      rawResponse: rawContent,
+      rawResponse: strippedContent,
+      rawContainsThinkTag,
       usage: {
         total_duration_ms: duration,
         prompt_tokens: data.usage?.prompt_tokens || 0,
