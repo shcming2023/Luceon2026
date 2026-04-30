@@ -101,7 +101,18 @@ export function MetadataTab({
   };
  
   const removeTag = (tag: string) => setLocalTags((prev) => prev.filter((t) => t !== tag));
- 
+  
+  const isAiSkeletonFallback = 
+    material?.metadata?.aiClassificationDegraded === true ||
+    material?.metadata?.aiClassificationProvider === 'skeleton' ||
+    material?.metadata?.aiClassificationModel === 'skeleton' ||
+    material?.metadata?.aiClassificationV02?.governance?.risk_flags?.includes('skeleton_fallback');
+
+  const fallbackReason = 
+    material?.metadata?.aiClassificationDegradedReason ||
+    material?.metadata?.aiClassificationV02?.governance?.human_review_reason ||
+    'AI Provider 返回异常，系统已降级为 skeleton 占位结果';
+
   return (
     <div className="space-y-4 p-5 overflow-y-auto h-full">
       <section className="space-y-2 pb-4 border-b border-gray-100">
@@ -227,14 +238,14 @@ export function MetadataTab({
           </div>
         ) : (
           <div className={`space-y-3 text-xs p-3 rounded-lg border ${
-            material.metadata.aiClassificationDegraded ? 'bg-red-50/50 border-red-200' : 'bg-slate-50 border-slate-200'
+            isAiSkeletonFallback ? 'bg-red-50/50 border-red-200' : 'bg-slate-50 border-slate-200'
           }`}>
-            {material.metadata.aiClassificationDegraded && (
+            {isAiSkeletonFallback && (
               <div className="bg-red-100 text-red-700 p-2 rounded border border-red-200 flex items-start gap-1.5 mb-2">
                 <AlertTriangle size={14} className="mt-0.5 shrink-0" />
                 <div>
                   <div className="font-bold">AI 元数据识别失败，当前为 skeleton 降级结果</div>
-                  <div className="text-[10px] mt-0.5">原因: {material.metadata.aiClassificationDegradedReason || '未提供具体原因'}</div>
+                  <div className="text-[10px] mt-0.5">原因: {fallbackReason}</div>
                   <div className="text-[10px] mt-0.5 font-semibold">（由于 AI 提供商输出异常，系统已自动拦截并生成骨架占位，需人工复核）</div>
                 </div>
               </div>

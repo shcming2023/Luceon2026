@@ -1,4 +1,4 @@
-import { validateAndNormalizeV02 } from '../services/ai/metadata-standard-v0.2.mjs';
+import { validateAndNormalizeV02, getDefaultV02Skeleton } from '../services/ai/metadata-standard-v0.2.mjs';
 import { sampleMarkdown } from '../services/ai/metadata-sampler.mjs';
 
 async function run() {
@@ -63,6 +63,15 @@ async function run() {
   }, source);
   assertTrue('Proposed tags force review', newTags.governance.human_review_required === true);
   assertTrue('Proposed tags add reason', newTags.governance.human_review_reason.includes('tags'));
+
+  // 1.6 Test getDefaultV02Skeleton risk flags
+  const chineseReasonSkeleton = getDefaultV02Skeleton(source, 'low', 'AI Provider JSON 解析失败，已降级为 skeleton 结果');
+  assertTrue('Chinese parsing failure adds skeleton_fallback flag', chineseReasonSkeleton.governance.risk_flags.includes('skeleton_fallback'));
+  assertTrue('Chinese parsing failure adds ai_provider_json_parse_failed flag', chineseReasonSkeleton.governance.risk_flags.includes('ai_provider_json_parse_failed'));
+  
+  const englishReasonSkeleton = getDefaultV02Skeleton(source, 'low', 'json_parse_failed');
+  assertTrue('English JSON reason adds skeleton_fallback flag', englishReasonSkeleton.governance.risk_flags.includes('skeleton_fallback'));
+  assertTrue('English JSON reason adds ai_provider_json_parse_failed flag', englishReasonSkeleton.governance.risk_flags.includes('ai_provider_json_parse_failed'));
 
   // 2. Test sampleMarkdown
   const longMarkdown = 'A'.repeat(100000);

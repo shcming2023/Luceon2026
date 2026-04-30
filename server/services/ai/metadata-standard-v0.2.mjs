@@ -13,7 +13,12 @@ export function getDefaultV02Skeleton(source = {}, confidence = 'low', humanRevi
   const riskFlags = [];
   if (isFallback) {
     riskFlags.push('skeleton_fallback');
-    if (humanReviewReason.includes('json') || humanReviewReason.includes('parse')) {
+    const reason = String(humanReviewReason || '').toLowerCase();
+    if (
+      reason.includes('json') ||
+      reason.includes('parse') ||
+      String(humanReviewReason || '').includes('解析失败')
+    ) {
       riskFlags.push('ai_provider_json_parse_failed');
     }
   }
