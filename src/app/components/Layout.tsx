@@ -11,6 +11,7 @@ import {
   Activity,
 } from 'lucide-react';
 import { BatchProcessingController } from './BatchUploadModal';
+import { DependencyHealthBanner } from './DependencyHealthBanner';
 
 /* ── 侧边栏主导航（PRD v0.4 §10.3） ──────────────────── */
 const SIDE_NAV = [
@@ -69,6 +70,7 @@ export function Layout({ children }: LayoutProps) {
       </header>
 
       {/* ── 主体区域 ───────────────────────────────────────── */}
+      <DependencyHealthBanner />
       <div className="flex flex-1 overflow-hidden">
         {/* 侧边栏 */}
         <aside className="w-60 flex-shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-hidden">

@@ -50,6 +50,29 @@ export function useFileUpload() {
     const list = Array.from(files || []);
     if (list.length === 0) return;
 
+    try {
+      const healthRes = await fetch('/__proxy/upload/ops/dependency-health');
+      if (healthRes.ok) {
+        const health = await healthRes.json();
+        if (health.blocking) {
+          const blockingDep = Object.keys(health.dependencies).find(k => 
+            health.dependencies[k].ok === false && 
+            health.dependencies[k].requiredFor?.includes('parse') && 
+            !health.dependencies[k].skipped
+          );
+          
+          let message = '核心依赖不健康，无法执行解析';
+          if (blockingDep === 'mineru') message = 'MinerU API 未启动，请先启动本地解析服务';
+          else if (blockingDep === 'minio') message = 'MinIO 存储未就绪，无法上传文件';
+          
+          toast.error(message, { description: '请根据顶部诊断提示启动相关服务' });
+          return;
+        }
+      }
+    } catch (e) {
+      // 忽略前端 fetch 本身的错误，让后续流程继续（后端也有兜底）
+    }
+
     const invalidFiles = list.filter((f) => !validateFile(f).valid);
     const validFiles = list.filter((f) => validateFile(f).valid);
     if (validFiles.length === 0) {

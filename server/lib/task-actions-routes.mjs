@@ -542,6 +542,24 @@ export function registerTaskActionRoutes(app, deps = {}) {
   // batch retry (MUST be before :id routes)
   app.post('/tasks/batch/retry', async (req, res) => {
     try {
+      if (safeDeps.checkDependencyHealth) {
+        const health = await safeDeps.checkDependencyHealth();
+        if (health.blocking) {
+          const blockingDep = Object.keys(health.dependencies).find(k => 
+            health.dependencies[k].ok === false && 
+            health.dependencies[k].requiredFor?.includes('parse') && 
+            !health.dependencies[k].skipped
+          );
+          return res.status(503).json({
+            ok: false,
+            code: 'DEPENDENCY_UNHEALTHY',
+            blockingDependency: blockingDep,
+            message: '核心依赖不健康，无法执行批量重试',
+            health
+          });
+        }
+      }
+
       const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
       if (ids.length === 0) {
         res.status(400).json({ error: '缺少 ids 数组' });
@@ -570,6 +588,24 @@ export function registerTaskActionRoutes(app, deps = {}) {
   // retry
   app.post('/tasks/:id/retry', async (req, res) => {
     try {
+      if (safeDeps.checkDependencyHealth) {
+        const health = await safeDeps.checkDependencyHealth();
+        if (health.blocking) {
+          const blockingDep = Object.keys(health.dependencies).find(k => 
+            health.dependencies[k].ok === false && 
+            health.dependencies[k].requiredFor?.includes('parse') && 
+            !health.dependencies[k].skipped
+          );
+          return res.status(503).json({
+            ok: false,
+            code: 'DEPENDENCY_UNHEALTHY',
+            blockingDependency: blockingDep,
+            message: '核心依赖不健康，无法执行重试',
+            health
+          });
+        }
+      }
+
       const task = await loadTask(req, res);
       if (!task) return;
       const newTask = await retryTask(task, safeDeps);
@@ -582,6 +618,24 @@ export function registerTaskActionRoutes(app, deps = {}) {
   // reparse
   app.post('/tasks/:id/reparse', async (req, res) => {
     try {
+      if (safeDeps.checkDependencyHealth) {
+        const health = await safeDeps.checkDependencyHealth();
+        if (health.blocking) {
+          const blockingDep = Object.keys(health.dependencies).find(k => 
+            health.dependencies[k].ok === false && 
+            health.dependencies[k].requiredFor?.includes('parse') && 
+            !health.dependencies[k].skipped
+          );
+          return res.status(503).json({
+            ok: false,
+            code: 'DEPENDENCY_UNHEALTHY',
+            blockingDependency: blockingDep,
+            message: '核心依赖不健康，无法重新解析',
+            health
+          });
+        }
+      }
+
       const task = await loadTask(req, res);
       if (!task) return;
       const updated = await reparseTask(task, safeDeps);

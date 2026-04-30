@@ -246,6 +246,117 @@ function validateFetchUrl(url, { allowHttp = false } = {}) {
   return { ok: true };
 }
 
+// ─── 依赖监控检查（MinIO, MinerU, Ollama） ───────────────────────
+async function checkDependencyHealth(minioBucket) {
+  const result = {
+    ok: false,
+    blocking: false,
+    dependencies: {
+      minio: { ok: false, requiredFor: ['upload', 'parse'] },
+      mineru: { ok: false, requiredFor: ['parse'], endpoint: null, error: null },
+      ollama: { ok: false, requiredFor: ['ai'], endpoint: null, error: null }
+    },
+    commands: {
+      mineru: "bash ops/start-mineru-api.sh",
+      sidecar: "UPLOAD_SERVER_URL=http://127.0.0.1:8081/__proxy/upload node ops/mineru-log-observer.mjs",
+      docker: "docker compose up -d --build"
+    }
+  };
+
+  try {
+    // 1. MinIO
+    if (process.env.STORAGE_BACKEND === 'minio' || !process.env.STORAGE_BACKEND) {
+      try {
+        const bucketExists = await getMinioClient().bucketExists(minioBucket || getMinioBucket());
+        result.dependencies.minio.ok = bucketExists;
+        if (!bucketExists) result.dependencies.minio.error = "Bucket does not exist";
+      } catch (e) {
+        result.dependencies.minio.error = e.code === 'ECONNREFUSED' ? 'connect ECONNREFUSED' : e.message;
+      }
+    } else {
+      result.dependencies.minio.ok = true; // Not using MinIO
+    }
+
+    // 2. Load configs
+    let mineruEndpoint = process.env.LOCAL_MINERU_ENDPOINT || 'http://host.docker.internal:8083';
+    let ollamaEndpoint = null;
+    let aiEnabled = false;
+
+    try {
+      const setResp = await fetch(`${DB_BASE_URL}/settings`);
+      if (setResp.ok) {
+        const allSettings = await setResp.json();
+        const mSet = allSettings?.mineruConfig || {};
+        if (mSet.localEndpoint) mineruEndpoint = mSet.localEndpoint;
+
+        const aiSet = allSettings?.aiConfig || {};
+        aiEnabled = !!aiSet.enabled;
+        if (aiEnabled && Array.isArray(aiSet.providers)) {
+          const active = aiSet.providers.filter(p => p.enabled).sort((a,b) => a.priority - b.priority)[0];
+          if (active && active.apiEndpoint) ollamaEndpoint = active.apiEndpoint;
+        }
+      }
+    } catch (e) {
+      // settings 失败不阻止继续
+    }
+
+    // 3. MinerU
+    let checkMineruEndpoint = mineruEndpoint;
+    if (mineruEndpoint.includes('localhost') || mineruEndpoint.includes('127.0.0.1')) {
+      checkMineruEndpoint = mineruEndpoint.replace(/localhost|127\.0\.0\.1/g, 'host.docker.internal');
+    }
+    checkMineruEndpoint = checkMineruEndpoint.replace(/\/+$/, '');
+    result.dependencies.mineru.endpoint = checkMineruEndpoint; // display docker rewritten endpoint
+
+    try {
+      const mineruRes = await fetch(`${checkMineruEndpoint}/health`, { signal: AbortSignal.timeout(3000) });
+      if (mineruRes.ok) {
+        result.dependencies.mineru.ok = true;
+      } else {
+        result.dependencies.mineru.error = `HTTP ${mineruRes.status}`;
+      }
+    } catch (e) {
+      result.dependencies.mineru.error = e.cause?.code === 'ECONNREFUSED' ? 'connect ECONNREFUSED' : (e.message || 'connect ECONNREFUSED');
+    }
+
+    // 4. Ollama
+    if (!aiEnabled || !ollamaEndpoint) {
+       result.dependencies.ollama = { skipped: true };
+    } else {
+       let checkOllamaEndpoint = ollamaEndpoint;
+       if (ollamaEndpoint.includes('localhost') || ollamaEndpoint.includes('127.0.0.1')) {
+         checkOllamaEndpoint = ollamaEndpoint.replace(/localhost|127\.0\.0\.1/g, 'host.docker.internal');
+       }
+       result.dependencies.ollama.endpoint = checkOllamaEndpoint;
+       
+       try {
+         const base = checkOllamaEndpoint.replace(/\/v1\/?$/, '');
+         const ollamaRes = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(3000) });
+         if (ollamaRes.ok) {
+           result.dependencies.ollama.ok = true;
+         } else {
+           result.dependencies.ollama.error = `HTTP ${ollamaRes.status}`;
+         }
+       } catch (e) {
+         result.dependencies.ollama.error = e.cause?.code === 'ECONNREFUSED' ? 'connect ECONNREFUSED' : (e.message || 'connect ECONNREFUSED');
+       }
+    }
+
+    result.blocking = (!result.dependencies.minio.ok || !result.dependencies.mineru.ok);
+    result.ok = !result.blocking;
+
+  } catch (err) {
+    result.error = err.message;
+    result.blocking = true;
+  }
+  return result;
+}
+
+app.get('/ops/dependency-health', async (req, res) => {
+  const result = await checkDependencyHealth();
+  res.json(result);
+});
+
 // ─── 原型链污染防御（与 db-server 共享同一逻辑）──────────────
 
 const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -2348,6 +2459,33 @@ app.post('/tasks', upload.single('file'), async (req, res) => {
       console.warn('[upload-server] POST /tasks: Request aborted', JSON.stringify(abortCtx));
     });
 
+    // -1. 依赖健康门禁检查 (Requirement: 硬门禁)
+    const health = await checkDependencyHealth();
+    if (health.blocking) {
+      if (req.file) cleanupTempFile(req.file);
+      const blockingDep = Object.keys(health.dependencies).find(k => 
+        health.dependencies[k].ok === false && 
+        health.dependencies[k].requiredFor?.includes('parse') && 
+        !health.dependencies[k].skipped
+      );
+      
+      let message = '核心依赖不健康，无法执行解析';
+      if (blockingDep === 'mineru') message = 'MinerU API 未启动，请先启动本地解析服务';
+      else if (blockingDep === 'minio') message = 'MinIO 存储未就绪，无法上传文件';
+      
+      return res.status(503).json({
+        ok: false,
+        code: 'DEPENDENCY_UNHEALTHY',
+        blockingDependency: blockingDep,
+        message,
+        health
+      });
+    }
+
+    const aiStatusInitial = (health.dependencies.ollama && health.dependencies.ollama.ok === false && !health.dependencies.ollama.skipped) 
+      ? 'ai-unavailable' 
+      : 'pending';
+
     // 0. 幂等检查：防止同一素材重复创建活跃任务
     try {
       const allTasksResp = await fetch(`${DB_BASE_URL}/tasks`);
@@ -2386,8 +2524,13 @@ app.post('/tasks', upload.single('file'), async (req, res) => {
     const ext = extLower || 'bin';
     const objectName = `originals/${materialId}/source.${ext}`;
     abortCtx.objectName = objectName;
-    await streamUploadToMinIO(req.file, bucket, objectName, req.file.mimetype);
-    abortCtx.hasUploadedToMinio = true;
+
+    if (getStorageBackend() !== 'tmpfiles') {
+      await streamUploadToMinIO(req.file, bucket, objectName, req.file.mimetype);
+      abortCtx.hasUploadedToMinio = true;
+    } else {
+      abortCtx.hasUploadedToMinio = true;
+    }
     if (aborted) return;
 
     // 2. 创建或更新 material
@@ -2406,7 +2549,7 @@ app.post('/tasks', upload.single('file'), async (req, res) => {
       id: materialId,
       status: 'processing',
       mineruStatus: existingMaterial?.mineruStatus || 'pending', // 显式初始化
-      aiStatus: existingMaterial?.aiStatus || 'pending',         // 显式初始化
+      aiStatus: existingMaterial?.aiStatus && existingMaterial.aiStatus !== 'pending' ? existingMaterial.aiStatus : aiStatusInitial, // 显式初始化，兼容依赖门禁
       fileName: fixedOriginalName,
       title: fixedOriginalName.replace(/\.[^/.]+$/, ''),
       fileSize: req.file.size,
@@ -2422,7 +2565,7 @@ app.post('/tasks', upload.single('file'), async (req, res) => {
         bucket,
         objectName,
         processingStage: 'mineru',
-        processingMsg: '解析任务已创建',
+        processingMsg: aiStatusInitial === 'ai-unavailable' ? '解析可继续，AI 元数据服务不可用' : '解析任务已创建',
       }
     };
     
@@ -3917,6 +4060,7 @@ registerTaskActionRoutes(app, {
   getStorageBackend,
   getParsedBucket,
   listAllObjects,
+  checkDependencyHealth,
 });
 
 // ─── 启动时从 db-server 恢复持久化配置 ────────────────────────
