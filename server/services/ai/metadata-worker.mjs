@@ -338,6 +338,7 @@ export class AiMetadataWorker {
       let twoPassAttempted = false;
       let repairSucceeded = false;
       let repairFailedReason = '';
+      let repairProviderDetails = null;
 
       try {
         if (twoPassEnabled) {
@@ -427,12 +428,23 @@ export class AiMetadataWorker {
           jsonParseFailed = true;
           repairSucceeded = false;
           repairFailedReason = repairErr.message;
+          if (repairErr.details) {
+            repairProviderDetails = {
+              rawContentPreview: repairErr.details.rawContentPreview,
+              rawContentLength: repairErr.details.rawContentLength,
+              rawLooksTruncated: repairErr.details.rawLooksTruncated,
+              rawContainsThinkTag: repairErr.details.rawContainsThinkTag,
+              responseFormatRequested: repairErr.details.responseFormatRequested,
+              expectJson: repairErr.details.expectJson
+            };
+          }
           console.warn(`[ai-worker] Two-pass JSON repair failed for job ${job.id}: ${repairErr.message}`);
           await logTaskEvent({
             taskId: job.parseTaskId,
             event: 'ai-provider-repair-failed',
             level: 'warn',
-            message: `AI Provider (${providerId}) JSON Repair 失败: ${repairErr.message}`
+            message: `AI Provider (${providerId}) JSON Repair 失败: ${repairErr.message}`,
+            payload: repairProviderDetails ? { repairProviderDetails } : {}
           });
         }
       }
@@ -466,6 +478,9 @@ export class AiMetadataWorker {
         result.aiClassificationRepairSucceeded = repairSucceeded;
         if (!repairSucceeded) {
           result.aiClassificationRepairFailedReason = repairFailedReason || 'Parse or validate failed';
+          if (repairProviderDetails) {
+            result.aiClassificationRepairProviderDetails = repairProviderDetails;
+          }
         }
       }
 

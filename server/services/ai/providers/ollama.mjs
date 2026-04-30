@@ -75,7 +75,35 @@ export class OllamaProvider extends BaseProvider {
       } else {
         result = this.parseJsonRobust(rawContent);
         if (!result) {
-          throw new Error(`Failed to parse JSON from Ollama response, model: ${this.model}`);
+          if (options.returnRawOnParseFailure) {
+            return {
+              result: rawContent,
+              rawResponse: rawContent,
+              parseFailed: true,
+              parseError: `Failed to parse JSON from Ollama response, model: ${this.model}`,
+              usage: {
+                total_duration_ms: duration,
+                prompt_tokens: data.prompt_eval_count || 0,
+                completion_tokens: data.eval_count || 0
+              },
+              provider: this.id,
+              model: this.model
+            };
+          }
+
+          const parseErr = new Error(`Failed to parse JSON from Ollama response, model: ${this.model}`);
+          const rawTrimmed = rawContent.trim();
+          parseErr.rawContentDetails = {
+            rawContentPreview: rawContent.slice(0, 1000),
+            rawContentLength: rawContent.length,
+            rawContentHead: rawContent.slice(0, 300),
+            rawContentTail: rawContent.slice(-300),
+            rawLooksTruncated: rawContent.includes('{') && !rawTrimmed.endsWith('}') && !rawTrimmed.endsWith(']'),
+            rawContainsThinkTag: rawContent.includes('<think>'),
+            responseFormatRequested: options.expectJson !== false,
+            expectJson: options.expectJson
+          };
+          throw parseErr;
         }
       }
 
@@ -99,7 +127,8 @@ export class OllamaProvider extends BaseProvider {
         baseUrl: this.baseUrl,
         model: this.model,
         timeoutMs: this.timeoutMs,
-        durationMs: duration
+        durationMs: duration,
+        ...(err.rawContentDetails || {})
       };
       
       const detailedMessage = `Ollama Provider Error: [${err.name}] ${err.message} (BaseURL: ${this.baseUrl}, Model: ${this.model}, Duration: ${duration}ms, Timeout: ${this.timeoutMs}ms)`;

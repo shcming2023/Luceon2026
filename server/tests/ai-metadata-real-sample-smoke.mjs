@@ -207,6 +207,7 @@ async function runTests() {
   assert.equal(finalResultObj.aiClassificationRepairSucceeded, true);
   assert.equal(finalResultObj.aiClassificationDegraded, undefined);
   assert.equal(finalResultObj.aiClassificationV02.primary_facets.subject.zh, '数学');
+  assert.equal(finalResultObj.aiClassificationRepairProviderDetails, undefined);
   
   console.log('Case 6 Pass ✅');
   
@@ -221,7 +222,17 @@ async function runTests() {
     } else {
       assert.equal(settings.expectJson, true);
       assert.ok(settings.temperature === 0 || settings.temperature === 0.1);
-      return { provider: 'ollama', model: 'qwen3.5', result: 'Still invalid!', usage: {} };
+      
+      const parseErr = new Error(`Failed to parse JSON from Ollama response`);
+      parseErr.details = {
+        rawContentPreview: 'Still invalid!',
+        rawContentLength: 14,
+        rawLooksTruncated: false,
+        rawContainsThinkTag: false,
+        responseFormatRequested: true,
+        expectJson: true
+      };
+      throw parseErr;
     }
   };
   
@@ -232,11 +243,59 @@ async function runTests() {
   assert.equal(finalResultObj.aiClassificationDegraded, true);
   assert.equal(finalResultObj.aiClassificationErrorSource, 'ollama-json-repair-failed');
   assert.equal(finalResultObj.aiClassificationV02.governance.risk_flags.includes('ai_provider_json_repair_failed'), true);
+  assert.equal(finalResultObj.aiClassificationRepairProviderDetails.rawContentPreview, 'Still invalid!');
+  assert.equal(finalResultObj.aiClassificationRepairProviderDetails.rawLooksTruncated, false);
+  assert.equal(finalResultObj.aiClassificationRepairProviderDetails.expectJson, true);
   
   console.log('Case 7 Pass ✅');
 
   worker1.executeWithFallback = originalExecute;
   worker1.transition = originalTransition;
+
+  // Case 8: OllamaProvider parse failure details
+  console.log('Case 8: OllamaProvider Parse Failure Details');
+  const { OllamaProvider } = await import('../services/ai/providers/ollama.mjs');
+  
+  const mockFetchForOllama = async (url, options) => {
+    const body = JSON.parse(options.body);
+    let mockResponse = '';
+    if (body.messages[1].content === 'think_test') {
+      mockResponse = '<think>some thoughts</think>{"primary_facets": {"subject": {"zh": "数学"';
+    } else {
+      mockResponse = '{"primary_facets": {"subject": {"zh": "数学"';
+    }
+    return {
+      ok: true,
+      json: async () => ({ message: { content: mockResponse } })
+    };
+  };
+
+  const ollama = new OllamaProvider();
+  
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = mockFetchForOllama;
+  
+  try {
+    await ollama.extractMetadata('test', { expectJson: true });
+    assert.fail('Should have thrown JSON parse error');
+  } catch (err) {
+    assert.ok(err.details, 'Error should have details attached');
+    assert.equal(err.details.rawContentLength, 42);
+    assert.equal(err.details.rawLooksTruncated, true);
+    assert.equal(err.details.expectJson, true);
+    assert.equal(err.details.responseFormatRequested, true);
+  }
+
+  try {
+    await ollama.extractMetadata('think_test', { expectJson: true });
+    assert.fail('Should have thrown JSON parse error');
+  } catch (err) {
+    console.log('err.details in second call:', err.details);
+    assert.equal(err.details.rawContainsThinkTag, true);
+  }
+
+  globalThis.fetch = originalFetch;
+  console.log('Case 8 Pass ✅');
 
   console.log('--- AI Metadata Real Sample Smoke Test Success ---');
 }

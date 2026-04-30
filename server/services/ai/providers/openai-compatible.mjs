@@ -74,7 +74,39 @@ export class OpenAiCompatibleProvider extends BaseProvider {
     } else {
       result = this.parseJsonRobust(rawContent);
       if (!result) {
-        throw new Error('Failed to parse JSON from OpenAI-compatible response');
+        if (options.returnRawOnParseFailure) {
+          return {
+            result: rawContent,
+            rawResponse: rawContent,
+            parseFailed: true,
+            parseError: 'Failed to parse JSON from OpenAI-compatible response',
+            usage: {
+              total_duration_ms: duration,
+              prompt_tokens: data.usage?.prompt_tokens || 0,
+              completion_tokens: data.usage?.completion_tokens || 0
+            },
+            provider: this.id,
+            model: this.model
+          };
+        }
+
+        const parseErr = new Error('Failed to parse JSON from OpenAI-compatible response');
+        const rawTrimmed = rawContent.trim();
+        parseErr.details = {
+          baseUrl: this.baseUrl,
+          model: this.model,
+          timeoutMs: this.timeoutMs,
+          durationMs: duration,
+          rawContentPreview: rawContent.slice(0, 1000),
+          rawContentLength: rawContent.length,
+          rawContentHead: rawContent.slice(0, 300),
+          rawContentTail: rawContent.slice(-300),
+          rawLooksTruncated: rawContent.includes('{') && !rawTrimmed.endsWith('}') && !rawTrimmed.endsWith(']'),
+          rawContainsThinkTag: rawContent.includes('<think>'),
+          responseFormatRequested: options.expectJson !== false,
+          expectJson: options.expectJson
+        };
+        throw parseErr;
       }
     }
 
