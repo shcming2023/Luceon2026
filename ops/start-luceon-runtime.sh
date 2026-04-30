@@ -7,7 +7,9 @@ echo "[1/4] Starting Docker services (MinIO, DB, Upload Server, Frontend)..."
 docker compose up -d
 
 echo "[2/4] Starting MinerU API in tmux session (luceon-mineru)..."
-bash ops/start-mineru-api.sh
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+tmux kill-session -t luceon-mineru 2>/dev/null || true
+tmux new-session -d -s luceon-mineru "cd '$REPO_ROOT' && bash ops/start-mineru-api.sh" || { echo "Error: tmux is required but not found or failed to start."; exit 1; }
 
 echo "[3/4] Starting MinerU Log Observer in tmux session (luceon-sidecar)..."
 tmux kill-session -t luceon-sidecar 2>/dev/null || true
