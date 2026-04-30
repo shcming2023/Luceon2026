@@ -361,6 +361,59 @@ app.get('/ops/dependency-health', async (req, res) => {
   res.json(result);
 });
 
+// ─── 依赖修复控制面 (Supervisor Proxy) ───────────────────────
+
+function getSupervisorUrl() {
+  return process.env.DEPENDENCY_HEALTH_REWRITE_LOCAL_ENDPOINTS === 'false'
+    ? 'http://127.0.0.1:18088'
+    : 'http://host.docker.internal:18088';
+}
+
+app.get('/ops/dependency-repair/status', async (req, res) => {
+  try {
+    const sRes = await fetch(`${getSupervisorUrl()}/status`, { signal: AbortSignal.timeout(2000) });
+    if (sRes.ok) {
+      res.json(await sRes.json());
+    } else {
+      res.status(sRes.status).json({ ok: false, error: await sRes.text() });
+    }
+  } catch (e) {
+    res.status(503).json({
+      ok: false,
+      code: 'SUPERVISOR_UNAVAILABLE',
+      message: '宿主机修复代理未启动',
+      command: 'bash ops/start-luceon-runtime.sh'
+    });
+  }
+});
+
+app.post('/ops/dependency-repair', async (req, res) => {
+  const { action } = req.body;
+  if (!action) return res.status(400).json({ ok: false, error: 'missing action' });
+
+  try {
+    const sRes = await fetch(`${getSupervisorUrl()}/action`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action }),
+      signal: AbortSignal.timeout(15000)
+    });
+    
+    if (sRes.ok) {
+      res.json(await sRes.json());
+    } else {
+      res.status(sRes.status).json(await sRes.json().catch(() => ({ ok: false, error: 'Supervisor error' })));
+    }
+  } catch (e) {
+    res.status(503).json({
+      ok: false,
+      code: 'SUPERVISOR_UNAVAILABLE',
+      message: '宿主机修复代理未启动',
+      command: 'bash ops/start-luceon-runtime.sh'
+    });
+  }
+});
+
 // ─── 原型链污染防御（与 db-server 共享同一逻辑）──────────────
 
 const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
