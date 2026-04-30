@@ -188,6 +188,7 @@ async function runTests() {
       return { provider: 'ollama', model: 'qwen3.5', result: 'Draft with some text...', usage: {} };
     } else {
       assert.equal(settings.expectJson, true, 'Repair pass should have expectJson: true');
+      assert.equal(settings.num_predict, 3072, 'Repair pass should have num_predict: 3072');
       assert.ok(settings.temperature === 0 || settings.temperature === 0.1, 'Repair pass should have low temperature');
       return { provider: 'ollama', model: 'qwen3.5', result: '{"primary_facets": {"subject": {"zh": "数学"}}, "governance": {"confidence": "high"}}', usage: {} };
     }
@@ -246,8 +247,93 @@ async function runTests() {
   assert.equal(finalResultObj.aiClassificationRepairProviderDetails.rawContentPreview, 'Still invalid!');
   assert.equal(finalResultObj.aiClassificationRepairProviderDetails.rawLooksTruncated, false);
   assert.equal(finalResultObj.aiClassificationRepairProviderDetails.expectJson, true);
+  assert.equal(finalResultObj.aiClassificationRepairRetryAttempted, undefined);
   
   console.log('Case 7 Pass ✅');
+
+  // Case 9: Repair first attempt truncated, retry success
+  console.log('Case 9: Repair first attempt truncated, retry success');
+  callCount = 0;
+  worker1.executeWithFallback = async (provider, markdown, settings) => {
+    callCount++;
+    if (callCount === 1) {
+      assert.equal(settings.expectJson, false);
+      return { provider: 'ollama', model: 'qwen3.5', result: 'Draft with some text...', usage: {} };
+    } else if (callCount === 2) {
+      assert.equal(settings.expectJson, true);
+      assert.equal(settings.num_predict, 3072);
+      
+      const parseErr = new Error(`Failed to parse JSON from Ollama response`);
+      parseErr.details = {
+        rawContentPreview: 'Truncated...',
+        rawContentLength: 100,
+        rawLooksTruncated: true,
+        rawContainsThinkTag: false,
+        responseFormatRequested: true,
+        expectJson: true
+      };
+      throw parseErr;
+    } else {
+      assert.equal(settings.expectJson, true);
+      assert.equal(settings.temperature, 0);
+      assert.equal(settings.num_predict, 4096);
+      return { provider: 'ollama', model: 'qwen3.5', result: '{"primary_facets": {"subject": {"zh": "数学"}}, "governance": {"confidence": "high"}}', usage: {} };
+    }
+  };
+  
+  await worker1.processJob({ id: 'test-job-9', parseTaskId: 'test-task-9', materialId: 'm9', inputMarkdownObjectName: 'test.md' });
+  
+  assert.equal(finalResultObj.aiClassificationTwoPassAttempted, true);
+  assert.equal(finalResultObj.aiClassificationRepairRetryAttempted, true);
+  assert.equal(finalResultObj.aiClassificationRepairRetryReason, 'raw-truncated');
+  assert.equal(finalResultObj.aiClassificationRepairRetrySucceeded, true);
+  assert.equal(finalResultObj.aiClassificationRepairSucceeded, true);
+  assert.equal(finalResultObj.aiClassificationDegraded, undefined);
+  
+  console.log('Case 9 Pass ✅');
+
+  // Case 11: Repair retry also fails
+  console.log('Case 11: Repair retry also fails');
+  callCount = 0;
+  worker1.executeWithFallback = async (provider, markdown, settings) => {
+    callCount++;
+    if (callCount === 1) {
+      return { provider: 'ollama', model: 'qwen3.5', result: 'Draft with some text...', usage: {} };
+    } else if (callCount === 2) {
+      const parseErr = new Error(`Failed to parse JSON from Ollama response`);
+      parseErr.details = {
+        rawContentPreview: 'Truncated 1...',
+        rawContentLength: 100,
+        rawLooksTruncated: true,
+        rawContainsThinkTag: false,
+        responseFormatRequested: true,
+        expectJson: true
+      };
+      throw parseErr;
+    } else {
+      const parseErr = new Error(`Failed to parse JSON from Ollama response`);
+      parseErr.details = {
+        rawContentPreview: 'Truncated 2...',
+        rawContentLength: 100,
+        rawLooksTruncated: true,
+        rawContainsThinkTag: false,
+        responseFormatRequested: true,
+        expectJson: true
+      };
+      throw parseErr;
+    }
+  };
+  
+  await worker1.processJob({ id: 'test-job-11', parseTaskId: 'test-task-11', materialId: 'm11', inputMarkdownObjectName: 'test.md' });
+  
+  assert.equal(finalResultObj.aiClassificationTwoPassAttempted, true);
+  assert.equal(finalResultObj.aiClassificationRepairRetryAttempted, true);
+  assert.equal(finalResultObj.aiClassificationRepairRetrySucceeded, false);
+  assert.equal(finalResultObj.aiClassificationErrorSource, 'ollama-json-repair-failed');
+  assert.equal(finalResultObj.aiClassificationRepairFirstFailureDetails.rawContentPreview, 'Truncated 1...');
+  assert.equal(finalResultObj.aiClassificationRepairProviderDetails.rawContentPreview, 'Truncated 2...');
+  
+  console.log('Case 11 Pass ✅');
 
   worker1.executeWithFallback = originalExecute;
   worker1.transition = originalTransition;

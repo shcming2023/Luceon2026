@@ -399,16 +399,22 @@ export class AiMetadataWorker {
       }
 
       // === Two-Pass Repair Logic ===
+      let repairRetryAttempted = false;
+      let repairRetrySucceeded = false;
+      let repairRetryReason = '';
+      let firstFailureDetails = null;
+
       if (jsonParseFailed && twoPassEnabled) {
         twoPassAttempted = true;
+        const repairPrompt = generateV02RepairPrompt(aiResponse.result);
         try {
           console.log(`[ai-worker] First pass JSON extraction failed, attempting repair for job ${job.id}...`);
-          const repairPrompt = generateV02RepairPrompt(aiResponse.result);
           const repairResponse = await this.executeWithFallback(provider, "Please format the above draft into the exact strict JSON schema required.", {
             ...aiSettings,
             systemPrompt: repairPrompt,
             temperature: 0.1,
-            expectJson: true
+            expectJson: true,
+            num_predict: 3072
           });
           
           parsedResult = this.extractJson(repairResponse.result);
@@ -438,14 +444,73 @@ export class AiMetadataWorker {
               expectJson: repairErr.details.expectJson
             };
           }
-          console.warn(`[ai-worker] Two-pass JSON repair failed for job ${job.id}: ${repairErr.message}`);
-          await logTaskEvent({
-            taskId: job.parseTaskId,
-            event: 'ai-provider-repair-failed',
-            level: 'warn',
-            message: `AI Provider (${providerId}) JSON Repair 失败: ${repairErr.message}`,
-            payload: repairProviderDetails ? { repairProviderDetails } : {}
-          });
+
+          if (repairProviderDetails?.rawLooksTruncated === true) {
+            repairRetryAttempted = true;
+            repairRetryReason = 'raw-truncated';
+            firstFailureDetails = repairProviderDetails;
+            
+            await logTaskEvent({
+              taskId: job.parseTaskId,
+              event: 'ai-provider-repair-retry-started',
+              level: 'warn',
+              message: `AI Provider (${providerId}) JSON Repair truncated, retrying...`,
+              payload: { reason: 'raw-truncated' }
+            });
+
+            try {
+              const retryResponse = await this.executeWithFallback(provider, "Please format the above draft into the exact strict JSON schema required.", {
+                ...aiSettings,
+                systemPrompt: repairPrompt,
+                temperature: 0,
+                expectJson: true,
+                num_predict: 4096
+              });
+
+              parsedResult = this.extractJson(retryResponse.result);
+              jsonParseFailed = false;
+              repairSucceeded = true;
+              repairRetrySucceeded = true;
+              aiResponse = retryResponse;
+              repairProviderDetails = null; // clear on success
+
+              await logTaskEvent({
+                taskId: job.parseTaskId,
+                event: 'ai-provider-repair-retry-succeeded',
+                level: 'info',
+                message: `AI Provider (${providerId}) JSON Repair Retry 成功`
+              });
+            } catch (retryErr) {
+              repairRetrySucceeded = false;
+              repairFailedReason = retryErr.message;
+              if (retryErr.details) {
+                repairProviderDetails = {
+                  rawContentPreview: retryErr.details.rawContentPreview,
+                  rawContentLength: retryErr.details.rawContentLength,
+                  rawLooksTruncated: retryErr.details.rawLooksTruncated,
+                  rawContainsThinkTag: retryErr.details.rawContainsThinkTag,
+                  responseFormatRequested: retryErr.details.responseFormatRequested,
+                  expectJson: retryErr.details.expectJson
+                };
+              }
+              await logTaskEvent({
+                taskId: job.parseTaskId,
+                event: 'ai-provider-repair-retry-failed',
+                level: 'warn',
+                message: `AI Provider (${providerId}) JSON Repair Retry 失败: ${retryErr.message}`,
+                payload: repairProviderDetails ? { repairProviderDetails } : {}
+              });
+            }
+          } else {
+            console.warn(`[ai-worker] Two-pass JSON repair failed for job ${job.id}: ${repairErr.message}`);
+            await logTaskEvent({
+              taskId: job.parseTaskId,
+              event: 'ai-provider-repair-failed',
+              level: 'warn',
+              message: `AI Provider (${providerId}) JSON Repair 失败: ${repairErr.message}`,
+              payload: repairProviderDetails ? { repairProviderDetails } : {}
+            });
+          }
         }
       }
 
@@ -476,8 +541,18 @@ export class AiMetadataWorker {
       if (twoPassAttempted) {
         result.aiClassificationTwoPassAttempted = true;
         result.aiClassificationRepairSucceeded = repairSucceeded;
+        
+        if (repairRetryAttempted) {
+          result.aiClassificationRepairRetryAttempted = true;
+          result.aiClassificationRepairRetryReason = repairRetryReason;
+          result.aiClassificationRepairRetrySucceeded = repairRetrySucceeded;
+        }
+
         if (!repairSucceeded) {
           result.aiClassificationRepairFailedReason = repairFailedReason || 'Parse or validate failed';
+          if (firstFailureDetails) {
+            result.aiClassificationRepairFirstFailureDetails = firstFailureDetails;
+          }
           if (repairProviderDetails) {
             result.aiClassificationRepairProviderDetails = repairProviderDetails;
           }
