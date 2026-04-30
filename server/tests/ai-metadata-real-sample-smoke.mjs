@@ -184,8 +184,11 @@ async function runTests() {
   worker1.executeWithFallback = async (provider, markdown, settings) => {
     callCount++;
     if (callCount === 1) {
+      assert.equal(settings.expectJson, false, 'First pass should have expectJson: false');
       return { provider: 'ollama', model: 'qwen3.5', result: 'Draft with some text...', usage: {} };
     } else {
+      assert.equal(settings.expectJson, true, 'Repair pass should have expectJson: true');
+      assert.ok(settings.temperature === 0 || settings.temperature === 0.1, 'Repair pass should have low temperature');
       return { provider: 'ollama', model: 'qwen3.5', result: '{"primary_facets": {"subject": {"zh": "数学"}}, "governance": {"confidence": "high"}}', usage: {} };
     }
   };
@@ -213,8 +216,11 @@ async function runTests() {
   worker1.executeWithFallback = async (provider, markdown, settings) => {
     callCount++;
     if (callCount === 1) {
+      assert.equal(settings.expectJson, false);
       return { provider: 'ollama', model: 'qwen3.5', result: 'Draft with some text...', usage: {} };
     } else {
+      assert.equal(settings.expectJson, true);
+      assert.ok(settings.temperature === 0 || settings.temperature === 0.1);
       return { provider: 'ollama', model: 'qwen3.5', result: 'Still invalid!', usage: {} };
     }
   };

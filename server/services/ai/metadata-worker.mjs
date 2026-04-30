@@ -406,7 +406,8 @@ export class AiMetadataWorker {
           const repairResponse = await this.executeWithFallback(provider, "Please format the above draft into the exact strict JSON schema required.", {
             ...aiSettings,
             systemPrompt: repairPrompt,
-            temperature: 0.1
+            temperature: 0.1,
+            expectJson: true
           });
           
           parsedResult = this.extractJson(repairResponse.result);
@@ -585,10 +586,22 @@ export class AiMetadataWorker {
     for (let i = 0; i < providersToTry.length; i++) {
         const provider = providersToTry[i];
         try {
-            const systemPrompt = aiSettings.systemPrompt || generateV02Prompt();
+            const {
+              systemPrompt,
+              expectJson,
+              temperature,
+              top_p,
+              num_predict,
+              ...rest
+            } = aiSettings;
+
             const resp = await provider.extractMetadata(markdown, { 
-                systemPrompt,
-                num_predict: aiSettings.num_predict || 512
+                ...rest,
+                systemPrompt: systemPrompt || generateV02Prompt(),
+                expectJson,
+                temperature,
+                top_p,
+                num_predict: num_predict || 512
             });
             if (i > 0) resp.fallbackOccurred = true;
             return resp;
