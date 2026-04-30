@@ -413,6 +413,62 @@ async function runTests() {
   assert.equal(finalResultObj.aiClassificationRawPersistFailedReason, 'MinIO is down');
   console.log('Test 4 Pass ✅');
 
+  // Test 5: Ollama fetch dispatcher timeout 对齐 & headers timeout 分类
+  console.log('Test 5: Ollama fetch dispatcher timeout 对齐 & headers timeout 分类');
+  let fetchOptions = null;
+  globalThis.fetch = async (url, options) => {
+    if (typeof url === 'string' && !url.includes('/api/chat')) {
+      return originalFetch(url, options);
+    }
+    fetchOptions = options;
+    const err = new TypeError('fetch failed');
+    err.cause = { code: 'UND_ERR_HEADERS_TIMEOUT', message: 'Headers Timeout Error' };
+    throw err;
+  };
+  const ollama5 = new OllamaProvider({ timeoutMs: 12345 });
+  try {
+    await ollama5.extractMetadata('test', { expectJson: true });
+    assert.fail('Should have thrown timeout error');
+  } catch (err) {
+    assert.ok(fetchOptions.dispatcher);
+    assert.equal(err.timeoutKind, 'headers-timeout');
+    assert.equal(err.headersTimeoutMs, 12345);
+    assert.equal(err.bodyTimeoutMs, 12345);
+    assert.equal(err.cause.code, 'UND_ERR_HEADERS_TIMEOUT');
+  }
+  console.log('Test 5 Pass ✅');
+
+  // Test 6: repairProviderDetails 透传 timeoutKind & skeleton 语义不变
+  console.log('Test 6: repairProviderDetails 透传 timeoutKind & skeleton 语义不变');
+  let callIndex6 = 0;
+  globalThis.fetch = async (url, options) => {
+    if (typeof url === 'string' && !url.includes('/api/chat')) {
+      return originalFetch(url, options);
+    }
+    callIndex6++;
+    if (callIndex6 === 1) return { ok: true, json: async () => ({ message: { content: 'invalid json' } }) };
+    const err = new TypeError('fetch failed');
+    err.cause = { code: 'UND_ERR_HEADERS_TIMEOUT', message: 'Headers Timeout Error' };
+    throw err;
+  };
+  const worker6 = new AiMetadataWorker({
+    getFileStream: async () => ({ [Symbol.asyncIterator]: async function* () { yield Buffer.from('mock'); } }),
+    saveObject: async () => {}
+  });
+  worker6.createProvider = () => new OllamaProvider({ timeoutMs: 54321 });
+  let finalResult6 = {};
+  worker6.transition = async (job, update) => { finalResult6 = update.result; };
+  await worker6.processJob({ id: 'test-job-t6', parseTaskId: 't6', inputMarkdownObjectName: 'x.md' });
+
+  assert.equal(finalResult6.aiClassificationRepairProviderDetails.timeoutKind, 'headers-timeout');
+  assert.equal(finalResult6.aiClassificationRepairProviderDetails.headersTimeoutMs, 54321);
+  assert.equal(finalResult6.aiClassificationRepairProviderDetails.bodyTimeoutMs, 54321);
+  assert.equal(finalResult6.aiClassificationProvider, 'skeleton');
+  assert.equal(finalResult6.aiClassificationModel, 'skeleton');
+  assert.equal(finalResult6.aiClassificationDegraded, true);
+  assert.equal(finalResult6.aiClassificationErrorSource, 'ollama-json-repair-failed');
+  console.log('Test 6 Pass ✅');
+
   globalThis.fetch = originalFetch;
 
   console.log('--- AI Metadata Real Sample Smoke Test Success ---');

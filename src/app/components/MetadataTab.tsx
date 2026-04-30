@@ -245,7 +245,11 @@ export function MetadataTab({
                 <AlertTriangle size={14} className="mt-0.5 shrink-0" />
                 <div>
                   <div className="font-bold">AI 元数据识别失败，当前为 skeleton 降级结果</div>
-                  <div className="text-[10px] mt-0.5">原因: {fallbackReason}</div>
+                  {material.metadata.aiClassificationRepairProviderDetails?.timeoutKind === 'headers-timeout' ? (
+                    <div className="text-[10px] mt-0.5">原因: Ollama repair 请求超时，未取得模型输出</div>
+                  ) : (
+                    <div className="text-[10px] mt-0.5">原因: {fallbackReason}</div>
+                  )}
                   <div className="text-[10px] mt-0.5 font-semibold">（由于 AI 提供商输出异常，系统已自动拦截并生成骨架占位，需人工复核）</div>
                 </div>
               </div>

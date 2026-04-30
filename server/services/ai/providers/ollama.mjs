@@ -5,6 +5,7 @@
  */
 
 import { BaseProvider } from './base.mjs';
+import { Agent } from 'undici';
 
 export class OllamaProvider extends BaseProvider {
   constructor(config = {}) {
@@ -54,11 +55,17 @@ export class OllamaProvider extends BaseProvider {
 
     const startTime = Date.now();
     try {
+      const dispatcher = new Agent({
+        headersTimeout: this.timeoutMs,
+        bodyTimeout: this.timeoutMs
+      });
+
       const response = await fetch(`${this.baseUrl}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(this.timeoutMs)
+        signal: AbortSignal.timeout(this.timeoutMs),
+        dispatcher
       });
 
       if (!response.ok) {
@@ -126,6 +133,14 @@ export class OllamaProvider extends BaseProvider {
       };
     } catch (err) {
       const duration = Date.now() - startTime;
+      
+      let timeoutKind = 'network-or-fetch-error';
+      if (err.name === 'TimeoutError' || err.message.includes('AbortError')) {
+        timeoutKind = 'abort-timeout';
+      } else if (err.cause?.code === 'UND_ERR_HEADERS_TIMEOUT' || err.message.includes('Headers Timeout') || err.cause?.message?.includes('Headers Timeout')) {
+        timeoutKind = 'headers-timeout';
+      }
+
       const errorDetail = {
         name: err.name,
         message: err.message,
@@ -134,6 +149,9 @@ export class OllamaProvider extends BaseProvider {
         model: this.model,
         timeoutMs: this.timeoutMs,
         durationMs: duration,
+        timeoutKind,
+        headersTimeoutMs: this.timeoutMs,
+        bodyTimeoutMs: this.timeoutMs,
         ...(err.rawContentDetails || {})
       };
       
@@ -141,6 +159,11 @@ export class OllamaProvider extends BaseProvider {
       
       const error = new Error(detailedMessage);
       error.details = errorDetail;
+      // also put it directly on error for caller flexibility
+      error.timeoutKind = timeoutKind;
+      error.headersTimeoutMs = this.timeoutMs;
+      error.bodyTimeoutMs = this.timeoutMs;
+      error.cause = err.cause;
       throw error;
     }
   }
