@@ -1179,11 +1179,11 @@ export function SettingsPage() {
         <div className="space-y-5">
           <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
             <h2 className="font-semibold text-gray-800">接口参数</h2>
-            <FieldRow label="解析引擎" hint="本地模式同步返回，官方模式走轮询任务">
+            <FieldRow label="运行模式" hint="本地模式同步返回，官方模式走轮询任务">
               <div className="space-y-3">
                 <label className="flex items-center justify-between p-3 rounded-lg border border-green-200 bg-green-50 cursor-pointer">
                   <div>
-                    <p className="text-sm font-medium text-green-800">本地 Gradio（推荐，无额度限制）</p>
+                    <p className="text-sm font-medium text-green-800">本地 MinerU API</p>
                     <p className="text-xs text-green-700 mt-0.5">适合内网部署，解析结果可直接回存当前文件库</p>
                   </div>
                   <input
@@ -1195,7 +1195,7 @@ export function SettingsPage() {
                 </label>
                 <label className="flex items-center justify-between p-3 rounded-lg border border-blue-200 bg-blue-50 cursor-pointer">
                   <div>
-                    <p className="text-sm font-medium text-blue-800">官方 API（需 API Key）</p>
+                    <p className="text-sm font-medium text-blue-800">官方 MinerU API</p>
                     <p className="text-xs text-blue-700 mt-0.5">兼容现有云端解析流程，保留 ZIP 回存链路</p>
                   </div>
                   <input
@@ -1223,7 +1223,7 @@ export function SettingsPage() {
                     onChange={(v) => updateMineru({ localTimeout: Number(v) })}
                   />
                 </FieldRow>
-                <FieldRow label="解析引擎选择">
+                <FieldRow label="本地解析后端" hint="pipeline 为默认稳定路径；hybrid/vlm 使用本地 MinerU 的视觉模型能力，资源消耗更高，需先确认本机 MinerU 服务支持。">
                   <Select
                     value={mineruForm.localBackend || 'pipeline'}
                     onChange={(v) => updateMineru({ localBackend: v })}
@@ -1307,22 +1307,7 @@ export function SettingsPage() {
                 </FieldRow>
               </>
             )}
-            <FieldRow label="模型版本">
-              <div className="flex gap-3">
-                {(['pipeline', 'vlm'] as const).map((v) => (
-                  <label key={v} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="modelVersion"
-                      value={v}
-                      checked={mineruForm.modelVersion === v}
-                      onChange={() => updateMineru({ modelVersion: v })}
-                    />
-                    <span className="text-sm text-gray-700 uppercase">{v}</span>
-                  </label>
-                ))}
-              </div>
-            </FieldRow>
+            {/* 模型版本已弃用并隐藏 */}
           </div>
 
           {/* 功能开关 */}

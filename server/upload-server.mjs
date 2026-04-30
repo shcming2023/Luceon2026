@@ -254,7 +254,7 @@ async function checkDependencyHealth(minioBucket) {
     dependencies: {
       minio: { ok: false, requiredFor: ['upload', 'parse'] },
       mineru: { ok: false, requiredFor: ['parse'], endpoint: null, error: null },
-      ollama: { ok: false, requiredFor: ['ai'], endpoint: null, error: null }
+      ollama: { ok: false, requiredFor: ['ai'], blockingParse: false, endpoint: null, error: null }
     },
     commands: {
       mineru: "bash ops/start-mineru-api.sh",
@@ -321,7 +321,7 @@ async function checkDependencyHealth(minioBucket) {
 
     // 4. Ollama
     if (!aiEnabled || !ollamaEndpoint) {
-       result.dependencies.ollama = { skipped: true };
+       result.dependencies.ollama.skipped = true;
     } else {
        let checkOllamaEndpoint = ollamaEndpoint;
        if (ollamaEndpoint.includes('localhost') || ollamaEndpoint.includes('127.0.0.1')) {
@@ -343,7 +343,7 @@ async function checkDependencyHealth(minioBucket) {
     }
 
     result.blocking = (!result.dependencies.minio.ok || !result.dependencies.mineru.ok);
-    result.ok = !result.blocking;
+    result.ok = result.dependencies.minio.ok && result.dependencies.mineru.ok && (result.dependencies.ollama.skipped || result.dependencies.ollama.ok);
 
   } catch (err) {
     result.error = err.message;
