@@ -95,7 +95,7 @@ export function DependencyHealthBanner() {
           </div>
           <div className="flex items-center gap-1.5">
             <div className={`w-2 h-2 rounded-full ${health.dependencies?.ollama?.skipped ? 'bg-gray-400' : ollamaOk ? 'bg-green-500' : 'bg-amber-500'}`} />
-            <span>Ollama {health.dependencies?.ollama?.skipped ? '未启用' : ollamaOk ? '正常' : '未启动'}</span>
+            <span>Ollama {health.dependencies?.ollama?.skipped ? '未启用' : ollamaOk ? '正常' : 'AI 元数据识别受阻'}</span>
           </div>
         </div>
       </div>
@@ -130,6 +130,17 @@ export function DependencyHealthBanner() {
           >
             {actionLoading === 'restart-sidecar' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Activity className="w-3.5 h-3.5" />}
             重启日志观测
+          </button>
+        )}
+
+        {supervisorActive && !ollamaOk && !health.dependencies?.ollama?.skipped && (
+          <button 
+            onClick={() => handleAction('start-ollama')} 
+            disabled={!!actionLoading}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded text-xs font-medium transition-colors"
+          >
+            {actionLoading === 'start-ollama' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Wrench className="w-3.5 h-3.5" />}
+            一键启动 Ollama
           </button>
         )}
 

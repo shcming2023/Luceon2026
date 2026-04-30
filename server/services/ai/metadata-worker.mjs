@@ -16,6 +16,8 @@ import { getSettings } from '../settings/settings-client.mjs';
 
 import { OllamaProvider } from './providers/ollama.mjs';
 import { OpenAiCompatibleProvider } from './providers/openai-compatible.mjs';
+import { sampleMarkdown } from './metadata-sampler.mjs';
+import { getDefaultV02Skeleton, validateAndNormalizeV02, generateV02Prompt } from './metadata-standard-v0.2.mjs';
 
 const POLL_INTERVAL_MS = 10000;
 
@@ -249,21 +251,32 @@ export class AiMetadataWorker {
         throw new Error('Markdown 内容为空，无法提取元数据');
       }
 
-      // 4. 内容截断处理 (根据 PRD 10.5.5)
-      const MAX_CHARS = 32000; // 约 8000 tokens
-      let isTruncated = false;
+      // 4. 内容截断处理 (根据 PRD 10.5.5) -> 升级为抽样策略 (V0.2)
+      const sourceMeta = {
+        materialId: job.materialId,
+        filename: parseTask?.metadata?.originalFilename || parseTask?.originalFilename || 'unknown',
+        fileSize: parseTask?.metadata?.originalFileSize || parseTask?.originalFileSize || 0,
+        rawObjectName: parseTask?.metadata?.objectName || '',
+        parsedPrefix: parseTask?.metadata?.parsedPrefix || '',
+        markdownObjectName: markdownObjectName,
+        parsedFilesCount: parseTask?.metadata?.parsedFilesCount || 0
+      };
+
       const originalLength = markdownContent.length;
-      if (originalLength > MAX_CHARS) {
-        markdownContent = markdownContent.slice(0, MAX_CHARS);
-        isTruncated = true;
+      const { sampledContent, inputHash } = sampleMarkdown(markdownContent, sourceMeta, 80000);
+      let isTruncated = originalLength > sampledContent.length;
+
+      if (isTruncated) {
         await logTaskEvent({
           taskId: job.parseTaskId,
           event: 'ai-content-truncated',
           level: 'info',
-          message: `Markdown 内容过长已截断 (${originalLength} -> ${MAX_CHARS} 字符)`,
-          payload: { originalLength, truncatedLength: MAX_CHARS }
+          message: `Markdown 内容过长已按策略抽样截断 (${originalLength} -> ${sampledContent.length} 字符)`,
+          payload: { originalLength, truncatedLength: sampledContent.length }
         });
       }
+      
+      markdownContent = sampledContent;
 
       // 5. 执行 AI 识别
       const requestPayload = { 
@@ -339,29 +352,37 @@ export class AiMetadataWorker {
         return await this.degradeToSkeleton(job, `AI Provider 调用全部失败: ${err.message}，自动降级为模拟结果完成链路`);
       }
 
-      // 6. 结果后处理与归一化 (TASK-24)
+      // 6. 结果后处理与归一化 (TASK-24 + V0.2)
       // 增强：鲁棒的 JSON 提取
       let parsedResult = {};
+      let jsonParseFailed = false;
       try {
         parsedResult = this.extractJson(aiResponse.result);
       } catch (err) {
         console.warn(`[ai-worker] JSON extraction failed for job ${job.id}: ${err.message}. Content preview: ${String(aiResponse.result).slice(0, 100)}`);
-        return await this.degradeToSkeleton(job, `AI 响应格式解析失败: ${err.message}，已降级`);
+        jsonParseFailed = true;
       }
 
-      const result = this.normalizeResult(parsedResult);
+      let resultV02;
+      if (jsonParseFailed) {
+        resultV02 = getDefaultV02Skeleton(sourceMeta, 'low', 'JSON解析失败');
+      } else {
+        resultV02 = validateAndNormalizeV02(parsedResult, sourceMeta);
+      }
+
+      const result = this.normalizeResult(resultV02); // 保持兼容性
       // 记录原始响应预览
       result.rawPreview = String(aiResponse.result).slice(0, 1000);
+      result.aiClassificationStandardVersion = 'llm_text_classification_v0.2';
+      result.aiClassificationAnalyzedAt = new Date().toISOString();
+      result.aiClassificationProvider = aiResponse.provider;
+      result.aiClassificationModel = aiResponse.model;
+      result.aiClassificationInputHash = inputHash;
+      result.aiClassificationV02 = resultV02;
 
-      const confidence = result.confidence || aiResponse.usage?.confidence || 0;
-      
-      // 判断是否需要人工审核
-      const threshold = Number(aiSettings.confidenceThreshold || 80);
-      const isLowConfidence = confidence < threshold;
-      const missingKeyFields = !result.subject || !result.grade || !result.materialType;
-      const requireAllReview = aiSettings.requireAllReview === true;
-      
-      const needsReview = isLowConfidence || missingKeyFields || requireAllReview || aiResponse.fallbackOccurred || result.needsReview === true;
+      // 从 v0.2 标准获取置信度和 review 状态
+      const confidence = resultV02.governance.confidence === 'high' ? 90 : resultV02.governance.confidence === 'medium' ? 60 : 30;
+      const needsReview = resultV02.governance.human_review_required === true || resultV02.governance.confidence !== 'high';
 
       // 7. 完成任务（Canonical 终态：confirmed / review-pending）
       const finalState = needsReview ? 'review-pending' : 'confirmed';
@@ -411,16 +432,33 @@ export class AiMetadataWorker {
       payload: { aiJobId: job.id }
     });
 
-    const simulatedResult = {
-      title: "模拟试卷 (降级模式)",
-      subject: "未知",
-      grade: "未知",
-      materialType: "其他",
-      summary: `[ai skeleton fallback] 由于 "${reason}"，系统使用了降级模拟结果。`,
-      confidence: 50,
-      needsReview: true,
-      warnings: ["系统已降级为模拟模式"]
-    };
+    // 构建 sourceMeta 用于 skeleton
+    let sourceMeta = {};
+    if (job.parseTaskId) {
+      try {
+        const parseTask = await getTaskById(job.parseTaskId);
+        sourceMeta = {
+          materialId: job.materialId,
+          filename: parseTask?.metadata?.originalFilename || parseTask?.originalFilename || 'unknown',
+          fileSize: parseTask?.metadata?.originalFileSize || parseTask?.originalFileSize || 0,
+          rawObjectName: parseTask?.metadata?.objectName || '',
+          parsedPrefix: parseTask?.metadata?.parsedPrefix || '',
+          markdownObjectName: parseTask?.metadata?.markdownObjectName || job.inputMarkdownObjectName || '',
+          parsedFilesCount: parseTask?.metadata?.parsedFilesCount || 0
+        };
+      } catch (e) {
+        // ignore
+      }
+    }
+    
+    const v02Skeleton = getDefaultV02Skeleton(sourceMeta, 'low', reason);
+    const simulatedResult = this.normalizeResult(v02Skeleton);
+    simulatedResult.aiClassificationStandardVersion = 'llm_text_classification_v0.2';
+    simulatedResult.aiClassificationAnalyzedAt = new Date().toISOString();
+    simulatedResult.aiClassificationProvider = 'skeleton';
+    simulatedResult.aiClassificationModel = 'skeleton';
+    simulatedResult.aiClassificationInputHash = '';
+    simulatedResult.aiClassificationV02 = v02Skeleton;
 
     await this.transition(job, {
       state: 'review-pending',
@@ -450,7 +488,7 @@ export class AiMetadataWorker {
     for (let i = 0; i < providersToTry.length; i++) {
         const provider = providersToTry[i];
         try {
-            const systemPrompt = aiSettings.systemPrompt || this.getDefaultPrompt();
+            const systemPrompt = aiSettings.systemPrompt || generateV02Prompt();
             const resp = await provider.extractMetadata(markdown, { 
                 systemPrompt,
                 num_predict: aiSettings.num_predict || 512
@@ -538,47 +576,33 @@ export class AiMetadataWorker {
   /**
    * 结果归一化：确保所有 PRD 要求的字段都存在，即便为空
    */
-  normalizeResult(raw) {
-    if (!raw || typeof raw !== 'object') return { title: '解析失败', subject: '', grade: '' };
+  normalizeResult(v02Result) {
+    if (!v02Result || !v02Result.primary_facets) {
+      return { title: '解析失败', subject: '', grade: '' };
+    }
+    const p = v02Result.primary_facets;
+    const d = v02Result.descriptive_metadata;
+    const g = v02Result.governance;
+    const s = v02Result.search_tags || {};
     
     return {
-      title: raw.title || '',
-      subject: raw.subject || '',
-      grade: raw.grade || '',
-      semester: raw.semester || '',
-      materialType: raw.materialType || '',
-      language: raw.language || '中文',
-      curriculum: raw.curriculum || '',
-      tags: Array.isArray(raw.tags) ? raw.tags : [],
-      summary: raw.summary || '',
-      confidence: Number(raw.confidence || 0),
-      fieldConfidence: raw.fieldConfidence || {},
-      needsReview: raw.needsReview !== undefined ? !!raw.needsReview : true,
-      ...raw // 保留 AI 可能返回的其他字段
+      title: d.series_title || p.subject.zh || '',
+      subject: p.subject.zh || '',
+      grade: p.stage.zh || p.level.zh || '',
+      semester: '', // v0.2 dropped semester, but we keep it empty for compatibility
+      materialType: p.resource_type.zh || '',
+      language: d.language || '中文',
+      curriculum: p.curriculum.zh || '',
+      tags: [...(s.topic_tags || []), ...(s.skill_tags || [])],
+      summary: '', // v0.2 dropped summary
+      confidence: g.confidence === 'high' ? 90 : g.confidence === 'medium' ? 60 : 30,
+      fieldConfidence: {},
+      needsReview: g.human_review_required === true || g.confidence !== 'high'
     };
   }
 
   getDefaultPrompt() {
-    return `你是一个专业的教育资源元数据提取助手。你的任务是从提供的 Markdown 文本中提取结构化信息。
-请严格仅返回 JSON 格式，不要包含任何解释性文本或 Markdown 代码块标识。
-
-JSON 结构需包含以下字段（符合 PRD 10.5.3）：
-- title (string): 资源标题
-- subject (string): 学科（如：数学, 语文, 英语, 物理, 化学等）
-- grade (string): 年级标识（如：G1-G12, K1-K3, Y1-Y13）
-- semester (string): 学期（上册, 下册, 全一册）
-- materialType (string): 资料类型（教材, 试卷, 讲义, 练习册, 课件, 视频等）
-- language (string): 语种（中文, 英文等）
-- curriculum (string): 课程体系/版本（如：人教版, 北师大版, IB, A-Level）
-- tags (array of strings): 3-8个关键词标签
-- summary (string): 核心内容简述（不超过200字）
-- confidence (number): 0-100 的整体识别置信度
-- fieldConfidence (object): 各核心字段的置信度得分
-- needsReview (boolean): 建议人工复核
- 
-无法判断的字段请填入空字符串或 "unknown"；不要编造信息。
- 
-请注意：不要输出 <think> 标签或任何思维链过程，直接输出 JSON。如果模型自带思维过程，请确保它在 JSON 块之外。`;
+    return generateV02Prompt();
   }
 
   async transition(job, update, eventName, level = 'info', payload = {}) {

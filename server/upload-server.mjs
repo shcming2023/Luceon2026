@@ -290,10 +290,12 @@ async function checkDependencyHealth(minioBucket) {
         if (mSet.localEndpoint) mineruEndpoint = mSet.localEndpoint;
 
         const aiSet = allSettings?.aiConfig || {};
-        aiEnabled = !!aiSet.enabled;
+        aiEnabled = aiSet.enabled === true || (aiSet.enabled !== false && Array.isArray(aiSet.providers) && aiSet.providers.some(p => p.enabled !== false));
         if (aiEnabled && Array.isArray(aiSet.providers)) {
-          const active = aiSet.providers.filter(p => p.enabled).sort((a,b) => a.priority - b.priority)[0];
-          if (active && active.apiEndpoint) ollamaEndpoint = active.apiEndpoint;
+          const ollamaProvider = aiSet.providers.find(p => p.enabled !== false && (p.providerId === 'ollama' || (p.apiEndpoint && p.apiEndpoint.includes('11434'))));
+          if (ollamaProvider && ollamaProvider.apiEndpoint) {
+            ollamaEndpoint = ollamaProvider.apiEndpoint;
+          }
         }
       }
     } catch (e) {

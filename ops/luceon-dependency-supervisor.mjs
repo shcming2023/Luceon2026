@@ -15,6 +15,8 @@ const ALLOWED_ACTIONS = {
   'restart-mineru': true,
   'start-sidecar': true,
   'restart-sidecar': true,
+  'start-ollama': true,
+  'restart-ollama': true,
 };
 
 async function checkSession(name) {
@@ -31,9 +33,10 @@ app.get('/status', async (req, res) => {
   try {
     const mineru = await checkSession('luceon-mineru');
     const sidecar = await checkSession('luceon-sidecar');
-    res.json({ ok: true, message: 'Supervisor running', sessions: { mineru, sidecar } });
+    const ollama = await checkSession('luceon-ollama');
+    res.json({ ok: true, message: 'Supervisor running', sessions: { mineru, sidecar, ollama } });
   } catch (error) {
-    res.json({ ok: true, message: 'Supervisor running', sessions: { mineru: false, sidecar: false } });
+    res.json({ ok: true, message: 'Supervisor running', sessions: { mineru: false, sidecar: false, ollama: false } });
   }
 });
 
@@ -76,6 +79,28 @@ app.post('/action', async (req, res) => {
       await execPromise(`tmux kill-session -t luceon-sidecar 2>/dev/null || true`);
       await execPromise(`tmux new-session -d -s luceon-sidecar "cd '${repoRoot}' && UPLOAD_SERVER_URL=http://127.0.0.1:8081/__proxy/upload node ops/mineru-log-observer.mjs"`);
       return res.json({ ok: true, action, detached: true, session: 'luceon-sidecar', message: 'Sidecar restart requested in tmux session' });
+    }
+
+    if (action === 'start-ollama') {
+      if (await checkSession('luceon-ollama')) {
+        return res.json({ ok: true, action, detached: true, session: 'luceon-ollama', message: 'Ollama already running in tmux session' });
+      }
+      const hasOllamaCmd = await execPromise(`command -v ollama >/dev/null 2>&1 && echo "yes" || echo "no"`).then(r => r.stdout.trim() === 'yes').catch(() => false);
+      if (!hasOllamaCmd) {
+        return res.json({ ok: false, error: 'REMOTE_OLLAMA_ENDPOINT' });
+      }
+      await execPromise(`tmux new-session -d -s luceon-ollama 'ollama serve'`);
+      return res.json({ ok: true, action, detached: true, session: 'luceon-ollama', message: 'Ollama start requested in tmux session' });
+    }
+
+    if (action === 'restart-ollama') {
+      const hasOllamaCmd = await execPromise(`command -v ollama >/dev/null 2>&1 && echo "yes" || echo "no"`).then(r => r.stdout.trim() === 'yes').catch(() => false);
+      if (!hasOllamaCmd) {
+        return res.json({ ok: false, error: 'REMOTE_OLLAMA_ENDPOINT' });
+      }
+      await execPromise(`tmux kill-session -t luceon-ollama 2>/dev/null || true`);
+      await execPromise(`tmux new-session -d -s luceon-ollama 'ollama serve'`);
+      return res.json({ ok: true, action, detached: true, session: 'luceon-ollama', message: 'Ollama restart requested in tmux session' });
     }
     
   } catch (error) {
