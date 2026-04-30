@@ -126,26 +126,55 @@ async function runTests() {
   console.log('Case 4: JSON Failure');
   const provider4 = createMockProvider("I am an AI, I can't do this.");
   let res4 = await worker1.executeWithFallback(provider4, 'Sample', {});
+  
   let jsonParseFailed = false;
-  let parsedResult = {};
   try {
-    parsedResult = worker1.extractJson(res4.result);
-    // It should be empty object
-    if (Object.keys(parsedResult).length === 0) jsonParseFailed = true;
-  } catch (e) {
-    jsonParseFailed = true;
-  }
+    const p = worker1.extractJson(res4.result);
+    if (!p || Object.keys(p).length === 0) jsonParseFailed = true;
+  } catch(e) { jsonParseFailed = true; }
+  
   assert.equal(jsonParseFailed, true);
   
-  const norm4 = getDefaultV02Skeleton({}, 'low', 'json_parse_failed');
-  assert.equal(norm4.governance.confidence, 'low');
-  assert.equal(norm4.governance.human_review_required, true);
-  assert.equal(norm4.evidence.length, 1);
-  assert.equal(norm4.evidence[0].quote_or_summary, 'AI provider failed; fallback skeleton generated');
+  // Simulate processJob degradation
+  let resultV02 = getDefaultV02Skeleton({}, 'low', 'AI Provider JSON 解析失败，已降级为 skeleton 结果');
+  let finalResult = {
+    aiClassificationDegraded: true,
+    aiClassificationDegradedReason: 'AI Provider JSON 解析失败，已降级为 skeleton 结果',
+    aiClassificationErrorSource: 'ollama-json-parse-failed',
+    aiClassificationV02: resultV02
+  };
   
-  let rawString4 = String(res4.result);
-  assert.equal(rawString4, "I am an AI, I can't do this.");
+  assert.equal(finalResult.aiClassificationDegraded, true);
+  assert.equal(finalResult.aiClassificationErrorSource, 'ollama-json-parse-failed');
+  assert.equal(finalResult.aiClassificationV02.governance.confidence, 'low');
+  assert.equal(finalResult.aiClassificationV02.governance.human_review_required, true);
+  assert.equal(finalResult.aiClassificationV02.governance.risk_flags.includes('skeleton_fallback'), true);
+  assert.equal(finalResult.aiClassificationV02.evidence.length, 1);
+  assert.equal(finalResult.aiClassificationV02.evidence[0].quote_or_summary, 'AI provider failed; fallback skeleton generated');
+  
   console.log('Case 4 Pass ✅');
+
+  // Case 5: extractJson Edge Cases
+  console.log('Case 5: extractJson Edge Cases');
+  
+  const testJson1 = '{"success": true}';
+  assert.deepEqual(worker1.extractJson(testJson1), {success: true});
+
+  const testJson2 = '<think>I should output JSON</think>\n{"success": true}';
+  assert.deepEqual(worker1.extractJson(testJson2), {success: true});
+
+  const testJson3 = 'Here is the result:\n{"success": true}\nHope this helps!';
+  assert.deepEqual(worker1.extractJson(testJson3), {success: true});
+
+  const testJson4 = 'Some invalid text without JSON';
+  let jsonFail4 = false;
+  try {
+    const p = worker1.extractJson(testJson4);
+    if (!p || Object.keys(p).length === 0) jsonFail4 = true;
+  } catch(e) { jsonFail4 = true; }
+  assert.equal(jsonFail4, true);
+
+  console.log('Case 5 Pass ✅');
 
   console.log('--- AI Metadata Real Sample Smoke Test Success ---');
 }

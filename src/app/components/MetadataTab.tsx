@@ -226,7 +226,19 @@ export function MetadataTab({
             尚未执行 AI Metadata v0.2 识别
           </div>
         ) : (
-          <div className="space-y-3 text-xs bg-slate-50 p-3 rounded-lg border border-slate-200">
+          <div className={`space-y-3 text-xs p-3 rounded-lg border ${
+            material.metadata.aiClassificationDegraded ? 'bg-red-50/50 border-red-200' : 'bg-slate-50 border-slate-200'
+          }`}>
+            {material.metadata.aiClassificationDegraded && (
+              <div className="bg-red-100 text-red-700 p-2 rounded border border-red-200 flex items-start gap-1.5 mb-2">
+                <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                <div>
+                  <div className="font-bold">AI 元数据识别失败，当前为 skeleton 降级结果</div>
+                  <div className="text-[10px] mt-0.5">原因: {material.metadata.aiClassificationDegradedReason || '未提供具体原因'}</div>
+                  <div className="text-[10px] mt-0.5 font-semibold">（由于 AI 提供商输出异常，系统已自动拦截并生成骨架占位，需人工复核）</div>
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2 text-[11px]">
               <div className="text-slate-500">标准版本</div>
               <div className="text-slate-800 font-mono">{material.metadata.aiClassificationStandardVersion || 'v0.2'}</div>

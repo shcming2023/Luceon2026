@@ -54,29 +54,32 @@ export class BaseProvider {
    * @returns {object|null}
    */
   parseJsonRobust(text) {
-    const cleaned = this.filterThinking(text);
+    let cleaned = this.filterThinking(text);
     if (!cleaned) return null;
 
     // 1. 尝试直接解析
     try {
       return JSON.parse(cleaned);
-    } catch {
-      // 2. 尝试提取 ```json ... ``` 内容
-      const mdJsonMatch = cleaned.match(/```json\s*([\s\S]*?)\s*```/);
-      if (mdJsonMatch) {
-        try {
-          return JSON.parse(mdJsonMatch[1]);
-        } catch {}
-      }
+    } catch {}
 
-      // 3. 寻找第一个 { 和最后一个 }
-      const braceMatch = cleaned.match(/\{[\s\S]*\}/);
-      if (braceMatch) {
-        try {
-          return JSON.parse(braceMatch[0]);
-        } catch {}
-      }
+    // 2. 尝试提取 ```json ... ``` 或 ``` ... ``` 甚至只是不带标签的 code fence
+    const mdJsonMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (mdJsonMatch && mdJsonMatch[1]) {
+      try {
+        return JSON.parse(mdJsonMatch[1].trim());
+      } catch {}
     }
+
+    // 3. 寻找第一个 { 和最后一个 }
+    const startIndex = cleaned.indexOf('{');
+    const endIndex = cleaned.lastIndexOf('}');
+    if (startIndex !== -1 && endIndex !== -1 && endIndex >= startIndex) {
+      const jsonStr = cleaned.slice(startIndex, endIndex + 1);
+      try {
+        return JSON.parse(jsonStr);
+      } catch {}
+    }
+    
     return null;
   }
 }

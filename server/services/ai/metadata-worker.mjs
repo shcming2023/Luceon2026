@@ -386,7 +386,7 @@ export class AiMetadataWorker {
 
       let resultV02;
       if (jsonParseFailed) {
-        resultV02 = getDefaultV02Skeleton(sourceMeta, 'low', 'JSON解析失败');
+        resultV02 = getDefaultV02Skeleton(sourceMeta, 'low', 'AI Provider JSON 解析失败，已降级为 skeleton 结果');
       } else {
         resultV02 = validateAndNormalizeV02(parsedResult, sourceMeta);
       }
@@ -402,10 +402,16 @@ export class AiMetadataWorker {
       result.rawPreview = rawString.slice(0, 1000);
       result.aiClassificationStandardVersion = 'llm_text_classification_v0.2';
       result.aiClassificationAnalyzedAt = new Date().toISOString();
-      result.aiClassificationProvider = aiResponse.provider;
-      result.aiClassificationModel = aiResponse.model;
+      result.aiClassificationProvider = jsonParseFailed ? 'skeleton' : aiResponse.provider;
+      result.aiClassificationModel = jsonParseFailed ? 'skeleton' : aiResponse.model;
       result.aiClassificationInputHash = inputHash;
       result.aiClassificationV02 = resultV02;
+      
+      if (jsonParseFailed) {
+        result.aiClassificationDegraded = true;
+        result.aiClassificationDegradedReason = 'AI Provider JSON 解析失败，已降级为 skeleton 结果';
+        result.aiClassificationErrorSource = 'ollama-json-parse-failed';
+      }
 
       // 从 v0.2 标准获取置信度和 review 状态
       const confidence = resultV02.governance.confidence === 'high' ? 90 : resultV02.governance.confidence === 'medium' ? 60 : 30;
@@ -486,6 +492,9 @@ export class AiMetadataWorker {
     simulatedResult.aiClassificationModel = 'skeleton';
     simulatedResult.aiClassificationInputHash = '';
     simulatedResult.aiClassificationV02 = v02Skeleton;
+    simulatedResult.aiClassificationDegraded = true;
+    simulatedResult.aiClassificationDegradedReason = reason;
+    simulatedResult.aiClassificationErrorSource = 'ollama-json-parse-failed';
 
     await this.transition(job, {
       state: 'review-pending',
@@ -704,9 +713,10 @@ export class AiMetadataWorker {
     if (jsonBlockMatch && jsonBlockMatch[1]) {
       content = jsonBlockMatch[1].trim();
     } else {
-      const braceMatch = content.match(/(\{[\s\S]*\})/);
-      if (braceMatch && braceMatch[1]) {
-        content = braceMatch[1].trim();
+      const firstBrace = content.indexOf('{');
+      const lastBrace = content.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace >= firstBrace) {
+        content = content.slice(firstBrace, lastBrace + 1).trim();
       }
     }
 

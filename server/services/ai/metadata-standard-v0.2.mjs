@@ -9,6 +9,14 @@ export function getDefaultV02Skeleton(source = {}, confidence = 'low', humanRevi
     quote_or_summary: 'AI provider failed; fallback skeleton generated',
     supports: ['human_review_required']
   }] : [];
+  
+  const riskFlags = [];
+  if (isFallback) {
+    riskFlags.push('skeleton_fallback');
+    if (humanReviewReason.includes('json') || humanReviewReason.includes('parse')) {
+      riskFlags.push('ai_provider_json_parse_failed');
+    }
+  }
 
   return {
     source: {
@@ -43,11 +51,11 @@ export function getDefaultV02Skeleton(source = {}, confidence = 'low', humanRevi
     governance: {
       confidence: confidence,
       human_review_required: true,
-      human_review_reason: humanReviewReason,
+      human_review_reason: humanReviewReason !== undefined ? humanReviewReason : (isFallback ? 'AI Provider JSON 解析失败，已降级为 skeleton 结果' : ''),
       markdown_quality: 'partial',
       duplicate_candidate: false,
       retention_policy: 'keep_pending_review',
-      risk_flags: []
+      risk_flags: riskFlags
     },
     evidence: evidence,
     recommended_catalog_path: '',
@@ -111,9 +119,10 @@ export function generateV02Prompt() {
 **极其重要的指令：**
 1. 你的完整且唯一的输出必须是一个且仅一个有效的 JSON 对象！
 2. 绝对禁止在输出开头或结尾添加任何 Markdown 代码块标识（如 \`\`\`json 或 \`\`\`）。
-3. 绝对禁止输出任何解释性文字、开场白或结束语。
+3. 绝对禁止输出任何解释性文字、开场白或结束语（如"Here is the JSON"）。
 4. 绝对禁止输出 <think> 标签或包含思维链过程。如果系统要求思考，请不要将思考过程输出到结果中。
 5. 你返回的字符串必须能被系统直接执行 JSON.parse() 解析。
+6. 所有字段必须符合 v0.2 schema。
 
 JSON 结构必须符合以下 AI Metadata v0.2 标准：
 {
