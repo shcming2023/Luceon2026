@@ -1,15 +1,15 @@
 import { spawn } from 'child_process';
 import assert from 'assert';
 
-const PORT = 18088;
+const PORT = 18089;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 async function runTest() {
   console.log('--- Dependency Supervisor Smoke Test ---');
 
-  // Start the supervisor with mocked exec
+  // Start the supervisor with mocked exec and isolated port
   const supervisor = spawn('node', ['ops/luceon-dependency-supervisor.mjs'], {
-    env: { ...process.env, MOCK_EXEC: 'true' },
+    env: { ...process.env, MOCK_EXEC: 'true', SUPERVISOR_PORT: PORT.toString() },
     stdio: ['ignore', 'pipe', 'pipe']
   });
 

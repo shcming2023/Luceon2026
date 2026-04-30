@@ -752,6 +752,7 @@ app.get('/ops/mineru/active-task', async (req, res) => {
     const runningWithMineru = tasks.filter(t =>
       t.engine === 'local-mineru' &&
       t.state === 'running' &&
+      !t.metadata?.canceledAt &&
       t.metadata?.mineruTaskId &&
       ['mineru-processing', 'mineru-queued', 'result-fetching'].includes(t.stage)
     );
@@ -759,6 +760,7 @@ app.get('/ops/mineru/active-task', async (req, res) => {
     // 2. 漂移任务：state=pending 或 state=running+stage=upload 但有 mineruTaskId
     const driftTasks = tasks.filter(t =>
       t.engine === 'local-mineru' &&
+      !t.metadata?.canceledAt &&
       t.metadata?.mineruTaskId &&
       (
         t.state === 'pending' ||
@@ -770,6 +772,7 @@ app.get('/ops/mineru/active-task', async (req, res) => {
     const completedButNotIngested = tasks.filter(t =>
       t.engine === 'local-mineru' &&
       t.state !== 'canceled' &&
+      !t.metadata?.canceledAt &&
       t.metadata?.mineruTaskId &&
       t.metadata?.mineruStatus === 'completed' &&
       (!t.metadata?.parsedFilesCount || t.metadata.parsedFilesCount === 0)
@@ -779,6 +782,7 @@ app.get('/ops/mineru/active-task', async (req, res) => {
     const submitRetryableTasks = tasks.filter(t =>
       t.engine === 'local-mineru' &&
       t.state !== 'canceled' &&
+      !t.metadata?.canceledAt &&
       (t.stage === 'submit-failed-retryable' || t.message?.includes('可重试'))
     );
 
@@ -786,6 +790,7 @@ app.get('/ops/mineru/active-task', async (req, res) => {
     const takeoverRequiredTasks = tasks.filter(t => 
       t.engine === 'local-mineru' &&
       t.state !== 'canceled' &&
+      !t.metadata?.canceledAt &&
       (
         (t.state === 'failed' && t.metadata?.mineruTaskId && t.metadata?.mineruStatus === 'completed') ||
         (t.state === 'running' && t.stage === 'mineru-processing' && t.metadata?.mineruStatus === 'completed')
@@ -886,6 +891,7 @@ app.post('/ops/mineru-log-observation', async (req, res) => {
   const eligibleTasks = tasks.filter(t =>
     t.engine === 'local-mineru' &&
     t.state === 'running' &&
+    !t.metadata?.canceledAt &&
     ['mineru-processing', 'mineru-queued', 'result-fetching'].includes(t.stage)
   );
 

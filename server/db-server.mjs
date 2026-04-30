@@ -751,6 +751,16 @@ app.patch('/tasks/:id', (req, res) => {
     metadata: mergedMetadata,
     updatedAt: new Date().toISOString(),
   };
+
+  // --- 顶层状态收敛：只要有 canceledAt，必须最终收敛为 canceled ---
+  if (merged.metadata?.canceledAt) {
+    merged.state = 'canceled';
+    merged.stage = 'canceled';
+    if (!merged.message || !merged.message.includes('已取消')) {
+      merged.message = '用户已取消 / 测试终止';
+    }
+  }
+
   sanitizeDbPayload(merged);
   dbCache.parseTasks[id] = merged;
   writeDB();

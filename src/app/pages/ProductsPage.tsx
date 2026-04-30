@@ -416,14 +416,47 @@ export function ProductsPage() {
     executeDelete(Array.from(selectedIds), '批量删除');
   }, [executeDelete, selectedIds]);
 
-  const handleClearAllResiduals = useCallback(() => {
-    const allMaterialIds = state.materials.map(m => m.id);
-    if (allMaterialIds.length === 0) {
-      toast.info('当前没有需要清理的记录。');
-      return;
+  const handleClearAllResiduals = useCallback(async () => {
+    try {
+      const dryRes = await fetch('/__proxy/upload/ops/reset-test-env', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dryRun: true, force: false })
+      });
+      if (!dryRes.ok) throw new Error(`HTTP ${dryRes.status}`);
+      const { summary } = await dryRes.json();
+
+      const msg = `预演检查结果：
+- 待删 Materials：${summary.deletedMaterials}
+- 待删 Tasks：${summary.deletedTasks}
+- 待删 AI Jobs：${summary.deletedAiJobs}
+- 待删 Events：${summary.deletedTaskEvents}
+- 待删 Asset Details：${summary.deletedAssetDetails}
+- 待删 孤儿对象：${summary.deletedOrphanObjects}
+- 待删 原始对象：${summary.deletedMinioOriginals}
+- 待删 解析产物：${summary.deletedMinioParsed}
+
+确定要彻底清空测试环境吗？此操作不可撤销！`;
+      if (!window.confirm(msg)) return;
+
+      const execRes = await fetch('/__proxy/upload/ops/reset-test-env', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dryRun: false, force: true })
+      });
+      
+      if (!execRes.ok) {
+        const errorData = await execRes.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${execRes.status}`);
+      }
+      
+      dispatch({ type: 'SET_MATERIALS', payload: [] });
+      toast.success('测试环境已彻底清空。');
+      setSelectedIds(new Set());
+    } catch (err) {
+      toast.error('清空测试环境失败', { description: String(err) });
     }
-    executeDelete(allMaterialIds, '清理残留素材');
-  }, [executeDelete, state.materials]);
+  }, [dispatch]);
 
   // ────────────────────────────────────────────────────────
   return (

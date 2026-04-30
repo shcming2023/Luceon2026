@@ -8,7 +8,7 @@ const execPromise = process.env.MOCK_EXEC === 'true'
 const app = express();
 app.use(express.json());
 
-const PORT = 18088; // Supervisor port
+const PORT = process.env.SUPERVISOR_PORT || 18088; // Supervisor port
 
 const ALLOWED_ACTIONS = {
   'start-mineru': true,
