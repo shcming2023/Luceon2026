@@ -42,9 +42,12 @@ export class OpenAiCompatibleProvider extends BaseProvider {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: markdownContent }
       ],
-      temperature: this.temperature,
-      response_format: { type: 'json_object' } // 部分端点支持强校验
+      temperature: options.temperature ?? this.temperature,
     };
+
+    if (options.expectJson !== false) {
+      body.response_format = { type: 'json_object' }; // 部分端点支持强校验
+    }
 
     const startTime = Date.now();
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
@@ -65,10 +68,14 @@ export class OpenAiCompatibleProvider extends BaseProvider {
     const data = await response.json();
     const rawContent = data.choices?.[0]?.message?.content || '';
     const duration = Date.now() - startTime;
-
-    const result = this.parseJsonRobust(rawContent);
-    if (!result) {
-      throw new Error('Failed to parse JSON from OpenAI-compatible response');
+    let result;
+    if (options.expectJson === false) {
+      result = rawContent;
+    } else {
+      result = this.parseJsonRobust(rawContent);
+      if (!result) {
+        throw new Error('Failed to parse JSON from OpenAI-compatible response');
+      }
     }
 
     return {

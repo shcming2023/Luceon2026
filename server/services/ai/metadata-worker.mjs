@@ -17,7 +17,7 @@ import { getSettings } from '../settings/settings-client.mjs';
 import { OllamaProvider } from './providers/ollama.mjs';
 import { OpenAiCompatibleProvider } from './providers/openai-compatible.mjs';
 import { sampleMarkdown } from './metadata-sampler.mjs';
-import { getDefaultV02Skeleton, validateAndNormalizeV02, generateV02Prompt } from './metadata-standard-v0.2.mjs';
+import { getDefaultV02Skeleton, validateAndNormalizeV02, generateV02Prompt, generateV02DraftPrompt, generateV02RepairPrompt } from './metadata-standard-v0.2.mjs';
 
 const POLL_INTERVAL_MS = 10000;
 
@@ -332,9 +332,23 @@ export class AiMetadataWorker {
         }
       }
 
+      const twoPassEnabled = (aiSettings.ollamaTwoPassJsonRepair !== false) && (providerId === 'ollama' || (provider && provider.id === 'ollama'));
+      
       let aiResponse;
+      let twoPassAttempted = false;
+      let repairSucceeded = false;
+      let repairFailedReason = '';
+
       try {
-        aiResponse = await this.executeWithFallback(provider, markdownContent, aiSettings);
+        if (twoPassEnabled) {
+          aiResponse = await this.executeWithFallback(provider, markdownContent, {
+            ...aiSettings,
+            systemPrompt: generateV02DraftPrompt(),
+            expectJson: false
+          });
+        } else {
+          aiResponse = await this.executeWithFallback(provider, markdownContent, aiSettings);
+        }
         
         await logTaskEvent({
           taskId: job.parseTaskId,
@@ -380,13 +394,52 @@ export class AiMetadataWorker {
       try {
         parsedResult = this.extractJson(aiResponse.result);
       } catch (err) {
-        console.warn(`[ai-worker] JSON extraction failed for job ${job.id}: ${err.message}. Content preview: ${String(aiResponse.result).slice(0, 100)}`);
         jsonParseFailed = true;
+      }
+
+      // === Two-Pass Repair Logic ===
+      if (jsonParseFailed && twoPassEnabled) {
+        twoPassAttempted = true;
+        try {
+          console.log(`[ai-worker] First pass JSON extraction failed, attempting repair for job ${job.id}...`);
+          const repairPrompt = generateV02RepairPrompt(aiResponse.result);
+          const repairResponse = await this.executeWithFallback(provider, "Please format the above draft into the exact strict JSON schema required.", {
+            ...aiSettings,
+            systemPrompt: repairPrompt,
+            temperature: 0.1
+          });
+          
+          parsedResult = this.extractJson(repairResponse.result);
+          jsonParseFailed = false;
+          repairSucceeded = true;
+          // Update aiResponse for further downstream processing (provider/model tracking)
+          aiResponse = repairResponse;
+          
+          await logTaskEvent({
+            taskId: job.parseTaskId,
+            event: 'ai-provider-repair-succeeded',
+            level: 'info',
+            message: `AI Provider (${providerId}) JSON Repair 成功`,
+            payload: { usage: aiResponse.usage }
+          });
+        } catch (repairErr) {
+          jsonParseFailed = true;
+          repairSucceeded = false;
+          repairFailedReason = repairErr.message;
+          console.warn(`[ai-worker] Two-pass JSON repair failed for job ${job.id}: ${repairErr.message}`);
+          await logTaskEvent({
+            taskId: job.parseTaskId,
+            event: 'ai-provider-repair-failed',
+            level: 'warn',
+            message: `AI Provider (${providerId}) JSON Repair 失败: ${repairErr.message}`
+          });
+        }
       }
 
       let resultV02;
       if (jsonParseFailed) {
-        resultV02 = getDefaultV02Skeleton(sourceMeta, 'low', 'AI Provider JSON 解析失败，已降级为 skeleton 结果');
+        const skeletonReason = twoPassAttempted ? 'AI Provider 二段式 JSON 修复失败，已降级为 skeleton 结果' : 'AI Provider JSON 解析失败，已降级为 skeleton 结果';
+        resultV02 = getDefaultV02Skeleton(sourceMeta, 'low', skeletonReason);
       } else {
         resultV02 = validateAndNormalizeV02(parsedResult, sourceMeta);
       }
@@ -407,10 +460,18 @@ export class AiMetadataWorker {
       result.aiClassificationInputHash = inputHash;
       result.aiClassificationV02 = resultV02;
       
+      if (twoPassAttempted) {
+        result.aiClassificationTwoPassAttempted = true;
+        result.aiClassificationRepairSucceeded = repairSucceeded;
+        if (!repairSucceeded) {
+          result.aiClassificationRepairFailedReason = repairFailedReason || 'Parse or validate failed';
+        }
+      }
+
       if (jsonParseFailed) {
         result.aiClassificationDegraded = true;
-        result.aiClassificationDegradedReason = 'AI Provider JSON 解析失败，已降级为 skeleton 结果';
-        result.aiClassificationErrorSource = 'ollama-json-parse-failed';
+        result.aiClassificationDegradedReason = twoPassAttempted ? 'AI Provider 二段式 JSON 修复失败，降级为 skeleton 结果' : 'AI Provider JSON 解析失败，已降级为 skeleton 结果';
+        result.aiClassificationErrorSource = twoPassAttempted ? 'ollama-json-repair-failed' : 'ollama-json-parse-failed';
       }
 
       // 从 v0.2 标准获取置信度和 review 状态

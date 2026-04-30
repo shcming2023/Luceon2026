@@ -39,13 +39,17 @@ export class OllamaProvider extends BaseProvider {
         { role: 'user', content: markdownContent }
       ],
       stream: false,
-      format: 'json', // 强制 Ollama 输出 JSON
       think: false,   // 禁用思考模式（Qwen3.5 在 Ollama 0.20.7+ 默认启用思考，导致 response 为空）
       options: {
-        temperature: this.temperature,
-        num_predict: options.num_predict || 512 // 限制输出长度，防止无限生成
+        temperature: options.temperature ?? this.temperature,
+        top_p: options.top_p,
+        num_predict: options.num_predict || 1024 // 增加到 1024 应对 draft
       }
     };
+
+    if (options.expectJson !== false) {
+      body.format = 'json'; // 强制 Ollama 输出 JSON
+    }
 
     const startTime = Date.now();
     try {
@@ -65,9 +69,14 @@ export class OllamaProvider extends BaseProvider {
       const rawContent = data.message?.content || '';
       const duration = Date.now() - startTime;
 
-      const result = this.parseJsonRobust(rawContent);
-      if (!result) {
-        throw new Error(`Failed to parse JSON from Ollama response, model: ${this.model}`);
+      let result;
+      if (options.expectJson === false) {
+        result = rawContent;
+      } else {
+        result = this.parseJsonRobust(rawContent);
+        if (!result) {
+          throw new Error(`Failed to parse JSON from Ollama response, model: ${this.model}`);
+        }
       }
 
       return {

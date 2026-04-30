@@ -7,7 +7,7 @@ async function runTests() {
 
   // Mocks
   const mockMinio = {
-    getFileStream: async () => ({ [Symbol.asyncIterator]: async function* () {} })
+    getFileStream: async () => ({ [Symbol.asyncIterator]: async function* () { yield Buffer.from('# mock content'); } })
   };
 
   const createMockProvider = (mockResult, simulateFail = false, contentWrapper = false) => {
@@ -35,6 +35,7 @@ async function runTests() {
   global.getTaskById = async () => ({});
   global.updateJob = async () => true;
   global.logTaskEvent = async () => {};
+  global.getSettings = async () => ({ aiConfig: { providers: [{ id: 'ollama', enabled: true }], ollamaTwoPassJsonRepair: true } });
 
   // Case 1: Cambridge IGCSE Coursebook
   console.log('Case 1: Cambridge IGCSE Coursebook');
@@ -175,6 +176,61 @@ async function runTests() {
   assert.equal(jsonFail4, true);
 
   console.log('Case 5 Pass ✅');
+
+  // Case 6: Two-Pass repair success test
+  console.log('Case 6: Two-Pass Repair Success');
+  const originalExecute = worker1.executeWithFallback;
+  let callCount = 0;
+  worker1.executeWithFallback = async (provider, markdown, settings) => {
+    callCount++;
+    if (callCount === 1) {
+      return { provider: 'ollama', model: 'qwen3.5', result: 'Draft with some text...', usage: {} };
+    } else {
+      return { provider: 'ollama', model: 'qwen3.5', result: '{"primary_facets": {"subject": {"zh": "数学"}}, "governance": {"confidence": "high"}}', usage: {} };
+    }
+  };
+
+  const originalTransition = worker1.transition;
+  let finalResultObj = null;
+  worker1.transition = async (job, update, event, level, payload) => {
+    if (update.state === 'review-pending' || update.state === 'confirmed') {
+      finalResultObj = update.result;
+    }
+  };
+
+  await worker1.processJob({ id: 'test-job', parseTaskId: 'test-task', materialId: 'm1', inputMarkdownObjectName: 'test.md' });
+  
+  assert.equal(finalResultObj.aiClassificationTwoPassAttempted, true);
+  assert.equal(finalResultObj.aiClassificationRepairSucceeded, true);
+  assert.equal(finalResultObj.aiClassificationDegraded, undefined);
+  assert.equal(finalResultObj.aiClassificationV02.primary_facets.subject.zh, '数学');
+  
+  console.log('Case 6 Pass ✅');
+  
+  // Case 7: Two-Pass repair failed test
+  console.log('Case 7: Two-Pass Repair Failed');
+  callCount = 0;
+  worker1.executeWithFallback = async (provider, markdown, settings) => {
+    callCount++;
+    if (callCount === 1) {
+      return { provider: 'ollama', model: 'qwen3.5', result: 'Draft with some text...', usage: {} };
+    } else {
+      return { provider: 'ollama', model: 'qwen3.5', result: 'Still invalid!', usage: {} };
+    }
+  };
+  
+  await worker1.processJob({ id: 'test-job-2', parseTaskId: 'test-task-2', materialId: 'm2', inputMarkdownObjectName: 'test.md' });
+  
+  assert.equal(finalResultObj.aiClassificationTwoPassAttempted, true);
+  assert.equal(finalResultObj.aiClassificationRepairSucceeded, false);
+  assert.equal(finalResultObj.aiClassificationDegraded, true);
+  assert.equal(finalResultObj.aiClassificationErrorSource, 'ollama-json-repair-failed');
+  assert.equal(finalResultObj.aiClassificationV02.governance.risk_flags.includes('ai_provider_json_repair_failed'), true);
+  
+  console.log('Case 7 Pass ✅');
+
+  worker1.executeWithFallback = originalExecute;
+  worker1.transition = originalTransition;
 
   console.log('--- AI Metadata Real Sample Smoke Test Success ---');
 }
