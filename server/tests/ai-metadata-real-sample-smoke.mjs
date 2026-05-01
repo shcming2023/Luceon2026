@@ -35,6 +35,22 @@ async function runTests() {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, options) => {
     if (url && typeof url === 'string') {
+      if (url.includes('/tasks/test-task-16')) {
+        return { ok: true, json: async () => ({
+          id: 'test-task-16',
+          state: 'completed',
+          metadata: {
+            originalFilename: "出国.pdf",
+            originalFileSize: 33493,
+            objectName: "originals/mat-x/source.pdf",
+            parsedPrefix: "parsed/mat-x/",
+            markdownObjectName: "parsed/mat-x/full.md",
+            parsedFilesCount: 8,
+            mimeType: "application/pdf",
+            mineruExecutionProfile: { backendEffective: "pipeline" }
+          }
+        }) };
+      }
       if (url.includes('/tasks/')) {
         return { ok: true, json: async () => ({ 
           id: 'test-task',
@@ -55,7 +71,23 @@ async function runTests() {
     return { ok: true, json: async () => ({}) };
   };
 
-  global.getTaskById = async () => ({});
+  global.getTaskById = async (id) => {
+    if (id === 'test-task-16') {
+      return {
+        metadata: {
+          originalFilename: "出国.pdf",
+          originalFileSize: 33493,
+          objectName: "originals/mat-x/source.pdf",
+          parsedPrefix: "parsed/mat-x/",
+          markdownObjectName: "parsed/mat-x/full.md",
+          parsedFilesCount: 8,
+          mimeType: "application/pdf",
+          mineruExecutionProfile: { backendEffective: "pipeline" }
+        }
+      };
+    }
+    return {};
+  };
   global.updateJob = async () => true;
   global.logTaskEvent = async () => {};
   global.getSettings = async () => ({ aiConfig: { providers: [{ id: 'ollama', enabled: true }], ollamaTwoPassJsonRepair: true } });
@@ -457,6 +489,19 @@ async function runTests() {
   assert.equal(finalResultObj.aiClassificationDegraded, true);
   assert.equal(finalResultObj.aiClassificationErrorSource, 'ai-metadata-schema-invalid');
   console.log('Case 15 Pass ✅');
+
+  // Case 16: LLM output source must not override system source
+  console.log('Case 16: LLM output source must not override system source');
+  worker1.executeWithFallback = async (provider, markdown, settings, prompt) => {
+    return { provider: 'ollama', model: 'qwen3.5', result: '{"source": {"raw_object_name": "模型乱写", "markdown_object_name": "模型乱写"}, "primary_facets": {"domain": {"zh": "travel"}, "subject": {"zh": "personal_items"}, "resource_type": {"zh": "list"}}, "evidence": ["出国", "护照签证"], "governance": {"confidence": "high"}}', usage: {} };
+  };
+  await worker1.processJob({ id: 'test-job-16', parseTaskId: 'test-task-16', materialId: 'mat-x', inputMarkdownObjectName: 'test.md' });
+  
+  assert.equal(finalResultObj.aiClassificationV02.source.raw_object_name, 'originals/mat-x/source.pdf');
+  assert.equal(finalResultObj.aiClassificationV02.source.markdown_object_name, 'parsed/mat-x/full.md');
+  assert.equal(finalResultObj.aiClassificationV02.source.file_name, '出国.pdf');
+  assert.equal(finalResultObj.aiClassificationV02.source.llm_source_hint.raw_object_name, '模型乱写');
+  console.log('Case 16 Pass ✅');
 
   worker1.executeWithFallback = originalExecute;
   worker1.transition = originalTransition;

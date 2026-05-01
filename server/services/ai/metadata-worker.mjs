@@ -226,15 +226,31 @@ export class AiMetadataWorker {
     });
 
     const persistMeta = await this._persistRawOutputSafe(job, options.phaseName, response.rawResponse);
+    const traceDetails = this._buildErrorDetails(response, options.expectJson, persistMeta);
 
     if (response.parseFailed) {
       const err = new Error(response.parseError);
-      err.details = this._buildErrorDetails(response, options.expectJson, persistMeta);
+      err.details = traceDetails;
       throw err;
     }
 
     response.persistMeta = persistMeta;
+    response.traceDetails = traceDetails;
     return response;
+  }
+
+  _extractTrace(details) {
+    if (!details) return undefined;
+    return {
+      objectName: details.rawObjectName,
+      contentHash: details.rawContentHash,
+      contentLength: details.rawContentLength,
+      contentHead: details.rawContentHead,
+      contentTail: details.rawContentTail,
+      containsThinkTag: details.rawContainsThinkTag,
+      looksTruncated: details.rawLooksTruncated,
+      parseErrorMessage: details.parseErrorMessage !== 'Parse error' ? details.parseErrorMessage : undefined
+    };
   }
 
   /**
@@ -396,6 +412,7 @@ export class AiMetadataWorker {
       let repairSucceeded = false;
       let repairFailedReason = '';
       let repairProviderDetails = null;
+      const rawTrace = {};
 
       try {
         if (twoPassEnabled) {
@@ -414,6 +431,7 @@ export class AiMetadataWorker {
           });
         }
         
+        rawTrace.firstPass = this._extractTrace(aiResponse.traceDetails);
         await logTaskEvent({
           taskId: job.parseTaskId,
           event: 'ai-provider-request-succeeded',
@@ -426,6 +444,9 @@ export class AiMetadataWorker {
           }
         });
       } catch (err) {
+        if (err.details) {
+          rawTrace.firstPass = this._extractTrace(err.details);
+        }
         const durationMs = Date.now() - startTime;
         console.error(`[ai-worker] Job ${job.id} failed after attempts: ${err.message}`);
         
@@ -448,7 +469,16 @@ export class AiMetadataWorker {
         });
 
         // 如果所有 provider 都失败，尝试降级到模拟
-        return await this.degradeToSkeleton(job, `AI Provider 调用全部失败: ${err.message}，自动降级为模拟结果完成链路`);
+        const skeletonReason = `AI Provider 调用全部失败: ${err.message}，自动降级为模拟结果完成链路`;
+        const degradedResult = await this.degradeToSkeleton(job, skeletonReason);
+        if (degradedResult && degradedResult.result) {
+            degradedResult.result.aiClassificationRawTrace = rawTrace;
+            if (rawTrace.firstPass?.objectName) {
+                degradedResult.result.aiClassificationRawObjectName = rawTrace.firstPass.objectName;
+                degradedResult.result.aiClassificationRawContentHash = rawTrace.firstPass.contentHash;
+            }
+        }
+        return degradedResult;
       }
 
       // 6. 结果后处理与归一化 (TASK-24 + V0.2)
@@ -513,8 +543,8 @@ export class AiMetadataWorker {
           jsonParseFailed = false;
           schemaInvalid = false;
           repairSucceeded = true;
-          // Update aiResponse for further downstream processing (provider/model tracking)
           aiResponse = repairResponse;
+          rawTrace.repairPass = this._extractTrace(repairResponse.traceDetails);
           
           await logTaskEvent({
             taskId: job.parseTaskId,
@@ -529,6 +559,7 @@ export class AiMetadataWorker {
           repairFailedReason = repairErr.message;
           if (repairErr.details) {
             repairProviderDetails = repairErr.details;
+            rawTrace.repairPass = this._extractTrace(repairProviderDetails);
           }
 
           if (repairProviderDetails?.rawLooksTruncated === true) {
@@ -572,6 +603,7 @@ export class AiMetadataWorker {
               repairSucceeded = true;
               repairRetrySucceeded = true;
               aiResponse = retryResponse;
+              rawTrace.repairRetryPass = this._extractTrace(retryResponse.traceDetails);
               repairProviderDetails = null; // clear on success
 
               await logTaskEvent({
@@ -585,6 +617,7 @@ export class AiMetadataWorker {
               repairFailedReason = retryErr.message;
               if (retryErr.details) {
                 repairProviderDetails = retryErr.details;
+                rawTrace.repairRetryPass = this._extractTrace(repairProviderDetails);
               }
               await logTaskEvent({
                 taskId: job.parseTaskId,
@@ -663,9 +696,21 @@ export class AiMetadataWorker {
       result.aiClassificationInputHash = inputHash;
       result.aiClassificationV02 = resultV02;
       
-      if (aiResponse.persistMeta) {
-        result.aiClassificationRawObjectName = aiResponse.persistMeta.rawObjectName;
-        result.aiClassificationRawContentHash = aiResponse.persistMeta.rawContentHash;
+      result.aiClassificationRawTrace = rawTrace;
+      
+      // 兼容旧字段
+      if (rawTrace.firstPass) {
+        result.aiClassificationRawObjectName = rawTrace.firstPass.objectName;
+        result.aiClassificationRawContentHash = rawTrace.firstPass.contentHash;
+      }
+      if (rawTrace.repairPass) {
+        result.aiClassificationRepairRawObjectName = rawTrace.repairPass.objectName;
+      }
+      if (rawTrace.repairRetryPass) {
+        result.aiClassificationRepairRetryRawObjectName = rawTrace.repairRetryPass.objectName;
+      }
+      
+      if (aiResponse.persistMeta && aiResponse.persistMeta.rawPersistFailedReason) {
         result.aiClassificationRawPersistFailedReason = aiResponse.persistMeta.rawPersistFailedReason;
       }
       

@@ -98,9 +98,12 @@ export function getDefaultV02Skeleton(source = {}, confidence = 'low', humanRevi
       material_id: source.materialId || '',
       file_name: source.filename || '',
       file_size: source.fileSize || 0,
+      mime_type: source.mimeType || '',
       raw_object_name: source.rawObjectName || '',
       parsed_prefix: source.parsedPrefix || '',
-      markdown_object_name: source.markdownObjectName || ''
+      markdown_object_name: source.markdownObjectName || '',
+      parsed_files_count: source.parsedFilesCount || 0,
+      mineru_execution_profile: source.mineruExecutionProfile || {}
     },
     primary_facets: {
       domain: { zh: '', en: '' },
@@ -155,8 +158,12 @@ export function validateAndNormalizeV02(rawResult, source) {
     return getDefaultV02Skeleton(source, 'low', 'fields_missing');
   }
 
+  const systemSource = getDefaultV02Skeleton(source).source;
   const result = {
-    source: { ...getDefaultV02Skeleton(source).source, ...(rawResult.source || {}) },
+    source: { 
+      ...systemSource,
+      llm_source_hint: rawResult.source || undefined
+    },
     primary_facets: { ...getDefaultV02Skeleton(source).primary_facets, ...(rawResult.primary_facets || {}) },
     descriptive_metadata: { ...getDefaultV02Skeleton(source).descriptive_metadata, ...(rawResult.descriptive_metadata || {}) },
     search_tags: { ...getDefaultV02Skeleton(source).search_tags, ...(rawResult.search_tags || {}) },

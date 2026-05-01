@@ -274,6 +274,16 @@ export function MetadataTab({
             </div>
 
             <div className="pt-2 border-t border-slate-200">
+              <h4 className="font-semibold text-slate-600 mb-1.5">Source</h4>
+              <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
+                <dt className="text-slate-400">File Name</dt><dd className="text-slate-700 truncate" title={material.metadata.aiClassificationV02.source?.file_name}>{material.metadata.aiClassificationV02.source?.file_name || '—'}</dd>
+                <dt className="text-slate-400">Raw Object</dt><dd className="text-slate-700 truncate font-mono" title={material.metadata.aiClassificationV02.source?.raw_object_name}>{material.metadata.aiClassificationV02.source?.raw_object_name || '—'}</dd>
+                <dt className="text-slate-400">Parsed Prefix</dt><dd className="text-slate-700 truncate font-mono" title={material.metadata.aiClassificationV02.source?.parsed_prefix}>{material.metadata.aiClassificationV02.source?.parsed_prefix || '—'}</dd>
+                <dt className="text-slate-400">MD Object</dt><dd className="text-slate-700 truncate font-mono" title={material.metadata.aiClassificationV02.source?.markdown_object_name}>{material.metadata.aiClassificationV02.source?.markdown_object_name || '—'}</dd>
+              </dl>
+            </div>
+
+            <div className="pt-2 border-t border-slate-200">
               <h4 className="font-semibold text-slate-600 mb-1.5">Primary Facets</h4>
               <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
                 <dt className="text-slate-400">Domain</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.primary_facets?.domain?.zh || '—'}</dd>
@@ -351,44 +361,60 @@ export function MetadataTab({
               </div>
             )}
 
-            {material.metadata.aiClassificationRawObjectName && (
+            {(material.metadata.aiClassificationRawTrace || material.metadata.aiClassificationRawObjectName) && (
               <div className="pt-2 border-t border-slate-200">
                 <h4 className="font-semibold text-slate-600 mb-1.5 flex items-center gap-1">
                   <Database size={10} className="text-slate-400" /> 原始输出留痕
                 </h4>
-                <div className="bg-slate-50 p-2 rounded border border-slate-200 text-[10px] space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">阶段</span>
-                    <span className="font-mono text-slate-700">{material.metadata.aiClassificationRawObjectName.split('/').pop()?.replace('.txt', '')}</span>
-                  </div>
-                  {material.metadata.aiClassificationRepairProviderDetails?.rawContentLength && (
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">长度</span>
-                      <span className="text-slate-700">{material.metadata.aiClassificationRepairProviderDetails.rawContentLength} 字符</span>
+                <div className="space-y-2">
+                  {[
+                    { phase: 'First Pass', trace: material.metadata.aiClassificationRawTrace?.firstPass || { objectName: material.metadata.aiClassificationRawObjectName, contentHash: material.metadata.aiClassificationRawContentHash } },
+                    { phase: 'Repair Pass', trace: material.metadata.aiClassificationRawTrace?.repairPass || (material.metadata.aiClassificationRepairRawObjectName ? { objectName: material.metadata.aiClassificationRepairRawObjectName } : null) },
+                    { phase: 'Repair Retry', trace: material.metadata.aiClassificationRawTrace?.repairRetryPass || (material.metadata.aiClassificationRepairRetryRawObjectName ? { objectName: material.metadata.aiClassificationRepairRetryRawObjectName } : null) }
+                  ].filter(p => p.trace && p.trace.objectName).map((p, idx) => (
+                    <div key={idx} className="bg-slate-50 p-2 rounded border border-slate-200 text-[10px] space-y-1">
+                      <div className="flex justify-between">
+                        <span className="font-semibold text-slate-600">{p.phase}</span>
+                        <span className="font-mono text-slate-700">{p.trace.objectName.split('/').pop()?.replace('.txt', '')}</span>
+                      </div>
+                      {p.trace.contentLength && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">长度</span>
+                          <span className="text-slate-700">{p.trace.contentLength} 字符</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Hash (前12位)</span>
+                        <span className="font-mono text-slate-700">{p.trace.contentHash?.slice(0, 12) || '—'}</span>
+                      </div>
+                      {p.trace.containsThinkTag !== undefined && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">含 Think 标签</span>
+                          <span className={p.trace.containsThinkTag ? "text-amber-600 font-semibold" : "text-slate-700"}>
+                            {p.trace.containsThinkTag ? '是' : '否'}
+                          </span>
+                        </div>
+                      )}
+                      {p.trace.looksTruncated !== undefined && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">疑似截断</span>
+                          <span className={p.trace.looksTruncated ? "text-red-600 font-semibold" : "text-slate-700"}>
+                            {p.trace.looksTruncated ? '是' : '否'}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex flex-col gap-0.5 pt-1 mt-1 border-t border-slate-100">
+                        <span className="text-slate-500">存储路径</span>
+                        <span className="font-mono text-[9px] text-slate-600 break-all">{p.trace.objectName}</span>
+                      </div>
+                      {p.trace.parseErrorMessage && (
+                        <div className="flex flex-col gap-0.5 pt-1 mt-1 border-t border-slate-100">
+                          <span className="text-slate-500">解析异常摘要</span>
+                          <span className="font-mono text-[9px] text-red-600">{p.trace.parseErrorMessage}</span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Hash (前12位)</span>
-                    <span className="font-mono text-slate-700">{material.metadata.aiClassificationRawContentHash?.slice(0, 12) || '—'}</span>
-                  </div>
-                  {material.metadata.aiClassificationRepairProviderDetails?.rawContainsThinkTag !== undefined && (
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">含 Think 标签</span>
-                      <span className={material.metadata.aiClassificationRepairProviderDetails.rawContainsThinkTag ? "text-amber-600 font-semibold" : "text-slate-700"}>
-                        {material.metadata.aiClassificationRepairProviderDetails.rawContainsThinkTag ? '是' : '否'}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex flex-col gap-0.5 pt-1 mt-1 border-t border-slate-100">
-                    <span className="text-slate-500">存储路径</span>
-                    <span className="font-mono text-[9px] text-slate-600 break-all">{material.metadata.aiClassificationRawObjectName}</span>
-                  </div>
-                  {material.metadata.aiClassificationRepairProviderDetails?.parseErrorMessage && (
-                    <div className="flex flex-col gap-0.5 pt-1 mt-1 border-t border-slate-100">
-                      <span className="text-slate-500">解析异常摘要</span>
-                      <span className="font-mono text-[9px] text-red-600">{material.metadata.aiClassificationRepairProviderDetails.parseErrorMessage}</span>
-                    </div>
-                  )}
+                  ))}
                 </div>
               </div>
             )}
