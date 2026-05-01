@@ -315,6 +315,29 @@ export function MetadataTab({
               </dl>
             </div>
 
+            {material.metadata.aiClassificationV02.system_tags && (
+              <div className="pt-2 border-t border-slate-200">
+                <h4 className="font-semibold text-slate-600 mb-1.5">System Tags</h4>
+                <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
+                  <dt className="text-slate-400">Format</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.system_tags.format_tags?.map((t: any) => t.zh || t.en || t).join(', ') || '—'}</dd>
+                  <dt className="text-slate-400">Artifact</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.system_tags.artifact_tags?.map((t: any) => t.zh || t.en || t).join(', ') || '—'}</dd>
+                  <dt className="text-slate-400">Engine</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.system_tags.engine_tags?.map((t: any) => t.zh || t.en || t).join(', ') || '—'}</dd>
+                </dl>
+              </div>
+            )}
+
+            {material.metadata.aiClassificationV02.governance_signals && (
+              <div className="pt-2 border-t border-slate-200">
+                <h4 className="font-semibold text-slate-600 mb-1.5">Governance Signals</h4>
+                <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
+                  <dt className="text-slate-400">Quality</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.governance_signals.quality?.join(', ') || '—'}</dd>
+                  <dt className="text-slate-400">Relationship</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.governance_signals.relationship?.join(', ') || '—'}</dd>
+                  <dt className="text-slate-400">Retention</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.governance_signals.retention?.join(', ') || '—'}</dd>
+                  <dt className="text-slate-400">Risk</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.governance_signals.risk?.join(', ') || '—'}</dd>
+                </dl>
+              </div>
+            )}
+
             {material.metadata.aiClassificationV02.recommended_catalog_path && (
               <div className="pt-2 border-t border-slate-200">
                 <h4 className="font-semibold text-slate-600 mb-1">Recommended Path</h4>

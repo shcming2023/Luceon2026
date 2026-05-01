@@ -41,25 +41,28 @@ async function run() {
 
   // 1.3 Valid high confidence
   const validHigh = validateAndNormalizeV02({
-    primary_facets: { subject: { zh: '数学' } },
-    governance: { confidence: 'high', human_review_required: false }
+    primary_facets: { domain: { zh: '基础教育' }, subject: { zh: '数学' }, resource_type: { zh: '教案' } },
+    governance: { confidence: 'high', human_review_required: false },
+    evidence: ['test']
   }, source);
   assertEq('Valid high keeps high confidence', validHigh.governance.confidence, 'high');
   assertTrue('Valid high does not require review', validHigh.governance.human_review_required === false);
 
   // 1.4 Valid low confidence forces review
   const validLow = validateAndNormalizeV02({
-    primary_facets: { subject: { zh: '数学' } },
-    governance: { confidence: 'low', human_review_required: false, human_review_reason: '' }
+    primary_facets: { domain: { zh: '基础教育' }, subject: { zh: '数学' }, resource_type: { zh: '教案' } },
+    governance: { confidence: 'low', human_review_required: false, human_review_reason: '' },
+    evidence: ['test']
   }, source);
   assertTrue('Low confidence forces review', validLow.governance.human_review_required === true);
   assertTrue('Low confidence adds reason', validLow.governance.human_review_reason.length > 0);
 
   // 1.5 Proposed tags forces review
   const newTags = validateAndNormalizeV02({
-    primary_facets: { subject: { zh: '数学' } },
+    primary_facets: { domain: { zh: '基础教育' }, subject: { zh: '数学' }, resource_type: { zh: '教案' } },
     search_tags: { proposed_new_tags: ['new_tag'] },
-    governance: { confidence: 'high', human_review_required: false }
+    governance: { confidence: 'high', human_review_required: false },
+    evidence: ['test']
   }, source);
   assertTrue('Proposed tags force review', newTags.governance.human_review_required === true);
   assertTrue('Proposed tags add reason', newTags.governance.human_review_reason.includes('tags'));
@@ -72,6 +75,35 @@ async function run() {
   const englishReasonSkeleton = getDefaultV02Skeleton(source, 'low', 'json_parse_failed');
   assertTrue('English JSON reason adds skeleton_fallback flag', englishReasonSkeleton.governance.risk_flags.includes('skeleton_fallback'));
   assertTrue('English JSON reason adds ai_provider_json_parse_failed flag', englishReasonSkeleton.governance.risk_flags.includes('ai_provider_json_parse_failed'));
+
+  // 1.7 Evidence normalization
+  const normalizedEv = validateAndNormalizeV02({
+    primary_facets: { domain: { zh: '1' }, subject: { zh: '1' }, resource_type: { zh: '1' } },
+    evidence: ['just a string', { type: 'body', quote_or_summary: 'quote', supports: ['x'] }, { invalid: 'object' }]
+  }, source);
+  assertTrue('Evidence normalized', Array.isArray(normalizedEv.evidence) && normalizedEv.evidence.length === 2);
+  assertEq('String evidence type is unknown', normalizedEv.evidence[0].type, 'unknown');
+  assertEq('Object evidence type preserved', normalizedEv.evidence[1].type, 'body');
+
+  // 1.8 Missing facets
+  const missingDomain = validateAndNormalizeV02({
+    primary_facets: { subject: { zh: '数学' }, resource_type: { zh: '试卷' } },
+    evidence: ['x']
+  }, source);
+  assertEq('Missing domain sets low confidence', missingDomain.governance.confidence, 'low');
+  assertTrue('Missing domain forces review', missingDomain.governance.human_review_required === true);
+  assertTrue('Missing domain adds risk flag', missingDomain.governance.risk_flags.includes('domain_missing'));
+
+  // 1.9 System tags & governance signals
+  const resultSysTags = validateAndNormalizeV02({
+    primary_facets: { domain: { zh: '1' }, subject: { zh: '1' }, resource_type: { zh: '1' } },
+    evidence: ['a'],
+    governance: { confidence: 'high' }
+  }, { ...source, parsedFilesCount: 0, mineruExecutionProfile: { enableOcr: true, backendEffective: 'pipeline' } });
+  
+  assertTrue('System tags format generated', resultSysTags.system_tags.format_tags.some(t => t.en === 'ocr_enabled'));
+  assertTrue('System tags engine generated', resultSysTags.system_tags.engine_tags.some(t => t.en === 'pipeline'));
+  assertTrue('Governance signals quality generated', resultSysTags.governance_signals.quality.includes('no_parsed_artifacts'));
 
   // 2. Test sampleMarkdown
   const longMarkdown = 'A'.repeat(100000);

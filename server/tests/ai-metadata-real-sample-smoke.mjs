@@ -32,6 +32,29 @@ async function runTests() {
     };
   };
 
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    if (url && typeof url === 'string') {
+      if (url.includes('/tasks/')) {
+        return { ok: true, json: async () => ({ 
+          id: 'test-task',
+          state: 'completed',
+          metadata: { 
+            originalFilename: 'test.pdf', 
+            mineruExecutionProfile: { enableOcr: true, backendEffective: 'pipeline' } 
+          }
+        }) };
+      }
+      if (url.includes('/settings')) {
+        return { ok: true, json: async () => ({ aiConfig: { providers: [{ id: 'ollama', enabled: true }] } }) };
+      }
+      if (url.includes('/jobs')) {
+        return { ok: true, json: async () => ({}) };
+      }
+    }
+    return { ok: true, json: async () => ({}) };
+  };
+
   global.getTaskById = async () => ({});
   global.updateJob = async () => true;
   global.logTaskEvent = async () => {};
@@ -251,6 +274,38 @@ async function runTests() {
   
   console.log('Case 7 Pass ✅');
 
+  // Case 8: System tags, combined tags, and summary generation
+  console.log('Case 8: System tags, combined tags, and summary');
+  const mockSystemTagsResult = {
+    primary_facets: {
+      domain: { zh: '1' },
+      subject: { zh: '物理' },
+      level: { zh: '高一' },
+      resource_type: { zh: '试卷' }
+    },
+    search_tags: {
+      topic_tags: ['力学'],
+      skill_tags: ['计算']
+    },
+    governance: { confidence: 'high', human_review_required: false }
+  };
+  const provider8 = createMockProvider(mockSystemTagsResult);
+  worker1.executeWithFallback = async () => ({ provider: 'mock', model: 'mock', result: mockSystemTagsResult, usage: {} });
+  
+  await worker1.processJob({ id: 'test-job-8', parseTaskId: 'test-task-8', materialId: 'm8', inputMarkdownObjectName: 'test.pdf' });
+  
+  assert.equal(finalResultObj.grade, '高一');
+  assert.equal(finalResultObj.summary, '物理 · 高一 · 试卷');
+  
+  const tagsStr = JSON.stringify(finalResultObj.tags);
+  assert.ok(tagsStr.includes('力学'), 'tags should include search_tags.topic_tags');
+  assert.ok(tagsStr.includes('计算'), 'tags should include search_tags.skill_tags');
+  assert.ok(tagsStr.includes('ocr_enabled') || tagsStr.includes('OCR') || tagsStr.includes('pdf'), 'tags should include format_tags');
+  assert.ok(tagsStr.includes('pipeline') || tagsStr.includes('Pipeline'), 'tags should include engine_tags');
+  assert.ok(finalResultObj.aiClassificationV02.system_tags.format_tags.length > 0, 'system_tags.format_tags should be populated');
+  
+  console.log('Case 8 Pass ✅');
+
   // Case 9: Repair first attempt truncated, retry success
   console.log('Case 9: Repair first attempt truncated, retry success');
   callCount = 0;
@@ -342,7 +397,6 @@ async function runTests() {
   console.log('Test 1: Ollama request always sends think:false');
   const { OllamaProvider } = await import('../services/ai/providers/ollama.mjs');
   let requestedThink = null;
-  const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, options) => {
     const body = JSON.parse(options.body);
     requestedThink = body.think;

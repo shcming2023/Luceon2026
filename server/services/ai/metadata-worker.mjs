@@ -335,7 +335,9 @@ export class AiMetadataWorker {
         rawObjectName: parseTask?.metadata?.objectName || '',
         parsedPrefix: parseTask?.metadata?.parsedPrefix || '',
         markdownObjectName: markdownObjectName,
-        parsedFilesCount: parseTask?.metadata?.parsedFilesCount || 0
+        parsedFilesCount: parseTask?.metadata?.parsedFilesCount || 0,
+        mineruExecutionProfile: parseTask?.metadata?.mineruExecutionProfile || {},
+        mimeType: parseTask?.metadata?.mimeType || parseTask?.mimeType || ''
       };
 
       const originalLength = markdownContent.length;
@@ -682,7 +684,9 @@ export class AiMetadataWorker {
           rawObjectName: parseTask?.metadata?.objectName || '',
           parsedPrefix: parseTask?.metadata?.parsedPrefix || '',
           markdownObjectName: parseTask?.metadata?.markdownObjectName || job.inputMarkdownObjectName || '',
-          parsedFilesCount: parseTask?.metadata?.parsedFilesCount || 0
+          parsedFilesCount: parseTask?.metadata?.parsedFilesCount || 0,
+          mineruExecutionProfile: parseTask?.metadata?.mineruExecutionProfile || {},
+          mimeType: parseTask?.metadata?.mimeType || parseTask?.mimeType || ''
         };
       } catch (e) {
         // ignore
@@ -834,20 +838,45 @@ export class AiMetadataWorker {
       return { title: '解析失败', subject: '', grade: '' };
     }
     const p = v02Result.primary_facets;
-    const d = v02Result.descriptive_metadata;
-    const g = v02Result.governance;
+    const d = v02Result.descriptive_metadata || {};
+    const g = v02Result.governance || {};
     const s = v02Result.search_tags || {};
+    const st = v02Result.system_tags || {};
+    
+    const p1 = d.series_title || p.subject?.zh || '';
+    const p2 = p.level?.zh || p.stage?.zh || '';
+    const p3 = p.resource_type?.zh || p.component_role?.zh || '';
+    const summaryParts = [p1, p2, p3].filter(Boolean);
+    const summary = summaryParts.length > 0 ? summaryParts.join(' · ') : '';
+
+    const rawTags = [
+      ...(s.topic_tags || []),
+      ...(s.skill_tags || []),
+      ...(st.format_tags || []),
+      ...(st.artifact_tags || []),
+      ...(st.engine_tags || [])
+    ];
+    
+    const uniqueTags = [];
+    const seenTags = new Set();
+    for (const tag of rawTags) {
+      const tagStr = typeof tag === 'object' && tag !== null ? (tag.zh || tag.en || '') : String(tag);
+      if (tagStr && !seenTags.has(tagStr)) {
+        seenTags.add(tagStr);
+        uniqueTags.push(tag);
+      }
+    }
     
     return {
-      title: d.series_title || p.subject.zh || '',
-      subject: p.subject.zh || '',
-      grade: p.stage.zh || p.level.zh || '',
+      title: d.series_title || p.subject?.zh || '',
+      subject: p.subject?.zh || '',
+      grade: p.level?.zh || p.stage?.zh || '',
       semester: '', // v0.2 dropped semester, but we keep it empty for compatibility
-      materialType: p.resource_type.zh || '',
+      materialType: p.resource_type?.zh || p.component_role?.zh || '',
       language: d.language || '中文',
-      curriculum: p.curriculum.zh || '',
-      tags: [...(s.topic_tags || []), ...(s.skill_tags || [])],
-      summary: '', // v0.2 dropped summary
+      curriculum: p.curriculum?.zh || '',
+      tags: uniqueTags,
+      summary: summary,
       confidence: g.confidence === 'high' ? 90 : g.confidence === 'medium' ? 60 : 30,
       fieldConfidence: {},
       needsReview: g.human_review_required === true || g.confidence !== 'high'

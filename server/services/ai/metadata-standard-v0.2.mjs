@@ -2,6 +2,64 @@
  * metadata-standard-v0.2.mjs - AI Metadata v0.2 结构规范与验证
  */
 
+export function normalizeEvidence(rawEvidence) {
+  if (!Array.isArray(rawEvidence)) return [];
+  const normalized = [];
+  for (const ev of rawEvidence) {
+    if (typeof ev === 'string') {
+      if (ev.trim()) {
+        normalized.push({
+          type: 'unknown',
+          quote_or_summary: ev.trim(),
+          supports: []
+        });
+      }
+    } else if (typeof ev === 'object' && ev !== null) {
+      const type = ev.type || 'unknown';
+      const validTypes = ['filename', 'title_page', 'toc', 'body', 'system', 'unknown'];
+      const finalType = validTypes.includes(type) ? type : 'unknown';
+      const quote = typeof ev.quote_or_summary === 'string' ? ev.quote_or_summary.trim() : '';
+      if (quote) {
+        normalized.push({
+          type: finalType,
+          quote_or_summary: quote,
+          supports: Array.isArray(ev.supports) ? ev.supports : []
+        });
+      }
+    }
+  }
+  return normalized.slice(0, 20); // 最多保留 20 条
+}
+
+export function generateSystemTags(source = {}) {
+  const format_tags = [];
+  const filenameStr = String(source.file_name || source.filename || '').toLowerCase();
+  const mimeTypeStr = String(source.mimeType || '').toLowerCase();
+  if (filenameStr.endsWith('.pdf') || mimeTypeStr.includes('pdf')) {
+    format_tags.push({ zh: 'PDF', en: 'pdf' });
+  }
+  const profile = source.mineruExecutionProfile || {};
+  if (profile.enableOcr === true || String(profile.parseMethod).toLowerCase() === 'ocr') {
+    format_tags.push({ zh: 'OCR', en: 'ocr_enabled' });
+  }
+
+  const artifact_tags = [];
+  const parsedCount = Number(source.parsedFilesCount) || 0;
+  if (parsedCount > 0) artifact_tags.push({ zh: '含解析产物', en: 'has_parsed_artifacts' });
+  if (parsedCount >= 50) artifact_tags.push({ zh: '多产物文档', en: 'many_artifacts' });
+
+  const engine_tags = [];
+  const backend = String(profile.backendEffective || profile.backendRequested || '').toLowerCase();
+  if (backend.includes('pipeline')) engine_tags.push({ zh: 'Pipeline', en: 'pipeline' });
+  else if (backend.includes('hybrid')) engine_tags.push({ zh: 'Hybrid', en: 'hybrid_auto_engine' });
+  else if (backend.includes('vlm')) engine_tags.push({ zh: 'VLM', en: 'vlm_auto_engine' });
+  
+  if (profile.enableTable === true || profile.enableTable === 'true') engine_tags.push({ zh: '表格识别', en: 'table_enabled' });
+  if (profile.enableFormula === true || profile.enableFormula === 'true') engine_tags.push({ zh: '公式识别', en: 'formula_enabled' });
+
+  return { format_tags, artifact_tags, engine_tags };
+}
+
 export function getDefaultV02Skeleton(source = {}, confidence = 'low', humanReviewReason = 'json_parse_failed') {
   const isFallback = confidence === 'low' && humanReviewReason !== '';
   const evidence = isFallback ? [{
@@ -25,6 +83,15 @@ export function getDefaultV02Skeleton(source = {}, confidence = 'low', humanRevi
       riskFlags.push('ai_provider_json_repair_failed');
     }
   }
+
+  const parsedCount = Number(source.parsedFilesCount) || 0;
+  const riskSignals = [...riskFlags];
+  const qualitySignals = [];
+  if (isFallback) riskSignals.push('skeleton_fallback');
+  if (confidence === 'low') riskSignals.push('low_confidence');
+  riskSignals.push('needs_human_review'); // Fallback always requires human review
+  if (parsedCount === 0) qualitySignals.push('no_parsed_artifacts');
+  if (evidence.length === 0) riskSignals.push('evidence_missing');
 
   return {
     source: {
@@ -66,6 +133,13 @@ export function getDefaultV02Skeleton(source = {}, confidence = 'low', humanRevi
       risk_flags: riskFlags
     },
     evidence: evidence,
+    system_tags: generateSystemTags(source),
+    governance_signals: {
+      quality: qualitySignals,
+      relationship: [],
+      retention: [],
+      risk: riskSignals
+    },
     recommended_catalog_path: '',
     catalog_change_type: 'needs_human_review'
   };
@@ -87,7 +161,14 @@ export function validateAndNormalizeV02(rawResult, source) {
     descriptive_metadata: { ...getDefaultV02Skeleton(source).descriptive_metadata, ...(rawResult.descriptive_metadata || {}) },
     search_tags: { ...getDefaultV02Skeleton(source).search_tags, ...(rawResult.search_tags || {}) },
     governance: { ...getDefaultV02Skeleton(source, 'high', '').governance, ...(rawResult.governance || {}) },
-    evidence: Array.isArray(rawResult.evidence) ? rawResult.evidence : [],
+    evidence: normalizeEvidence(rawResult.evidence),
+    system_tags: generateSystemTags(source),
+    governance_signals: {
+      quality: [],
+      relationship: [],
+      retention: [],
+      risk: []
+    },
     recommended_catalog_path: rawResult.recommended_catalog_path || '',
     catalog_change_type: rawResult.catalog_change_type || 'needs_human_review'
   };
@@ -97,12 +178,43 @@ export function validateAndNormalizeV02(rawResult, source) {
     result.governance.confidence = 'low';
   }
 
+  // 最小受控值校验 (domain, subject, resource_type, component_role)
+  result.governance.risk_flags = result.governance.risk_flags || [];
+  
+  if (!result.primary_facets.domain || !result.primary_facets.domain.zh) {
+    result.governance.confidence = 'low';
+    result.governance.human_review_required = true;
+    if (!result.governance.risk_flags.includes('domain_missing')) {
+      result.governance.risk_flags.push('domain_missing');
+    }
+  }
+  
+  if (!result.primary_facets.subject || !result.primary_facets.subject.zh) {
+    result.governance.human_review_required = true;
+    if (!result.governance.risk_flags.includes('subject_missing')) {
+      result.governance.risk_flags.push('subject_missing');
+    }
+  }
+
+  const resTypeZh = result.primary_facets.resource_type?.zh;
+  const compRoleZh = result.primary_facets.component_role?.zh;
+  if (!resTypeZh && !compRoleZh) {
+    result.governance.human_review_required = true;
+    if (!result.governance.risk_flags.includes('resource_type_missing')) {
+      result.governance.risk_flags.push('resource_type_missing');
+    }
+  }
+
+  if (result.evidence.length === 0) {
+    result.governance.human_review_required = true;
+    if (!result.governance.risk_flags.includes('evidence_missing')) {
+      result.governance.risk_flags.push('evidence_missing');
+    }
+  }
+
   // low 必须 human_review_required=true
   if (result.governance.confidence === 'low') {
     result.governance.human_review_required = true;
-    if (!result.governance.human_review_reason) {
-      result.governance.human_review_reason = 'Low confidence';
-    }
   }
 
   // proposed_new_tags 或未知集合 必须 review
@@ -115,8 +227,23 @@ export function validateAndNormalizeV02(rawResult, source) {
 
   // human_review_reason 不得为空
   if (result.governance.human_review_required && !result.governance.human_review_reason) {
-    result.governance.human_review_reason = 'Review required';
+    if (result.evidence.length === 0) {
+      result.governance.human_review_reason = 'Evidence missing';
+    } else {
+      result.governance.human_review_reason = 'Review required';
+    }
   }
+
+  // 生成 governance_signals
+  const riskSignals = new Set(result.governance.risk_flags);
+  if (result.governance.confidence === 'low') riskSignals.add('low_confidence');
+  if (result.governance.human_review_required) riskSignals.add('needs_human_review');
+  if (result.evidence.length === 0) riskSignals.add('evidence_missing');
+  
+  const parsedCount = Number(source.parsedFilesCount) || 0;
+  if (parsedCount === 0) result.governance_signals.quality.push('no_parsed_artifacts');
+  
+  result.governance_signals.risk = Array.from(riskSignals);
 
   return result;
 }
