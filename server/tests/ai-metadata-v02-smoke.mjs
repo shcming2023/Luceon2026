@@ -139,6 +139,61 @@ async function run() {
   assertEq('Skeleton taxonomy fields empty', skeletonResult.controlled_classification.domain, null);
   assertEq('Skeleton normalized tags empty', skeletonResult.normalized_tags.topic_tags.length, 0);
 
+  // 4. Test Production Aliases
+  const aliasResult = validateAndNormalizeV02({
+    primary_facets: { 
+      domain: '01_出版教材与成套课程', 
+      subject: '英文', 
+      resource_type: '教科书',
+      component_role: '学生书'
+    },
+    governance: { confidence: 'high' },
+    evidence: []
+  }, source);
+  assertEq('Subject alias "英文" normalized', aliasResult.controlled_classification.subject?.id, 'english');
+  assertEq('Resource type alias "教科书" normalized', aliasResult.controlled_classification.resource_type?.id, 'textbook');
+  assertEq('Component role alias "学生书" normalized', aliasResult.controlled_classification.component_role?.id, 'student_book');
+
+  const aliasResult2 = validateAndNormalizeV02({
+    primary_facets: { 
+      domain: '01_出版教材与成套课程', 
+      subject: '数学学科', 
+      resource_type: '练习本',
+      component_role: '教师版'
+    },
+    governance: { confidence: 'high' },
+    evidence: []
+  }, source);
+  assertEq('Subject alias "数学学科" normalized', aliasResult2.controlled_classification.subject?.id, 'math');
+  assertEq('Resource type alias "练习本" normalized', aliasResult2.controlled_classification.resource_type?.id, 'workbook');
+  assertEq('Component role alias "教师版" normalized', aliasResult2.controlled_classification.component_role?.id, 'teacher_book');
+
+  const aliasResult3 = validateAndNormalizeV02({
+    primary_facets: { 
+      domain: '02_考试测评与真题', 
+      subject: 'english', 
+      resource_type: '考试卷',
+      component_role: '参考答案'
+    },
+    governance: { confidence: 'high' },
+    evidence: []
+  }, source);
+  assertEq('Resource type alias "考试卷" normalized', aliasResult3.controlled_classification.resource_type?.id, 'exam_paper');
+  assertEq('Component role alias "参考答案" normalized', aliasResult3.controlled_classification.component_role?.id, 'answers');
+
+  const aliasResult4 = validateAndNormalizeV02({
+    primary_facets: { 
+      domain: '02_考试测评与真题', 
+      subject: 'english', 
+      resource_type: 'past paper',
+      component_role: '答案详解'
+    },
+    governance: { confidence: 'high' },
+    evidence: []
+  }, source);
+  assertEq('Component role alias "答案详解" normalized', aliasResult4.controlled_classification.component_role?.id, 'answer_explanations');
+
+
   console.log(`\nResults: ${passed} passed, ${failed} failed`);
   if (failed > 0) {
     process.exit(1);

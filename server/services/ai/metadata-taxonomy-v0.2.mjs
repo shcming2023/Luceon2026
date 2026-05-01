@@ -75,8 +75,8 @@ const TAXONOMY = {
     { id: 'unknown', zh: '未知', en: 'Unknown', aliases: ['未知', 'unknown', 'n/a'] }
   ],
   subject: [
-    { id: 'english', zh: '英语', en: 'English', aliases: ['english', '英语', 'esl', 'efl', 'ela'] },
-    { id: 'math', zh: '数学', en: 'Mathematics', aliases: ['math', 'mathematics', '数学', 'additional mathematics', 'further mathematics'] },
+    { id: 'english', zh: '英语', en: 'English', aliases: ['english', '英语', '英文', 'esl', 'efl', 'ela'] },
+    { id: 'math', zh: '数学', en: 'Mathematics', aliases: ['math', 'mathematics', '数学', '数学学科', 'additional mathematics', 'further mathematics'] },
     { id: 'chinese', zh: '语文', en: 'Chinese', aliases: ['chinese', '语文', '中文'] },
     { id: 'science', zh: '科学', en: 'Science', aliases: ['science', '科学', 'combined science', 'coordinated sciences'] },
     { id: 'physics', zh: '物理', en: 'Physics', aliases: ['physics', '物理'] },
@@ -90,10 +90,10 @@ const TAXONOMY = {
     { id: 'unknown', zh: '未知', en: 'Unknown', aliases: ['未知', 'unknown', 'n/a', 'other'] }
   ],
   resource_type: [
-    { id: 'textbook', zh: '教材', en: 'Textbook', aliases: ['教材', 'textbook', 'coursebook', 'student book'] },
-    { id: 'workbook', zh: '练习册', en: 'Workbook', aliases: ['练习册', 'workbook', 'activity book', 'practice book'] },
-    { id: 'exam_paper', zh: '试卷', en: 'Exam Paper', aliases: ['试卷', 'exam paper', 'test paper', 'mock paper'] },
-    { id: 'past_paper', zh: '真题', en: 'Past Paper', aliases: ['真题', 'past paper', '历年真题'] },
+    { id: 'textbook', zh: '教材', en: 'Textbook', aliases: ['教材', '课本', '教科书', 'textbook', 'coursebook', 'student book'] },
+    { id: 'workbook', zh: '练习册', en: 'Workbook', aliases: ['练习册', '练习本', 'workbook', 'activity book', 'practice book'] },
+    { id: 'exam_paper', zh: '试卷', en: 'Exam Paper', aliases: ['试卷', '考试卷', 'exam paper', 'test paper', 'mock paper'] },
+    { id: 'past_paper', zh: '真题', en: 'Past Paper', aliases: ['真题', '历年真题', 'past paper'] },
     { id: 'handout', zh: '讲义', en: 'Handout', aliases: ['讲义', 'handout', 'notes', 'study notes'] },
     { id: 'slides', zh: '课件', en: 'Slides', aliases: ['课件', 'slides', 'presentation', 'ppt'] },
     { id: 'answer_key', zh: '答案解析', en: 'Answer Key', aliases: ['答案解析', '答案', 'answer key', 'solutions', 'mark scheme'] },
@@ -106,11 +106,11 @@ const TAXONOMY = {
   ],
   component_role: [
     { id: 'main_content', zh: '主体资料', en: 'Main Content', aliases: ['主体资料', 'main content', '正文', 'body'] },
-    { id: 'student_book', zh: '学生用书', en: 'Student Book', aliases: ['学生用书', 'student book', 'sb', 'learner book'] },
-    { id: 'teacher_book', zh: '教师用书', en: 'Teacher Book', aliases: ['教师用书', 'teacher book', 'tb', 'teacher guide'] },
-    { id: 'workbook_component', zh: '练习册', en: 'Workbook', aliases: ['练习册', 'workbook', 'wb', 'activity book'] },
-    { id: 'answers', zh: '答案', en: 'Answers', aliases: ['答案', 'answers', 'key', 'answer key'] },
-    { id: 'answer_explanations', zh: '答案解析', en: 'Answer Explanations', aliases: ['答案解析', 'explanations', 'solutions', 'mark scheme'] },
+    { id: 'student_book', zh: '学生用书', en: 'Student Book', aliases: ['学生用书', '学生书', '学生教材', 'student book', 'sb', 'learner book'] },
+    { id: 'teacher_book', zh: '教师用书', en: 'Teacher Book', aliases: ['教师用书', '教师书', '教师版', 'teacher book', 'tb', 'teacher guide'] },
+    { id: 'workbook_component', zh: '练习册', en: 'Workbook', aliases: ['练习册', '练习本', 'workbook', 'wb', 'activity book'] },
+    { id: 'answers', zh: '答案', en: 'Answers', aliases: ['答案', '参考答案', 'answers', 'key', 'answer key'] },
+    { id: 'answer_explanations', zh: '答案解析', en: 'Answer Explanations', aliases: ['答案解析', '答案详解', 'explanations', 'solutions', 'mark scheme'] },
     { id: 'vocabulary', zh: '词汇表', en: 'Vocabulary', aliases: ['词汇表', 'vocabulary', 'glossary'] },
     { id: 'index_toc', zh: '目录/索引', en: 'Index/TOC', aliases: ['目录/索引', '目录', '索引', 'index', 'toc', 'table of contents'] },
     { id: 'appendix', zh: '附录', en: 'Appendix', aliases: ['附录', 'appendix', 'appendices'] },
