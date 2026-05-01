@@ -302,16 +302,71 @@ export function MetadataTab({
               </dl>
             </div>
 
+            <div className="pt-2 border-t border-slate-200">
+              <h4 className="font-semibold text-slate-600 mb-1.5">描述性元数据 (Descriptive Metadata)</h4>
+              <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
+                <dt className="text-slate-400">Series</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.descriptive_metadata?.series_name || '—'}</dd>
+                <dt className="text-slate-400">Edition</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.descriptive_metadata?.edition || '—'}</dd>
+                <dt className="text-slate-400">Year</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.descriptive_metadata?.year || '—'}</dd>
+                <dt className="text-slate-400">Publisher</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.descriptive_metadata?.publisher || '—'}</dd>
+                <dt className="text-slate-400">Language</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.descriptive_metadata?.language || '—'}</dd>
+                <dt className="text-slate-400">Exam Board</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.descriptive_metadata?.exam_board || '—'}</dd>
+                <dt className="text-slate-400">Paper Code</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.descriptive_metadata?.paper_code || '—'}</dd>
+              </dl>
+            </div>
+
             {(material.metadata.aiClassificationV02.normalized_tags?.topic_tags?.length > 0 || material.metadata.aiClassificationV02.normalized_tags?.skill_tags?.length > 0) && (
               <div className="pt-2 border-t border-slate-200">
                 <h4 className="font-semibold text-slate-600 mb-1.5 flex items-center gap-1"><CheckCircle2 size={12} className="text-green-500" /> 规范标签 (Normalized Tags)</h4>
-                <div className="flex flex-wrap gap-1">
-                  {material.metadata.aiClassificationV02.normalized_tags.topic_tags?.map((t: any) => (
-                    <span key={`topic-${t.id}`} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px]">{t.zh || t.en}</span>
-                  ))}
-                  {material.metadata.aiClassificationV02.normalized_tags.skill_tags?.map((t: any) => (
-                    <span key={`skill-${t.id}`} className="px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded text-[10px]">{t.zh || t.en}</span>
-                  ))}
+                <div className="flex flex-col gap-1.5">
+                  {material.metadata.aiClassificationV02.normalized_tags.topic_tags?.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      <span className="text-[10px] text-slate-500 mr-1">Topic:</span>
+                      {material.metadata.aiClassificationV02.normalized_tags.topic_tags.map((t: any) => (
+                        <span key={`topic-${t.id}`} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px]">{t.zh || t.en}</span>
+                      ))}
+                    </div>
+                  )}
+                  {material.metadata.aiClassificationV02.normalized_tags.skill_tags?.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      <span className="text-[10px] text-slate-500 mr-1">Skill:</span>
+                      {material.metadata.aiClassificationV02.normalized_tags.skill_tags.map((t: any) => (
+                        <span key={`skill-${t.id}`} className="px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded text-[10px]">{t.zh || t.en}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {material.metadata.aiClassificationV02.system_tags && (
+              <div className="pt-2 border-t border-slate-200">
+                <h4 className="font-semibold text-slate-600 mb-1.5">系统标签 (System Tags)</h4>
+                <div className="flex flex-col gap-1.5">
+                  {material.metadata.aiClassificationV02.system_tags.format_tags?.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      <span className="text-[10px] text-slate-500 mr-1">Format:</span>
+                      {material.metadata.aiClassificationV02.system_tags.format_tags.map((t: any, idx: number) => (
+                        <span key={`fmt-${idx}`} className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px]">{t.en}</span>
+                      ))}
+                    </div>
+                  )}
+                  {material.metadata.aiClassificationV02.system_tags.artifact_tags?.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      <span className="text-[10px] text-slate-500 mr-1">Artifact:</span>
+                      {material.metadata.aiClassificationV02.system_tags.artifact_tags.map((t: any, idx: number) => (
+                        <span key={`art-${idx}`} className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px]">{t.en}</span>
+                      ))}
+                    </div>
+                  )}
+                  {material.metadata.aiClassificationV02.system_tags.engine_tags?.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      <span className="text-[10px] text-slate-500 mr-1">Engine:</span>
+                      {material.metadata.aiClassificationV02.system_tags.engine_tags.map((t: any, idx: number) => (
+                        <span key={`eng-${idx}`} className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px]">{t.en}</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -351,7 +406,7 @@ export function MetadataTab({
             )}
 
             <div className="pt-2 border-t border-slate-200">
-              <h4 className="font-semibold text-slate-600 mb-1.5">Governance</h4>
+              <h4 className="font-semibold text-slate-600 mb-1.5">Governance Signals & Status</h4>
               <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
                 <dt className="text-slate-400">Confidence</dt>
                 <dd className="font-semibold">
@@ -371,12 +426,23 @@ export function MetadataTab({
                     <dd className="text-red-600 truncate" title={material.metadata.aiClassificationV02.governance?.human_review_reason}>{material.metadata.aiClassificationV02.governance?.human_review_reason}</dd>
                   </>
                 )}
-                <dt className="text-slate-400">Markdown Quality</dt>
-                <dd className="text-slate-700">{material.metadata.aiClassificationV02.governance?.markdown_quality || '—'}</dd>
+                
+                {material.metadata.aiClassificationV02.governance_signals && (
+                  <>
+                    <dt className="text-slate-400">Quality</dt>
+                    <dd className="text-slate-700">{material.metadata.aiClassificationV02.governance_signals.quality?.join(', ') || '—'}</dd>
+                    <dt className="text-slate-400">Relationship</dt>
+                    <dd className="text-slate-700">{material.metadata.aiClassificationV02.governance_signals.relationship?.join(', ') || '—'}</dd>
+                    <dt className="text-slate-400">Retention</dt>
+                    <dd className="text-slate-700">{material.metadata.aiClassificationV02.governance_signals.retention?.join(', ') || '—'}</dd>
+                    <dt className="text-slate-400">Risk</dt>
+                    <dd className="text-slate-700">{(material.metadata.aiClassificationV02.governance_signals.risk && material.metadata.aiClassificationV02.governance_signals.risk.length > 0) ? material.metadata.aiClassificationV02.governance_signals.risk.join(', ') : '—'}</dd>
+                  </>
+                )}
                 
                 {material.metadata.aiClassificationV02.governance?.risk_flags?.length > 0 && (
                   <>
-                    <dt className="text-slate-400 flex items-center gap-1"><ShieldAlert size={10} className="text-red-500" /> Risks</dt>
+                    <dt className="text-slate-400 flex items-center gap-1"><ShieldAlert size={10} className="text-red-500" /> Risk Flags</dt>
                     <dd className="text-red-600">{material.metadata.aiClassificationV02.governance.risk_flags.join(', ')}</dd>
                   </>
                 )}

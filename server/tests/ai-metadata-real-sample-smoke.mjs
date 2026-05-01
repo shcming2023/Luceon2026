@@ -168,14 +168,14 @@ async function runTests() {
   const mockIgcseResult = {
     source: {},
     primary_facets: {
-      domain: { zh: '基础教育', en: 'K12' },
+      domain: { zh: '01_出版教材与成套课程', en: '01_Published_Course' },
       collection: { zh: 'Cambridge IGCSE', en: 'Cambridge IGCSE' },
       curriculum: { zh: 'CIE', en: 'CIE' },
       stage: { zh: '初中', en: 'Middle School' },
       level: { zh: 'IGCSE', en: 'IGCSE' },
-      subject: { zh: '英语', en: 'English' },
-      resource_type: { zh: '课本', en: 'Coursebook' },
-      component_role: { zh: '学生用书', en: 'Student Book' }
+      subject: { zh: '数学', en: 'Math' },
+      resource_type: { zh: '教材', en: 'Textbook' },
+      component_role: { zh: '主体资料', en: 'Main Content' }
     },
     descriptive_metadata: {},
     search_tags: {},
@@ -192,10 +192,11 @@ async function runTests() {
   }
   let v02_1 = worker1.extractJson(res1.result);
   const norm1 = validateAndNormalizeV02(v02_1, {});
-  assert.equal(norm1.primary_facets.domain.zh, '基础教育');
-  assert.equal(norm1.primary_facets.collection.zh, 'Cambridge IGCSE');
-  assert.equal(norm1.primary_facets.subject.zh, '英语');
-  assert.equal(norm1.primary_facets.resource_type.zh, '课本');
+  assert.equal(norm1.controlled_classification.domain.id, '01_published_course');
+  assert.equal(norm1.controlled_classification.collection.id, 'cambridge_igcse');
+  assert.equal(norm1.controlled_classification.subject.id, 'math');
+  assert.equal(norm1.controlled_classification.resource_type.id, 'textbook');
+  assert.equal(norm1.controlled_classification.component_role.id, 'main_content');
   
   // Test rawPreview stringification for object
   let rawString1 = '';
@@ -207,15 +208,15 @@ async function runTests() {
   assert.notEqual(rawString1, '[object Object]');
   console.log('Case 1 Pass ✅');
 
-  // Case 2: Cambridge IGCSE Additional Mathematics (Answer Key) with content wrapper
-  console.log('Case 2: Mathematics Answer Key (content wrapper)');
+  // Case 2: Reading Explorer 2 Student Book & Answer Key
+  console.log('Case 2: Reading Explorer 2 Student Book & Answer Key');
   const mockMathResult = {
     primary_facets: {
-      domain: { zh: '基础教育' },
-      collection: { zh: 'Cambridge IGCSE' },
-      subject: { zh: '数学' },
-      resource_type: { zh: '答案' },
-      component_role: { zh: '教师用书' }
+      domain: { zh: '01_出版教材与成套课程' },
+      collection: { zh: 'Reading Explorer' },
+      subject: { zh: '英语' },
+      resource_type: { zh: '答案解析' },
+      component_role: { zh: '答案' }
     },
     governance: { confidence: 'high', human_review_required: false }
   };
@@ -223,9 +224,10 @@ async function runTests() {
   let res2 = await worker1.executeWithFallback(provider2, 'Sample', {});
   let v02_2 = worker1.extractJson(res2.result);
   const norm2 = validateAndNormalizeV02(v02_2, {});
-  assert.equal(norm2.primary_facets.subject.zh, '数学');
-  assert.equal(norm2.primary_facets.resource_type.zh, '答案');
-  assert.equal(norm2.governance.confidence, 'high');
+  assert.equal(norm2.controlled_classification.collection.id, 'reading_explorer');
+  assert.equal(norm2.controlled_classification.subject.id, 'english');
+  assert.equal(norm2.controlled_classification.resource_type.id, 'answer_key');
+  assert.equal(norm2.controlled_classification.component_role.id, 'answers');
   console.log('Case 2 Pass ✅');
 
   // Case 3: Non-education material (Travel Checklist)
@@ -241,10 +243,30 @@ async function runTests() {
   let res3 = await worker1.executeWithFallback(provider3, 'Sample', {});
   let v02_3 = worker1.extractJson(res3.result);
   const norm3 = validateAndNormalizeV02(v02_3, {});
-  assert.equal(norm3.primary_facets.domain.zh, '06_公司行政经营资料');
-  assert.equal(norm3.governance.confidence, 'low');
-  assert.equal(norm3.governance.human_review_required, true);
+  assert.equal(norm3.controlled_classification.domain.id, '06_corp_admin');
+  assert.equal(norm3.classification_review.required, true);
+  assert.ok(norm3.classification_review.reasons.includes('non_education_domain'), 'Should log non_education_domain reason');
   console.log('Case 3 Pass ✅');
+
+  // Case 3a: Unknown Collection
+  console.log('Case 3a: Unknown Collection');
+  const mockUnknownResult = {
+    primary_facets: {
+      domain: { zh: '01_出版教材与成套课程' },
+      collection: { zh: '未知奇奇怪怪' },
+      subject: { zh: '数学' },
+      resource_type: { zh: '讲义' },
+      component_role: { zh: '主体资料' }
+    },
+    governance: { confidence: 'high', human_review_required: false }
+  };
+  const provider3a = createMockProvider(mockUnknownResult);
+  let res3a = await worker1.executeWithFallback(provider3a, 'Sample', {});
+  let v02_3a = worker1.extractJson(res3a.result);
+  const norm3a = validateAndNormalizeV02(v02_3a, {});
+  assert.equal(norm3a.classification_review.required, true);
+  assert.equal(norm3a.classification_review.unmatched_facets.collection, '未知奇奇怪怪');
+  console.log('Case 3a Pass ✅');
 
   // Case 4: JSON parsing failure (Provider Returns Plain text)
   console.log('Case 4: JSON Failure');
@@ -378,14 +400,14 @@ async function runTests() {
   console.log('Case 8: System tags, combined tags, and summary');
   const mockSystemTagsResult = {
     primary_facets: {
-      domain: { zh: 'general' },
+      domain: { zh: '01_出版教材与成套课程' },
       subject: { zh: '物理' },
       level: { zh: '高一' },
       resource_type: { zh: '真题' }
     },
     search_tags: {
       topic_tags: ['力学'],
-      skill_tags: ['分析能力']
+      skill_tags: ['分析能力', '未知乱七八糟技能']
     },
     evidence: [],
     governance: { confidence: 'high', human_review_required: false }
@@ -400,6 +422,7 @@ async function runTests() {
   const tagsStr = JSON.stringify(finalResultObj.tags);
   assert.ok(tagsStr.includes('力学'), 'tags should include search_tags.topic_tags');
   assert.ok(tagsStr.includes('分析能力'), 'tags should include search_tags.skill_tags');
+  assert.ok(!tagsStr.includes('未知乱七八糟技能'), 'proposed_new_tags must not enter Material.tags');
   assert.ok(tagsStr.includes('ocr_enabled') || tagsStr.includes('OCR') || tagsStr.includes('pdf'), 'tags should include format_tags');
   assert.ok(tagsStr.includes('pipeline') || tagsStr.includes('Pipeline'), 'tags should include engine_tags');
   assert.ok(finalResultObj.aiClassificationV02.system_tags.format_tags.length > 0, 'system_tags.format_tags should be populated');
