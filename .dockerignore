@@ -34,10 +34,13 @@ TestPdf/
 
 # UAT 报告（仅文档，不需要进入镜像）
 UATReport/
+uat/
 
 # E2E 测试（Playwright 测试脚本，非生产）
 e2e/
 playwright.config.ts
+test-results/
+.lucia-e2e/
 
 # 开发文档（不需要进入镜像）
 docs/
