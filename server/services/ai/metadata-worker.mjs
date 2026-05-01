@@ -332,12 +332,12 @@ export class AiMetadataWorker {
         materialId: job.materialId,
         filename: parseTask?.metadata?.originalFilename || parseTask?.originalFilename || 'unknown',
         fileSize: parseTask?.metadata?.originalFileSize || parseTask?.originalFileSize || 0,
+        mimeType: parseTask?.metadata?.mimeType || '',
         rawObjectName: parseTask?.metadata?.objectName || '',
         parsedPrefix: parseTask?.metadata?.parsedPrefix || '',
         markdownObjectName: markdownObjectName,
         parsedFilesCount: parseTask?.metadata?.parsedFilesCount || 0,
-        mineruExecutionProfile: parseTask?.metadata?.mineruExecutionProfile || {},
-        mimeType: parseTask?.metadata?.mimeType || parseTask?.mimeType || ''
+        mineruExecutionProfile: parseTask?.metadata?.mineruExecutionProfile || {}
       };
 
       const originalLength = markdownContent.length;
@@ -452,11 +452,27 @@ export class AiMetadataWorker {
       }
 
       // 6. 结果后处理与归一化 (TASK-24 + V0.2)
-      // 增强：鲁棒的 JSON 提取
       let parsedResult = {};
       let jsonParseFailed = false;
+      let schemaInvalid = false;
+
+      function checkSchemaInvalid(obj) {
+        if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false; // Handled by jsonParseFailed if not an object, but if extractJson somehow returns an array, it's invalid
+        const hasPrimaryFacets = obj.primary_facets && typeof obj.primary_facets === 'object' && !Array.isArray(obj.primary_facets);
+        const hasGovernance = obj.governance && typeof obj.governance === 'object' && !Array.isArray(obj.governance);
+        const hasEvidence = Array.isArray(obj.evidence);
+        return !(hasPrimaryFacets && hasGovernance && hasEvidence);
+      }
+
       try {
         parsedResult = this.extractJson(aiResponse.result);
+        if (parsedResult && typeof parsedResult === 'object' && !Array.isArray(parsedResult)) {
+          if (checkSchemaInvalid(parsedResult)) {
+            schemaInvalid = true;
+          }
+        } else {
+          jsonParseFailed = true;
+        }
       } catch (err) {
         jsonParseFailed = true;
       }
@@ -467,7 +483,7 @@ export class AiMetadataWorker {
       let repairRetryReason = '';
       let firstFailureDetails = null;
 
-      if (jsonParseFailed && twoPassEnabled) {
+      if ((jsonParseFailed || schemaInvalid) && twoPassEnabled) {
         twoPassAttempted = true;
         const repairPrompt = generateV02RepairPrompt(aiResponse.result);
         try {
@@ -481,7 +497,21 @@ export class AiMetadataWorker {
           });
           
           parsedResult = this.extractJson(repairResponse.result);
+          
+          if (parsedResult && typeof parsedResult === 'object' && !Array.isArray(parsedResult)) {
+            if (checkSchemaInvalid(parsedResult)) {
+              const err = new Error("Repair output is still schema-invalid v0.2");
+              err.details = { rawLooksTruncated: false, expectJson: true };
+              throw err;
+            }
+          } else {
+            const err = new Error("Repair output is not a valid JSON object");
+            err.details = { rawLooksTruncated: false, expectJson: true };
+            throw err;
+          }
+
           jsonParseFailed = false;
+          schemaInvalid = false;
           repairSucceeded = true;
           // Update aiResponse for further downstream processing (provider/model tracking)
           aiResponse = repairResponse;
@@ -524,7 +554,21 @@ export class AiMetadataWorker {
               });
 
               parsedResult = this.extractJson(retryResponse.result);
+              
+              if (parsedResult && typeof parsedResult === 'object' && !Array.isArray(parsedResult)) {
+                if (checkSchemaInvalid(parsedResult)) {
+                  const err = new Error("Repair output is still schema-invalid v0.2");
+                  err.details = { rawLooksTruncated: false, expectJson: true };
+                  throw err;
+                }
+              } else {
+                const err = new Error("Repair output is not a valid JSON object");
+                err.details = { rawLooksTruncated: false, expectJson: true };
+                throw err;
+              }
+
               jsonParseFailed = false;
+              schemaInvalid = false;
               repairSucceeded = true;
               repairRetrySucceeded = true;
               aiResponse = retryResponse;
@@ -564,11 +608,43 @@ export class AiMetadataWorker {
       }
 
       let resultV02;
-      if (jsonParseFailed) {
-        const skeletonReason = twoPassAttempted ? 'AI Provider 二段式 JSON 修复失败，已降级为 skeleton 结果' : 'AI Provider JSON 解析失败，已降级为 skeleton 结果';
-        resultV02 = getDefaultV02Skeleton(sourceMeta, 'low', skeletonReason);
+      let aiClassificationDegraded = false;
+      let aiClassificationDegradedReason = '';
+      let aiClassificationErrorSource = '';
+
+      if (jsonParseFailed || schemaInvalid) {
+        aiClassificationDegraded = true;
+        if (twoPassAttempted) {
+          if (schemaInvalid) {
+            aiClassificationDegradedReason = 'AI 元数据识别未产出合规 v0.2 结构，当前为 skeleton 降级结果';
+            aiClassificationErrorSource = 'ai-metadata-schema-invalid-repair-failed';
+          } else {
+            aiClassificationDegradedReason = 'AI Provider 二段式 JSON 修复失败，降级为 skeleton 结果';
+            aiClassificationErrorSource = 'ollama-json-repair-failed';
+          }
+        } else {
+          if (schemaInvalid) {
+            aiClassificationDegradedReason = 'AI 元数据识别未产出合规 v0.2 结构，当前为 skeleton 降级结果';
+            aiClassificationErrorSource = 'ai-metadata-schema-invalid';
+          } else {
+            aiClassificationDegradedReason = 'AI Provider JSON 解析失败，已降级为 skeleton 结果';
+            aiClassificationErrorSource = 'ollama-json-parse-failed';
+          }
+        }
+        resultV02 = getDefaultV02Skeleton(sourceMeta, 'low', aiClassificationDegradedReason);
       } else {
         resultV02 = validateAndNormalizeV02(parsedResult, sourceMeta);
+        
+        // fields_missing 直接 skeleton 的兼容兜底
+        if (resultV02.governance.risk_flags.includes('skeleton_fallback') && resultV02.governance.human_review_reason === 'fields_missing') {
+          aiClassificationDegraded = true;
+          aiClassificationDegradedReason = 'AI 元数据存在核心字段缺失，降级为 skeleton 兜底';
+          aiClassificationErrorSource = 'ai-metadata-schema-invalid';
+        } else if (resultV02.governance.risk_flags.includes('skeleton_fallback')) {
+          aiClassificationDegraded = true;
+          aiClassificationDegradedReason = resultV02.governance.human_review_reason || 'AI 解析结果触发了降级规则';
+          aiClassificationErrorSource = 'ai-metadata-fallback';
+        }
       }
 
       const result = this.normalizeResult(resultV02); // 保持兼容性
@@ -582,8 +658,8 @@ export class AiMetadataWorker {
       result.rawPreview = rawString.slice(0, 1000);
       result.aiClassificationStandardVersion = 'llm_text_classification_v0.2';
       result.aiClassificationAnalyzedAt = new Date().toISOString();
-      result.aiClassificationProvider = jsonParseFailed ? 'skeleton' : aiResponse.provider;
-      result.aiClassificationModel = jsonParseFailed ? 'skeleton' : aiResponse.model;
+      result.aiClassificationProvider = (jsonParseFailed || schemaInvalid) ? 'skeleton' : aiResponse.provider;
+      result.aiClassificationModel = (jsonParseFailed || schemaInvalid) ? 'skeleton' : aiResponse.model;
       result.aiClassificationInputHash = inputHash;
       result.aiClassificationV02 = resultV02;
       
@@ -614,10 +690,10 @@ export class AiMetadataWorker {
         }
       }
 
-      if (jsonParseFailed) {
+      if (aiClassificationDegraded) {
         result.aiClassificationDegraded = true;
-        result.aiClassificationDegradedReason = twoPassAttempted ? 'AI Provider 二段式 JSON 修复失败，降级为 skeleton 结果' : 'AI Provider JSON 解析失败，已降级为 skeleton 结果';
-        result.aiClassificationErrorSource = twoPassAttempted ? 'ollama-json-repair-failed' : 'ollama-json-parse-failed';
+        result.aiClassificationDegradedReason = aiClassificationDegradedReason;
+        result.aiClassificationErrorSource = aiClassificationErrorSource;
       }
 
       // 从 v0.2 标准获取置信度和 review 状态
@@ -684,9 +760,7 @@ export class AiMetadataWorker {
           rawObjectName: parseTask?.metadata?.objectName || '',
           parsedPrefix: parseTask?.metadata?.parsedPrefix || '',
           markdownObjectName: parseTask?.metadata?.markdownObjectName || job.inputMarkdownObjectName || '',
-          parsedFilesCount: parseTask?.metadata?.parsedFilesCount || 0,
-          mineruExecutionProfile: parseTask?.metadata?.mineruExecutionProfile || {},
-          mimeType: parseTask?.metadata?.mimeType || parseTask?.mimeType || ''
+          parsedFilesCount: parseTask?.metadata?.parsedFilesCount || 0
         };
       } catch (e) {
         // ignore
@@ -838,45 +912,30 @@ export class AiMetadataWorker {
       return { title: '解析失败', subject: '', grade: '' };
     }
     const p = v02Result.primary_facets;
-    const d = v02Result.descriptive_metadata || {};
-    const g = v02Result.governance || {};
+    const d = v02Result.descriptive_metadata;
+    const g = v02Result.governance;
     const s = v02Result.search_tags || {};
-    const st = v02Result.system_tags || {};
+    const sysTags = v02Result.system_tags || { format_tags: [], engine_tags: [], artifact_tags: [] };
     
-    const p1 = d.series_title || p.subject?.zh || '';
-    const p2 = p.level?.zh || p.stage?.zh || '';
-    const p3 = p.resource_type?.zh || p.component_role?.zh || '';
-    const summaryParts = [p1, p2, p3].filter(Boolean);
-    const summary = summaryParts.length > 0 ? summaryParts.join(' · ') : '';
-
-    const rawTags = [
-      ...(s.topic_tags || []),
-      ...(s.skill_tags || []),
-      ...(st.format_tags || []),
-      ...(st.artifact_tags || []),
-      ...(st.engine_tags || [])
-    ];
-    
-    const uniqueTags = [];
-    const seenTags = new Set();
-    for (const tag of rawTags) {
-      const tagStr = typeof tag === 'object' && tag !== null ? (tag.zh || tag.en || '') : String(tag);
-      if (tagStr && !seenTags.has(tagStr)) {
-        seenTags.add(tagStr);
-        uniqueTags.push(tag);
-      }
-    }
+    const components = [p.subject?.zh, p.stage?.zh, p.level?.zh, p.resource_type?.zh].filter(Boolean);
+    const generatedSummary = components.length > 0 ? components.join(' · ') : '';
     
     return {
-      title: d.series_title || p.subject?.zh || '',
+      title: d.series_title || generatedSummary || p.subject?.zh || '',
       subject: p.subject?.zh || '',
-      grade: p.level?.zh || p.stage?.zh || '',
+      grade: p.stage?.zh || p.level?.zh || '',
       semester: '', // v0.2 dropped semester, but we keep it empty for compatibility
-      materialType: p.resource_type?.zh || p.component_role?.zh || '',
+      materialType: p.resource_type?.zh || '',
       language: d.language || '中文',
       curriculum: p.curriculum?.zh || '',
-      tags: uniqueTags,
-      summary: summary,
+      tags: [
+        ...(s.topic_tags || []), 
+        ...(s.skill_tags || []),
+        ...(sysTags.format_tags || []),
+        ...(sysTags.engine_tags || []),
+        ...(sysTags.artifact_tags || [])
+      ],
+      summary: generatedSummary,
       confidence: g.confidence === 'high' ? 90 : g.confidence === 'medium' ? 60 : 30,
       fieldConfidence: {},
       needsReview: g.human_review_required === true || g.confidence !== 'high'

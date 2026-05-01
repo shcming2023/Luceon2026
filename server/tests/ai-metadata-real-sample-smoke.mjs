@@ -213,7 +213,7 @@ async function runTests() {
       assert.equal(settings.expectJson, true, 'Repair pass should have expectJson: true');
       assert.equal(settings.num_predict, 3072, 'Repair pass should have num_predict: 3072');
       assert.ok(settings.temperature === 0 || settings.temperature === 0.1, 'Repair pass should have low temperature');
-      return { provider: 'ollama', model: 'qwen3.5', result: '{"primary_facets": {"subject": {"zh": "数学"}}, "governance": {"confidence": "high"}}', usage: {} };
+      return { provider: 'ollama', model: 'qwen3.5', result: '{"primary_facets": {"subject": {"zh": "数学"}}, "governance": {"confidence": "high"}, "evidence": []}', usage: {} };
     }
   };
 
@@ -287,10 +287,10 @@ async function runTests() {
       topic_tags: ['力学'],
       skill_tags: ['计算']
     },
+    evidence: [],
     governance: { confidence: 'high', human_review_required: false }
   };
-  const provider8 = createMockProvider(mockSystemTagsResult);
-  worker1.executeWithFallback = async () => ({ provider: 'mock', model: 'mock', result: mockSystemTagsResult, usage: {} });
+  worker1.executeWithFallback = async () => ({ provider: 'mock', model: 'mock', result: JSON.stringify(mockSystemTagsResult), usage: {} });
   
   await worker1.processJob({ id: 'test-job-8', parseTaskId: 'test-task-8', materialId: 'm8', inputMarkdownObjectName: 'test.pdf' });
   
@@ -332,7 +332,7 @@ async function runTests() {
       assert.equal(settings.expectJson, true);
       assert.equal(settings.temperature, 0);
       assert.equal(settings.num_predict, 4096);
-      return { provider: 'ollama', model: 'qwen3.5', result: '{"primary_facets": {"subject": {"zh": "数学"}}, "governance": {"confidence": "high"}}', usage: {} };
+      return { provider: 'ollama', model: 'qwen3.5', result: '{"primary_facets": {"subject": {"zh": "数学"}}, "governance": {"confidence": "high"}, "evidence": []}', usage: {} };
     }
   };
   
@@ -389,6 +389,74 @@ async function runTests() {
   assert.equal(finalResultObj.aiClassificationRepairProviderDetails.rawContentPreview, 'Truncated 2...');
   
   console.log('Case 11 Pass ✅');
+
+  // Case 12: schema-invalid triggers repair
+  console.log('Case 12: schema-invalid triggers repair');
+  callCount = 0;
+  let repairPromptReceived = '';
+  worker1.executeWithFallback = async (provider, markdown, settings) => {
+    callCount++;
+    if (callCount === 1) {
+      return { provider: 'ollama', model: 'qwen3.5', result: '{"title": "出国行李清单", "domain": "travel", "subject": "personal_items", "resource_type": "list", "evidence_snippets": ["出国", "护照签证"]}', usage: {} };
+    } else {
+      repairPromptReceived = settings.systemPrompt;
+      return { provider: 'ollama', model: 'qwen3.5', result: '{"primary_facets": {"domain": {"zh": "travel"}, "subject": {"zh": "personal_items"}, "resource_type": {"zh": "list"}}, "evidence": ["出国", "护照签证"], "governance": {"confidence": "high"}}', usage: {} };
+    }
+  };
+  await worker1.processJob({ id: 'test-job-12', parseTaskId: 'test-task-12', materialId: 'm12', inputMarkdownObjectName: 'test.md' });
+  
+  assert.equal(finalResultObj.aiClassificationTwoPassAttempted, true);
+  assert.ok(repairPromptReceived.includes('出国行李清单'));
+  assert.equal(finalResultObj.aiClassificationRepairSucceeded, true);
+  assert.equal(finalResultObj.aiClassificationDegraded, undefined);
+  assert.equal(finalResultObj.aiClassificationV02.primary_facets.domain.zh, 'travel');
+  assert.equal(Array.isArray(finalResultObj.aiClassificationV02.evidence), true);
+  console.log('Case 12 Pass ✅');
+
+  // Case 13: schema-invalid repair fails -> skeleton explicitly
+  console.log('Case 13: schema-invalid repair fails -> skeleton explicitly');
+  callCount = 0;
+  worker1.executeWithFallback = async (provider, markdown, settings, prompt) => {
+    callCount++;
+    if (callCount === 1) {
+      return { provider: 'ollama', model: 'qwen3.5', result: '{"title": "出国行李清单", "domain": "travel"}', usage: {} };
+    } else {
+      return { provider: 'ollama', model: 'qwen3.5', result: '{"still_flat": "yes"}', usage: {} };
+    }
+  };
+  await worker1.processJob({ id: 'test-job-13', parseTaskId: 'test-task-13', materialId: 'm13', inputMarkdownObjectName: 'test.md' });
+  
+  assert.equal(finalResultObj.aiClassificationProvider, 'skeleton');
+  assert.equal(finalResultObj.aiClassificationDegraded, true);
+  assert.equal(finalResultObj.aiClassificationErrorSource, 'ai-metadata-schema-invalid-repair-failed');
+  assert.ok(finalResultObj.aiClassificationDegradedReason);
+  assert.ok(finalResultObj.aiClassificationV02.governance.risk_flags.includes('skeleton_fallback'));
+  console.log('Case 13 Pass ✅');
+
+  // Case 14: Valid v0.2 JSON -> no repair
+  console.log('Case 14: Valid v0.2 JSON -> no repair');
+  callCount = 0;
+  worker1.executeWithFallback = async (provider, markdown, settings, prompt) => {
+    callCount++;
+    return { provider: 'ollama', model: 'qwen3.5', result: '{"primary_facets": {"domain": {"zh": "travel"}}, "evidence": ["出国"], "governance": {"confidence": "high"}}', usage: {} };
+  };
+  await worker1.processJob({ id: 'test-job-14', parseTaskId: 'test-task-14', materialId: 'm14', inputMarkdownObjectName: 'test.md' });
+  
+  assert.equal(callCount, 1);
+  assert.equal(finalResultObj.aiClassificationTwoPassAttempted, undefined);
+  assert.equal(finalResultObj.aiClassificationDegraded, undefined);
+  console.log('Case 14 Pass ✅');
+
+  // Case 15: fields_missing fallback gets degraded flags
+  console.log('Case 15: fields_missing fallback gets degraded flags');
+  worker1.executeWithFallback = async (provider, markdown, settings, prompt) => {
+    return { provider: 'ollama', model: 'qwen3.5', result: '{"primary_facets": {}, "evidence": [], "governance": {"human_review_reason": "fields_missing", "risk_flags": ["skeleton_fallback"]}}', usage: {} };
+  };
+  await worker1.processJob({ id: 'test-job-15', parseTaskId: 'test-task-15', materialId: 'm15', inputMarkdownObjectName: 'test.md' });
+  
+  assert.equal(finalResultObj.aiClassificationDegraded, true);
+  assert.equal(finalResultObj.aiClassificationErrorSource, 'ai-metadata-schema-invalid');
+  console.log('Case 15 Pass ✅');
 
   worker1.executeWithFallback = originalExecute;
   worker1.transition = originalTransition;

@@ -322,18 +322,27 @@ export function generateV02DraftPrompt() {
 export function generateV02RepairPrompt(draftContent) {
   return `你是一个 JSON 修复与格式化助手。请根据以下提取的草稿内容，将其严格格式化为符合 AI Metadata v0.2 标准的唯一 JSON 对象。
 
-**草稿内容：**
+**草稿内容（可能是旧式 JSON、扁平 JSON、或自然语言草稿）：**
 ${draftContent}
 
 **极其重要的硬规则：**
-1. 你的完整且唯一的输出必须是一个且仅一个有效的 JSON 对象！
-2. 绝对禁止在输出开头或结尾添加任何 Markdown 代码块标识（如 \`\`\`json 或 \`\`\`）。
-3. 绝对禁止输出任何解释性文字、开场白或结束语（如"Here is the JSON"）。
-4. 绝对禁止输出 <think> 标签或包含思维链过程。
-5. 你返回的字符串必须能被系统直接执行 JSON.parse() 解析。
-6. 不允许缺少 primary_facets。
-7. evidence 必须为数组。
-8. governance 必须存在。
+1. 必须将输入转换为 v0.2 canonical schema。
+2. 你的完整且唯一的输出必须是一个且仅一个有效的 JSON 对象！
+3. 绝对禁止在输出开头或结尾添加任何 Markdown 代码块标识（如 \`\`\`json 或 \`\`\`）。
+4. 绝对禁止输出任何解释性文字、开场白或结束语（如"Here is the JSON"）。
+5. 绝对禁止输出 <think> 标签或包含思维链过程。
+6. 你返回的字符串必须能被系统直接执行 JSON.parse() 解析。
+7. 不允许缺少 primary_facets。
+8. evidence 必须为数组。
+9. governance 必须存在。
+
+**旧字段映射建议：**
+- domain -> primary_facets.domain
+- subject -> primary_facets.subject
+- resource_type -> primary_facets.resource_type
+- component_role -> primary_facets.component_role
+- evidence_snippets -> evidence
+- title -> descriptive_metadata.series_title 或 evidence，不要当作根字段保留
 
 JSON 结构必须符合以下 AI Metadata v0.2 标准：
 {

@@ -106,7 +106,8 @@ export function MetadataTab({
     material?.metadata?.aiClassificationDegraded === true ||
     material?.metadata?.aiClassificationProvider === 'skeleton' ||
     material?.metadata?.aiClassificationModel === 'skeleton' ||
-    material?.metadata?.aiClassificationV02?.governance?.risk_flags?.includes('skeleton_fallback');
+    material?.metadata?.aiClassificationV02?.governance?.risk_flags?.includes('skeleton_fallback') ||
+    ['fields_missing', 'schema_invalid', 'ai-metadata-schema-invalid'].includes(material?.metadata?.aiClassificationV02?.governance?.human_review_reason);
 
   const fallbackReason = 
     material?.metadata?.aiClassificationDegradedReason ||
@@ -243,12 +244,16 @@ export function MetadataTab({
             {isAiSkeletonFallback && (
               <div className="bg-red-100 text-red-700 p-2 rounded border border-red-200 flex items-start gap-1.5 mb-2">
                 <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-                <div>
-                  <div className="font-bold">AI 元数据识别失败，当前为 skeleton 降级结果</div>
-                  {material.metadata.aiClassificationRepairProviderDetails?.timeoutKind === 'headers-timeout' ? (
-                    <div className="text-[10px] mt-0.5">原因: Ollama repair 请求超时，未取得模型输出</div>
-                  ) : (
-                    <div className="text-[10px] mt-0.5">原因: {fallbackReason}</div>
+                <div className="flex-1">
+                  <div className="font-bold">AI 元数据识别未产出合规 v0.2 结构，当前为 skeleton 降级结果</div>
+                  <div className="text-[10px] mt-0.5">原因: {fallbackReason}</div>
+                  {material?.metadata?.aiClassificationErrorSource && (
+                    <div className="text-[10px] font-mono mt-0.5 text-red-600">
+                      来源: {material.metadata.aiClassificationErrorSource}
+                    </div>
+                  )}
+                  {material.metadata.aiClassificationRepairProviderDetails?.timeoutKind === 'headers-timeout' && (
+                    <div className="text-[10px] mt-0.5">附加信息: Ollama repair 请求超时，未取得模型输出</div>
                   )}
                   <div className="text-[10px] mt-0.5 font-semibold">（由于 AI 提供商输出异常，系统已自动拦截并生成骨架占位，需人工复核）</div>
                 </div>
@@ -314,29 +319,6 @@ export function MetadataTab({
                 )}
               </dl>
             </div>
-
-            {material.metadata.aiClassificationV02.system_tags && (
-              <div className="pt-2 border-t border-slate-200">
-                <h4 className="font-semibold text-slate-600 mb-1.5">System Tags</h4>
-                <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
-                  <dt className="text-slate-400">Format</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.system_tags.format_tags?.map((t: any) => t.zh || t.en || t).join(', ') || '—'}</dd>
-                  <dt className="text-slate-400">Artifact</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.system_tags.artifact_tags?.map((t: any) => t.zh || t.en || t).join(', ') || '—'}</dd>
-                  <dt className="text-slate-400">Engine</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.system_tags.engine_tags?.map((t: any) => t.zh || t.en || t).join(', ') || '—'}</dd>
-                </dl>
-              </div>
-            )}
-
-            {material.metadata.aiClassificationV02.governance_signals && (
-              <div className="pt-2 border-t border-slate-200">
-                <h4 className="font-semibold text-slate-600 mb-1.5">Governance Signals</h4>
-                <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
-                  <dt className="text-slate-400">Quality</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.governance_signals.quality?.join(', ') || '—'}</dd>
-                  <dt className="text-slate-400">Relationship</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.governance_signals.relationship?.join(', ') || '—'}</dd>
-                  <dt className="text-slate-400">Retention</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.governance_signals.retention?.join(', ') || '—'}</dd>
-                  <dt className="text-slate-400">Risk</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.governance_signals.risk?.join(', ') || '—'}</dd>
-                </dl>
-              </div>
-            )}
 
             {material.metadata.aiClassificationV02.recommended_catalog_path && (
               <div className="pt-2 border-t border-slate-200">
