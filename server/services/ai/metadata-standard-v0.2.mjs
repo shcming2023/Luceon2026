@@ -2,6 +2,8 @@
  * metadata-standard-v0.2.mjs - AI Metadata v0.2 结构规范与验证
  */
 
+import { applyTaxonomyControl } from './metadata-taxonomy-v0.2.mjs';
+
 export function normalizeEvidence(rawEvidence) {
   if (!Array.isArray(rawEvidence)) return [];
   const normalized = [];
@@ -125,6 +127,26 @@ export function getDefaultV02Skeleton(source = {}, confidence = 'low', humanRevi
     search_tags: {
       topic_tags: [],
       skill_tags: []
+    },
+    controlled_classification: {
+      domain: null,
+      collection: null,
+      curriculum: null,
+      stage: null,
+      level: null,
+      subject: null,
+      resource_type: null,
+      component_role: null
+    },
+    normalized_tags: {
+      topic_tags: [],
+      skill_tags: []
+    },
+    proposed_new_tags: [],
+    classification_review: {
+      required: true,
+      reasons: ['skeleton_fallback'],
+      unmatched_facets: {}
     },
     governance: {
       confidence: confidence,
@@ -251,6 +273,22 @@ export function validateAndNormalizeV02(rawResult, source) {
   if (parsedCount === 0) result.governance_signals.quality.push('no_parsed_artifacts');
   
   result.governance_signals.risk = Array.from(riskSignals);
+
+  // 应用受控分类与规范标签标准化
+  const taxonomyResult = applyTaxonomyControl(result);
+  Object.assign(result, taxonomyResult);
+
+  if (taxonomyResult.classification_review.required) {
+    result.governance.human_review_required = true;
+    if (!result.governance.human_review_reason) {
+      result.governance.human_review_reason = 'Taxonomy unmatch or proposed new tags';
+    } else {
+      const parts = result.governance.human_review_reason.split(';');
+      if (!parts.some(p => p.includes('Taxonomy'))) {
+        result.governance.human_review_reason += '; Taxonomy unmatch or proposed new tags';
+      }
+    }
+  }
 
   return result;
 }

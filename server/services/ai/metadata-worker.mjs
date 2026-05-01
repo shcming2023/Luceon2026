@@ -970,23 +970,38 @@ export class AiMetadataWorker {
     const s = v02Result.search_tags || {};
     const sysTags = v02Result.system_tags || { format_tags: [], engine_tags: [], artifact_tags: [] };
     
-    const components = [p.subject?.zh, p.stage?.zh, p.level?.zh, p.resource_type?.zh].filter(Boolean);
+    const c = v02Result.controlled_classification || {};
+    const nt = v02Result.normalized_tags || { topic_tags: [], skill_tags: [] };
+    
+    // 优先使用 controlled_classification，fallback 到 primary_facets
+    const subjectZh = c.subject?.zh || p.subject?.zh || '';
+    const stageZh = c.stage?.zh || p.stage?.zh || '';
+    const levelZh = c.level?.zh || p.level?.zh || '';
+    const resTypeZh = c.resource_type?.zh || p.resource_type?.zh || '';
+    const compRoleZh = c.component_role?.zh || p.component_role?.zh || '';
+    const currZh = c.curriculum?.zh || p.curriculum?.zh || '';
+    
+    const components = [subjectZh, stageZh, levelZh, resTypeZh].filter(Boolean);
     const generatedSummary = components.length > 0 ? components.join(' · ') : '';
     
+    // tags 只合并 normalized_tags 和 system_tags
+    const normTopicTags = Array.isArray(nt.topic_tags) ? nt.topic_tags.map(t => typeof t === 'object' ? t.zh || t.en : t) : [];
+    const normSkillTags = Array.isArray(nt.skill_tags) ? nt.skill_tags.map(t => typeof t === 'object' ? t.zh || t.en : t) : [];
+
     return {
-      title: d.series_title || generatedSummary || p.subject?.zh || '',
-      subject: p.subject?.zh || '',
-      grade: p.stage?.zh || p.level?.zh || '',
+      title: d.series_title || generatedSummary || subjectZh || '',
+      subject: subjectZh,
+      grade: levelZh || stageZh,
       semester: '', // v0.2 dropped semester, but we keep it empty for compatibility
-      materialType: p.resource_type?.zh || '',
+      materialType: resTypeZh || compRoleZh,
       language: d.language || '中文',
-      curriculum: p.curriculum?.zh || '',
+      curriculum: currZh,
       tags: [
-        ...(s.topic_tags || []), 
-        ...(s.skill_tags || []),
-        ...(sysTags.format_tags || []),
-        ...(sysTags.engine_tags || []),
-        ...(sysTags.artifact_tags || [])
+        ...normTopicTags, 
+        ...normSkillTags,
+        ...(sysTags.format_tags || []).map(t => t.zh || t.en || t),
+        ...(sysTags.engine_tags || []).map(t => t.zh || t.en || t),
+        ...(sysTags.artifact_tags || []).map(t => t.zh || t.en || t)
       ],
       summary: generatedSummary,
       confidence: g.confidence === 'high' ? 90 : g.confidence === 'medium' ? 60 : 30,

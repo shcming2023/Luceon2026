@@ -41,7 +41,7 @@ async function run() {
 
   // 1.3 Valid high confidence
   const validHigh = validateAndNormalizeV02({
-    primary_facets: { domain: { zh: '基础教育' }, subject: { zh: '数学' }, resource_type: { zh: '教案' } },
+    primary_facets: { domain: { zh: 'general' }, subject: { zh: 'math' }, resource_type: { zh: 'coursebook' } },
     governance: { confidence: 'high', human_review_required: false },
     evidence: ['test']
   }, source);
@@ -50,7 +50,7 @@ async function run() {
 
   // 1.4 Valid low confidence forces review
   const validLow = validateAndNormalizeV02({
-    primary_facets: { domain: { zh: '基础教育' }, subject: { zh: '数学' }, resource_type: { zh: '教案' } },
+    primary_facets: { domain: { zh: 'general' }, subject: { zh: 'math' }, resource_type: { zh: 'coursebook' } },
     governance: { confidence: 'low', human_review_required: false, human_review_reason: '' },
     evidence: ['test']
   }, source);
@@ -59,7 +59,7 @@ async function run() {
 
   // 1.5 Proposed tags forces review
   const newTags = validateAndNormalizeV02({
-    primary_facets: { domain: { zh: '基础教育' }, subject: { zh: '数学' }, resource_type: { zh: '教案' } },
+    primary_facets: { domain: { zh: 'general' }, subject: { zh: 'math' }, resource_type: { zh: 'coursebook' } },
     search_tags: { proposed_new_tags: ['new_tag'] },
     governance: { confidence: 'high', human_review_required: false },
     evidence: ['test']
@@ -114,6 +114,30 @@ async function run() {
   assertTrue('Sampled content contains head marker', sampledContent.includes('=== HEAD ==='));
   assertTrue('Sampled content contains metadata marker', sampledContent.includes('=== FILE METADATA ==='));
   assertTrue('Sampled content generates input hash', inputHash.startsWith('sha256:'));
+
+  // 3. Test Taxonomy Control
+  const taxonomyResult1 = validateAndNormalizeV02({
+    primary_facets: { domain: 'English', subject: 'esl', resource_type: '课本' },
+    search_tags: { topic_tags: ['reading', '北极岛屿旅行知识'], skill_tags: ['分析能力'] },
+    governance: { confidence: 'high' },
+    evidence: ['x']
+  }, source);
+  
+  // 'English' domain should fail. 'academic', 'exam', 'travel', 'general' are valid domains.
+  assertTrue('Domain unmapped goes to review', taxonomyResult1.classification_review.required === true);
+  assertEq('Domain unmapped value captured', taxonomyResult1.classification_review.unmatched_facets.domain, 'English');
+  assertEq('Subject alias normalized', taxonomyResult1.controlled_classification.subject?.id, 'english');
+  assertEq('Resource type alias normalized', taxonomyResult1.controlled_classification.resource_type?.id, 'coursebook');
+  
+  assertTrue('Topic tag reading normalized', taxonomyResult1.normalized_tags.topic_tags.some(t => t.id === 'reading'));
+  assertTrue('Topic tag unmapped proposed', taxonomyResult1.proposed_new_tags.some(t => t.value === '北极岛屿旅行知识'));
+  assertTrue('Skill tag normalized', taxonomyResult1.normalized_tags.skill_tags.some(t => t.id === 'analytical'));
+  
+  // 3.1 Skeleton Taxonomy
+  const skeletonResult = getDefaultV02Skeleton(source, 'low', 'test');
+  assertTrue('Skeleton classification review required', skeletonResult.classification_review.required === true);
+  assertEq('Skeleton taxonomy fields empty', skeletonResult.controlled_classification.domain, null);
+  assertEq('Skeleton normalized tags empty', skeletonResult.normalized_tags.topic_tags.length, 0);
 
   console.log(`\nResults: ${passed} passed, ${failed} failed`);
   if (failed > 0) {

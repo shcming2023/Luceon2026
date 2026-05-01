@@ -284,18 +284,71 @@ export function MetadataTab({
             </div>
 
             <div className="pt-2 border-t border-slate-200">
-              <h4 className="font-semibold text-slate-600 mb-1.5">Primary Facets</h4>
+              <h4 className="font-semibold text-slate-600 mb-1.5 flex items-center gap-1"><Tag size={12} className="text-blue-500" /> 受控分类 (Controlled Classification)</h4>
               <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
-                <dt className="text-slate-400">Domain</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.primary_facets?.domain?.zh || '—'}</dd>
-                <dt className="text-slate-400">Collection</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.primary_facets?.collection?.zh || '—'}</dd>
-                <dt className="text-slate-400">Curriculum</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.primary_facets?.curriculum?.zh || '—'}</dd>
-                <dt className="text-slate-400">Stage</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.primary_facets?.stage?.zh || '—'}</dd>
-                <dt className="text-slate-400">Level</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.primary_facets?.level?.zh || '—'}</dd>
-                <dt className="text-slate-400">Subject</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.primary_facets?.subject?.zh || '—'}</dd>
-                <dt className="text-slate-400">Resource Type</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.primary_facets?.resource_type?.zh || '—'}</dd>
-                <dt className="text-slate-400">Role</dt><dd className="text-slate-700">{material.metadata.aiClassificationV02.primary_facets?.component_role?.zh || '—'}</dd>
+                {['domain', 'collection', 'curriculum', 'stage', 'level', 'subject', 'resource_type', 'component_role'].map(facet => {
+                  const controlled = material.metadata.aiClassificationV02.controlled_classification?.[facet];
+                  const raw = material.metadata.aiClassificationV02.primary_facets?.[facet];
+                  const rawLabel = raw?.zh || raw?.en || raw;
+                  const displayValue = controlled ? controlled.zh : (rawLabel ? <span className="text-amber-600 italic" title={String(rawLabel)}>未命中标准 / 待复核</span> : '—');
+                  const labelMap: Record<string, string> = { domain: 'Domain', collection: 'Collection', curriculum: 'Curriculum', stage: 'Stage', level: 'Level', subject: 'Subject', resource_type: 'Resource Type', component_role: 'Role' };
+                  return (
+                    <div key={facet} className="contents">
+                      <dt className="text-slate-400 capitalize">{labelMap[facet]}</dt>
+                      <dd className="text-slate-700">{displayValue}</dd>
+                    </div>
+                  );
+                })}
               </dl>
             </div>
+
+            {(material.metadata.aiClassificationV02.normalized_tags?.topic_tags?.length > 0 || material.metadata.aiClassificationV02.normalized_tags?.skill_tags?.length > 0) && (
+              <div className="pt-2 border-t border-slate-200">
+                <h4 className="font-semibold text-slate-600 mb-1.5 flex items-center gap-1"><CheckCircle2 size={12} className="text-green-500" /> 规范标签 (Normalized Tags)</h4>
+                <div className="flex flex-wrap gap-1">
+                  {material.metadata.aiClassificationV02.normalized_tags.topic_tags?.map((t: any) => (
+                    <span key={`topic-${t.id}`} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px]">{t.zh || t.en}</span>
+                  ))}
+                  {material.metadata.aiClassificationV02.normalized_tags.skill_tags?.map((t: any) => (
+                    <span key={`skill-${t.id}`} className="px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded text-[10px]">{t.zh || t.en}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {material.metadata.aiClassificationV02.proposed_new_tags?.length > 0 && (
+              <div className="pt-2 border-t border-slate-200">
+                <h4 className="font-semibold text-slate-600 mb-1.5 flex items-center gap-1"><AlertTriangle size={12} className="text-amber-500" /> 候选新标签 (Proposed New Tags)</h4>
+                <div className="text-[10px] text-amber-600 mb-1">以下标签未进入正式标签，等待人工审核确认：</div>
+                <div className="flex flex-wrap gap-1">
+                  {material.metadata.aiClassificationV02.proposed_new_tags.map((t: any, idx: number) => (
+                    <span key={idx} className="px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded text-[10px]">{t.value} ({t.group})</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {material.metadata.aiClassificationV02.classification_review?.required && (
+              <div className="pt-2 border-t border-slate-200">
+                <h4 className="font-semibold text-slate-600 mb-1.5 flex items-center gap-1"><ShieldAlert size={12} className="text-red-500" /> 分类复核 (Classification Review)</h4>
+                <div className="bg-red-50 p-2 rounded border border-red-100 text-[10px] space-y-1">
+                  <div className="flex items-start gap-1">
+                    <span className="font-semibold text-red-700 shrink-0">触发原因:</span>
+                    <span className="text-red-600 break-words">{material.metadata.aiClassificationV02.classification_review.reasons?.join(', ') || '—'}</span>
+                  </div>
+                  {Object.keys(material.metadata.aiClassificationV02.classification_review.unmatched_facets || {}).length > 0 && (
+                    <div className="flex flex-col gap-0.5 pt-1 mt-1 border-t border-red-100/50">
+                      <span className="font-semibold text-red-700">未归一原始值:</span>
+                      <ul className="list-disc list-inside text-red-600 ml-1">
+                        {Object.entries(material.metadata.aiClassificationV02.classification_review.unmatched_facets).map(([k, v]) => (
+                          <li key={k} className="break-all">{k}: {String(v)}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="pt-2 border-t border-slate-200">
               <h4 className="font-semibold text-slate-600 mb-1.5">Governance</h4>

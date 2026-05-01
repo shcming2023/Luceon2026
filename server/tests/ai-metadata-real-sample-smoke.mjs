@@ -378,14 +378,14 @@ async function runTests() {
   console.log('Case 8: System tags, combined tags, and summary');
   const mockSystemTagsResult = {
     primary_facets: {
-      domain: { zh: '1' },
+      domain: { zh: 'general' },
       subject: { zh: '物理' },
       level: { zh: '高一' },
-      resource_type: { zh: '试卷' }
+      resource_type: { zh: '真题' }
     },
     search_tags: {
       topic_tags: ['力学'],
-      skill_tags: ['计算']
+      skill_tags: ['分析能力']
     },
     evidence: [],
     governance: { confidence: 'high', human_review_required: false }
@@ -394,12 +394,12 @@ async function runTests() {
   
   await worker1.processJob({ id: 'test-job-8', parseTaskId: 'test-task-8', materialId: 'm8', inputMarkdownObjectName: 'test.pdf' });
   
-  assert.equal(finalResultObj.grade, '高一');
-  assert.equal(finalResultObj.summary, '物理 · 高一 · 试卷');
+  assert.equal(finalResultObj.grade, '十年级');
+  assert.equal(finalResultObj.summary, '物理 · 十年级 · 真题');
   
   const tagsStr = JSON.stringify(finalResultObj.tags);
   assert.ok(tagsStr.includes('力学'), 'tags should include search_tags.topic_tags');
-  assert.ok(tagsStr.includes('计算'), 'tags should include search_tags.skill_tags');
+  assert.ok(tagsStr.includes('分析能力'), 'tags should include search_tags.skill_tags');
   assert.ok(tagsStr.includes('ocr_enabled') || tagsStr.includes('OCR') || tagsStr.includes('pdf'), 'tags should include format_tags');
   assert.ok(tagsStr.includes('pipeline') || tagsStr.includes('Pipeline'), 'tags should include engine_tags');
   assert.ok(finalResultObj.aiClassificationV02.system_tags.format_tags.length > 0, 'system_tags.format_tags should be populated');
