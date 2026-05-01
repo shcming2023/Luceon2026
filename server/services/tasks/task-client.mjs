@@ -44,6 +44,18 @@ export async function updateTask(taskId, updateData) {
   }
 }
 
+export async function getMaterialById(materialId) {
+  try {
+    const resp = await fetch(`${DB_BASE_URL}/materials/${encodeURIComponent(materialId)}`);
+    if (resp.status === 404) return null;
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return await resp.json();
+  } catch (error) {
+    console.error(`[task-client] getMaterialById failed: ${error.message}`);
+    return null;
+  }
+}
+
 export async function updateMaterial(materialId, updateData) {
   try {
     const resp = await fetch(`${DB_BASE_URL}/materials/${encodeURIComponent(materialId)}`, {

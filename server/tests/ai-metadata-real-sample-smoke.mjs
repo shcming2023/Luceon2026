@@ -35,6 +35,42 @@ async function runTests() {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, options) => {
     if (url && typeof url === 'string') {
+      if (url.includes('/materials/mat-test1')) {
+        return { ok: true, json: async () => ({
+          id: "mat-test1",
+          fileName: "出国.pdf",
+          fileSize: 33814,
+          mimeType: "application/pdf",
+          metadata: {
+            objectName: "originals/mat-test1/source.pdf",
+            parsedPrefix: "parsed/mat-test1/",
+            markdownObjectName: "parsed/mat-test1/full.md",
+            parsedFilesCount: 8
+          }
+        }) };
+      }
+      if (url.includes('/materials/mat-test2')) {
+        return { ok: true, json: async () => ({
+          id: "mat-test2"
+        }) };
+      }
+      if (url.includes('/materials/mat-test4')) {
+        return { ok: true, json: async () => ({
+          id: "mat-test4",
+          fileName: "出国.pdf",
+          fileSize: 33814,
+          mimeType: "application/pdf",
+          metadata: {
+            objectName: "originals/mat-test4/source.pdf",
+            parsedPrefix: "parsed/mat-test4/",
+            markdownObjectName: "parsed/mat-test4/full.md",
+            parsedFilesCount: 8
+          }
+        }) };
+      }
+      if (url.includes('/materials/')) {
+        return { ok: true, json: async () => ({}) };
+      }
       if (url.includes('/tasks/test-task-16')) {
         return { ok: true, json: async () => ({
           id: 'test-task-16',
@@ -48,6 +84,38 @@ async function runTests() {
             parsedFilesCount: 8,
             mimeType: "application/pdf",
             mineruExecutionProfile: { backendEffective: "pipeline" }
+          }
+        }) };
+      }
+      if (url.includes('/tasks/test-task-3')) {
+        return { ok: true, json: async () => ({
+          id: 'test-task',
+          state: 'completed',
+          metadata: {
+            originalFilename: "出国_task.pdf",
+            originalFileSize: 999,
+            objectName: "originals/mat-test/source.pdf",
+            parsedPrefix: "parsed/mat-test/",
+            markdownObjectName: "parsed/mat-test/full.md",
+            parsedFilesCount: 2,
+            mimeType: "application/pdf",
+            mineruExecutionProfile: { backendEffective: "pipeline" }
+          }
+        }) };
+      }
+      if (url.includes('/tasks/test-task-2')) {
+        return { ok: true, json: async () => ({ 
+          id: 'test-task-2',
+          state: 'completed',
+          metadata: { 
+            originalFilename: 'fallback.pdf', 
+            originalFileSize: 12345,
+            mimeType: 'application/pdf',
+            objectName: 'originals/mat-test2/source.pdf',
+            parsedPrefix: 'parsed/mat-test2/',
+            markdownObjectName: 'parsed/mat-test2/full.md',
+            parsedFilesCount: 5,
+            mineruExecutionProfile: { enableOcr: true, backendEffective: 'pipeline' } 
           }
         }) };
       }
@@ -502,6 +570,61 @@ async function runTests() {
   assert.equal(finalResultObj.aiClassificationV02.source.file_name, '出国.pdf');
   assert.equal(finalResultObj.aiClassificationV02.source.llm_source_hint.raw_object_name, '模型乱写');
   console.log('Case 16 Pass ✅');
+
+  // Case 17: sourceMeta 优先从 Material 补齐
+  console.log('Case 17: sourceMeta 优先从 Material 补齐');
+  worker1.executeWithFallback = async (provider, markdown, settings, prompt) => {
+    return { provider: 'ollama', model: 'qwen3.5', result: '{"primary_facets": {"domain": {"zh": "travel"}}, "evidence": ["出国"], "governance": {"confidence": "high"}}', usage: {} };
+  };
+  await worker1.processJob({ id: 'test-job-17', parseTaskId: 'non-existent-task', materialId: 'mat-test1', inputMarkdownObjectName: 'test.md' });
+  
+  assert.equal(finalResultObj.aiClassificationV02.source.file_name, '出国.pdf');
+  assert.equal(finalResultObj.aiClassificationV02.source.file_size, 33814);
+  assert.equal(finalResultObj.aiClassificationV02.source.mime_type, 'application/pdf');
+  assert.equal(finalResultObj.aiClassificationV02.source.raw_object_name, 'originals/mat-test1/source.pdf');
+  assert.equal(finalResultObj.aiClassificationV02.source.parsed_prefix, 'parsed/mat-test1/');
+  assert.equal(finalResultObj.aiClassificationV02.source.markdown_object_name, 'parsed/mat-test1/full.md');
+  assert.equal(finalResultObj.aiClassificationV02.source.parsed_files_count, 8);
+  console.log('Case 17 Pass ✅');
+
+  // Case 18: ParseTask 补齐 fallback 仍有效
+  console.log('Case 18: ParseTask 补齐 fallback 仍有效');
+  await worker1.processJob({ id: 'test-job-18', parseTaskId: 'test-task-2', materialId: 'mat-test2', inputMarkdownObjectName: 'test.md' });
+  
+  assert.equal(finalResultObj.aiClassificationV02.source.file_name, 'fallback.pdf');
+  assert.equal(finalResultObj.aiClassificationV02.source.file_size, 12345);
+  assert.equal(finalResultObj.aiClassificationV02.source.mime_type, 'application/pdf');
+  assert.equal(finalResultObj.aiClassificationV02.source.raw_object_name, 'originals/mat-test2/source.pdf');
+  assert.equal(finalResultObj.aiClassificationV02.source.parsed_prefix, 'parsed/mat-test2/');
+  assert.equal(finalResultObj.aiClassificationV02.source.markdown_object_name, 'parsed/mat-test2/full.md');
+  assert.equal(finalResultObj.aiClassificationV02.source.parsed_files_count, 5);
+  console.log('Case 18 Pass ✅');
+
+  // Case 19: LLM source 污染仍被隔离
+  console.log('Case 19: LLM source 污染仍被隔离');
+  worker1.executeWithFallback = async (provider, markdown, settings, prompt) => {
+    return { provider: 'ollama', model: 'qwen3.5', result: '{"source": {"raw_object_name": "模型乱写", "markdown_object_name": "模型乱写"}, "primary_facets": {"domain": {"zh": "travel"}}, "evidence": ["出国"], "governance": {"confidence": "high"}}', usage: {} };
+  };
+  await worker1.processJob({ id: 'test-job-19', parseTaskId: 'test-task-3', materialId: 'mat-test', inputMarkdownObjectName: 'test.md' });
+  
+  assert.notEqual(finalResultObj.aiClassificationV02.source.raw_object_name, '模型乱写');
+  assert.notEqual(finalResultObj.aiClassificationV02.source.markdown_object_name, '模型乱写');
+  assert.equal(finalResultObj.aiClassificationV02.source.llm_source_hint.raw_object_name, '模型乱写');
+  console.log('Case 19 Pass ✅');
+
+  // Case 20: provider failed skeleton 路径也有完整 source
+  console.log('Case 20: provider failed skeleton 路径也有完整 source');
+  worker1.executeWithFallback = async (provider, markdown, settings, prompt) => {
+    throw new Error("Simulated Provider Failure");
+  };
+  await worker1.processJob({ id: 'test-job-20', parseTaskId: 'test-task-4', materialId: 'mat-test4', inputMarkdownObjectName: 'test.md' });
+  
+  assert.equal(finalResultObj.aiClassificationProvider, 'skeleton');
+  assert.equal(finalResultObj.aiClassificationV02.source.file_name, '出国.pdf');
+  assert.equal(finalResultObj.aiClassificationV02.source.raw_object_name, 'originals/mat-test4/source.pdf');
+  assert.equal(finalResultObj.aiClassificationV02.source.markdown_object_name, 'parsed/mat-test4/full.md');
+  assert.equal(finalResultObj.aiClassificationV02.source.parsed_files_count, 8);
+  console.log('Case 20 Pass ✅');
 
   worker1.executeWithFallback = originalExecute;
   worker1.transition = originalTransition;

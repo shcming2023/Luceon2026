@@ -10,7 +10,7 @@
  */
 
 import { getAllJobs, updateJob } from './metadata-job-client.mjs';
-import { getTaskById } from '../tasks/task-client.mjs';
+import { getTaskById, getMaterialById } from '../tasks/task-client.mjs';
 import { logTaskEvent } from '../logging/task-events.mjs';
 import { getSettings } from '../settings/settings-client.mjs';
 
@@ -253,6 +253,29 @@ export class AiMetadataWorker {
     };
   }
 
+  async _buildSourceMeta(job, parseTask = null) {
+    let material = {};
+    if (job.materialId) {
+      try {
+        material = await getMaterialById(job.materialId) || {};
+      } catch (e) {
+        console.warn(`[ai-worker] Failed to fetch material ${job.materialId}`);
+      }
+    }
+    
+    return {
+      materialId: job.materialId,
+      filename: material.fileName || material.title || parseTask?.metadata?.originalFilename || parseTask?.originalFilename || 'unknown',
+      fileSize: material.fileSize || material.metadata?.fileSize || parseTask?.metadata?.originalFileSize || parseTask?.originalFileSize || 0,
+      mimeType: material.mimeType || material.metadata?.mimeType || parseTask?.metadata?.mimeType || parseTask?.mimeType || '',
+      rawObjectName: material.metadata?.objectName || parseTask?.metadata?.objectName || '',
+      parsedPrefix: parseTask?.metadata?.parsedPrefix || material.metadata?.parsedPrefix || '',
+      markdownObjectName: parseTask?.metadata?.markdownObjectName || material.metadata?.markdownObjectName || job.inputMarkdownObjectName || '',
+      parsedFilesCount: parseTask?.metadata?.parsedFilesCount || material.metadata?.parsedFilesCount || 0,
+      mineruExecutionProfile: parseTask?.metadata?.mineruExecutionProfile || material.metadata?.mineruExecutionProfile || {}
+    };
+  }
+
   /**
    * 核心处理逻辑
    */
@@ -264,6 +287,7 @@ export class AiMetadataWorker {
     try {
       // 1. 提前获取 ParseTask 信息以校验是否取消
       const parseTask = await getTaskById(job.parseTaskId);
+      const sourceMeta = await this._buildSourceMeta(job, parseTask);
       
       if (parseTask?.state === 'canceled' || parseTask?.metadata?.canceledAt) {
          console.warn(`[ai-worker] Job ${job.id} skipped: ParseTask ${job.parseTaskId} is canceled.`);
@@ -291,7 +315,7 @@ export class AiMetadataWorker {
 
       // 降级检查：未启用 AI
       if (rawAiConfig.aiEnabled === false) {
-        return await this.degradeToSkeleton(job, 'AI 功能已从控制台关闭，降级为骨架模拟');
+        return await this.degradeToSkeleton(job, 'AI 功能已从控制台关闭，降级为骨架模拟', sourceMeta);
       }
 
       // 3. 确定 Provider 配置 (优先选择 providers 数组中启用且优先级最高的)
@@ -328,7 +352,7 @@ export class AiMetadataWorker {
       const markdownObjectName = parseTask?.metadata?.markdownObjectName || job.inputMarkdownObjectName;
       
       if (!markdownObjectName || !this.minioContext) {
-        return await this.degradeToSkeleton(job, '未找到 Markdown 产物或存储上下文不可用，降级为骨架模拟');
+        return await this.degradeToSkeleton(job, '未找到 Markdown 产物或存储上下文不可用，降级为骨架模拟', sourceMeta);
       }
 
       let markdownContent = '';
@@ -336,7 +360,7 @@ export class AiMetadataWorker {
         const stream = await this.minioContext.getFileStream(markdownObjectName);
         markdownContent = await this.streamToString(stream);
       } catch (err) {
-        return await this.degradeToSkeleton(job, `拉取 Markdown 内容失败: ${err.message}，降级为骨架模拟`);
+        return await this.degradeToSkeleton(job, `拉取 Markdown 内容失败: ${err.message}，降级为骨架模拟`, sourceMeta);
       }
 
       if (!markdownContent.trim()) {
@@ -344,17 +368,7 @@ export class AiMetadataWorker {
       }
 
       // 4. 内容截断处理 (根据 PRD 10.5.5) -> 升级为抽样策略 (V0.2)
-      const sourceMeta = {
-        materialId: job.materialId,
-        filename: parseTask?.metadata?.originalFilename || parseTask?.originalFilename || 'unknown',
-        fileSize: parseTask?.metadata?.originalFileSize || parseTask?.originalFileSize || 0,
-        mimeType: parseTask?.metadata?.mimeType || '',
-        rawObjectName: parseTask?.metadata?.objectName || '',
-        parsedPrefix: parseTask?.metadata?.parsedPrefix || '',
-        markdownObjectName: markdownObjectName,
-        parsedFilesCount: parseTask?.metadata?.parsedFilesCount || 0,
-        mineruExecutionProfile: parseTask?.metadata?.mineruExecutionProfile || {}
-      };
+      // sourceMeta 已经提前构建完成
 
       const originalLength = markdownContent.length;
       const { sampledContent, inputHash } = sampleMarkdown(markdownContent, sourceMeta, 80000);
@@ -470,7 +484,7 @@ export class AiMetadataWorker {
 
         // 如果所有 provider 都失败，尝试降级到模拟
         const skeletonReason = `AI Provider 调用全部失败: ${err.message}，自动降级为模拟结果完成链路`;
-        const degradedResult = await this.degradeToSkeleton(job, skeletonReason);
+        const degradedResult = await this.degradeToSkeleton(job, skeletonReason, sourceMeta);
         if (degradedResult && degradedResult.result) {
             degradedResult.result.aiClassificationRawTrace = rawTrace;
             if (rawTrace.firstPass?.objectName) {
@@ -782,7 +796,7 @@ export class AiMetadataWorker {
   /**
    * 降级执行：返回模拟结果
    */
-  async degradeToSkeleton(job, reason) {
+  async degradeToSkeleton(job, reason, prebuiltSourceMeta = null) {
     console.warn(`[ai-worker] Degrading job ${job.id}: ${reason}`);
     
     await logTaskEvent({
@@ -793,23 +807,17 @@ export class AiMetadataWorker {
       payload: { aiJobId: job.id }
     });
 
-    // 构建 sourceMeta 用于 skeleton
-    let sourceMeta = {};
-    if (job.parseTaskId) {
-      try {
-        const parseTask = await getTaskById(job.parseTaskId);
-        sourceMeta = {
-          materialId: job.materialId,
-          filename: parseTask?.metadata?.originalFilename || parseTask?.originalFilename || 'unknown',
-          fileSize: parseTask?.metadata?.originalFileSize || parseTask?.originalFileSize || 0,
-          rawObjectName: parseTask?.metadata?.objectName || '',
-          parsedPrefix: parseTask?.metadata?.parsedPrefix || '',
-          markdownObjectName: parseTask?.metadata?.markdownObjectName || job.inputMarkdownObjectName || '',
-          parsedFilesCount: parseTask?.metadata?.parsedFilesCount || 0
-        };
-      } catch (e) {
-        // ignore
+    let sourceMeta = prebuiltSourceMeta;
+    if (!sourceMeta) {
+      let parseTask = null;
+      if (job.parseTaskId) {
+        try {
+          parseTask = await getTaskById(job.parseTaskId);
+        } catch (e) {
+          // ignore
+        }
       }
+      sourceMeta = await this._buildSourceMeta(job, parseTask);
     }
     
     const v02Skeleton = getDefaultV02Skeleton(sourceMeta, 'low', reason);
