@@ -68,15 +68,15 @@ ${filenameSignals.join(' | ')}
 `;
 
   // trim if needed, but normally this is around 10k - 20k chars
-  if (packContent.length > 40000) {
-    packContent = packContent.slice(0, 40000) + '\\n...[Evidence Pack Truncated]';
+  if (packContent.length > 30000) {
+    packContent = packContent.slice(0, 30000) + '\\n...[Evidence Pack Truncated]';
   }
 
   const hash = crypto.createHash('sha256').update(packContent).digest('hex');
 
   return {
     content: packContent,
-    inputHash: hash,
+    inputHash: `sha256:${hash}`,
     mode: 'evidence-pack-v0.3',
     originalLength,
     sampledLength: packContent.length,
