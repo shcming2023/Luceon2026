@@ -1064,7 +1064,7 @@ export class AiMetadataWorker {
         }
       };
       
-      await fetch(`${dbBaseUrl}/jobs/${encodeURIComponent(job.id)}`, {
+      await fetch(`${dbBaseUrl}/ai-metadata-jobs/${encodeURIComponent(job.id)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patchData),
