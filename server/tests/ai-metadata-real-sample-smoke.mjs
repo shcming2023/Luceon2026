@@ -856,8 +856,30 @@ async function runTests() {
   assert.equal(finalResult6.aiClassificationProvider, 'skeleton');
   assert.equal(finalResult6.aiClassificationModel, 'skeleton');
   assert.equal(finalResult6.aiClassificationDegraded, true);
-  assert.equal(finalResult6.aiClassificationErrorSource, 'ollama-json-repair-failed');
+  assert.equal(finalResult6.aiClassificationErrorSource, 'ollama-json-repair-timeout');
+  assert.ok(finalResult6.aiClassificationDegradedReason.includes('repair 阶段超时'));
   console.log('Test 6 Pass ✅');
+
+  // Case 25: Non-education domain isolates education fields
+  console.log('Case 25: Non-education domain isolates education fields');
+  worker1.executeWithFallback = async (provider, markdown, settings, prompt) => {
+    return {
+      provider: 'ollama', model: 'qwen3.5',
+      result: '{"primary_facets": {"domain": {"zh": "06_公司行政经营资料"}, "curriculum": {"zh": "中国课标"}, "collection": {"zh": "同步教辅"}, "level": {"zh": "初三"}}, "evidence": ["公司行政"], "governance": {"confidence": "high"}}',
+      rawResponse: '...',
+      traceDetails: { rawLooksTruncated: false },
+      usage: {}
+    };
+  };
+  await worker1.processJob({ id: 'test-job-25', parseTaskId: 'test-task-25', materialId: 'm25', inputMarkdownObjectName: 'test.md' });
+  assert.equal(finalResultObj.aiClassificationV02.controlled_classification.domain.id, '06_公司行政经营资料');
+  assert.equal(finalResultObj.aiClassificationV02.controlled_classification.curriculum, undefined);
+  assert.equal(finalResultObj.aiClassificationV02.controlled_classification.collection, undefined);
+  assert.equal(finalResultObj.aiClassificationV02.controlled_classification.level, undefined);
+  assert.ok(finalResultObj.aiClassificationV02.classification_review.reasons.includes('non_education_domain'));
+  assert.ok(finalResultObj.aiClassificationV02.classification_review.reasons.includes('unmatched_curriculum'));
+  assert.equal(finalResultObj.aiClassificationV02.classification_review.unmatched_facets.curriculum, '01_中国课标');
+  console.log('Case 25 Pass ✅');
 
   globalThis.fetch = originalFetch;
 

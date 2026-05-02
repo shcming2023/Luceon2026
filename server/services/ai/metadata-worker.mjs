@@ -219,27 +219,35 @@ export class AiMetadataWorker {
   }
 
   async _runProviderPass(provider, job, aiSettings, prompt, options) {
-    const response = await this.executeWithFallback(provider, options.markdownContent, {
-      ...aiSettings,
-      systemPrompt: prompt,
-      temperature: options.temperature,
-      expectJson: options.expectJson,
-      num_predict: options.num_predict,
-      returnRawOnParseFailure: true
-    });
+    try {
+      const response = await this.executeWithFallback(provider, options.markdownContent, {
+        ...aiSettings,
+        systemPrompt: prompt,
+        temperature: options.temperature,
+        expectJson: options.expectJson,
+        num_predict: options.num_predict,
+        returnRawOnParseFailure: true
+      });
 
-    const persistMeta = await this._persistRawOutputSafe(job, options.phaseName, response.rawResponse);
-    const traceDetails = this._buildErrorDetails(response, options.expectJson, persistMeta);
+      const persistMeta = await this._persistRawOutputSafe(job, options.phaseName, response.rawResponse);
+      const traceDetails = this._buildErrorDetails(response, options.expectJson, persistMeta);
+      traceDetails.phaseName = options.phaseName;
 
-    if (response.parseFailed) {
-      const err = new Error(response.parseError);
-      err.details = traceDetails;
+      if (response.parseFailed) {
+        const err = new Error(response.parseError);
+        err.details = traceDetails;
+        throw err;
+      }
+
+      response.persistMeta = persistMeta;
+      response.traceDetails = traceDetails;
+      return response;
+    } catch (err) {
+      if (err.details) {
+        err.details.phaseName = options.phaseName;
+      }
       throw err;
     }
-
-    response.persistMeta = persistMeta;
-    response.traceDetails = traceDetails;
-    return response;
   }
 
   _extractTrace(details) {
@@ -252,7 +260,11 @@ export class AiMetadataWorker {
       contentTail: details.rawContentTail,
       containsThinkTag: details.rawContainsThinkTag,
       looksTruncated: details.rawLooksTruncated,
-      parseErrorMessage: details.parseErrorMessage !== 'Parse error' ? details.parseErrorMessage : undefined
+      parseErrorMessage: details.parseErrorMessage !== 'Parse error' ? details.parseErrorMessage : undefined,
+      timeoutKind: details.timeoutKind,
+      durationMs: details.durationMs,
+      timeoutMs: details.timeoutMs,
+      phase: details.phaseName
     };
   }
 
@@ -404,23 +416,7 @@ export class AiMetadataWorker {
         message: `正在使用 ${providerId} (${provider.model}) 进行识别...`
       }, 'ai-provider-request-started', 'info', requestPayload);
 
-      // 同步将关联 ParseTask 写为 ai-running（PRD v0.4 §6.1 新增显式状态）
-      if (job.parseTaskId) {
-        try {
-          await fetch(`${process.env.DB_BASE_URL || 'http://localhost:8789'}/tasks/${encodeURIComponent(job.parseTaskId)}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              state: 'ai-running',
-              stage: 'ai',
-              message: `AI 识别进行中 (${providerId}/${provider.model})`,
-              updatedAt: new Date().toISOString(),
-            }),
-          });
-        } catch (e) {
-          console.warn(`[ai-worker] Failed to mark ParseTask ${job.parseTaskId} as ai-running: ${e.message}`);
-        }
-      }
+      await this._updatePhase(job, 'first-pass-running', 20, `正在使用 ${providerId} (${provider.model}) 进行识别...`);
 
       const twoPassEnabled = (aiSettings.ollamaTwoPassJsonRepair !== false) && (providerId === 'ollama' || (provider && provider.id === 'ollama'));
       
@@ -461,6 +457,7 @@ export class AiMetadataWorker {
           }
         });
       } catch (err) {
+        await this._updatePhase(job, 'first-pass-failed', 25, `First pass 失败: ${err.message}`);
         if (err.details) {
           rawTrace.firstPass = this._extractTrace(err.details);
         }
@@ -555,6 +552,7 @@ export class AiMetadataWorker {
           else if (firstPassFailureKind === 'non_object_json') logReason = 'non-object JSON';
 
           console.log(`[ai-worker] First pass ${logReason}, attempting repair for job ${job.id}...`);
+          await this._updatePhase(job, 'repair-pass-running', 40, `正在进行 JSON Repair...`);
           const repairResponse = await this._runProviderPass(provider, job, aiSettings, repairPrompt, {
             markdownContent,
             temperature: 0.1,
@@ -583,6 +581,7 @@ export class AiMetadataWorker {
           aiResponse = repairResponse;
           rawTrace.repairPass = this._extractTrace(repairResponse.traceDetails);
           
+          await this._updatePhase(job, 'repair-succeeded', 60, `JSON Repair 成功`);
           await logTaskEvent({
             taskId: job.parseTaskId,
             event: 'ai-provider-repair-succeeded',
@@ -591,6 +590,10 @@ export class AiMetadataWorker {
             payload: { usage: aiResponse.usage }
           });
         } catch (repairErr) {
+          let phase = 'repair-failed';
+          if (repairErr.timeoutKind) phase = 'repair-timeout';
+          await this._updatePhase(job, phase, 45, `Repair 失败: ${repairErr.message}`);
+
           jsonParseFailed = true;
           repairSucceeded = false;
           repairFailedReason = repairErr.message;
@@ -613,6 +616,7 @@ export class AiMetadataWorker {
             });
 
             try {
+              await this._updatePhase(job, 'repair-retry-running', 50, `Repair 阶段重新尝试...`);
               const retryResponse = await this._runProviderPass(provider, job, aiSettings, repairPrompt, {
                 markdownContent,
                 temperature: 0,
@@ -643,6 +647,7 @@ export class AiMetadataWorker {
               rawTrace.repairRetryPass = this._extractTrace(retryResponse.traceDetails);
               repairProviderDetails = null; // clear on success
 
+              await this._updatePhase(job, 'repair-succeeded', 60, `JSON Repair Retry 成功`);
               await logTaskEvent({
                 taskId: job.parseTaskId,
                 event: 'ai-provider-repair-retry-succeeded',
@@ -650,6 +655,10 @@ export class AiMetadataWorker {
                 message: `AI Provider (${providerId}) JSON Repair Retry 成功`
               });
             } catch (retryErr) {
+              let retryPhase = 'repair-failed';
+              if (retryErr.timeoutKind) retryPhase = 'repair-timeout';
+              await this._updatePhase(job, retryPhase, 55, `Repair Retry 失败: ${retryErr.message}`);
+
               repairRetrySucceeded = false;
               repairFailedReason = retryErr.message;
               if (retryErr.details) {
@@ -685,7 +694,10 @@ export class AiMetadataWorker {
       if (jsonParseFailed || schemaInvalid) {
         aiClassificationDegraded = true;
         if (twoPassAttempted) {
-          if (schemaInvalid) {
+          if (repairProviderDetails && repairProviderDetails.timeoutKind) {
+            aiClassificationDegradedReason = `repair 阶段超时 (${repairProviderDetails.timeoutKind}, duration: ${repairProviderDetails.durationMs}ms)，降级为 skeleton 结果`;
+            aiClassificationErrorSource = 'ollama-json-repair-timeout';
+          } else if (schemaInvalid) {
             aiClassificationDegradedReason = 'AI 元数据识别未产出合规 v0.2 结构，当前为 skeleton 降级结果';
             aiClassificationErrorSource = 'ai-metadata-schema-invalid-repair-failed';
           } else {
@@ -1035,6 +1047,44 @@ export class AiMetadataWorker {
 
   getDefaultPrompt() {
     return generateV02Prompt();
+  }
+
+  async _updatePhase(job, phaseName, progress, message) {
+    try {
+      const dbBaseUrl = process.env.DB_BASE_URL || 'http://localhost:8789';
+      
+      const patchData = {
+        progress,
+        message,
+        metadata: {
+          ...(job.metadata || {}),
+          currentPhase: phaseName,
+          phaseStartedAt: new Date().toISOString(),
+          lastHeartbeatAt: new Date().toISOString(),
+        }
+      };
+      
+      await fetch(`${dbBaseUrl}/jobs/${encodeURIComponent(job.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patchData),
+      });
+
+      if (job.parseTaskId) {
+        await fetch(`${dbBaseUrl}/tasks/${encodeURIComponent(job.parseTaskId)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            state: 'ai-running',
+            stage: 'ai',
+            message: `AI: ${message}`,
+            updatedAt: new Date().toISOString(),
+          }),
+        });
+      }
+    } catch (e) {
+      console.warn(`[ai-worker] Failed to update phase heartbeat: ${e.message}`);
+    }
   }
 
   async transition(job, update, eventName, level = 'info', payload = {}) {

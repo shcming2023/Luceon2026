@@ -391,6 +391,11 @@ export function MetadataTab({
                     <span className="font-semibold text-red-700 shrink-0">触发原因:</span>
                     <span className="text-red-600 break-words">{material.metadata.aiClassificationV02.classification_review.reasons?.join(', ') || '—'}</span>
                   </div>
+                  {material.metadata.aiClassificationV02.classification_review.reasons?.includes('non_education_domain') && (
+                    <div className="bg-amber-100 text-amber-800 p-1.5 mt-1 rounded border border-amber-200 text-[10px]">
+                      <strong>注意：</strong> 该资料被识别为非教育类（如公司行政等），相关的教育属性（教材版本、年级、科目等）已被自动隔离至下方“未归一原始值”中，请复核是否准确。
+                    </div>
+                  )}
                   {Object.keys(material.metadata.aiClassificationV02.classification_review.unmatched_facets || {}).length > 0 && (
                     <div className="flex flex-col gap-0.5 pt-1 mt-1 border-t border-red-100/50">
                       <span className="font-semibold text-red-700">未归一原始值:</span>
@@ -530,6 +535,12 @@ export function MetadataTab({
                         <div className="flex flex-col gap-0.5 pt-1 mt-1 border-t border-slate-100">
                           <span className="text-slate-500">解析异常摘要</span>
                           <span className="font-mono text-[9px] text-red-600">{p.trace.parseErrorMessage}</span>
+                        </div>
+                      )}
+                      {p.trace.timeoutKind && (
+                        <div className="flex flex-col gap-0.5 pt-1 mt-1 border-t border-slate-100">
+                          <span className="text-slate-500">超时诊断</span>
+                          <span className="font-mono text-[9px] text-red-600">{p.trace.timeoutKind} ({p.trace.durationMs}ms)</span>
                         </div>
                       )}
                     </div>

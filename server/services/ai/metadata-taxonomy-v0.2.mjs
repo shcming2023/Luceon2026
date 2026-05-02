@@ -217,6 +217,18 @@ export function applyTaxonomyControl(v02Data) {
     if (!reviewReasons.includes('non_education_domain')) {
       reviewReasons.push('non_education_domain');
     }
+
+    // 非教育分类隔离：强制剥离教育专有维度，转移到 unmatched
+    const eduFacets = ['collection', 'curriculum', 'stage', 'level', 'subject'];
+    for (const f of eduFacets) {
+      if (controlled[f]) {
+        unmatched[f] = String(controlled[f].zh || controlled[f].id);
+        delete controlled[f];
+        if (!reviewReasons.includes(`unmatched_${f}`)) {
+          reviewReasons.push(`unmatched_${f}`);
+        }
+      }
+    }
   }
 
   // 核心字段如果无法归一，必须review
