@@ -21,7 +21,7 @@ async function runTest() {
       { name: `${prefix}images/1.jpg`, size: 10 }, // legacy expanded duplicate
       { name: `${prefix}images/2.jpg`, size: 10 }  // legacy expanded unique
     ];
-    if (!prefix.includes('test-mat-fallback')) {
+    if (!prefix.includes('test-mat-fallback') && !prefix.includes('test-mat-dedup')) {
       list.push({ name: `${prefix}artifact-manifest.json`, size: 200 });
     }
     return list;
@@ -40,11 +40,13 @@ async function runTest() {
       if (name.endsWith('mineru-result.zip')) {
         stream.end(fakeZipBuffer);
       } else if (name.endsWith('artifact-manifest.json')) {
-        if (name.includes('test-mat-fallback')) {
+        if (name.includes('test-mat-fallback') || name.includes('test-mat-dedup')) {
           stream.emit('error', new Error('Not found'));
           return stream;
         }
         stream.end(Buffer.from(JSON.stringify(fakeManifest)));
+      } else if (name.endsWith('full.md')) {
+        stream.end(Buffer.from('# I am inside zip', 'utf-8'));
       } else {
         stream.end(Buffer.from('fake content for ' + name));
       }
@@ -145,6 +147,15 @@ async function runTest() {
   const resFallback = await runHandlerWithMode('user', 'test-mat-fallback');
   assert.equal(resFallback.status, 200);
   console.log('✅ Fallback completed without ReferenceError');
+
+  console.log('Testing dynamic deduplication for legacy data...');
+  const resDedup = await runHandlerWithMode('user', 'test-mat-dedup');
+  assert.equal(resDedup.status, 200);
+  const dedupZip = await JSZip.loadAsync(resDedup.buffer);
+  const dedupFiles = Object.keys(dedupZip.files).filter(k => !dedupZip.files[k].dir);
+  assert.ok(dedupFiles.includes('full.md'), 'root full.md should be kept');
+  assert.ok(!dedupFiles.includes('auto/full.md'), 'inner zip primary should be deduped');
+  console.log('✅ Dynamic deduplication completed');
 
   console.log('Pass ✅');
   process.exit(0);

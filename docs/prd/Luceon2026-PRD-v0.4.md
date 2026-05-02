@@ -394,6 +394,7 @@ v0.4 要求把 `AiMetadataJob.state` 的终态命名统一为 `confirmed | revie
 | `Material.metadata.objectName` 必须以 `originals/{materialId}/` 开头 | 扫描发现异常时记录告警；不自动移动文件 |
 | `Material.metadata.markdownObjectName`（若存在）必须以 `parsed/{materialId}/` 开头 | 同上 |
 | `ParseTask.state ∈ {completed, review-pending}` 时，`parsed/{materialId}/full.md` 必须存在 | 若缺失：把 ParseTask 置为 `failed`，提示运行 Reparse |
+| `mode=user` 导出 ZIP 且存在 `full.md` 时，禁止在 ZIP 内重复包含原始大模型输出的同名或同内容主 Markdown | 若为 legacy 数据（无 `primaryMarkdownPath`）：后端基于内容比对进行动态启发式去重（Dynamic Deduplication），跳过内部重复 md。 |
 | `archiveStatus.hdd.status ∈ {synced, verified}` 时，必须存在可读取的 `manifestPath` 与 `bundlePath`，且 checksum 能通过校验 | 若缺失或校验失败：将对应归档状态置为 `failed`，不得删除 MinIO 热区对象 |
 | `archiveStatus.offsite.status ∈ {synced, verified}` 时，必须存在可追踪的 `provider/objectName/checksum` | 若缺失：将 offsite 状态置为 `failed`，不得把该资料计入“异地已备份” |
 | DB 不得保存归档包内部的完整 parsed 文件清单 | 若发现 `archiveStatus` 或 `metadata` 中写入大文件清单：迁移到外部 `manifest.json`，DB 仅保留摘要 |
@@ -581,6 +582,9 @@ v0.4 要求把 `AiMetadataJob.state` 的终态命名统一为 `confirmed | revie
 
 ## 16. 变更记录
 
+- **v0.4-patch-1.2-2026-05-02（2026-05-02）**：增加 Legacy 数据动态启发式去重策略。
+  - 背景：真实环境验收时发现，缺乏 `primaryMarkdownPath` 的遗留数据在 `mode=user` 下载包中仍会包含重复的内部 Markdown 和外部 `full.md`。
+  - 确定需求：对于 `mode=user` 导出，当 Manifest 缺失或无指针时，自动推断内部主 Markdown，并与外部 `full.md` 针对文件长度和内容校验（Buffer Equality）。若一致则剔除内部副本。此策略作为兼容历史数据的确定性需求。
 - **v0.4-storage-2026-05-02（2026-05-02）**：纳入存储架构演进的 PRD 分层结论。
   - 背景：用户提交《Luceon2026 存储架构演进方案 V2.0（高可用与容灾固化版）》，要求 Lucia 独立评估并由 luplan 维护 PRD。
   - 确定需求：先归档不驱逐；归档必须基于 manifest/checksum；DB 只保存归档摘要和指针；DB 快照与恢复演练是存储演进的一等需求；恢复任务优先于透明回源。

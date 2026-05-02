@@ -3695,6 +3695,8 @@ export async function parsedZipHandler(req, res) {
 
     const zip = new JSZip();
     const addedToZip = new Set();
+    let rootFullMdBuffer = null;
+    let dynamicPrimaryMarkdownPath = primaryMarkdownPath;
 
     if (mode === 'user' || mode === 'diagnostic') {
       const mineruZipObj = objects.find(o => o.name === `${prefix}mineru-result.zip`);
@@ -3713,9 +3715,49 @@ export async function parsedZipHandler(req, res) {
           zipStream.on('error', reject);
         });
         const innerZip = await JSZip.loadAsync(zipBuffer);
+        
+        if (mode === 'user' && !dynamicPrimaryMarkdownPath) {
+          const rootFullMdObj = objects.find(o => o.name === `${prefix}full.md`);
+          if (rootFullMdObj) {
+            try {
+              const fullMdStream = await client.getObject(parsedBucket, rootFullMdObj.name);
+              rootFullMdBuffer = await new Promise((resolve, reject) => {
+                const chunks = [];
+                fullMdStream.on('data', chunk => chunks.push(chunk));
+                fullMdStream.on('end', () => resolve(Buffer.concat(chunks)));
+                fullMdStream.on('error', reject);
+              });
+              
+              const mdCandidates = [];
+              for (const [name, entry] of Object.entries(innerZip.files)) {
+                if (entry.dir) continue;
+                if (!name.toLowerCase().endsWith('.md')) continue;
+                mdCandidates.push(name);
+              }
+              
+              let guessedPrimary = mdCandidates.find(c => c.toLowerCase() === 'full.md' || c.toLowerCase().endsWith('/full.md'));
+              if (!guessedPrimary && mdCandidates.length > 0) {
+                 const auto = mdCandidates.filter((c) => c.toLowerCase().includes('/auto/'));
+                 const pool = auto.length > 0 ? auto : mdCandidates;
+                 guessedPrimary = pool.sort((a, b) => a.length - b.length)[0];
+              }
+
+              if (guessedPrimary) {
+                 const guessedBuffer = await innerZip.files[guessedPrimary].async('nodebuffer');
+                 if (guessedBuffer.length === rootFullMdBuffer.length && guessedBuffer.equals(rootFullMdBuffer)) {
+                    dynamicPrimaryMarkdownPath = guessedPrimary;
+                    console.log(`[upload-server] /parsed-zip: dynamically inferred primaryMarkdownPath = ${guessedPrimary} for dedup`);
+                 }
+              }
+            } catch (e) {
+              console.warn(`[upload-server] /parsed-zip: dynamic dedup failed for ${materialId}: ${e.message}`);
+            }
+          }
+        }
+
         for (const [name, entry] of Object.entries(innerZip.files)) {
           if (entry.dir) continue;
-          if (mode === 'user' && primaryMarkdownPath && name === primaryMarkdownPath) continue;
+          if (mode === 'user' && dynamicPrimaryMarkdownPath && name === dynamicPrimaryMarkdownPath) continue;
           zip.file(name, entry.async('nodebuffer'));
           addedToZip.add(name);
         }
@@ -3729,6 +3771,12 @@ export async function parsedZipHandler(req, res) {
       
       if (mode === 'user' && primaryMarkdownPath && relativePath === primaryMarkdownPath) continue;
       if (mode === 'user' && addedToZip.has(relativePath)) continue; // legacy mixed dedup
+      
+      if (mode === 'user' && relativePath === 'full.md' && rootFullMdBuffer) {
+        zip.file(relativePath, rootFullMdBuffer);
+        addedToZip.add(relativePath);
+        continue;
+      }
       
       const stream = await client.getObject(parsedBucket, obj.name);
       zip.file(relativePath, stream);
