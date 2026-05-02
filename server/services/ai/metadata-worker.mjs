@@ -17,6 +17,7 @@ import { getSettings } from '../settings/settings-client.mjs';
 import { OllamaProvider } from './providers/ollama.mjs';
 import { OpenAiCompatibleProvider } from './providers/openai-compatible.mjs';
 import { sampleMarkdown } from './metadata-sampler.mjs';
+import { buildEvidencePack } from './metadata-evidence-pack.mjs';
 import { getDefaultV02Skeleton, validateAndNormalizeV02, generateV02Prompt, generateV02DraftPrompt, generateV02RepairPrompt } from './metadata-standard-v0.2.mjs';
 
 const POLL_INTERVAL_MS = 10000;
@@ -382,13 +383,36 @@ export class AiMetadataWorker {
         throw new Error('Markdown 内容为空，无法提取元数据');
       }
 
-      // 4. 内容截断处理 (根据 PRD 10.5.5) -> 升级为抽样策略 (V0.2)
-      // sourceMeta 已经提前构建完成
-
+      // 4. 内容截断处理 (升级为 Evidence Pack 模式)
       const originalLength = markdownContent.length;
-      const { sampledContent, inputHash } = sampleMarkdown(markdownContent, sourceMeta, 80000);
-      let isTruncated = originalLength > sampledContent.length;
+      let sampledContent = '';
+      let inputHash = '';
+      let samplingMode = '';
+      let isTruncated = false;
+      let packResult = null;
 
+      if (originalLength > 150000 || (sourceMeta.parsedFilesCount || 0) > 1000) {
+        try {
+          packResult = buildEvidencePack(markdownContent, sourceMeta);
+          sampledContent = packResult.content;
+          inputHash = packResult.inputHash;
+          samplingMode = packResult.mode;
+          isTruncated = true; // evidence pack is always a subset
+        } catch (e) {
+          console.warn(`[ai-worker] Evidence Pack build failed, fallback to legacy: ${e.message}`);
+          samplingMode = 'ai-sampling-fallback';
+        }
+      }
+
+      if (!sampledContent) {
+        const legacyResult = sampleMarkdown(markdownContent, sourceMeta, 80000);
+        sampledContent = legacyResult.sampledContent;
+        inputHash = legacyResult.inputHash;
+        isTruncated = originalLength > sampledContent.length;
+        if (samplingMode !== 'ai-sampling-fallback') {
+          samplingMode = 'legacy-sampler-v0.2';
+        }
+      }
       if (isTruncated) {
         await logTaskEvent({
           taskId: job.parseTaskId,
@@ -425,7 +449,15 @@ export class AiMetadataWorker {
       let repairSucceeded = false;
       let repairFailedReason = '';
       let repairProviderDetails = null;
-      const rawTrace = {};
+      const rawTrace = {
+        input: {
+          samplingMode,
+          originalLength,
+          sampledLength: sampledContent.length,
+          inputHash,
+          sections: packResult ? packResult.sections : undefined
+        }
+      };
 
       try {
         if (twoPassEnabled) {
@@ -516,6 +548,9 @@ export class AiMetadataWorker {
           if (checkSchemaInvalid(parsedResult)) {
             schemaInvalid = true;
             firstPassFailureKind = 'schema_invalid';
+            if (samplingMode === 'evidence-pack-v0.3') {
+              console.log(`[ai-worker] Job ${job.id} produced draft schema. Will transition to repair.`);
+            }
           }
         } else {
           jsonParseFailed = true;
@@ -547,7 +582,9 @@ export class AiMetadataWorker {
         const repairPrompt = generateV02RepairPrompt(aiResponse.result);
         try {
           let logReason = 'JSON extraction failed';
-          if (firstPassFailureKind === 'schema_invalid') logReason = 'schema-invalid';
+          if (firstPassFailureKind === 'schema_invalid') {
+            logReason = samplingMode === 'evidence-pack-v0.3' ? 'draft schema' : 'schema-invalid';
+          }
           else if (firstPassFailureKind === 'json_parse_failed') logReason = 'JSON parse failed';
           else if (firstPassFailureKind === 'non_object_json') logReason = 'non-object JSON';
 
@@ -742,6 +779,9 @@ export class AiMetadataWorker {
       result.aiClassificationAnalyzedAt = new Date().toISOString();
       result.aiClassificationProvider = (jsonParseFailed || schemaInvalid) ? 'skeleton' : aiResponse.provider;
       result.aiClassificationModel = (jsonParseFailed || schemaInvalid) ? 'skeleton' : aiResponse.model;
+      result.aiClassificationSamplingMode = samplingMode;
+      result.aiClassificationInputOriginalLength = originalLength;
+      result.aiClassificationInputSampledLength = sampledContent.length;
       result.aiClassificationInputHash = inputHash;
       result.aiClassificationV02 = resultV02;
       

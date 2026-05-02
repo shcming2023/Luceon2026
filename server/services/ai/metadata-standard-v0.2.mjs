@@ -363,19 +363,45 @@ JSON 结构必须符合以下 AI Metadata v0.2 标准：
 
 export function generateV02DraftPrompt() {
   const taxonomyContext = buildTaxonomyPromptContext({ facets: ['domain', 'collection', 'resource_type', 'component_role'] });
-  return `你是一个专业的教育资源元数据提取助手。你的任务是从提供的 Markdown 文本中提取结构化信息草稿。
+  return `你是一个专业的教育资源元数据提取助手。你的任务是从提供的 Evidence Pack 中提取结构化信息的草稿JSON。
 
-**指令：**
-1. 请根据教育资源分类标准，提取资料的以下要素：
-- title (标题)
-- domain, collection, curriculum, stage, level, subject, resource_type, component_role
-- evidence snippets (提取关键信息的原文片段作为证据)
-- uncertainty (不确定性或需要复核的原因)
-2. 你可以输出一定的文本描述和草稿，但尽量结构化，不要长篇大论。
-3. 绝对禁止输出 <think> 标签或包含复杂的推理过程。
+**极其重要的指令：**
+1. 你的完整且唯一的输出必须是一个且仅一个有效的 JSON 对象！
+2. 绝对禁止在输出开头或结尾添加任何 Markdown 代码块标识（如 \`\`\`json 或 \`\`\`）。
+3. 绝对禁止输出任何解释性文字、开场白或结束语。
+4. 绝对禁止输出 <think> 标签或包含复杂的推理过程。
+5. 所有字段必须符合指定的草稿结构。
 
 **分类标准参考（重要！务必依据此标准提取！）：**
 ${taxonomyContext}
+
+请输出以下严格的 JSON 格式：
+{
+  "classification_draft": {
+    "domain": "",
+    "collection": "",
+    "curriculum": "",
+    "stage": "",
+    "level": "",
+    "subject": "",
+    "resource_type": "",
+    "component_role": ""
+  },
+  "descriptive_draft": {
+    "series_title": "",
+    "edition": "",
+    "year": "",
+    "publisher_org": "",
+    "language": ""
+  },
+  "candidate_tags": {
+    "topic_tags": [],
+    "skill_tags": []
+  },
+  "evidence": [],
+  "uncertain_fields": [],
+  "notes": ""
+}
 `;
 }
 
@@ -383,7 +409,7 @@ export function generateV02RepairPrompt(draftContent) {
   const taxonomyContext = buildTaxonomyPromptContext({ facets: ['domain', 'collection', 'resource_type', 'component_role'] });
   return `你是一个 JSON 修复与格式化助手。请根据以下提取的草稿内容，将其严格格式化为符合 AI Metadata v0.2 标准的唯一 JSON 对象。
 
-**草稿内容（可能是旧式 JSON、扁平 JSON、或自然语言草稿）：**
+**草稿内容（可能是旧式 JSON、扁平 JSON、或自然语言草稿，或包含 classification_draft 的草稿 JSON）：**
 ${draftContent}
 
 **极其重要的硬规则：**
@@ -398,12 +424,13 @@ ${draftContent}
 9. governance 必须存在。
 
 **旧字段映射建议：**
-- domain -> primary_facets.domain
-- subject -> primary_facets.subject
-- resource_type -> primary_facets.resource_type
-- component_role -> primary_facets.component_role
-- evidence_snippets -> evidence
-- title -> descriptive_metadata.series_title 或 evidence，不要当作根字段保留
+- classification_draft.domain 或 domain -> primary_facets.domain
+- classification_draft.subject 或 subject -> primary_facets.subject
+- classification_draft.resource_type 或 resource_type -> primary_facets.resource_type
+- classification_draft.component_role 或 component_role -> primary_facets.component_role
+- candidate_tags.topic_tags -> search_tags.topic_tags
+- evidence_snippets 或 classification_draft 的 evidence -> evidence
+- title 或 descriptive_draft.series_title -> descriptive_metadata.series_title
 
 **受控标准参考（用于映射）：**
 ${taxonomyContext}
