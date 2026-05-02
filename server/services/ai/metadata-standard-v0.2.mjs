@@ -325,14 +325,14 @@ JSON 结构必须符合以下 AI Metadata v0.2 标准：
     "markdown_object_name": ""
   },
   "primary_facets": {
-    "domain": {"zh": "如: 基础教育/高等教育", "en": ""},
-    "collection": {"zh": "如: 课内同步/课外拓展", "en": ""},
-    "curriculum": {"zh": "如: 人教版/部编版", "en": ""},
-    "stage": {"zh": "如: 小学/初中", "en": ""},
-    "level": {"zh": "如: 一年级/初一", "en": ""},
-    "subject": {"zh": "如: 语文/数学", "en": ""},
-    "resource_type": {"zh": "如: 试卷/教案", "en": ""},
-    "component_role": {"zh": "如: 学生用书/教师用书", "en": ""}
+    "domain": {"zh": "从 Taxonomy Context 中选择受控值", "en": ""},
+    "collection": {"zh": "从 Taxonomy Context 中选择受控值", "en": ""},
+    "curriculum": {"zh": "从 Taxonomy Context 中选择受控值", "en": ""},
+    "stage": {"zh": "从 Taxonomy Context 中选择受控值", "en": ""},
+    "level": {"zh": "从 Taxonomy Context 中选择受控值", "en": ""},
+    "subject": {"zh": "从 Taxonomy Context 中选择受控值", "en": ""},
+    "resource_type": {"zh": "从 Taxonomy Context 中选择受控值", "en": ""},
+    "component_role": {"zh": "从 Taxonomy Context 中选择受控值", "en": ""}
   },
   "descriptive_metadata": {
     "series_title": "",
@@ -421,14 +421,14 @@ JSON 结构必须符合以下 AI Metadata v0.2 标准：
     "markdown_object_name": ""
   },
   "primary_facets": {
-    "domain": {"zh": "如: 基础教育/高等教育", "en": ""},
-    "collection": {"zh": "如: 课内同步/课外拓展", "en": ""},
-    "curriculum": {"zh": "如: 人教版/部编版", "en": ""},
-    "stage": {"zh": "如: 小学/初中", "en": ""},
-    "level": {"zh": "如: 一年级/初一", "en": ""},
-    "subject": {"zh": "如: 语文/数学", "en": ""},
-    "resource_type": {"zh": "如: 试卷/教案", "en": ""},
-    "component_role": {"zh": "如: 学生用书/教师用书", "en": ""}
+    "domain": {"zh": "从 Taxonomy Context 中选择受控值", "en": ""},
+    "collection": {"zh": "从 Taxonomy Context 中选择受控值", "en": ""},
+    "curriculum": {"zh": "从 Taxonomy Context 中选择受控值", "en": ""},
+    "stage": {"zh": "从 Taxonomy Context 中选择受控值", "en": ""},
+    "level": {"zh": "从 Taxonomy Context 中选择受控值", "en": ""},
+    "subject": {"zh": "从 Taxonomy Context 中选择受控值", "en": ""},
+    "resource_type": {"zh": "从 Taxonomy Context 中选择受控值", "en": ""},
+    "component_role": {"zh": "从 Taxonomy Context 中选择受控值", "en": ""}
   },
   "descriptive_metadata": {
     "series_title": "",

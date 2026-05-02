@@ -47,6 +47,22 @@ export function getTaxonomyVersion() {
 export function buildTaxonomyPromptContext(options = {}) {
   let ctx = `Taxonomy Version: ${taxonomyFact.taxonomy_version}\nRules Version: ${taxonomyFact.rules_version}\n\n`;
   
+  if (taxonomyFact.prompt_rules && Array.isArray(taxonomyFact.prompt_rules)) {
+    ctx += "=== PROMPT RULES ===\n";
+    taxonomyFact.prompt_rules.forEach(rule => {
+      ctx += `- ${rule}\n`;
+    });
+    ctx += "\n";
+  }
+
+  if (taxonomyFact.forbidden_actions && Array.isArray(taxonomyFact.forbidden_actions)) {
+    ctx += "=== FORBIDDEN ACTIONS ===\n";
+    taxonomyFact.forbidden_actions.forEach(action => {
+      ctx += `- ${action}\n`;
+    });
+    ctx += "\n";
+  }
+
   if (taxonomyFact.facet_rules) {
     ctx += "=== FACET RULES ===\n";
     for (const [facet, rules] of Object.entries(taxonomyFact.facet_rules)) {

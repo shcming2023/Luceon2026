@@ -193,6 +193,37 @@ async function run() {
   }, source);
   assertEq('Component role alias "答案详解" normalized', aliasResult4.controlled_classification.component_role?.id, '答案解析');
 
+  const aliasResultLevel = validateAndNormalizeV02({
+    primary_facets: { 
+      domain: '02_考试测评与真题', 
+      subject: 'english', 
+      level: '中考'
+    },
+    governance: { confidence: 'high' },
+    evidence: []
+  }, source);
+  assertEq('Level alias "中考" normalized to 初三', aliasResultLevel.controlled_classification.level?.id, '初三');
+
+  // Test prompt context generation
+  const { buildTaxonomyPromptContext } = await import('../services/ai/metadata-taxonomy-v0.2.mjs');
+  const promptContext = buildTaxonomyPromptContext();
+  if (promptContext.includes('=== PROMPT RULES ===') && promptContext.includes('=== FORBIDDEN ACTIONS ===')) {
+    console.log('✅ Prompt context includes prompt_rules and forbidden_actions');
+    passed++;
+  } else {
+    console.error('❌ Prompt context missing prompt_rules or forbidden_actions');
+    failed++;
+  }
+
+  const { generateV02Prompt } = await import('../services/ai/metadata-standard-v0.2.mjs');
+  const promptText = generateV02Prompt();
+  if (!promptText.includes('如: 基础教育/高等教育') && promptText.includes('从 Taxonomy Context 中选择受控值')) {
+    console.log('✅ Prompt does not contain legacy demo values');
+    passed++;
+  } else {
+    console.error('❌ Prompt still contains legacy demo values or missing selection text');
+    failed++;
+  }
 
   console.log(`\nResults: ${passed} passed, ${failed} failed`);
   if (failed > 0) {

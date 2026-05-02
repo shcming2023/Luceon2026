@@ -4386,6 +4386,7 @@ const aiWorker = new AiMetadataWorker({
             ...(existingMaterial.metadata || {}),
             ...(update.result || {}),
             aiClassificationTaxonomyVersion: update.result?.aiClassificationV02?.taxonomy_version || 'v0.1',
+            aiClassificationRulesVersion: update.result?.aiClassificationV02?.rules_version || update.result?.aiClassificationV02?.taxonomy_version || 'v0.1',
             processingStage: update.state === 'confirmed' ? 'done' : update.state === 'review-pending' ? 'review' : 'ai',
             processingMsg: update.state === 'confirmed'
               ? 'AI 识别完成'

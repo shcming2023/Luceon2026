@@ -266,7 +266,7 @@ export class AiMetadataWorker {
     return {
       materialId: job.materialId,
       filename: material.fileName || material.title || parseTask?.metadata?.originalFilename || parseTask?.originalFilename || 'unknown',
-      fileSize: material.fileSize || material.metadata?.fileSize || parseTask?.metadata?.originalFileSize || parseTask?.originalFileSize || 0,
+      fileSize: material.metadata?.fileSize || material.fileSize || parseTask?.metadata?.mineruExecutionProfile?.fileSize || parseTask?.metadata?.fileSize || parseTask?.metadata?.originalFileSize || parseTask?.originalFileSize || 0,
       mimeType: material.mimeType || material.metadata?.mimeType || parseTask?.metadata?.mimeType || parseTask?.mimeType || '',
       rawObjectName: material.metadata?.objectName || parseTask?.metadata?.objectName || '',
       parsedPrefix: parseTask?.metadata?.parsedPrefix || material.metadata?.parsedPrefix || '',

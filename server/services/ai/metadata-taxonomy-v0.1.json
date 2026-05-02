@@ -12,6 +12,18 @@
     "strategy": "json_fact_source_with_dynamic_prompt_and_validator",
     "reclassification_supported": true
   },
+  "prompt_rules": [
+    "分类判定原则：必须优先从 Taxonomy Context 提供的词表(及其 aliases)中挑选最合适的值。",
+    "证据要求：必须从文本中提取原句作为 evidence，支持分类决定。",
+    "候选标签规则：若提取了非受控词表中的新标签，应将其放入 proposed_new_tags，而不是强行塞入 topic_tags/skill_tags。",
+    "低置信度/复核规则：如果核心字段(如 domain, subject)无法确定，设置 confidence 为 low 并将 human_review_required 设为 true。"
+  ],
+  "forbidden_actions": [
+    "不得输出非 JSON 格式的内容（如额外的 Markdown 解释）。",
+    "不得编造 source 文件名或路径。",
+    "不得把非词表项写入 controlled_classification（即 primary_facets 等主受控字段只能使用给定的 id/zh/en）。",
+    "不得把候选标签混入 normalized_tags（topic_tags/skill_tags 必须使用受控词表）。"
+  ],
   "facet_rules": {
     "domain": [
       "domain 是资料域，不是内容主题。"
@@ -653,7 +665,12 @@
         "zh": "初三",
         "en": "Grade 9",
         "status": "approved",
-        "aliases": [],
+        "aliases": [
+          "中考",
+          "中考备考",
+          "初中毕业",
+          "Grade 9"
+        ],
         "decision_rules": [],
         "positive_examples": [],
         "negative_examples": []
