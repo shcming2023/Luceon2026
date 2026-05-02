@@ -288,6 +288,20 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
       });
     };
 
+    const pushZipEntry = (zipObjName, entryName, relativePath, size, mimeType) => {
+      const key = `zip::${zipObjName}::${entryName}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      parsedArtifacts.push({
+        source: 'zip-entry',
+        zipObjectName: zipObjName,
+        zipEntryPath: entryName,
+        relativePath,
+        size: typeof size === 'number' ? size : null,
+        mimeType: mimeType || undefined,
+      });
+    };
+
     const saveObject = async (objectName, buffer, contentType) => {
       if (typeof minioContext?.saveObject !== 'function') return false;
       await minioContext.saveObject(objectName, buffer, contentType || 'application/octet-stream');
@@ -362,8 +376,11 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
         const contentType = inferContentTypeByExt(safeRelativePath);
         
         const fileObj = zip.file(name);
-        const size = fileObj._data ? fileObj._data.uncompressedSize : 0;
-        pushArtifact(safeRelativePath, objectName, size, contentType);
+        let size = null;
+        if (fileObj._data && typeof fileObj._data.uncompressedSize === 'number') {
+           size = fileObj._data.uncompressedSize;
+        }
+        pushZipEntry(zipObjectName, name, safeRelativePath, size, contentType);
       }
     } else if (resultPayload) {
       markdown = extractLocalMarkdown(resultPayload);
@@ -560,6 +577,20 @@ export async function resumeWithLocalMinerU({ task, material, mineruTaskId, time
     });
   };
 
+  const pushZipEntry = (zipObjName, entryName, relativePath, size, mimeType) => {
+    const key = `zip::${zipObjName}::${entryName}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    parsedArtifacts.push({
+      source: 'zip-entry',
+      zipObjectName: zipObjName,
+      zipEntryPath: entryName,
+      relativePath,
+      size: typeof size === 'number' ? size : null,
+      mimeType: mimeType || undefined,
+    });
+  };
+
   const saveObject = async (objectName, buffer, contentType) => {
     if (typeof minioContext?.saveObject !== 'function') return false;
     await minioContext.saveObject(objectName, buffer, contentType || 'application/octet-stream');
@@ -634,8 +665,11 @@ export async function resumeWithLocalMinerU({ task, material, mineruTaskId, time
       const contentType = inferContentTypeByExt(safeRelativePath);
       
       const fileObj = zip.file(name);
-      const size = fileObj._data ? fileObj._data.uncompressedSize : 0;
-      pushArtifact(safeRelativePath, objectName, size, contentType);
+      let size = null;
+      if (fileObj._data && typeof fileObj._data.uncompressedSize === 'number') {
+         size = fileObj._data.uncompressedSize;
+      }
+      pushZipEntry(zipObjectName, name, safeRelativePath, size, contentType);
     }
   } else if (resultPayload) {
     markdown = extractLocalMarkdown(resultPayload);

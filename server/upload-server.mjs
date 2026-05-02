@@ -3598,10 +3598,16 @@ ${mdContext}
 // 将指定 materialId 的 MinerU 解析产物（parsed/{materialId}/）打包成 ZIP 返回
 // Body: { materialId: string | number }
 // Response: application/zip 文件流
-app.post('/parsed-zip', async (req, res) => {
+export async function parsedZipHandler(req, res) {
   const { materialId, mode = 'user' } = req.body;
   if (!materialId) {
     res.status(400).json({ error: '缺少 materialId' });
+    return;
+  }
+  
+  const validModes = ['user', 'mineru-raw', 'diagnostic'];
+  if (!validModes.includes(mode)) {
+    res.status(400).json({ error: `非法的导出模式: ${mode}` });
     return;
   }
 
@@ -3609,13 +3615,15 @@ app.post('/parsed-zip', async (req, res) => {
     const parsedBucket = getParsedBucket();
     const prefix = `parsed/${materialId}/`;
 
-    const objects = await listAllObjects(parsedBucket, prefix);
+    const objects = _testHooks.mockListAllObjects 
+       ? await _testHooks.mockListAllObjects(parsedBucket, prefix)
+       : await listAllObjects(parsedBucket, prefix);
     if (!objects || objects.length === 0) {
       res.status(400).json({ error: `parsed/${materialId}/ 目录下暂无文件` });
       return;
     }
 
-    res.setHeader('X-Parsed-Files-Count', String(objects.length));
+    res.setHeader('X-Luceon-Object-Count', String(objects.length));
 
     try {
       const [matResp, tasksResp] = await Promise.all([
@@ -3683,37 +3691,48 @@ app.post('/parsed-zip', async (req, res) => {
     console.log(`[upload-server] /parsed-zip: packing ${objects.length} files for material ${materialId} (mode=${mode}, storageMode=${artifactStorageMode})`);
 
     const zip = new JSZip();
+    const addedToZip = new Set();
+
+    if (mode === 'user' || mode === 'diagnostic') {
+      const mineruZipObj = objects.find(o => o.name === `${prefix}mineru-result.zip`);
+      if (mineruZipObj) {
+        if (mode === 'diagnostic') {
+          const stream = await client.getObject(parsedBucket, mineruZipObj.name);
+          zip.file('mineru-result.zip', stream);
+          addedToZip.add('mineru-result.zip');
+        }
+        
+        const zipStream = await client.getObject(parsedBucket, mineruZipObj.name);
+        const zipBuffer = await new Promise((resolve, reject) => {
+          const chunks = [];
+          zipStream.on('data', chunk => chunks.push(chunk));
+          zipStream.on('end', () => resolve(Buffer.concat(chunks)));
+          zipStream.on('error', reject);
+        });
+        const innerZip = await JSZip.loadAsync(zipBuffer);
+        for (const [name, entry] of Object.entries(innerZip.files)) {
+          if (entry.dir) continue;
+          if (mode === 'user' && primaryMarkdownPath && name === primaryMarkdownPath) continue;
+          zip.file(name, entry.async('nodebuffer'));
+          addedToZip.add(name);
+        }
+      }
+    }
 
     for (const obj of objects) {
       const relativePath = obj.name.slice(prefix.length);
       
-      if (relativePath === 'mineru-result.zip') {
-        if (mode === 'diagnostic') {
-          const stream = await client.getObject(parsedBucket, obj.name);
-          zip.file(relativePath, stream);
-        }
-        if (mode === 'user' || mode === 'diagnostic') {
-          // need to extract contents
-          const zipStream = await client.getObject(parsedBucket, obj.name);
-          const zipBuffer = await new Promise((resolve, reject) => {
-            const chunks = [];
-            zipStream.on('data', chunk => chunks.push(chunk));
-            zipStream.on('end', () => resolve(Buffer.concat(chunks)));
-            zipStream.on('error', reject);
-          });
-          const innerZip = await JSZip.loadAsync(zipBuffer);
-          for (const [name, entry] of Object.entries(innerZip.files)) {
-            if (entry.dir) continue;
-            if (mode === 'user' && primaryMarkdownPath && name === primaryMarkdownPath) continue;
-            zip.file(name, entry.async('nodebuffer'));
-          }
-        }
-      } else {
-        if (mode === 'user' && primaryMarkdownPath && relativePath === primaryMarkdownPath) continue;
-        const stream = await client.getObject(parsedBucket, obj.name);
-        zip.file(relativePath, stream);
-      }
+      if (relativePath === 'mineru-result.zip') continue; // handled above
+      
+      if (mode === 'user' && primaryMarkdownPath && relativePath === primaryMarkdownPath) continue;
+      if (mode === 'user' && addedToZip.has(relativePath)) continue; // legacy mixed dedup
+      
+      const stream = await client.getObject(parsedBucket, obj.name);
+      zip.file(relativePath, stream);
+      addedToZip.add(relativePath);
     }
+    
+    res.setHeader('X-Parsed-Files-Count', String(addedToZip.size));
 
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="parsed-${materialId}.zip"`);
@@ -3735,7 +3754,9 @@ app.post('/parsed-zip', async (req, res) => {
     console.error('[upload-server] /parsed-zip failed:', message);
     if (!res.headersSent) res.status(500).json({ error: message });
   }
-});
+}
+
+app.post('/parsed-zip', parsedZipHandler);
 
 // ─── 接口：GET /proxy-file ─────────────────────────────────────
 // 服务端代理：从 MinIO 流式读取文件并回传给浏览器，解决浏览器直接访问 MinIO presigned URL 的 CORS/网络问题
@@ -3860,7 +3881,7 @@ app.get('/file', async (req, res) => {
 });
 
 // ─── 接口：POST /ops/parsed-artifacts/migration/dry-run ─────────────────
-app.post('/ops/parsed-artifacts/migration/dry-run', async (req, res) => {
+export async function dryRunHandler(req, res) {
   const { materialIds } = req.body || {};
   try {
     const parsedBucket = getParsedBucket();
@@ -3891,7 +3912,9 @@ app.post('/ops/parsed-artifacts/migration/dry-run', async (req, res) => {
 
     for (const materialId of targetMaterialIds) {
       const prefix = `parsed/${materialId}/`;
-      const objects = await listAllObjects(parsedBucket, prefix);
+      const objects = _testHooks.mockListAllObjects 
+         ? await _testHooks.mockListAllObjects(parsedBucket, prefix)
+         : await listAllObjects(parsedBucket, prefix);
       
       if (!objects || objects.length === 0) {
         result.items.push({
@@ -3902,10 +3925,11 @@ app.post('/ops/parsed-artifacts/migration/dry-run', async (req, res) => {
            expandedObjectCount: 0,
            zipEntryCount: 0,
            fullMdDuplicatesZipMd: false,
-           candidateRemovableObjects: [],
+           candidateRemovableObjectsCount: 0,
+           candidateRemovableObjectsSample: [],
            estimatedRemovableBytes: 0,
            safeToMigrate: false,
-           reasons: ['No parsed artifacts found']
+           unsafeReasons: ['No parsed artifacts found']
         });
         continue;
       }
@@ -3933,15 +3957,41 @@ app.post('/ops/parsed-artifacts/migration/dry-run', async (req, res) => {
          status = 'legacy-mixed';
          result.summary.legacyMixed++;
          
+         const client = getMinioClient();
+         const zipStream = await client.getObject(parsedBucket, `${prefix}mineru-result.zip`);
+         const zipBuffer = await new Promise((resolve, reject) => {
+           const chunks = [];
+           zipStream.on('data', chunk => chunks.push(chunk));
+           zipStream.on('end', () => resolve(Buffer.concat(chunks)));
+           zipStream.on('error', reject);
+         });
+         const innerZip = await JSZip.loadAsync(zipBuffer);
+         const zipEntries = new Set(Object.keys(innerZip.files));
+         zipEntryCount = zipEntries.size;
+         
+         let missingInZip = [];
+         for (const exp of expandedObjects) {
+             const rel = exp.name.slice(prefix.length);
+             if (!zipEntries.has(rel)) {
+                 missingInZip.push(rel);
+             }
+         }
+         
+         if (missingInZip.length > 0) {
+             safeToMigrate = false;
+             reasons.push(`Found ${missingInZip.length} expanded objects missing in zip (e.g. ${missingInZip.slice(0, 3).join(', ')})`);
+         } else {
+             safeToMigrate = true;
+         }
+         
          candidateRemovableObjects = expandedObjects.map(o => o.name);
          estimatedRemovableBytes = expandedObjects.reduce((acc, obj) => acc + (obj.size || 0), 0);
-         safeToMigrate = true;
          fullMdDuplicatesZipMd = true; 
          
-         zipEntryCount = candidateRemovableObjects.length; 
-         
-         result.summary.estimatedRemovableObjects += candidateRemovableObjects.length;
-         result.summary.estimatedRemovableBytes += estimatedRemovableBytes;
+         if (safeToMigrate) {
+           result.summary.estimatedRemovableObjects += candidateRemovableObjects.length;
+           result.summary.estimatedRemovableBytes += estimatedRemovableBytes;
+         }
       }
       
       result.items.push({
@@ -3952,10 +4002,11 @@ app.post('/ops/parsed-artifacts/migration/dry-run', async (req, res) => {
          expandedObjectCount: expandedObjects.length,
          zipEntryCount,
          fullMdDuplicatesZipMd,
-         candidateRemovableObjects,
+         candidateRemovableObjectsCount: candidateRemovableObjects.length,
+         candidateRemovableObjectsSample: candidateRemovableObjects.slice(0, 5),
          estimatedRemovableBytes,
          safeToMigrate,
-         reasons
+         unsafeReasons: reasons
       });
     }
 
@@ -3964,7 +4015,9 @@ app.post('/ops/parsed-artifacts/migration/dry-run', async (req, res) => {
     const message = error instanceof Error ? error.message : String(error);
     res.status(500).json({ error: message });
   }
-});
+}
+
+app.post('/ops/parsed-artifacts/migration/dry-run', dryRunHandler);
 
 // ─── 接口：GET /settings/storage ──────────────────────────────
 // 返回当前 MinIO 配置（密钥脱敏）
@@ -4653,3 +4706,11 @@ process.on('unhandledRejection', (reason) => {
   console.error('[upload-server] Unhandled rejection:', reason);
   // 不立即退出，保持服务稳定性
 });
+
+// ─── 测试钩子 ─────────────────────────────────────────────────
+export const _testHooks = {
+  getMinioClient: () => getMinioClient(),
+  getParsedBucket: () => getParsedBucket(),
+  setMockMinioClient: (client) => { minioClient = client; },
+  mockListAllObjects: null,
+};
