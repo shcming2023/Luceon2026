@@ -1,20 +1,40 @@
-version: '3.8'
-
-# 这个覆盖文件用于第二级本地轻量 Mock 测试（Tier 2 Lite）
-# 它会覆盖 MinerU 和 Ollama 的行为，防止强制下载大模型和重度资源消耗。
-
 services:
-  ollama:
-    # 覆盖 entrypoint，不再启动时强制拉取模型，而是由用户在需要时手动显式拉取
-    # 或直接当作一个空壳 API
-    entrypoint: ["/bin/sh", "-c", "ollama serve"]
+  # ── 1. 覆盖主服务配置，适配 Windows 本地路径 ──
+  upload-server:
+    volumes:
+      - ./data/logs:/host/mineru-logs:ro
+    environment:
+      - MINERU_API_URL=http://mineru:8080
+      - OLLAMA_API_URL=http://ollama:11434
+      - ALLOW_LOCAL_AI_ENDPOINT=true
 
+  # ── 2. 本地 AI 降配版推理引擎 (Ollama) ──
+  ollama:
+    image: ollama/ollama:latest
+    container_name: cms-ollama-local
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - cms-network
+    # 不强制拉取 qwen2.5:0.5b，仅启动 serve 服务
+    entrypoint: >
+      /bin/sh -c "ollama serve"
+
+  # ── 3. 本地解析引擎 (MinerU) ──
   mineru:
-    # 覆盖 MinerU 镜像为一个极轻量的 mock 镜像（例如 alpine + python http server），
-    # 仅提供符合格式的 200 Mock 响应，或者完全禁用它。
-    # 这里我们用 python 的内置 server 提供假接口，或者直接不启动。
+    # 使用极轻量镜像代替 opendatalab/mineru:latest，避免预检强制下载 20GB 镜像
     image: python:3.10-alpine
-    command: >
-      sh -c "mkdir -p /mock && echo '{\"status\":\"mock\"}' > /mock/index.json && cd /mock && python -m http.server 8080"
+    container_name: cms-mineru-local
+    restart: unless-stopped
     ports:
       - "8083:8080"
+    networks:
+      - cms-network
+    command: ["sh", "-c", "mkdir -p /mock && echo '{\"status\":\"mock\"}' > /mock/index.json && cd /mock && python -m http.server 8080"]
+
+volumes:
+  ollama-data:
+    name: cms-ollama-data

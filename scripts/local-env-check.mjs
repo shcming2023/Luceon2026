@@ -1,97 +1,104 @@
 import { execSync } from 'child_process';
-import http from 'http';
 import net from 'net';
 
-const ports = {
-  CMS: 8080,
-  UploadServer: 8788,
-  DbServer: 8789,
-  MinerULocal: 8083,
-  Ollama: 11434,
-  MinioConsole: 19001,
-  MinioAPI: 9000
-};
-
-console.log('=== Tier 2 Local UAT Baseline Check ===\n');
-
-// 1. Check Node/npm availability
-try {
-  const nodeVer = execSync('node -v', { encoding: 'utf-8' }).trim();
-  const npmVer = execSync('npm -v', { encoding: 'utf-8' }).trim();
-  console.log(`[OK] Node.js is available: ${nodeVer}`);
-  console.log(`[OK] npm is available: v${npmVer}`);
-} catch (e) {
-  console.error('[FAIL] Node or npm is not correctly installed or in PATH.');
-  process.exit(1);
-}
-
-// 2. Check Docker daemon
-try {
-  execSync('docker info', { stdio: 'ignore' });
-  console.log('[OK] Docker daemon is running.');
-} catch (e) {
-  console.error('[FAIL] Docker daemon is NOT running or not accessible. Please start Docker Desktop.');
-  process.exit(1);
-}
-
-// 3. Check Compose config
-try {
-  execSync('docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.override.yml config --quiet', { stdio: 'ignore' });
-  console.log('[OK] Docker Compose configuration is valid.');
-} catch (e) {
-  console.error('[FAIL] Docker Compose configuration validation failed.');
-  process.exit(1);
-}
-
-// 4. Check port availability (before starting)
-// Note: This just attempts to listen on the port briefly to see if it's free.
-// If Docker is already running, it might fail. We assume we check this before `up`.
-const checkPort = (name, port) => {
+async function checkPort(port, host = '127.0.0.1') {
   return new Promise((resolve) => {
-    const server = net.createServer();
-    server.once('error', (err) => {
-      if (err.code === 'EADDRINUSE') {
-        resolve({ name, port, status: 'IN_USE' });
-      } else {
-        resolve({ name, port, status: 'ERROR' });
-      }
+    const socket = new net.Socket();
+    socket.setTimeout(1000);
+    socket.on('connect', () => {
+      socket.destroy();
+      resolve(true); // In use
     });
-    server.once('listening', () => {
-      server.close();
-      resolve({ name, port, status: 'FREE' });
+    socket.on('timeout', () => {
+      socket.destroy();
+      resolve(false); // Free
     });
-    server.listen(port);
+    socket.on('error', () => {
+      socket.destroy();
+      resolve(false); // Free
+    });
+    socket.connect(port, host);
   });
-};
+}
 
-async function runChecks() {
-  console.log('\nChecking Ports Availability:');
-  const results = await Promise.all([
-    checkPort('CMS', ports.CMS),
-    checkPort('MinerU Host', ports.MinerULocal),
-    checkPort('Ollama', ports.Ollama),
-    checkPort('Minio Console', ports.MinioConsole)
-  ]);
-
-  let portConflict = false;
-  results.forEach(r => {
-    if (r.status === 'IN_USE') {
-      console.warn(`[WARN] Port ${r.port} (${r.name}) is ALREADY IN USE. If containers are not running, this will cause a conflict!`);
-      portConflict = true;
-    } else if (r.status === 'FREE') {
-      console.log(`[OK] Port ${r.port} (${r.name}) is free.`);
-    }
-  });
-
-  console.log(`\n=== Current UAT URL: http://localhost:${ports.CMS}/cms/ ===`);
-  console.log('\nTo start the environment on Windows, run:');
-  console.log('docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.override.yml up -d --build');
-  console.log('\nFor a lightweight mock environment, add the tier2-lite override:');
-  console.log('docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.tier2-lite.yml up -d --build');
-
-  if (portConflict) {
-    console.log('\n⚠️ WARNING: Some ports are already in use. Ensure no other instances are running.');
+function runCmd(cmd) {
+  try {
+    const stdout = execSync(cmd, { stdio: 'pipe', encoding: 'utf-8' });
+    return stdout.trim();
+  } catch (err) {
+    return null;
   }
 }
 
-runChecks();
+async function main() {
+  console.log('=== Luceon2026 Local Tier 2 UAT Pre-check ===');
+
+  // Node version
+  const nodeVer = runCmd('node -v');
+  console.log(`- Node version: ${nodeVer || 'Not found'}`);
+
+  // npm / npx
+  const isWindows = process.platform === 'win32';
+  const npmCmd = isWindows ? 'npm.cmd' : 'npm';
+  const npxCmd = isWindows ? 'npx.cmd' : 'npx';
+
+  const npmVer = runCmd(`${npmCmd} -v`);
+  console.log(`- npm version: ${npmVer || 'Not found'} (using ${npmCmd})`);
+
+  const npxVer = runCmd(`${npxCmd} -v`);
+  console.log(`- npx version: ${npxVer || 'Not found'} (using ${npxCmd})`);
+
+  if (!npmVer || !npxVer) {
+    console.error(`❌ ${npmCmd} or ${npxCmd} not available. Please ensure Node.js is installed properly.`);
+    process.exit(1);
+  }
+
+  // Docker daemon
+  const dockerVer = runCmd('docker info --format "{{.ServerVersion}}"');
+  if (dockerVer) {
+    console.log(`- Docker daemon: Running (v${dockerVer})`);
+  } else {
+    console.error('❌ Docker daemon is not running or not accessible.');
+    process.exit(1);
+  }
+
+  // Docker Compose
+  const composeVer = runCmd('docker compose version');
+  console.log(`- Docker Compose: ${composeVer || 'Not found'}`);
+
+  // Compose config check
+  const composeConfig = runCmd('docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.override.yml config --quiet');
+  if (composeConfig !== null) {
+    console.log(`- Compose config: Passed`);
+  } else {
+    console.error('❌ Compose config check failed.');
+    process.exit(1);
+  }
+
+  // Port checks
+  const portsToCheck = [
+    { port: 8080, name: 'CMS Frontend (8080)' },
+    { port: 8083, name: 'MinerU Local (8083)' },
+    { port: 11434, name: 'Ollama (11434)' },
+    { port: 19001, name: 'MinIO Console (19001)' }
+  ];
+
+  console.log('\n--- Port Status ---');
+  for (const { port, name } of portsToCheck) {
+    const inUse = await checkPort(port);
+    if (inUse) {
+      console.log(`⚠️  ${name} is currently IN USE (could be conflicting or already running).`);
+    } else {
+      console.log(`✅ ${name} is FREE.`);
+    }
+  }
+
+  console.log('\n--- Recommended Access URLs ---');
+  console.log('- CMS Local URL:      http://127.0.0.1:8080/cms/');
+  console.log('- MinIO Console URL:  http://127.0.0.1:19001');
+  console.log('- MinerU URL:         http://127.0.0.1:8083');
+  console.log('- Ollama URL:         http://127.0.0.1:11434');
+  console.log('\n✅ Pre-check completed.');
+}
+
+main().catch(console.error);
