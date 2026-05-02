@@ -204,6 +204,26 @@ async function run() {
   }, source);
   assertEq('Level alias "中考" normalized to 初三', aliasResultLevel.controlled_classification.level?.id, '初三');
 
+  const aliasResultCurriculum1 = validateAndNormalizeV02({
+    primary_facets: { 
+      domain: '01_出版教材与成套课程', 
+      curriculum: '中国课标与同步教辅'
+    },
+    governance: { confidence: 'high' },
+    evidence: []
+  }, source);
+  assertEq('curriculum alias "中国课标与同步教辅" normalized to 中国课标', aliasResultCurriculum1.controlled_classification.curriculum?.id, '中国课标');
+
+  const aliasResultCurriculum2 = validateAndNormalizeV02({
+    primary_facets: { 
+      domain: '01_出版教材与成套课程', 
+      curriculum: '同步教辅'
+    },
+    governance: { confidence: 'high' },
+    evidence: []
+  }, source);
+  assertEq('curriculum alias "同步教辅" normalized to 中国课标', aliasResultCurriculum2.controlled_classification.curriculum?.id, '中国课标');
+
   // Test prompt context generation
   const { buildTaxonomyPromptContext } = await import('../services/ai/metadata-taxonomy-v0.2.mjs');
   const promptContext = buildTaxonomyPromptContext();

@@ -489,7 +489,14 @@
         "zh": "中国课标",
         "en": "Chinese Curriculum",
         "status": "approved",
-        "aliases": [],
+        "aliases": [
+          "中国课标与同步教辅",
+          "中国课标同步教辅",
+          "中国课标同步",
+          "同步教辅",
+          "初中英语",
+          "中考英语"
+        ],
         "decision_rules": [],
         "positive_examples": [],
         "negative_examples": []
