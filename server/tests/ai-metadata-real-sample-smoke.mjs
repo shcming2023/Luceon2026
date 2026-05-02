@@ -862,23 +862,39 @@ async function runTests() {
 
   // Case 25: Non-education domain isolates education fields
   console.log('Case 25: Non-education domain isolates education fields');
-  worker1.executeWithFallback = async (provider, markdown, settings, prompt) => {
+  globalThis.fetch = originalFetch;
+  const mockMinio25 = {
+    getFileStream: async () => ({ [Symbol.asyncIterator]: async function* () { yield Buffer.from('mock'); } }),
+    saveObject: async () => {}
+  };
+  const worker25 = new AiMetadataWorker(mockMinio25);
+  worker25.executeWithFallback = async (provider, markdown, settings, prompt) => {
     return {
       provider: 'ollama', model: 'qwen3.5',
-      result: '{"primary_facets": {"domain": {"zh": "06_公司行政经营资料"}, "curriculum": {"zh": "中国课标"}, "collection": {"zh": "同步教辅"}, "level": {"zh": "初三"}}, "evidence": ["公司行政"], "governance": {"confidence": "high"}}',
+      result: '{"primary_facets": {"domain": {"zh": "06_公司行政经营资料"}, "curriculum": {"zh": "中国课标"}, "collection": {"zh": "同步教辅"}, "level": {"zh": "初三"}, "subject": {"zh": "英语"}}, "evidence": ["公司行政"], "governance": {"confidence": "high"}}',
       rawResponse: '...',
       traceDetails: { rawLooksTruncated: false },
       usage: {}
     };
   };
-  await worker1.processJob({ id: 'test-job-25', parseTaskId: 'test-task-25', materialId: 'm25', inputMarkdownObjectName: 'test.md' });
-  assert.equal(finalResultObj.aiClassificationV02.controlled_classification.domain.id, '06_公司行政经营资料');
-  assert.equal(finalResultObj.aiClassificationV02.controlled_classification.curriculum, undefined);
-  assert.equal(finalResultObj.aiClassificationV02.controlled_classification.collection, undefined);
-  assert.equal(finalResultObj.aiClassificationV02.controlled_classification.level, undefined);
-  assert.ok(finalResultObj.aiClassificationV02.classification_review.reasons.includes('non_education_domain'));
-  assert.ok(finalResultObj.aiClassificationV02.classification_review.reasons.includes('unmatched_curriculum'));
-  assert.equal(finalResultObj.aiClassificationV02.classification_review.unmatched_facets.curriculum, '01_中国课标');
+  let finalResult25 = {};
+  worker25.transition = async (job, update) => { finalResult25 = update.result; };
+  await worker25.processJob({ id: 'test-job-25', parseTaskId: 'test-task-25', materialId: 'm25', inputMarkdownObjectName: 'test.md' });
+  
+  assert.equal(finalResult25.aiClassificationV02.controlled_classification.domain.id, '06_公司行政经营资料');
+  assert.equal(finalResult25.aiClassificationV02.controlled_classification.curriculum, undefined);
+  assert.equal(finalResult25.aiClassificationV02.controlled_classification.collection, undefined);
+  assert.equal(finalResult25.aiClassificationV02.controlled_classification.level, undefined);
+  assert.equal(finalResult25.aiClassificationV02.controlled_classification.subject, undefined);
+  assert.ok(finalResult25.aiClassificationV02.classification_review.reasons.includes('non_education_domain'));
+  assert.ok(finalResult25.aiClassificationV02.classification_review.reasons.includes('unmatched_curriculum'));
+  assert.ok(finalResult25.aiClassificationV02.classification_review.reasons.includes('unmatched_collection'));
+  assert.ok(finalResult25.aiClassificationV02.classification_review.reasons.includes('unmatched_level'));
+  assert.ok(finalResult25.aiClassificationV02.classification_review.reasons.includes('unmatched_subject'));
+  assert.equal(finalResult25.aiClassificationV02.classification_review.unmatched_facets.curriculum, '中国课标');
+  assert.equal(finalResult25.aiClassificationV02.classification_review.unmatched_facets.collection, '同步教辅');
+  assert.equal(finalResult25.aiClassificationV02.classification_review.unmatched_facets.level, '初三');
+  assert.equal(finalResult25.aiClassificationV02.classification_review.unmatched_facets.subject, '英语');
   console.log('Case 25 Pass ✅');
 
   globalThis.fetch = originalFetch;
