@@ -15,9 +15,9 @@ async function runTest() {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, options) => {
     const u = url.toString();
-    if (u.includes('/health')) return { ok: true, json: async () => ({ status: 'healthy' }) };
-    if (u.includes('/submit')) return { ok: true, json: async () => ({ task_id: 'mineru-123' }) };
-    if (u.includes('/status')) return { ok: true, json: async () => ({ status: 'done' }) };
+    if (u.includes('/health')) return { ok: true, status: 200, json: async () => ({ status: 'healthy' }), text: async () => '' };
+    if (u.includes('/tasks') && options?.method === 'POST') return { ok: true, status: 200, json: async () => ({ task_id: 'mineru-123' }), text: async () => JSON.stringify({ task_id: 'mineru-123' }) };
+    if ((u.includes('/tasks/') && !u.includes('/result')) || u.includes('/status')) return { ok: true, status: 200, json: async () => ({ status: 'done' }), text: async () => '' };
     if (u.includes('/result')) {
       return { 
         ok: true, 
@@ -25,7 +25,7 @@ async function runTest() {
         arrayBuffer: async () => fakeZipBuffer.buffer.slice(fakeZipBuffer.byteOffset, fakeZipBuffer.byteOffset + fakeZipBuffer.byteLength)
       };
     }
-    return { ok: true, json: async () => ({}) };
+    return { ok: true, status: 200, json: async () => ({}), text: async () => '' };
   };
 
   let savedObjects = [];

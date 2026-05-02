@@ -1,30 +1,36 @@
 import assert from 'node:assert';
 import JSZip from 'jszip';
 import { parsedZipHandler, _testHooks } from '../upload-server.mjs';
+import { Writable } from 'node:stream';
 
 async function runTest() {
   console.log('--- Parsed ZIP Export Modes Smoke Test (Real) ---');
 
   // 1. Create a fake memory MinerU ZIP
   const fakeMineruZip = new JSZip();
-  fakeMineruZip.file('full.md', Buffer.from('# I am inside zip', 'utf-8'));
+  fakeMineruZip.file('auto/full.md', Buffer.from('# I am inside zip', 'utf-8'));
   fakeMineruZip.file('images/1.jpg', Buffer.from('fake image', 'utf-8'));
   fakeMineruZip.file('mineru-result.json', Buffer.from('{"ok":true}', 'utf-8'));
   const fakeZipBuffer = await fakeMineruZip.generateAsync({ type: 'nodebuffer' });
 
   // 2. Mock fake MinIO list and objects
-  _testHooks.mockListAllObjects = async (bucket, prefix) => [
-    { name: `${prefix}mineru-result.zip`, size: fakeZipBuffer.length },
-    { name: `${prefix}full.md`, size: 100 },
-    { name: `${prefix}artifact-manifest.json`, size: 200 },
-    { name: `${prefix}images/1.jpg`, size: 10 }, // legacy expanded duplicate
-    { name: `${prefix}images/2.jpg`, size: 10 }  // legacy expanded unique
-  ];
+  _testHooks.mockListAllObjects = async (bucket, prefix) => {
+    const list = [
+      { name: `${prefix}mineru-result.zip`, size: fakeZipBuffer.length },
+      { name: `${prefix}full.md`, size: 100 },
+      { name: `${prefix}images/1.jpg`, size: 10 }, // legacy expanded duplicate
+      { name: `${prefix}images/2.jpg`, size: 10 }  // legacy expanded unique
+    ];
+    if (!prefix.includes('test-mat-fallback')) {
+      list.push({ name: `${prefix}artifact-manifest.json`, size: 200 });
+    }
+    return list;
+  };
 
   const fakeManifest = {
     version: 'artifact-manifest.v0.1',
     artifactStorageMode: 'legacy-mixed',
-    primaryMarkdownPath: 'full.md',
+    primaryMarkdownPath: 'auto/full.md',
     artifacts: []
   };
 
@@ -34,6 +40,10 @@ async function runTest() {
       if (name.endsWith('mineru-result.zip')) {
         stream.end(fakeZipBuffer);
       } else if (name.endsWith('artifact-manifest.json')) {
+        if (name.includes('test-mat-fallback')) {
+          stream.emit('error', new Error('Not found'));
+          return stream;
+        }
         stream.end(Buffer.from(JSON.stringify(fakeManifest)));
       } else {
         stream.end(Buffer.from('fake content for ' + name));
@@ -44,8 +54,8 @@ async function runTest() {
   _testHooks.setMockMinioClient(mockMinioClient);
 
   // Helper to run handler and capture zip output
-  async function runHandlerWithMode(mode) {
-    const req = { body: { materialId: 'test-mat-1', mode } };
+  async function runHandlerWithMode(mode, matId = 'test-mat-1') {
+    const req = { body: { materialId: matId, mode } };
     let statusCode = 200;
     let jsonBody = null;
     let headers = {};
@@ -72,7 +82,6 @@ async function runTest() {
       };
       // Node Streams `.pipe(res)` expects a Writable stream
       // We will proxy chunks pushed by JSZip
-      const Writable = require('stream').Writable;
       const proxyStream = new Writable({
         write(chunk, encoding, callback) {
           chunks.push(chunk);
@@ -103,7 +112,7 @@ async function runTest() {
   assert.equal(resUser.headers['Content-Type'], 'application/zip');
   
   const userZip = await JSZip.loadAsync(resUser.buffer);
-  const userFiles = Object.keys(userZip.files);
+  const userFiles = Object.keys(userZip.files).filter(k => !userZip.files[k].dir);
   // mineru-result.zip should NOT be present
   assert.ok(!userFiles.includes('mineru-result.zip'));
   // primary md inside zip is filtered, but MinIO full.md is kept
@@ -131,6 +140,11 @@ async function runTest() {
   assert.ok(diagFiles.includes('mineru-result.zip'), 'diagnostic should include raw zip');
   assert.ok(diagFiles.includes('full.md'), 'diagnostic includes extracted');
   console.log('✅ mode=diagnostic included all files');
+
+  console.log('Testing manifest fallback...');
+  const resFallback = await runHandlerWithMode('user', 'test-mat-fallback');
+  assert.equal(resFallback.status, 200);
+  console.log('✅ Fallback completed without ReferenceError');
 
   console.log('Pass ✅');
   process.exit(0);

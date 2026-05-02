@@ -3625,17 +3625,20 @@ export async function parsedZipHandler(req, res) {
 
     res.setHeader('X-Luceon-Object-Count', String(objects.length));
 
+    let material = null;
+    let relatedTask = null;
+
     try {
       const [matResp, tasksResp] = await Promise.all([
         fetch(`${DB_BASE_URL}/materials/${encodeURIComponent(materialId)}`).catch(() => null),
         fetch(`${DB_BASE_URL}/tasks`).catch(() => null),
       ]);
 
-      const material = matResp?.ok ? await matResp.json().catch(() => null) : null;
+      material = matResp?.ok ? await matResp.json().catch(() => null) : null;
       const tasks = tasksResp?.ok ? await tasksResp.json().catch(() => null) : null;
 
       const expectedCount = Number(material?.metadata?.parsedFilesCount || 0);
-      const relatedTask = Array.isArray(tasks)
+      relatedTask = Array.isArray(tasks)
         ? tasks.find((t) => String(t?.materialId) === String(materialId))
         : null;
       const taskExpectedCount = Number(relatedTask?.metadata?.parsedFilesCount || 0);
@@ -3966,7 +3969,11 @@ export async function dryRunHandler(req, res) {
            zipStream.on('error', reject);
          });
          const innerZip = await JSZip.loadAsync(zipBuffer);
-         const zipEntries = new Set(Object.keys(innerZip.files));
+         const zipEntries = new Set(
+           Object.entries(innerZip.files)
+             .filter(([, entry]) => !entry.dir)
+             .map(([name]) => name)
+         );
          zipEntryCount = zipEntries.size;
          
          let missingInZip = [];

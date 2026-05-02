@@ -310,6 +310,7 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
 
     let zipObjectName = null;
     let hasMineruZip = false;
+    let primary = null;
 
     if (resultPayload) {
       const rawJson = Buffer.from(JSON.stringify(resultPayload), 'utf-8');
@@ -360,7 +361,7 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
         return pool.slice().sort((a, b) => String(a.relativePath).length - String(b.relativePath).length)[0];
       };
 
-      const primary = pickPrimaryMarkdown(mdCandidates);
+      primary = pickPrimaryMarkdown(mdCandidates);
       if (primary && !markdown) {
         const content = await zip.file(primary.name).async('nodebuffer');
         markdown = content.toString('utf-8').trim();
@@ -612,6 +613,7 @@ export async function resumeWithLocalMinerU({ task, material, mineruTaskId, time
     zipBuffer = await extractZipBufferFromJsonResult(resultPayload, timeoutMs);
   }
 
+  let primary = null;
   if (zipBuffer) {
     hasMineruZip = true;
     zipObjectName = `${parsedPrefix}mineru-result.zip`;
@@ -649,7 +651,7 @@ export async function resumeWithLocalMinerU({ task, material, mineruTaskId, time
       return pool.slice().sort((a, b) => String(a.relativePath).length - String(b.relativePath).length)[0];
     };
 
-    const primary = pickPrimaryMarkdown(mdCandidates);
+    primary = pickPrimaryMarkdown(mdCandidates);
     if (primary && !markdown) {
       const content = await zip.file(primary.name).async('nodebuffer');
       markdown = content.toString('utf-8').trim();
