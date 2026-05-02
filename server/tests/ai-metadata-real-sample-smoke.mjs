@@ -192,11 +192,11 @@ async function runTests() {
   }
   let v02_1 = worker1.extractJson(res1.result);
   const norm1 = validateAndNormalizeV02(v02_1, {});
-  assert.equal(norm1.controlled_classification.domain.id, '01_published_course');
-  assert.equal(norm1.controlled_classification.collection.id, 'cambridge_igcse');
-  assert.equal(norm1.controlled_classification.subject.id, 'math');
-  assert.equal(norm1.controlled_classification.resource_type.id, 'textbook');
-  assert.equal(norm1.controlled_classification.component_role.id, 'main_content');
+  assert.equal(norm1.controlled_classification.domain.id, '01_出版教材与成套课程');
+  assert.equal(norm1.controlled_classification.collection.id, 'Cambridge IGCSE');
+  assert.equal(norm1.controlled_classification.subject.id, '数学');
+  assert.equal(norm1.controlled_classification.resource_type.id, '教材');
+  assert.equal(norm1.controlled_classification.component_role.id, '主体资料');
   
   // Test rawPreview stringification for object
   let rawString1 = '';
@@ -224,10 +224,10 @@ async function runTests() {
   let res2 = await worker1.executeWithFallback(provider2, 'Sample', {});
   let v02_2 = worker1.extractJson(res2.result);
   const norm2 = validateAndNormalizeV02(v02_2, {});
-  assert.equal(norm2.controlled_classification.collection.id, 'reading_explorer');
-  assert.equal(norm2.controlled_classification.subject.id, 'english');
-  assert.equal(norm2.controlled_classification.resource_type.id, 'answer_key');
-  assert.equal(norm2.controlled_classification.component_role.id, 'answers');
+  assert.equal(norm2.controlled_classification.collection.id, 'Reading Explorer');
+  assert.equal(norm2.controlled_classification.subject.id, '英语');
+  assert.equal(norm2.controlled_classification.resource_type.id, '答案解析');
+  assert.equal(norm2.controlled_classification.component_role.id, '答案');
   console.log('Case 2 Pass ✅');
 
   // Case 3: Non-education material (Travel Checklist)
@@ -243,7 +243,7 @@ async function runTests() {
   let res3 = await worker1.executeWithFallback(provider3, 'Sample', {});
   let v02_3 = worker1.extractJson(res3.result);
   const norm3 = validateAndNormalizeV02(v02_3, {});
-  assert.equal(norm3.controlled_classification.domain.id, '06_corp_admin');
+  assert.equal(norm3.controlled_classification.domain.id, '06_公司行政经营资料');
   assert.equal(norm3.classification_review.required, true);
   assert.ok(norm3.classification_review.reasons.includes('non_education_domain'), 'Should log non_education_domain reason');
   console.log('Case 3 Pass ✅');
@@ -416,8 +416,8 @@ async function runTests() {
   
   await worker1.processJob({ id: 'test-job-8', parseTaskId: 'test-task-8', materialId: 'm8', inputMarkdownObjectName: 'test.pdf' });
   
-  assert.equal(finalResultObj.grade, '十年级');
-  assert.equal(finalResultObj.summary, '物理 · 十年级 · 真题');
+  assert.equal(finalResultObj.grade, '高一');
+  assert.equal(finalResultObj.summary, '物理 · 高一 · 真题');
   
   const tagsStr = JSON.stringify(finalResultObj.tags);
   assert.ok(tagsStr.includes('力学'), 'tags should include search_tags.topic_tags');

@@ -126,12 +126,12 @@ async function run() {
   // 'English' domain should fail. valid domains are 01_published_course etc.
   assertTrue('Domain unmapped goes to review', taxonomyResult1.classification_review.required === true);
   assertEq('Domain unmapped value captured', taxonomyResult1.classification_review.unmatched_facets.domain, 'English');
-  assertEq('Subject alias normalized', taxonomyResult1.controlled_classification.subject?.id, 'english');
-  assertEq('Resource type alias normalized', taxonomyResult1.controlled_classification.resource_type?.id, 'textbook');
+  assertEq('Subject alias normalized', taxonomyResult1.controlled_classification.subject?.id, '英语');
+  assertEq('Resource type alias normalized', taxonomyResult1.controlled_classification.resource_type?.id, '教材');
   
-  assertTrue('Topic tag reading normalized', taxonomyResult1.normalized_tags.topic_tags.some(t => t.id === 'reading'));
+  assertTrue('Topic tag reading normalized', taxonomyResult1.normalized_tags.topic_tags.some(t => t.id === '阅读' || t.id === '阅读理解'));
   assertTrue('Topic tag unmapped proposed', taxonomyResult1.proposed_new_tags.some(t => t.value === '北极岛屿旅行知识'));
-  assertTrue('Skill tag normalized', taxonomyResult1.normalized_tags.skill_tags.some(t => t.id === 'analytical'));
+  assertTrue('Skill tag normalized', taxonomyResult1.normalized_tags.skill_tags.some(t => t.id === '分析能力'));
   
   // 3.1 Skeleton Taxonomy
   const skeletonResult = getDefaultV02Skeleton(source, 'low', 'test');
@@ -150,9 +150,9 @@ async function run() {
     governance: { confidence: 'high' },
     evidence: []
   }, source);
-  assertEq('Subject alias "英文" normalized', aliasResult.controlled_classification.subject?.id, 'english');
-  assertEq('Resource type alias "教科书" normalized', aliasResult.controlled_classification.resource_type?.id, 'textbook');
-  assertEq('Component role alias "学生书" normalized', aliasResult.controlled_classification.component_role?.id, 'student_book');
+  assertEq('Subject alias "英文" normalized', aliasResult.controlled_classification.subject?.id, '英语');
+  assertEq('Resource type alias "教科书" normalized', aliasResult.controlled_classification.resource_type?.id, '教材');
+  assertEq('Component role alias "学生书" normalized', aliasResult.controlled_classification.component_role?.id, '学生用书');
 
   const aliasResult2 = validateAndNormalizeV02({
     primary_facets: { 
@@ -164,9 +164,9 @@ async function run() {
     governance: { confidence: 'high' },
     evidence: []
   }, source);
-  assertEq('Subject alias "数学学科" normalized', aliasResult2.controlled_classification.subject?.id, 'math');
-  assertEq('Resource type alias "练习本" normalized', aliasResult2.controlled_classification.resource_type?.id, 'workbook');
-  assertEq('Component role alias "教师版" normalized', aliasResult2.controlled_classification.component_role?.id, 'teacher_book');
+  assertEq('Subject alias "数学学科" normalized', aliasResult2.controlled_classification.subject?.id, '数学');
+  assertEq('Resource type alias "练习本" normalized', aliasResult2.controlled_classification.resource_type?.id, '练习册');
+  assertEq('Component role alias "教师版" normalized', aliasResult2.controlled_classification.component_role?.id, '教师用书');
 
   const aliasResult3 = validateAndNormalizeV02({
     primary_facets: { 
@@ -178,8 +178,8 @@ async function run() {
     governance: { confidence: 'high' },
     evidence: []
   }, source);
-  assertEq('Resource type alias "考试卷" normalized', aliasResult3.controlled_classification.resource_type?.id, 'exam_paper');
-  assertEq('Component role alias "参考答案" normalized', aliasResult3.controlled_classification.component_role?.id, 'answers');
+  assertEq('Resource type alias "考试卷" normalized', aliasResult3.controlled_classification.resource_type?.id, '试卷');
+  assertEq('Component role alias "参考答案" normalized', aliasResult3.controlled_classification.component_role?.id, '答案');
 
   const aliasResult4 = validateAndNormalizeV02({
     primary_facets: { 
@@ -191,7 +191,7 @@ async function run() {
     governance: { confidence: 'high' },
     evidence: []
   }, source);
-  assertEq('Component role alias "答案详解" normalized', aliasResult4.controlled_classification.component_role?.id, 'answer_explanations');
+  assertEq('Component role alias "答案详解" normalized', aliasResult4.controlled_classification.component_role?.id, '答案解析');
 
 
   console.log(`\nResults: ${passed} passed, ${failed} failed`);

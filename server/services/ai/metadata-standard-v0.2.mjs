@@ -2,7 +2,7 @@
  * metadata-standard-v0.2.mjs - AI Metadata v0.2 结构规范与验证
  */
 
-import { applyTaxonomyControl } from './metadata-taxonomy-v0.2.mjs';
+import { applyTaxonomyControl, getTaxonomyVersion, buildTaxonomyPromptContext } from './metadata-taxonomy-v0.2.mjs';
 
 export function normalizeEvidence(rawEvidence) {
   if (!Array.isArray(rawEvidence)) return [];
@@ -95,7 +95,10 @@ export function getDefaultV02Skeleton(source = {}, confidence = 'low', humanRevi
   if (parsedCount === 0) qualitySignals.push('no_parsed_artifacts');
   if (evidence.length === 0) riskSignals.push('evidence_missing');
 
+  const versions = getTaxonomyVersion();
   return {
+    taxonomy_version: versions.taxonomy_version,
+    rules_version: versions.rules_version,
     source: {
       material_id: source.materialId || '',
       file_name: source.filename || '',
@@ -181,7 +184,10 @@ export function validateAndNormalizeV02(rawResult, source) {
   }
 
   const systemSource = getDefaultV02Skeleton(source).source;
+  const versions = getTaxonomyVersion();
   const result = {
+    taxonomy_version: versions.taxonomy_version,
+    rules_version: versions.rules_version,
     source: { 
       ...systemSource,
       llm_source_hint: rawResult.source || undefined
@@ -294,6 +300,7 @@ export function validateAndNormalizeV02(rawResult, source) {
 }
 
 export function generateV02Prompt() {
+  const taxonomyContext = buildTaxonomyPromptContext({ facets: ['domain', 'collection', 'resource_type', 'component_role'] });
   return `你是一个专业的教育资源元数据提取助手。你的任务是从提供的 Markdown 文本中提取结构化信息。
 
 **极其重要的指令：**
@@ -303,6 +310,9 @@ export function generateV02Prompt() {
 4. 绝对禁止输出 <think> 标签或包含思维链过程。如果系统要求思考，请不要将思考过程输出到结果中。
 5. 你返回的字符串必须能被系统直接执行 JSON.parse() 解析。
 6. 所有字段必须符合 v0.2 schema。
+
+**分类标准参考（重要！务必依据此标准提取！）：**
+${taxonomyContext}
 
 JSON 结构必须符合以下 AI Metadata v0.2 标准：
 {
@@ -344,7 +354,7 @@ JSON 结构必须符合以下 AI Metadata v0.2 标准：
     "retention_policy": "keep|keep_pending_review|discard",
     "risk_flags": []
   },
-  "evidence": ["提取关键信息的原文片段作为证据"],
+  "evidence": [{"type": "content", "quote_or_summary": "提取关键信息的原文片段作为证据", "supports": []}],
   "recommended_catalog_path": "推荐挂载的目录路径",
   "catalog_change_type": "needs_human_review"
 }
@@ -352,6 +362,7 @@ JSON 结构必须符合以下 AI Metadata v0.2 标准：
 }
 
 export function generateV02DraftPrompt() {
+  const taxonomyContext = buildTaxonomyPromptContext({ facets: ['domain', 'collection', 'resource_type', 'component_role'] });
   return `你是一个专业的教育资源元数据提取助手。你的任务是从提供的 Markdown 文本中提取结构化信息草稿。
 
 **指令：**
@@ -361,10 +372,15 @@ export function generateV02DraftPrompt() {
 - evidence snippets (提取关键信息的原文片段作为证据)
 - uncertainty (不确定性或需要复核的原因)
 2. 你可以输出一定的文本描述和草稿，但尽量结构化，不要长篇大论。
-3. 绝对禁止输出 <think> 标签或包含复杂的推理过程。`;
+3. 绝对禁止输出 <think> 标签或包含复杂的推理过程。
+
+**分类标准参考（重要！务必依据此标准提取！）：**
+${taxonomyContext}
+`;
 }
 
 export function generateV02RepairPrompt(draftContent) {
+  const taxonomyContext = buildTaxonomyPromptContext({ facets: ['domain', 'collection', 'resource_type', 'component_role'] });
   return `你是一个 JSON 修复与格式化助手。请根据以下提取的草稿内容，将其严格格式化为符合 AI Metadata v0.2 标准的唯一 JSON 对象。
 
 **草稿内容（可能是旧式 JSON、扁平 JSON、或自然语言草稿）：**
@@ -389,8 +405,13 @@ ${draftContent}
 - evidence_snippets -> evidence
 - title -> descriptive_metadata.series_title 或 evidence，不要当作根字段保留
 
+**受控标准参考（用于映射）：**
+${taxonomyContext}
+
 JSON 结构必须符合以下 AI Metadata v0.2 标准：
 {
+  "taxonomy_version": "v0.1",
+  "rules_version": "v0.1",
   "source": {
     "material_id": "",
     "file_name": "",
