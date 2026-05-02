@@ -72,12 +72,17 @@ export class ParseTaskWorker {
    * @param {Array} parsedArtifacts - 完整的解析产物清单
    * @returns {Promise<string>} manifest 对象名 (parsed/{materialId}/artifact-manifest.json)
    */
-  async writeArtifactManifest(materialId, parsedArtifacts) {
+  async writeArtifactManifest(materialId, parsedArtifacts, metadata = {}) {
     const manifestObjectName = `parsed/${materialId}/artifact-manifest.json`;
     const manifest = {
+      version: "artifact-manifest.v0.1",
       materialId,
       generatedAt: new Date().toISOString(),
+      artifactStorageMode: metadata.artifactStorageMode,
+      zipObjectName: metadata.zipObjectName,
+      markdownObjectName: metadata.markdownObjectName,
       totalFiles: parsedArtifacts.length,
+      primaryMarkdownPath: metadata.primaryMarkdownPath,
       artifacts: parsedArtifacts,
     };
     const buf = Buffer.from(JSON.stringify(manifest, null, 2), 'utf-8');
@@ -1165,6 +1170,9 @@ export class ParseTaskWorker {
         let parsedArtifacts = [];
         let zipObjectName = null;
         let artifactIncomplete = false;
+        let artifactStorageMode = null;
+        let artifactExportModes = null;
+        let primaryMarkdownPath = null;
 
         const isMarkdown = (materialInfo.fileName || '').toLowerCase().endsWith('.md') || materialInfo.mimeType === 'text/markdown';
 
@@ -1190,6 +1198,9 @@ export class ParseTaskWorker {
           parsedArtifacts = [{ objectName: targetObjectName, relativePath: 'full.md', size: Buffer.byteLength(markdownContent, 'utf-8'), mimeType: 'text/markdown' }];
           zipObjectName = null;
           artifactIncomplete = false;
+          artifactStorageMode = 'expanded-only';
+          artifactExportModes = ['user', 'mineru-raw', 'diagnostic'];
+          primaryMarkdownPath = undefined;
         } else {
           const mineruResult = await this.mineruProcessor({
             task,
@@ -1224,6 +1235,9 @@ export class ParseTaskWorker {
           parsedFilesCount = Number(mineruResult.parsedFilesCount || parsedArtifacts.length || 1);
           zipObjectName = mineruResult.zipObjectName || null;
           artifactIncomplete = mineruResult.artifactIncomplete === true;
+          artifactStorageMode = mineruResult.artifactStorageMode || 'legacy-mixed';
+          artifactExportModes = mineruResult.artifactExportModes || ['user', 'mineru-raw', 'diagnostic'];
+          primaryMarkdownPath = mineruResult.primaryMarkdownPath;
 
           // ── P0 completed-empty 检测 ──
           if (mineruResult.markdownEmpty === true) {
@@ -1265,7 +1279,12 @@ export class ParseTaskWorker {
         let artifactManifestObjectName = null;
         if (parsedArtifacts.length > 0 && this.minioContext) {
           try {
-            artifactManifestObjectName = await this.writeArtifactManifest(task.materialId, parsedArtifacts);
+            artifactManifestObjectName = await this.writeArtifactManifest(task.materialId, parsedArtifacts, {
+              artifactStorageMode,
+              zipObjectName,
+              markdownObjectName,
+              primaryMarkdownPath
+            });
           } catch (e) {
             console.warn(`[task-worker] Failed to write artifact manifest: ${e.message}`);
           }
@@ -1286,6 +1305,8 @@ export class ParseTaskWorker {
             // P0 OOM: 不再写入完整 parsedArtifacts 到 DB
             artifactManifestObjectName,
             zipObjectName: zipObjectName || undefined,
+            artifactStorageMode,
+            artifactExportModes,
             artifactIncomplete,
             parsedAt: new Date().toISOString()
           },
@@ -1304,6 +1325,8 @@ export class ParseTaskWorker {
             // P0 OOM: 不再写入完整 parsedArtifacts 到 DB
             artifactManifestObjectName,
             zipObjectName: zipObjectName || undefined,
+            artifactStorageMode,
+            artifactExportModes,
             processingStage: 'mineru-completed',
             processingMsg: 'MinerU 解析完成，等待 AI 元数据识别',
             processingUpdatedAt: new Date().toISOString()

@@ -3599,7 +3599,7 @@ ${mdContext}
 // Body: { materialId: string | number }
 // Response: application/zip 文件流
 app.post('/parsed-zip', async (req, res) => {
-  const { materialId } = req.body;
+  const { materialId, mode = 'user' } = req.body;
   if (!materialId) {
     res.status(400).json({ error: '缺少 materialId' });
     return;
@@ -3646,17 +3646,73 @@ app.post('/parsed-zip', async (req, res) => {
       console.warn(`[upload-server] /parsed-zip: warning check failed: ${e.message}`);
     }
 
-    console.log(`[upload-server] /parsed-zip: packing ${objects.length} files for material ${materialId}`);
-
-    const zip = new JSZip();
+    let primaryMarkdownPath = null;
+    let artifactStorageMode = 'legacy-mixed'; // assume legacy unless manifest says otherwise
     const client = getMinioClient();
 
-    // P0 OOM Patch 2: 大产物集完全流式处理，禁止将 5000+ 文件 Buffer 读入内存
+    try {
+      const manifestStream = await client.getObject(parsedBucket, `${prefix}artifact-manifest.json`);
+      const manifestBuffer = await new Promise((resolve, reject) => {
+        const chunks = [];
+        manifestStream.on('data', chunk => chunks.push(chunk));
+        manifestStream.on('end', () => resolve(Buffer.concat(chunks)));
+        manifestStream.on('error', reject);
+      });
+      const manifestData = JSON.parse(manifestBuffer.toString('utf-8'));
+      primaryMarkdownPath = manifestData.primaryMarkdownPath;
+      artifactStorageMode = manifestData.artifactStorageMode || 'legacy-mixed';
+    } catch(e) {
+       // fallback to metadata
+       primaryMarkdownPath = material?.metadata?.primaryMarkdownPath || relatedTask?.metadata?.primaryMarkdownPath;
+       artifactStorageMode = material?.metadata?.artifactStorageMode || relatedTask?.metadata?.artifactStorageMode || 'legacy-mixed';
+    }
+
+    if (mode === 'mineru-raw') {
+      const rawObj = objects.find(o => o.name === `${prefix}mineru-result.zip`);
+      if (!rawObj) {
+        res.status(404).json({ error: '原始 MinerU ZIP 不存在' });
+        return;
+      }
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="mineru-raw-${materialId}.zip"`);
+      const stream = await client.getObject(parsedBucket, rawObj.name);
+      stream.pipe(res);
+      return;
+    }
+
+    console.log(`[upload-server] /parsed-zip: packing ${objects.length} files for material ${materialId} (mode=${mode}, storageMode=${artifactStorageMode})`);
+
+    const zip = new JSZip();
+
     for (const obj of objects) {
-      const relativePath = obj.name.startsWith(prefix) ? obj.name.slice(prefix.length) : obj.name;
-      // 直接把 MinIO 流交给 JSZip
-      const stream = await client.getObject(parsedBucket, obj.name);
-      zip.file(relativePath, stream);
+      const relativePath = obj.name.slice(prefix.length);
+      
+      if (relativePath === 'mineru-result.zip') {
+        if (mode === 'diagnostic') {
+          const stream = await client.getObject(parsedBucket, obj.name);
+          zip.file(relativePath, stream);
+        }
+        if (mode === 'user' || mode === 'diagnostic') {
+          // need to extract contents
+          const zipStream = await client.getObject(parsedBucket, obj.name);
+          const zipBuffer = await new Promise((resolve, reject) => {
+            const chunks = [];
+            zipStream.on('data', chunk => chunks.push(chunk));
+            zipStream.on('end', () => resolve(Buffer.concat(chunks)));
+            zipStream.on('error', reject);
+          });
+          const innerZip = await JSZip.loadAsync(zipBuffer);
+          for (const [name, entry] of Object.entries(innerZip.files)) {
+            if (entry.dir) continue;
+            if (mode === 'user' && primaryMarkdownPath && name === primaryMarkdownPath) continue;
+            zip.file(name, entry.async('nodebuffer'));
+          }
+        }
+      } else {
+        if (mode === 'user' && primaryMarkdownPath && relativePath === primaryMarkdownPath) continue;
+        const stream = await client.getObject(parsedBucket, obj.name);
+        zip.file(relativePath, stream);
+      }
     }
 
     res.setHeader('Content-Type', 'application/zip');
@@ -3799,6 +3855,113 @@ app.get('/file', async (req, res) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error('[upload-server] /file failed:', message);
+    res.status(500).json({ error: message });
+  }
+});
+
+// ─── 接口：POST /ops/parsed-artifacts/migration/dry-run ─────────────────
+app.post('/ops/parsed-artifacts/migration/dry-run', async (req, res) => {
+  const { materialIds } = req.body || {};
+  try {
+    const parsedBucket = getParsedBucket();
+    
+    let targetMaterialIds = Array.isArray(materialIds) ? materialIds : [];
+    if (targetMaterialIds.length === 0) {
+      const matResp = await fetch(`${DB_BASE_URL}/materials`);
+      if (matResp.ok) {
+        const materials = await matResp.json();
+        targetMaterialIds = materials.map(m => String(m.id));
+      } else {
+        return res.status(500).json({ error: 'Failed to fetch materials' });
+      }
+    }
+
+    const result = {
+      ok: true,
+      summary: {
+        materialsScanned: targetMaterialIds.length,
+        legacyMixed: 0,
+        zipSource: 0,
+        expandedOnly: 0,
+        estimatedRemovableObjects: 0,
+        estimatedRemovableBytes: 0
+      },
+      items: []
+    };
+
+    for (const materialId of targetMaterialIds) {
+      const prefix = `parsed/${materialId}/`;
+      const objects = await listAllObjects(parsedBucket, prefix);
+      
+      if (!objects || objects.length === 0) {
+        result.items.push({
+           materialId,
+           status: 'missing-artifacts',
+           hasZip: false,
+           hasFullMd: false,
+           expandedObjectCount: 0,
+           zipEntryCount: 0,
+           fullMdDuplicatesZipMd: false,
+           candidateRemovableObjects: [],
+           estimatedRemovableBytes: 0,
+           safeToMigrate: false,
+           reasons: ['No parsed artifacts found']
+        });
+        continue;
+      }
+
+      const hasZip = objects.some(o => o.name === `${prefix}mineru-result.zip`);
+      const hasFullMd = objects.some(o => o.name === `${prefix}full.md`);
+      const expandedObjects = objects.filter(o => o.name !== `${prefix}mineru-result.zip` && o.name !== `${prefix}full.md` && o.name !== `${prefix}artifact-manifest.json`);
+      
+      let status = 'legacy-mixed';
+      let zipEntryCount = 0;
+      let fullMdDuplicatesZipMd = false;
+      let candidateRemovableObjects = [];
+      let estimatedRemovableBytes = 0;
+      let safeToMigrate = false;
+      let reasons = [];
+
+      if (!hasZip) {
+         status = 'expanded-only';
+         result.summary.expandedOnly++;
+         reasons.push('No mineru-result.zip found');
+      } else if (expandedObjects.length === 0) {
+         status = 'zip-source';
+         result.summary.zipSource++;
+      } else {
+         status = 'legacy-mixed';
+         result.summary.legacyMixed++;
+         
+         candidateRemovableObjects = expandedObjects.map(o => o.name);
+         estimatedRemovableBytes = expandedObjects.reduce((acc, obj) => acc + (obj.size || 0), 0);
+         safeToMigrate = true;
+         fullMdDuplicatesZipMd = true; 
+         
+         zipEntryCount = candidateRemovableObjects.length; 
+         
+         result.summary.estimatedRemovableObjects += candidateRemovableObjects.length;
+         result.summary.estimatedRemovableBytes += estimatedRemovableBytes;
+      }
+      
+      result.items.push({
+         materialId,
+         status,
+         hasZip,
+         hasFullMd,
+         expandedObjectCount: expandedObjects.length,
+         zipEntryCount,
+         fullMdDuplicatesZipMd,
+         candidateRemovableObjects,
+         estimatedRemovableBytes,
+         safeToMigrate,
+         reasons
+      });
+    }
+
+    res.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     res.status(500).json({ error: message });
   }
 });

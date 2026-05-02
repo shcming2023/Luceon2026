@@ -358,11 +358,12 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
         if (safeRelativePath === 'full.md') continue;
         if (safeRelativePath === 'mineru-result.zip' || safeRelativePath === 'mineru-result.json') continue;
 
-        const content = await zip.file(name).async('nodebuffer');
         const objectName = `${parsedPrefix}${safeRelativePath}`;
         const contentType = inferContentTypeByExt(safeRelativePath);
-        const ok = await saveObject(objectName, content, contentType);
-        if (ok) pushArtifact(safeRelativePath, objectName, content.length, contentType);
+        
+        const fileObj = zip.file(name);
+        const size = fileObj._data ? fileObj._data.uncompressedSize : 0;
+        pushArtifact(safeRelativePath, objectName, size, contentType);
       }
     } else if (resultPayload) {
       markdown = extractLocalMarkdown(resultPayload);
@@ -401,6 +402,9 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
         parsedArtifacts,
         zipObjectName: hasMineruZip ? zipObjectName : null,
         artifactIncomplete: artifactIncomplete2,
+        artifactStorageMode: hasMineruZip ? 'zip-source' : 'expanded-only',
+        artifactExportModes: ['user', 'mineru-raw', 'diagnostic'],
+        primaryMarkdownPath: primary ? primary.relativePath : undefined
       };
     }
 
@@ -418,6 +422,9 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
       parsedArtifacts,
       zipObjectName: hasMineruZip ? zipObjectName : null,
       artifactIncomplete: artifactIncomplete2,
+      artifactStorageMode: hasMineruZip ? 'zip-source' : 'expanded-only',
+      artifactExportModes: ['user', 'mineru-raw', 'diagnostic'],
+      primaryMarkdownPath: primary ? primary.relativePath : undefined
     };
 
   } else {
@@ -441,6 +448,8 @@ export async function processWithLocalMinerU({ task, material, fileStream, fileN
     parsedArtifacts: [{ objectName, relativePath: 'full.md', size: Buffer.byteLength(markdown, 'utf-8'), mimeType: 'text/markdown' }],
     zipObjectName: null,
     artifactIncomplete: true,
+    artifactStorageMode: 'expanded-only',
+    artifactExportModes: ['user', 'mineru-raw', 'diagnostic']
   };
 }
 
@@ -621,11 +630,12 @@ export async function resumeWithLocalMinerU({ task, material, mineruTaskId, time
       if (safeRelativePath === 'full.md') continue;
       if (safeRelativePath === 'mineru-result.zip' || safeRelativePath === 'mineru-result.json') continue;
 
-      const content = await zip.file(name).async('nodebuffer');
       const objectName = `${parsedPrefix}${safeRelativePath}`;
       const contentType = inferContentTypeByExt(safeRelativePath);
-      const ok = await saveObject(objectName, content, contentType);
-      if (ok) pushArtifact(safeRelativePath, objectName, content.length, contentType);
+      
+      const fileObj = zip.file(name);
+      const size = fileObj._data ? fileObj._data.uncompressedSize : 0;
+      pushArtifact(safeRelativePath, objectName, size, contentType);
     }
   } else if (resultPayload) {
     markdown = extractLocalMarkdown(resultPayload);
@@ -663,6 +673,9 @@ export async function resumeWithLocalMinerU({ task, material, mineruTaskId, time
       parsedArtifacts,
       zipObjectName: hasMineruZip ? zipObjectName : null,
       artifactIncomplete: artifactIncomplete2,
+      artifactStorageMode: hasMineruZip ? 'zip-source' : 'expanded-only',
+      artifactExportModes: ['user', 'mineru-raw', 'diagnostic'],
+      primaryMarkdownPath: primary ? primary.relativePath : undefined
     };
   }
 
@@ -680,6 +693,9 @@ export async function resumeWithLocalMinerU({ task, material, mineruTaskId, time
     parsedArtifacts,
     zipObjectName: hasMineruZip ? zipObjectName : null,
     artifactIncomplete: artifactIncomplete2,
+    artifactStorageMode: hasMineruZip ? 'zip-source' : 'expanded-only',
+    artifactExportModes: ['user', 'mineru-raw', 'diagnostic'],
+    primaryMarkdownPath: primary ? primary.relativePath : undefined
   };
 }
 
