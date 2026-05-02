@@ -108,8 +108,8 @@ some text
       assert.ok(prompt.includes('**草稿内容（可能是旧式 JSON、扁平 JSON、或自然语言草稿，或包含 classification_draft 的草稿 JSON）：**'), 'Repair prompt should be updated');
       return {
         provider: 'ollama', model: 'test',
-        result: '{"primary_facets": {"domain": {"zh": "02_考试测评与真题"}, "subject": {"zh": "03_数学"}, "collection": {"zh": "Cambridge IGCSE"}, "level": {"en": "IGCSE"}, "resource_type": {"zh": "练习册"}, "component_role": {"zh": "01_主体资料"}}, "governance": {"confidence": "high"}, "evidence": [{"type": "content", "quote_or_summary": "Test evidence", "supports": []}]}',
-        rawResponse: '{"primary_facets": {"domain": {"zh": "02_考试测评与真题"}, "subject": {"zh": "03_数学"}, "collection": {"zh": "Cambridge IGCSE"}, "level": {"en": "IGCSE"}, "resource_type": {"zh": "练习册"}, "component_role": {"zh": "01_主体资料"}}, "governance": {"confidence": "high"}, "evidence": [{"type": "content", "quote_or_summary": "Test evidence", "supports": []}]}',
+        result: '{"primary_facets": {"domain": {"zh": "02_考试测评与真题"}, "subject": {"zh": "数学"}, "collection": {"zh": "Cambridge IGCSE"}, "level": {"zh": "IGCSE"}, "resource_type": {"zh": "练习册"}, "component_role": {"zh": "主体资料"}}, "governance": {"confidence": "high"}, "evidence": [{"type": "content", "quote_or_summary": "Test evidence", "supports": []}]}',
+        rawResponse: '{"primary_facets": {"domain": {"zh": "02_考试测评与真题"}, "subject": {"zh": "数学"}, "collection": {"zh": "Cambridge IGCSE"}, "level": {"zh": "IGCSE"}, "resource_type": {"zh": "练习册"}, "component_role": {"zh": "主体资料"}}, "governance": {"confidence": "high"}, "evidence": [{"type": "content", "quote_or_summary": "Test evidence", "supports": []}]}',
         traceDetails: { rawLooksTruncated: false },
         usage: {}
       };
@@ -119,8 +119,8 @@ some text
   await worker5.processJob({ id: 'test-job-5', parseTaskId: 't5', inputMarkdownObjectName: 'x.md' });
   assert.equal(workerResult.aiClassificationV02.controlled_classification.domain.id, '02_考试测评与真题');
   assert.equal(workerResult.aiClassificationV02.controlled_classification.subject.zh, '数学');
-  assert.equal(workerResult.aiClassificationV02.controlled_classification.collection, 'Cambridge IGCSE');
-  assert.equal(workerResult.aiClassificationV02.controlled_classification.level, 'IGCSE');
+  assert.equal(workerResult.aiClassificationV02.controlled_classification.collection.id, 'Cambridge IGCSE');
+  assert.equal(workerResult.aiClassificationV02.controlled_classification.level.id, 'IGCSE');
   assert.equal(workerResult.aiClassificationV02.controlled_classification.resource_type.zh, '练习册');
   assert.equal(workerResult.aiClassificationV02.controlled_classification.component_role.zh, '主体资料');
   assert.equal(workerResult.aiClassificationDegraded, undefined);
