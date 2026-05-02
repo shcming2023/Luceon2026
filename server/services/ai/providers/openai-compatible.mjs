@@ -94,7 +94,9 @@ export class OpenAiCompatibleProvider extends BaseProvider {
         }
 
         const parseErr = new Error('Failed to parse JSON from OpenAI-compatible response');
-        const rawTrimmed = strippedContent.trim();
+        const match = strippedContent.match(/```(?:json)?\s*([\s\S]*?)```/);
+        const jsonStr = match ? match[1] : strippedContent;
+        const rawTrimmed = jsonStr.trim();
         parseErr.details = {
           baseUrl: this.baseUrl,
           model: this.model,
@@ -104,7 +106,7 @@ export class OpenAiCompatibleProvider extends BaseProvider {
           rawContentLength: strippedContent.length,
           rawContentHead: strippedContent.slice(0, 300),
           rawContentTail: strippedContent.slice(-300),
-          rawLooksTruncated: strippedContent.includes('{') && !rawTrimmed.endsWith('}') && !rawTrimmed.endsWith(']'),
+          rawLooksTruncated: jsonStr.includes('{') && !rawTrimmed.endsWith('}') && !rawTrimmed.endsWith(']'),
           rawContainsThinkTag,
           responseFormatRequested: options.expectJson !== false,
           expectJson: options.expectJson,

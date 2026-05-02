@@ -103,13 +103,15 @@ export class OllamaProvider extends BaseProvider {
           }
 
           const parseErr = new Error(`Failed to parse JSON from Ollama response, model: ${this.model}`);
-          const rawTrimmed = strippedContent.trim();
+          const match = strippedContent.match(/```(?:json)?\s*([\s\S]*?)```/);
+          const jsonStr = match ? match[1] : strippedContent;
+          const rawTrimmed = jsonStr.trim();
           parseErr.rawContentDetails = {
             rawContentPreview: strippedContent.slice(0, 1000),
             rawContentLength: strippedContent.length,
             rawContentHead: strippedContent.slice(0, 300),
             rawContentTail: strippedContent.slice(-300),
-            rawLooksTruncated: strippedContent.includes('{') && !rawTrimmed.endsWith('}') && !rawTrimmed.endsWith(']'),
+            rawLooksTruncated: jsonStr.includes('{') && !rawTrimmed.endsWith('}') && !rawTrimmed.endsWith(']'),
             rawContainsThinkTag,
             responseFormatRequested: options.expectJson !== false,
             expectJson: options.expectJson,

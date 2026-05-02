@@ -201,12 +201,15 @@ export class AiMetadataWorker {
 
   _buildErrorDetails(response, expectJson, persistMeta) {
     const rawContent = response.rawResponse || '';
-    const rawTrimmed = rawContent.trim();
+    const strippedContent = rawContent.replace(/<think>[\s\S]*?(<\/think>|$)/gi, '');
+    const match = strippedContent.match(/```(?:json)?\s*([\s\S]*?)```/);
+    const jsonStr = match ? match[1] : strippedContent;
+    const rawTrimmed = jsonStr.trim();
     return {
       rawContentLength: rawContent.length,
       rawContentHead: rawContent.slice(0, 500),
       rawContentTail: rawContent.slice(-500),
-      rawLooksTruncated: rawContent.includes('{') && !rawTrimmed.endsWith('}') && !rawTrimmed.endsWith(']'),
+      rawLooksTruncated: jsonStr.includes('{') && !rawTrimmed.endsWith('}') && !rawTrimmed.endsWith(']'),
       rawContainsThinkTag: response.rawContainsThinkTag || false,
       responseFormatRequested: expectJson !== false,
       expectJson: expectJson !== false,
@@ -499,6 +502,8 @@ export class AiMetadataWorker {
       let parsedResult = {};
       let jsonParseFailed = false;
       let schemaInvalid = false;
+      let firstPassFailureKind = null;
+      let parseErrorMessage = '';
 
       function checkSchemaInvalid(obj) {
         if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false; // Handled by jsonParseFailed if not an object, but if extractJson somehow returns an array, it's invalid
@@ -513,12 +518,25 @@ export class AiMetadataWorker {
         if (parsedResult && typeof parsedResult === 'object' && !Array.isArray(parsedResult)) {
           if (checkSchemaInvalid(parsedResult)) {
             schemaInvalid = true;
+            firstPassFailureKind = 'schema_invalid';
           }
         } else {
           jsonParseFailed = true;
+          firstPassFailureKind = 'non_object_json';
         }
       } catch (err) {
         jsonParseFailed = true;
+        firstPassFailureKind = 'json_parse_failed';
+        parseErrorMessage = err.message;
+      }
+
+      if (rawTrace.firstPass) {
+        rawTrace.firstPass.failureKind = firstPassFailureKind;
+        rawTrace.firstPass.schemaInvalid = schemaInvalid;
+        rawTrace.firstPass.jsonParseFailed = jsonParseFailed;
+        if (parseErrorMessage) {
+          rawTrace.firstPass.parseErrorMessage = parseErrorMessage;
+        }
       }
 
       // === Two-Pass Repair Logic ===
@@ -531,7 +549,12 @@ export class AiMetadataWorker {
         twoPassAttempted = true;
         const repairPrompt = generateV02RepairPrompt(aiResponse.result);
         try {
-          console.log(`[ai-worker] First pass JSON extraction failed, attempting repair for job ${job.id}...`);
+          let logReason = 'JSON extraction failed';
+          if (firstPassFailureKind === 'schema_invalid') logReason = 'schema-invalid';
+          else if (firstPassFailureKind === 'json_parse_failed') logReason = 'JSON parse failed';
+          else if (firstPassFailureKind === 'non_object_json') logReason = 'non-object JSON';
+
+          console.log(`[ai-worker] First pass ${logReason}, attempting repair for job ${job.id}...`);
           const repairResponse = await this._runProviderPass(provider, job, aiSettings, repairPrompt, {
             markdownContent,
             temperature: 0.1,

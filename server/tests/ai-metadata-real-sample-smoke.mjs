@@ -649,6 +649,83 @@ async function runTests() {
   assert.equal(finalResultObj.aiClassificationV02.source.parsed_files_count, 8);
   console.log('Case 20 Pass ✅');
 
+  // Case 21: fenced valid flat JSON -> failureKind = schema_invalid, rawLooksTruncated=false
+  console.log('Case 21: fenced valid flat JSON -> failureKind = schema_invalid, rawLooksTruncated=false');
+  worker1.executeWithFallback = async (provider, markdown, settings, prompt) => {
+    return {
+      provider: 'ollama', model: 'qwen3.5',
+      result: '```json\n{"domain": "01_出版教材与成套课程"}\n```',
+      rawResponse: '```json\n{"domain": "01_出版教材与成套课程"}\n```',
+      traceDetails: {
+        rawLooksTruncated: false
+      },
+      usage: {}
+    };
+  };
+  await worker1.processJob({ id: 'test-job-21', parseTaskId: 'test-task-21', materialId: 'm21', inputMarkdownObjectName: 'test.md' });
+  assert.equal(finalResultObj.aiClassificationRawTrace.firstPass.failureKind, 'schema_invalid');
+  assert.equal(finalResultObj.aiClassificationRawTrace.firstPass.schemaInvalid, true);
+  assert.equal(finalResultObj.aiClassificationRawTrace.firstPass.jsonParseFailed, false);
+  console.log('Case 21 Pass ✅');
+
+  // Case 22: malformed JSON -> failureKind = json_parse_failed
+  console.log('Case 22: malformed JSON -> failureKind = json_parse_failed');
+  worker1.executeWithFallback = async (provider, markdown, settings, prompt) => {
+    return {
+      provider: 'ollama', model: 'qwen3.5',
+      result: '{"domain": "01_',
+      rawResponse: '{"domain": "01_',
+      traceDetails: {
+        rawLooksTruncated: true
+      },
+      usage: {}
+    };
+  };
+  await worker1.processJob({ id: 'test-job-22', parseTaskId: 'test-task-22', materialId: 'm22', inputMarkdownObjectName: 'test.md' });
+  assert.equal(finalResultObj.aiClassificationRawTrace.firstPass.failureKind, 'json_parse_failed');
+  assert.equal(finalResultObj.aiClassificationRawTrace.firstPass.jsonParseFailed, true);
+  assert.equal(finalResultObj.aiClassificationRawTrace.firstPass.schemaInvalid, false);
+  console.log('Case 22 Pass ✅');
+
+  // Case 23: JSON array -> failureKind = non_object_json
+  console.log('Case 23: JSON array -> failureKind = non_object_json');
+  worker1.executeWithFallback = async (provider, markdown, settings, prompt) => {
+    return {
+      provider: 'ollama', model: 'qwen3.5',
+      result: '[]',
+      rawResponse: '[]',
+      traceDetails: {
+        rawLooksTruncated: false
+      },
+      usage: {}
+    };
+  };
+  await worker1.processJob({ id: 'test-job-23', parseTaskId: 'test-task-23', materialId: 'm23', inputMarkdownObjectName: 'test.md' });
+  assert.equal(finalResultObj.aiClassificationRawTrace.firstPass.failureKind, 'non_object_json');
+  assert.equal(finalResultObj.aiClassificationRawTrace.firstPass.jsonParseFailed, true);
+  assert.equal(finalResultObj.aiClassificationRawTrace.firstPass.schemaInvalid, false);
+  console.log('Case 23 Pass ✅');
+
+  // Case 24: valid v0.2 JSON -> failureKind=null, no repair
+  console.log('Case 24: valid v0.2 JSON -> failureKind=null, no repair');
+  worker1.executeWithFallback = async (provider, markdown, settings, prompt) => {
+    return {
+      provider: 'ollama', model: 'qwen3.5',
+      result: '{"primary_facets": {"domain": {"zh": "travel"}}, "evidence": ["出国"], "governance": {"confidence": "high"}}',
+      rawResponse: '{"primary_facets": {"domain": {"zh": "travel"}}, "evidence": ["出国"], "governance": {"confidence": "high"}}',
+      traceDetails: {
+        rawLooksTruncated: false
+      },
+      usage: {}
+    };
+  };
+  await worker1.processJob({ id: 'test-job-24', parseTaskId: 'test-task-24', materialId: 'm24', inputMarkdownObjectName: 'test.md' });
+  assert.equal(finalResultObj.aiClassificationRawTrace.firstPass.failureKind, null);
+  assert.equal(finalResultObj.aiClassificationRawTrace.firstPass.jsonParseFailed, false);
+  assert.equal(finalResultObj.aiClassificationRawTrace.firstPass.schemaInvalid, false);
+  assert.equal(finalResultObj.aiClassificationTwoPassAttempted, undefined);
+  console.log('Case 24 Pass ✅');
+
   worker1.executeWithFallback = originalExecute;
   worker1.transition = originalTransition;
 
