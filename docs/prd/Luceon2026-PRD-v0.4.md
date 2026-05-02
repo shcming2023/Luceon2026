@@ -238,6 +238,27 @@ review-pending → ai-pending      （Re-AI 触发）
     objectName: string,                   // originals/{materialId}/{fileName}
     markdownObjectName?: string,          // parsed/{materialId}/full.md
     parsedPrefix?: string,                // parsed/{materialId}/
+    archiveStatus?: {
+      version: 'v0.1',
+      hdd?: {
+        status: 'pending' | 'synced' | 'verified' | 'failed',
+        bundlePath?: string,              // HDD 归档包路径或逻辑对象名，不写入完整文件清单
+        manifestPath?: string,            // manifest.json 路径或逻辑对象名
+        checksum?: string,                // 归档包或 manifest 的 sha256 摘要
+        syncedAt?: string,
+        verifiedAt?: string,
+        error?: string
+      },
+      offsite?: {
+        provider: 'none' | 'gdrive-crypt' | 's3-compatible' | 'nas',
+        status: 'not-configured' | 'pending' | 'synced' | 'verified' | 'failed',
+        objectName?: string,              // 异地归档包对象名，不写入完整文件清单
+        checksum?: string,
+        syncedAt?: string,
+        verifiedAt?: string,
+        error?: string
+      }
+    },
     aiJobId?: string,
     aiAnalyzedAt?: string,
     // AI 提取的结构化元数据（subject/grade/chapter/tags/summary 等）
@@ -252,6 +273,8 @@ review-pending → ai-pending      （Re-AI 触发）
 
 - `id` 一律按字符串处理。后端不再对 `materials` 做数字排序，改为按 `updateTime DESC` 排序。
 - `metadata.objectName` 与 `metadata.markdownObjectName` 必须使用 `originals/{id}/…` 与 `parsed/{id}/…` 前缀，禁止使用 `originals/{taskId}/…` 以保证"同一资料的产物收敛在同一前缀下"。
+- `metadata.archiveStatus` 只能保存归档摘要、状态、校验值和 manifest 指针，禁止把 parsed 文件完整清单写入 DB。完整清单必须写在归档侧 `manifest.json` 中，避免再次引发 DB 大 payload/OOM。
+- v0.4 当前把 MinIO 视为解析与预览主事实源。HDD / offsite 归档在未完成恢复演练前，只能作为旁路备份，不得驱逐 MinIO 热区对象。
 
 ### 7.2 ParseTask
 
@@ -371,6 +394,9 @@ v0.4 要求把 `AiMetadataJob.state` 的终态命名统一为 `confirmed | revie
 | `Material.metadata.objectName` 必须以 `originals/{materialId}/` 开头 | 扫描发现异常时记录告警；不自动移动文件 |
 | `Material.metadata.markdownObjectName`（若存在）必须以 `parsed/{materialId}/` 开头 | 同上 |
 | `ParseTask.state ∈ {completed, review-pending}` 时，`parsed/{materialId}/full.md` 必须存在 | 若缺失：把 ParseTask 置为 `failed`，提示运行 Reparse |
+| `archiveStatus.hdd.status ∈ {synced, verified}` 时，必须存在可读取的 `manifestPath` 与 `bundlePath`，且 checksum 能通过校验 | 若缺失或校验失败：将对应归档状态置为 `failed`，不得删除 MinIO 热区对象 |
+| `archiveStatus.offsite.status ∈ {synced, verified}` 时，必须存在可追踪的 `provider/objectName/checksum` | 若缺失：将 offsite 状态置为 `failed`，不得把该资料计入“异地已备份” |
+| DB 不得保存归档包内部的完整 parsed 文件清单 | 若发现 `archiveStatus` 或 `metadata` 中写入大文件清单：迁移到外部 `manifest.json`，DB 仅保留摘要 |
 
 ### 9.3 状态与 AI Job 的联动
 
@@ -436,6 +462,44 @@ v0.4 要求把 `AiMetadataJob.state` 的终态命名统一为 `confirmed | revie
 - Docker Compose 健康检查：为 `upload-server`、`db-server`、`MinIO` 增加 `healthcheck`。
 - 新增 `npm run consistency-check` 脚本一键运行扫描并输出报告。
 
+### 10.7 P1/P2 — 存储生命周期与归档防线
+
+本节来自 2026-05-02 对《Luceon2026 存储架构演进方案 V2.0》的独立评估。v0.4 当前只固化“旁路归档与可恢复性”原则，不直接固化 Google Drive、透明回源或自动驱逐策略。
+
+#### 10.7.1 已确定需求
+
+1. **先归档，不驱逐**。新增任何存储生命周期能力时，第一阶段只能做只读审计、归档、校验和恢复演练，不得删除 MinIO 热区对象。
+2. **归档必须基于 manifest**。每个 Material 的归档产物必须包含：
+   - `manifest.json`：记录 materialId、objectName、parsedPrefix、parsedFilesCount、bundle 文件名、checksum、生成时间与版本。
+   - 原始文件归档。
+   - parsed 产物归档包（ZIP / TAR.ZST 等格式待验证）。
+   - `checksums.sha256` 或等价校验文件。
+3. **DB 只保存摘要**。`Material.metadata.archiveStatus` 只保存状态、指针、checksum、时间戳和错误摘要；完整文件清单不得写入 DB。
+4. **DB 快照是独立保护对象**。db-server 的 JSON 数据、secrets/config、taxonomy 版本与归档 manifest index 需要进入快照策略；恢复脚本必须能在独立环境中验证快照可用。
+5. **恢复优先于透明回源**。冷/温数据访问第一阶段应表现为“恢复任务”，先把归档包恢复回 MinIO，再复用现有预览/下载链路。
+
+#### 10.7.2 待验证策略
+
+以下内容暂不得作为稳定开发需求，只能作为后续 PoC 或 Research Patch：
+
+1. **Google Drive + rclone crypt 作为异地冷备候选**。该策略受 Google Drive API quota、上传限制、服务条款、账号合规与密钥保管影响，必须先完成合规与可用性验证。
+2. **HDD 解压态目录作为近线查询缓存**。HDD 可保存归档包；是否同时维护解压态缓存，需要根据小文件数量、随机 IO、恢复速度与校验成本实测决定。
+3. **高低水位线自动淘汰**。自动驱逐 MinIO 对象必须等归档、校验、恢复演练稳定后才可评估；默认先考虑驱逐 parsed，不驱逐 raw。
+4. **透明回源**。透明回源会侵入 `/proxy-file`、`/parsed-zip`、详情页预览和任务重解析链路，需在恢复任务模型稳定后再评估。
+
+#### 10.7.3 下一步最小任务
+
+下一步只允许下达只读研究任务：
+
+`P1 Research Patch：Luceon 存储占用审计、归档 manifest 契约与只读容量报告`
+
+关闭标准：
+
+- 只读统计 MinIO raw/parsed 占用、对象数、按 materialId 的分布、最大 parsed 对象数、DB 文件大小与近似日增长。
+- 输出 `archive-manifest.v0.1` 草案和样例。
+- 不移动、不删除、不上传云端、不修改现有 MinIO 对象。
+- 给出 HDD / offsite / watermark 的下一步可行性判断，但不实现驱逐。
+
 ## 11. 明确不做的事项（Out of Scope）
 
 - **云端 MinerU 的任务化改造**：本版仍以本地 MinerU FastAPI 为主链路，云端接入留待 v0.5。
@@ -469,6 +533,9 @@ v0.4 要求把 `AiMetadataJob.state` 的终态命名统一为 `confirmed | revie
 1. **旧端点与新 API 并存导致的数据漂移**：`AssetDetailPage` 在迁移期间仍可能走 `/parse/analyze`，导致 AI 结果不经过 Job。缓解：在迁移期内，`/parse/analyze` 内部改为"创建一个 AiMetadataJob 并立即 run"的桥接实现。
 2. **状态字面量历史遗留**：数据库中可能存在 `success`、`succeeded` 等旧值。缓解：v0.4 启动时跑一次性的状态归一化迁移。
 3. **一致性扫描的误杀**：修复动作若直接改写状态，可能误伤正在进行中的任务。缓解：所有修复动作默认"仅记录、不自动写回"，由 Operator 在详情页点击确认后再执行。
+4. **把消费级云盘误用为生产级灾备**：Google Drive 等个人/机构云盘存在 API quota、上传限制、服务条款和账号策略风险。缓解：在完成合规与 PoC 前，只能作为候选 offsite backend，不得写成唯一灾备承诺。
+5. **归档/驱逐导致热区数据误删**：若未完成校验与恢复演练就启用水位线淘汰，可能删除仍被业务依赖的 MinIO 对象。缓解：v0.4 阶段禁止自动驱逐；未来驱逐必须依赖 `archiveStatus.*.status=verified` 和可审计 dry-run。
+6. **DB 再次承载大 payload**：如果把 parsed 文件完整清单或归档索引写入 `Material.metadata`，可能重现 DB OOM。缓解：DB 仅保存 manifest 指针和摘要，完整清单写在归档对象中。
 
 ### 13.2 回退策略
 
@@ -514,6 +581,12 @@ v0.4 要求把 `AiMetadataJob.state` 的终态命名统一为 `confirmed | revie
 
 ## 16. 变更记录
 
+- **v0.4-storage-2026-05-02（2026-05-02）**：纳入存储架构演进的 PRD 分层结论。
+  - 背景：用户提交《Luceon2026 存储架构演进方案 V2.0（高可用与容灾固化版）》，要求 Lucia 独立评估并由 luplan 维护 PRD。
+  - 确定需求：先归档不驱逐；归档必须基于 manifest/checksum；DB 只保存归档摘要和指针；DB 快照与恢复演练是存储演进的一等需求；恢复任务优先于透明回源。
+  - 调试策略：Google Drive + rclone crypt、HDD 解压态缓存、水位线自动淘汰、透明回源均为待验证策略，未通过 PoC 与恢复演练前不得实现为生产默认链路。
+  - 影响范围：Material.metadata.archiveStatus、对象存储一致性不变量、下一阶段 P1 Research Patch、风险与发布策略。
+  - 关联证据：2026-05-02 Lucia 对存储方案的独立分析；Google Drive API limits 与 Terms 文档表明 Drive API 存在 quota、上传限制和用例政策约束。
 - **v0.4-maintenance-2026-05-02（2026-05-02）**：设立 luplan PRD 维护机制。
   - 背景：项目进入长期迭代与生产准入收口阶段，AI Metadata、MinerU 稳定性、批量压力测试等事项需要 PRD 随进度持续更新，避免需求事实散落在聊天、评审和任务书中。
   - 确定需求：`docs/prd/Luceon2026-PRD-v0.4.md` 仍为当前唯一有效 PRD；PRD 维护由 Lucia 指挥 luplan 执行；每次 PRD 迭代必须区分确定需求、调试策略和历史记录。
