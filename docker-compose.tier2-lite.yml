@@ -1,0 +1,20 @@
+version: '3.8'
+
+# 这个覆盖文件用于第二级本地轻量 Mock 测试（Tier 2 Lite）
+# 它会覆盖 MinerU 和 Ollama 的行为，防止强制下载大模型和重度资源消耗。
+
+services:
+  ollama:
+    # 覆盖 entrypoint，不再启动时强制拉取模型，而是由用户在需要时手动显式拉取
+    # 或直接当作一个空壳 API
+    entrypoint: ["/bin/sh", "-c", "ollama serve"]
+
+  mineru:
+    # 覆盖 MinerU 镜像为一个极轻量的 mock 镜像（例如 alpine + python http server），
+    # 仅提供符合格式的 200 Mock 响应，或者完全禁用它。
+    # 这里我们用 python 的内置 server 提供假接口，或者直接不启动。
+    image: python:3.10-alpine
+    command: >
+      sh -c "mkdir -p /mock && echo '{\"status\":\"mock\"}' > /mock/index.json && cd /mock && python -m http.server 8080"
+    ports:
+      - "8083:8080"

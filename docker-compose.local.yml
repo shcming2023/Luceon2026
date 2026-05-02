@@ -39,7 +39,7 @@ services:
     container_name: cms-mineru-local
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "8083:8080"
     networks:
       - cms-network
     # 本地只跑轻量解析或给出一个 Mock API 端口即可验证联调链路
