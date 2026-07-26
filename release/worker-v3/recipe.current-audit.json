@@ -18,9 +18,9 @@
     "requested_status": "incomplete",
     "created_at": "2026-07-26T00:00:00+08:00",
     "source": {
-      "git_sha": "bd600ebb9eafb68481b56c48dadb5105ed4abcf7",
+      "git_sha": "ab95812b5a060a76b9009c08a9086ddab8fd4450",
       "git_tag": null,
-      "dirty": true
+      "dirty": false
     },
     "stable_eligible": false
   },
