@@ -1,0 +1,39 @@
+{
+  "schema_version": "luceon.worker-v3-overleaf-target-environment/v1",
+  "status": "unqualified",
+  "provider": "luceon-overleaf-compiler-adapter",
+  "protocol": "luceon.worker-v3-overleaf-compiler/v1",
+  "engine": "xelatex",
+  "endpoint": "http://workflow-v3-overleaf-compiler:8080/compile",
+  "base_image": "ghcr.io/lcpu-club/sharelatex@sha256:633e180fa9357c2b00e2fa9234b63460033fd2d4e4c441a5bb91c9697a08e145",
+  "adapter_image_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "adapter_runtime_identity_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "adapter_source_sha256": "f4b0bb459f767f6ae7069ca29d36edd5a37f0d6e6cac0b6d7403e7b0bcf00a9a",
+  "compiler_command": [
+    "latexmk",
+    "-xelatex",
+    "-interaction=nonstopmode",
+    "-halt-on-error",
+    "-file-line-error",
+    "-no-shell-escape",
+    "main.tex"
+  ],
+  "limits": {
+    "max_zip_bytes": 50000000,
+    "max_image_bytes": 1000000,
+    "allowed_root_files": [
+      "main.tex",
+      "elegantbook.cls"
+    ],
+    "allowed_asset_directories": [
+      "figure",
+      "images"
+    ],
+    "allowed_body_files": [
+      "body/generated-body.tex"
+    ],
+    "allowed_body_directories": [
+      "body/units"
+    ]
+  }
+}

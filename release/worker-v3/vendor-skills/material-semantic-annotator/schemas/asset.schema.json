@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Teaching semantic asset",
+  "type": "object",
+  "required": ["id", "asset_type", "role", "source_span", "content", "quality"],
+  "properties": {
+    "id": {"type": "string"},
+    "section_id": {"type": "string"},
+    "asset_type": {"type": "string"},
+    "role": {"type": "string"},
+    "task_type": {"type": "string"},
+    "label": {"type": "string"},
+    "content": {"type": "object"},
+    "answers": {"type": "object"},
+    "media_ids": {"type": "array", "items": {"type": "string"}},
+    "source_span": {"type": "object"},
+    "quality": {"type": "object"},
+    "metadata": {"type": "object"}
+  }
+}

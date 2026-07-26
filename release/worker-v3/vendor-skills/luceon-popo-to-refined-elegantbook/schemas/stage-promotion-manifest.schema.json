@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luceon.local/schemas/stage-promotion-manifest.schema.json",
+  "title": "Independent stage promotion manifest",
+  "type": "object",
+  "required": ["schema_version", "promotion_id", "lineage_key", "stage_kind", "run_dir", "stage_manifest", "disposition", "promotion_class", "producer_execution_provenance", "evaluator_capability", "checks", "summary", "promoted_artifacts", "consumer_rule"],
+  "properties": {
+    "schema_version": {"const": "stage-promotion-manifest/1.1"},
+    "promotion_id": {"type": "string", "minLength": 1},
+    "lineage_key": {"type": "string", "minLength": 1},
+    "stage_kind": {"enum": ["spec03_media_contract", "spec04a_structure_contract", "spec04b_semantic_span_contract", "spec04c_construct_binding_contract", "spec04d_render_plan_contract", "spec05_native_execution", "spec05_native_delivery_set"]},
+    "disposition": {"enum": ["promoted", "rejected"]},
+    "promotion_class": {"enum": ["formal_native", "migration_compatibility", "undetermined"]},
+    "producer_execution_provenance": {"enum": ["live_verified", "historical_unbound", "unverified"]},
+    "evaluator_capability": {"$ref": "#/$defs/artifact"},
+    "stage_manifest": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "properties": {"path": {"type": "string"}, "sha256": {"pattern": "^[0-9a-f]{64}$"}}
+    },
+    "checks": {"type": "array", "minItems": 1},
+    "promoted_artifacts": {"type": "object"}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "stage_kind": {"const": "spec03_media_contract"},
+          "disposition": {"const": "promoted"},
+          "promotion_class": {"const": "formal_native"}
+        },
+        "required": ["stage_kind", "disposition", "promotion_class"]
+      },
+      "then": {
+        "properties": {
+          "checks": {"type": "array", "minItems": 13},
+          "promoted_artifacts": {
+            "type": "object",
+            "required": ["source_integrity_report", "producer_execution_capability", "evaluator_execution_capability"],
+            "properties": {
+              "source_integrity_report": {"$ref": "#/$defs/artifact"},
+              "producer_execution_capability": {"$ref": "#/$defs/artifact"},
+              "evaluator_execution_capability": {"$ref": "#/$defs/artifact"}
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "stage_kind": {"const": "spec04a_structure_contract"},
+          "disposition": {"const": "promoted"},
+          "promotion_class": {"const": "formal_native"}
+        },
+        "required": ["stage_kind", "disposition", "promotion_class"]
+      },
+      "then": {
+        "properties": {
+          "checks": {"type": "array", "minItems": 10},
+          "promoted_artifacts": {
+            "type": "object",
+            "required": ["producer_execution_capability", "evaluator_execution_capability", "source_outline_ledger", "final_toc_plan", "parent_promotion"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "stage_kind": {"const": "spec04b_semantic_span_contract"},
+          "disposition": {"const": "promoted"},
+          "promotion_class": {"const": "formal_native"}
+        },
+        "required": ["stage_kind", "disposition", "promotion_class"]
+      },
+      "then": {
+        "properties": {
+          "checks": {"type": "array", "minItems": 10},
+          "promoted_artifacts": {
+            "type": "object",
+            "required": [
+              "producer_execution_capability", "evaluator_execution_capability",
+              "semantic_span_ledger", "teaching_column_group_ledger", "parent_promotion"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "stage_kind": {"const": "spec04c_construct_binding_contract"},
+          "disposition": {"const": "promoted"},
+          "promotion_class": {"const": "formal_native"}
+        },
+        "required": ["stage_kind", "disposition", "promotion_class"]
+      },
+      "then": {
+        "properties": {
+          "checks": {"type": "array", "minItems": 10},
+          "promoted_artifacts": {
+            "type": "object",
+            "required": [
+              "producer_execution_capability", "evaluator_execution_capability",
+              "template_capability_manifest", "construct_binding_ledger", "parent_promotion"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "stage_kind": {"const": "spec04d_render_plan_contract"},
+          "disposition": {"const": "promoted"},
+          "promotion_class": {"const": "formal_native"}
+        },
+        "required": ["stage_kind", "disposition", "promotion_class"]
+      },
+      "then": {
+        "properties": {
+          "checks": {"type": "array", "minItems": 10},
+          "promoted_artifacts": {
+            "type": "object",
+            "required": [
+              "producer_execution_capability", "evaluator_execution_capability",
+              "render_plan", "volume_partition_plan", "semantic_mapping_ledger", "ledger_L", "decision_index_D"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

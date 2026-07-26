@@ -1,0 +1,10 @@
+# ElegantBookCompiler v1.0.0 direct and transitive Python dependencies.
+Pillow==12.2.0
+PyMuPDF==1.26.1
+Pygments==2.20.0
+iniconfig==2.3.0
+numpy==2.4.6
+packaging==26.2
+pluggy==1.6.0
+pypdf==6.10.0
+pytest==8.4.0

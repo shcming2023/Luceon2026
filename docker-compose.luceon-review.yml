@@ -29,6 +29,11 @@ services:
       - REDIS_HOST=redis
       - DATABASE_URL=sqlite:////data/mineru.db
       - WORKFLOW_DATABASE_URL=${WORKFLOW_DATABASE_URL:-}
+      - WORKFLOW_V3_ENABLED=${WORKFLOW_V3_ENABLED:-false}
+      - WORKFLOW_V3_DATABASE_URL=${WORKFLOW_V3_DATABASE_URL:-sqlite:////data/workflow-v3.db}
+      - WORKFLOW_V3_RELEASE_ROOT=/worker-v3/releases
+      - WORKFLOW_V3_RELEASES_ROOT=/worker-v3/releases
+      - WORKFLOW_V3_RELEASE_REGISTRY_FILE=/worker-v3/releases/release-registry.json
       - LUCEON_WORKER_V1_BATCH_ENABLED=${LUCEON_WORKER_V1_BATCH_ENABLED:-false}
       - LUCEON_WORKER_V1_AUTO_RETRY_ENABLED=${LUCEON_WORKER_V1_AUTO_RETRY_ENABLED:-false}
       - LUCEON_AUTH_DISABLED=${LUCEON_AUTH_DISABLED:-false}
@@ -84,12 +89,13 @@ services:
       - DASHSCOPE_VISION_MODEL=${DASHSCOPE_VISION_MODEL:-qwen3.7-plus}
       - VISION_MODEL=${VISION_MODEL:-${DASHSCOPE_VISION_MODEL:-qwen3.7-plus}}
     volumes:
-      - ./runtime/backend:/data
-      - ./runtime/backups:/backups
-      - ${LUCEON_EXTERNAL_BACKUP_PATH:-./runtime/external-backups}:/external-backups
+      - ${LUCEON_RUNTIME_ROOT:-./runtime}/backend:/data
+      - ${LUCEON_RUNTIME_ROOT:-./runtime}/backups:/backups
+      - ${LUCEON_EXTERNAL_BACKUP_PATH:-${LUCEON_RUNTIME_ROOT:-./runtime}/external-backups}:/external-backups
       - /var/run/docker.sock:/var/run/docker.sock
       - /Users/concm/.codex/skills/eduassets-raw-cleaner:/skills/eduassets-raw-cleaner:ro
       - /Users/concm/.codex/skills/refine-elegantbook-latex:/skills/refine-elegantbook-latex:ro
+      - ${LUCEON_RUNTIME_ROOT:-./runtime}/worker-v3/releases:/worker-v3/releases:ro
     depends_on:
       - redis
     extra_hosts:
@@ -139,7 +145,7 @@ services:
       - DASHSCOPE_VISION_MODEL=${DASHSCOPE_VISION_MODEL:-qwen3.7-plus}
       - VISION_MODEL=${VISION_MODEL:-${DASHSCOPE_VISION_MODEL:-qwen3.7-plus}}
     volumes:
-      - ./runtime/backend:/data
+      - ${LUCEON_RUNTIME_ROOT:-./runtime}/backend:/data
       - /var/run/docker.sock:/var/run/docker.sock
       - /Users/concm/.codex/skills/refine-elegantbook-latex:/skills/refine-elegantbook-latex:ro
     depends_on:
@@ -175,7 +181,7 @@ services:
       - DEEPSEEK_DEFAULT_MODEL=${DEEPSEEK_DEFAULT_MODEL:-deepseek-v4-flash}
       - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-${DEEPSEEK_DEFAULT_MODEL:-deepseek-v4-flash}}
     volumes:
-      - ./runtime/backend:/data
+      - ${LUCEON_RUNTIME_ROOT:-./runtime}/backend:/data
     depends_on:
       - backend
       - redis
@@ -203,14 +209,219 @@ services:
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:?set MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:?set MINIO_SECRET_KEY}
     volumes:
-      - ./runtime/backend:/data
-      - ./runtime/backups:/backups
-      - ${LUCEON_EXTERNAL_BACKUP_PATH:-./runtime/external-backups}:/external-backups
+      - ${LUCEON_RUNTIME_ROOT:-./runtime}/backend:/data
+      - ${LUCEON_RUNTIME_ROOT:-./runtime}/backups:/backups
+      - ${LUCEON_EXTERNAL_BACKUP_PATH:-${LUCEON_RUNTIME_ROOT:-./runtime}/external-backups}:/external-backups
     depends_on:
       - backend
       - redis
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    networks:
+      - luceon-review-net
+
+  workflow-v3-executor:
+    profiles:
+      - worker-v3
+    image: ${LUCEON_WORKER_V3_IMAGE:-luceonweb2026-worker-v3-runtime:local}
+    restart: unless-stopped
+    command:
+      - python
+      - scripts/workflow_v3_worker.py
+      - --loop
+      - --worker-id
+      - worker-v3-producer-local
+    environment:
+      - TZ=Asia/Shanghai
+      - WORKFLOW_V3_ENABLED=${WORKFLOW_V3_ENABLED:-false}
+      - WORKFLOW_V3_DATABASE_URL=${WORKFLOW_V3_DATABASE_URL:-sqlite:////data/workflow-v3.db}
+      - WORKFLOW_V3_RELEASES_ROOT=/worker-v3/releases
+      - WORKFLOW_V3_WORK_ROOT=/worker-v3/work
+      - WORKFLOW_V3_ARTIFACT_BACKEND=minio
+      - WORKFLOW_V3_CANDIDATE_BUCKET=${WORKFLOW_V3_CANDIDATE_BUCKET:-worker-v3-candidates}
+      - WORKFLOW_V3_CANDIDATE_PREFIX=${WORKFLOW_V3_CANDIDATE_PREFIX:-v3/candidates}
+      - WORKFLOW_V3_READABLE_BUCKETS=${WORKFLOW_V3_READABLE_BUCKETS:-eduassets-input,eduassets-mineru,eduassets-minerupopo,worker-v3-candidates}
+      - WORKFLOW_V3_STALE_AFTER_SECONDS=${WORKFLOW_V3_STALE_AFTER_SECONDS:-300}
+      - WORKFLOW_V3_HEARTBEAT_SECONDS=${WORKFLOW_V3_HEARTBEAT_SECONDS:-5}
+      - LUCEON_ENVIRONMENT=${LUCEON_ENVIRONMENT:-development}
+      - LUCEON_RUNTIME_CONFIG=/data/runtime_config.json
+      - WORKFLOW_V3_PRODUCER_MINIO_ENDPOINT=${WORKFLOW_V3_MINIO_ENDPOINT:-${MINIO_INTERNAL_ENDPOINT:-${MINIO_ENDPOINT:-}}}
+      - WORKFLOW_V3_PRODUCER_MINIO_ACCESS_KEY=${WORKFLOW_V3_PRODUCER_MINIO_ACCESS_KEY:-}
+      - WORKFLOW_V3_PRODUCER_MINIO_SECRET_KEY=${WORKFLOW_V3_PRODUCER_MINIO_SECRET_KEY:-}
+      - WORKFLOW_V3_PRODUCER_MINIO_SECURE=${WORKFLOW_V3_MINIO_SECURE:-${MINIO_SECURE:-false}}
+      - WORKFLOW_V3_PRODUCER_MINIO_REGION=${WORKFLOW_V3_MINIO_REGION:-${MINIO_REGION:-us-east-1}}
+      - WORKFLOW_V3_MINIO_CREDENTIAL_FINGERPRINTS=${WORKFLOW_V3_MINIO_CREDENTIAL_FINGERPRINTS:-}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      - LLM_DEFAULT_MODEL=${LLM_DEFAULT_MODEL:-${DEEPSEEK_DEFAULT_MODEL:-deepseek-v4-flash}}
+      - LLM_REASONING_MODEL=${LLM_REASONING_MODEL:-${DEEPSEEK_REASONING_MODEL:-deepseek-v4-pro}}
+      - DEEPSEEK_DEFAULT_MODEL=${DEEPSEEK_DEFAULT_MODEL:-deepseek-v4-flash}
+      - DEEPSEEK_REASONING_MODEL=${DEEPSEEK_REASONING_MODEL:-deepseek-v4-pro}
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY:-}
+      - DASHSCOPE_BASE_URL=${DASHSCOPE_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      - DASHSCOPE_VISION_MODEL=${DASHSCOPE_VISION_MODEL:-qwen3.7-plus}
+      - VISION_MODEL=${VISION_MODEL:-${DASHSCOPE_VISION_MODEL:-qwen3.7-plus}}
+    volumes:
+      - ${LUCEON_RUNTIME_ROOT:-./runtime}/backend:/data
+      - ${LUCEON_RUNTIME_ROOT:-./runtime}/worker-v3/releases:/worker-v3/releases:ro
+      - ${LUCEON_RUNTIME_ROOT:-./runtime}/worker-v3/work/producer:/worker-v3/work
+    depends_on:
+      - backend
+    networks:
+      - luceon-review-net
+      - workflow-v3-overleaf-net
+
+  workflow-v3-evaluator:
+    profiles:
+      - worker-v3
+    image: ${LUCEON_WORKER_V3_IMAGE:-luceonweb2026-worker-v3-runtime:local}
+    restart: unless-stopped
+    command:
+      - python
+      - scripts/workflow_v3_evaluator.py
+      - --role
+      - evaluate
+      - --loop
+      - --identity
+      - worker-v3-independent-evaluator-local
+    environment:
+      - TZ=Asia/Shanghai
+      - WORKFLOW_V3_ENABLED=${WORKFLOW_V3_ENABLED:-false}
+      - WORKFLOW_V3_DATABASE_URL=${WORKFLOW_V3_DATABASE_URL:-sqlite:////data/workflow-v3.db}
+      - WORKFLOW_V3_RELEASES_ROOT=/worker-v3/releases
+      - WORKFLOW_V3_EVALUATION_WORK_ROOT=/worker-v3/evaluation-work
+      - WORKFLOW_V3_ARTIFACT_BACKEND=minio
+      - WORKFLOW_V3_CANDIDATE_BUCKET=${WORKFLOW_V3_CANDIDATE_BUCKET:-worker-v3-candidates}
+      - WORKFLOW_V3_HEARTBEAT_SECONDS=${WORKFLOW_V3_HEARTBEAT_SECONDS:-5}
+      - LUCEON_ENVIRONMENT=${LUCEON_ENVIRONMENT:-development}
+      - LUCEON_RUNTIME_CONFIG=/data/runtime_config.json
+      - WORKFLOW_V3_EVALUATOR_MINIO_ENDPOINT=${WORKFLOW_V3_MINIO_ENDPOINT:-${MINIO_INTERNAL_ENDPOINT:-${MINIO_ENDPOINT:-}}}
+      - WORKFLOW_V3_EVALUATOR_MINIO_ACCESS_KEY=${WORKFLOW_V3_EVALUATOR_MINIO_ACCESS_KEY:-}
+      - WORKFLOW_V3_EVALUATOR_MINIO_SECRET_KEY=${WORKFLOW_V3_EVALUATOR_MINIO_SECRET_KEY:-}
+      - WORKFLOW_V3_EVALUATOR_MINIO_SECURE=${WORKFLOW_V3_MINIO_SECURE:-${MINIO_SECURE:-false}}
+      - WORKFLOW_V3_EVALUATOR_MINIO_REGION=${WORKFLOW_V3_MINIO_REGION:-${MINIO_REGION:-us-east-1}}
+      - WORKFLOW_V3_MINIO_CREDENTIAL_FINGERPRINTS=${WORKFLOW_V3_MINIO_CREDENTIAL_FINGERPRINTS:-}
+    volumes:
+      - ${LUCEON_RUNTIME_ROOT:-./runtime}/backend:/data
+      - ${LUCEON_RUNTIME_ROOT:-./runtime}/worker-v3/releases:/worker-v3/releases:ro
+      - ${LUCEON_RUNTIME_ROOT:-./runtime}/worker-v3/work/evaluator:/worker-v3/evaluation-work
+    depends_on:
+      - backend
+    networks:
+      - luceon-review-net
+      - workflow-v3-overleaf-net
+
+  workflow-v3-overleaf-compiler:
+    profiles:
+      - worker-v3
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.overleaf-adapter
+      args:
+        OVERLEAF_ADAPTER_SOURCE_SHA256: ${WORKFLOW_V3_OVERLEAF_ADAPTER_SOURCE_SHA256:-}
+        VCS_REF: ${WORKFLOW_V3_SOURCE_REVISION:-unknown}
+    image: ${LUCEON_WORKER_V3_OVERLEAF_ADAPTER_IMAGE:-luceonweb2026-worker-v3-overleaf-adapter:local}
+    restart: unless-stopped
+    init: true
+    read_only: true
+    user: "10004:10004"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 4g
+    cpus: 4
+    environment:
+      - TZ=UTC
+      - HOME=/work/home
+      - OVERLEAF_ADAPTER_WORK_ROOT=/work
+      - OVERLEAF_ADAPTER_IMAGE_DIGEST=${WORKFLOW_V3_OVERLEAF_ADAPTER_IMAGE_DIGEST:-sha256:0000000000000000000000000000000000000000000000000000000000000000}
+    tmpfs:
+      - /work:uid=10004,gid=10004,mode=0700,nosuid,nodev,size=4294967296
+      - /tmp:uid=10004,gid=10004,mode=0700,noexec,nosuid,nodev,size=268435456
+      - /work/home:uid=10004,gid=10004,mode=0700,noexec,nosuid,nodev,size=16777216
+    networks:
+      - workflow-v3-overleaf-net
+
+  workflow-v3-promoter:
+    profiles:
+      - worker-v3
+    image: ${LUCEON_WORKER_V3_IMAGE:-luceonweb2026-worker-v3-runtime:local}
+    restart: unless-stopped
+    command:
+      - python
+      - scripts/workflow_v3_evaluator.py
+      - --role
+      - promote
+      - --loop
+      - --identity
+      - worker-v3-promotion-controller-local
+    environment:
+      - TZ=Asia/Shanghai
+      - WORKFLOW_V3_ENABLED=${WORKFLOW_V3_ENABLED:-false}
+      - WORKFLOW_V3_DATABASE_URL=${WORKFLOW_V3_DATABASE_URL:-sqlite:////data/workflow-v3.db}
+      - WORKFLOW_V3_RELEASES_ROOT=/worker-v3/releases
+      - WORKFLOW_V3_EVALUATION_WORK_ROOT=/worker-v3/promotion-work
+      - WORKFLOW_V3_ARTIFACT_BACKEND=minio
+      - WORKFLOW_V3_CANDIDATE_BUCKET=${WORKFLOW_V3_CANDIDATE_BUCKET:-worker-v3-candidates}
+      - WORKFLOW_V3_HEARTBEAT_SECONDS=${WORKFLOW_V3_HEARTBEAT_SECONDS:-5}
+      - LUCEON_ENVIRONMENT=${LUCEON_ENVIRONMENT:-development}
+      - LUCEON_RUNTIME_CONFIG=/data/runtime_config.json
+      - WORKFLOW_V3_PROMOTER_MINIO_ENDPOINT=${WORKFLOW_V3_MINIO_ENDPOINT:-${MINIO_INTERNAL_ENDPOINT:-${MINIO_ENDPOINT:-}}}
+      - WORKFLOW_V3_PROMOTER_MINIO_ACCESS_KEY=${WORKFLOW_V3_PROMOTER_MINIO_ACCESS_KEY:-}
+      - WORKFLOW_V3_PROMOTER_MINIO_SECRET_KEY=${WORKFLOW_V3_PROMOTER_MINIO_SECRET_KEY:-}
+      - WORKFLOW_V3_PROMOTER_MINIO_SECURE=${WORKFLOW_V3_MINIO_SECURE:-${MINIO_SECURE:-false}}
+      - WORKFLOW_V3_PROMOTER_MINIO_REGION=${WORKFLOW_V3_MINIO_REGION:-${MINIO_REGION:-us-east-1}}
+      - WORKFLOW_V3_MINIO_CREDENTIAL_FINGERPRINTS=${WORKFLOW_V3_MINIO_CREDENTIAL_FINGERPRINTS:-}
+    volumes:
+      - ${LUCEON_RUNTIME_ROOT:-./runtime}/backend:/data
+      - ${LUCEON_RUNTIME_ROOT:-./runtime}/worker-v3/releases:/worker-v3/releases:ro
+      - ${LUCEON_RUNTIME_ROOT:-./runtime}/worker-v3/work/promoter:/worker-v3/promotion-work
+    depends_on:
+      - backend
+    networks:
+      - luceon-review-net
+
+  workflow-v3-projector:
+    profiles:
+      - worker-v3
+    image: ${LUCEON_WORKER_V3_IMAGE:-luceonweb2026-worker-v3-runtime:local}
+    restart: unless-stopped
+    command:
+      - python
+      - scripts/workflow_v3_projector.py
+      - --loop
+      - --retry-failed
+      - --worker-id
+      - worker-v3-projector-local
+    environment:
+      - TZ=Asia/Shanghai
+      - DATABASE_URL=sqlite:////data/mineru.db
+      - WORKFLOW_V3_ENABLED=${WORKFLOW_V3_ENABLED:-false}
+      - WORKFLOW_V3_DATABASE_URL=${WORKFLOW_V3_DATABASE_URL:-sqlite:////data/workflow-v3.db}
+      - WORKFLOW_V3_RELEASES_ROOT=/worker-v3/releases
+      - WORKFLOW_V3_ARTIFACT_BACKEND=minio
+      - WORKFLOW_V3_CANDIDATE_BUCKET=${WORKFLOW_V3_CANDIDATE_BUCKET:-worker-v3-candidates}
+      - WORKFLOW_V3_FORMAL_BUCKET=${WORKFLOW_V3_FORMAL_BUCKET:-eduassets-elegantbook}
+      - WORKFLOW_V3_FORMAL_PREFIX=${WORKFLOW_V3_FORMAL_PREFIX:-elegantbook/v3}
+      - WORKFLOW_V3_PROJECTION_WORK_ROOT=/worker-v3/projection-work
+      - WORKFLOW_V3_PROJECTION_MAX_ATTEMPTS=${WORKFLOW_V3_PROJECTION_MAX_ATTEMPTS:-5}
+      - WORKFLOW_V3_HEARTBEAT_SECONDS=${WORKFLOW_V3_HEARTBEAT_SECONDS:-5}
+      - LUCEON_ENVIRONMENT=${LUCEON_ENVIRONMENT:-development}
+      - LUCEON_RUNTIME_CONFIG=/data/runtime_config.json
+      - WORKFLOW_V3_PROJECTOR_MINIO_ENDPOINT=${WORKFLOW_V3_MINIO_ENDPOINT:-${MINIO_INTERNAL_ENDPOINT:-${MINIO_ENDPOINT:-}}}
+      - WORKFLOW_V3_PROJECTOR_MINIO_ACCESS_KEY=${WORKFLOW_V3_PROJECTOR_MINIO_ACCESS_KEY:-}
+      - WORKFLOW_V3_PROJECTOR_MINIO_SECRET_KEY=${WORKFLOW_V3_PROJECTOR_MINIO_SECRET_KEY:-}
+      - WORKFLOW_V3_PROJECTOR_MINIO_SECURE=${WORKFLOW_V3_MINIO_SECURE:-${MINIO_SECURE:-false}}
+      - WORKFLOW_V3_PROJECTOR_MINIO_REGION=${WORKFLOW_V3_MINIO_REGION:-${MINIO_REGION:-us-east-1}}
+      - WORKFLOW_V3_MINIO_CREDENTIAL_FINGERPRINTS=${WORKFLOW_V3_MINIO_CREDENTIAL_FINGERPRINTS:-}
+    volumes:
+      - ${LUCEON_RUNTIME_ROOT:-./runtime}/backend:/data
+      - ${LUCEON_RUNTIME_ROOT:-./runtime}/worker-v3/releases:/worker-v3/releases:ro
+      - ${LUCEON_RUNTIME_ROOT:-./runtime}/worker-v3/work/projector:/worker-v3/projection-work
+    depends_on:
+      - backend
     networks:
       - luceon-review-net
 
@@ -225,3 +436,7 @@ networks:
   luceon-review-net:
     name: ${LUCEON_REVIEW_NETWORK:-luceonweb2026-review-net}
     driver: bridge
+  workflow-v3-overleaf-net:
+    name: ${LUCEON_WORKER_V3_OVERLEAF_NETWORK:-luceonweb2026-worker-v3-overleaf}
+    driver: bridge
+    internal: true

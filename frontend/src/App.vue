@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Collection, Document, HomeFilled, MagicStick, Setting, View } from '@element-plus/icons-vue'
+import { Collection, Connection, Document, HomeFilled, MagicStick, Setting, View } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 import { computed } from 'vue'
 import { useCurrentUser } from '@/utils/user'
@@ -11,7 +11,8 @@ const menuItems = computed(() => [
   { icon: HomeFilled, path: '/', label: '工作概览' },
   { icon: Document, path: '/assets', label: 'PDF 资产' },
   { icon: Collection, path: '/pipeline/runs', label: '解析任务' },
-  { icon: MagicStick, path: '/workflow/jobs', label: '精修任务' },
+  { icon: MagicStick, path: '/workflow/jobs', label: '精修任务 V2.3' },
+  { icon: Connection, path: '/workflow-v3/runs', label: '技能原生 V3' },
   { icon: View, path: '/review/compare', label: '比对审阅' },
   ...(currentUser.value?.capabilities?.runtime_admin ? [{ icon: Setting, path: '/settings', label: '运行设置' }] : [])
 ])
@@ -25,12 +26,13 @@ const activeMenu = computed(() => {
   if (path.startsWith('/settings')) return '/settings'
   if (path.startsWith('/assets') || path.startsWith('/files')) return '/assets'
   if (path.startsWith('/pipeline')) return '/pipeline/runs'
+  if (path.startsWith('/workflow-v3')) return '/workflow-v3/runs'
   if (path.startsWith('/workflow')) return '/workflow/jobs'
   return menuItems.value.find(item => path === item.path)?.path || path
 })
 
 const immersiveView = computed(() => route.name === 'FilePreview' || route.name === 'ReviewPreview')
-const workbenchView = computed(() => ['/assets', '/pipeline/runs', '/workflow/jobs', '/review/compare'].includes(route.path))
+const workbenchView = computed(() => ['/assets', '/pipeline/runs', '/workflow/jobs', '/workflow-v3/runs', '/review/compare'].includes(route.path))
 const authView = computed(() => route.name === 'Login')
 </script>
 

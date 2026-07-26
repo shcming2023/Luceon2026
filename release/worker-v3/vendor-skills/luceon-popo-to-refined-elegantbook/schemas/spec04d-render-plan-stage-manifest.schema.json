@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luceon.local/schemas/spec04d-render-plan-stage-manifest.schema.json",
+  "type": "object",
+  "required": ["schema_version", "stage_kind", "run_id", "status", "slice_status", "full_spec04_status", "producer", "producer_mode", "commit_order", "parent_promotions", "execution_capability_E", "decision_index_D", "ledger_L", "render_plan", "volume_partition_plan", "semantic_mapping_ledger", "review_queue", "validation", "scope_prohibitions"],
+  "properties": {
+    "schema_version": {"const": "spec04d-render-plan-stage-manifest/1.0"},
+    "stage_kind": {"const": "spec04d_render_plan_contract"},
+    "status": {"const": "passed"},
+    "slice_status": {"const": "passed"},
+    "full_spec04_status": {"const": "passed"}
+  },
+  "additionalProperties": true
+}

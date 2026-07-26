@@ -1,0 +1,240 @@
+{
+  "checks": [
+    {
+      "detail": {
+        "executable": "/Users/concm/prod_workspace/ElegantbookCompiler/.venv-rc1/bin/python",
+        "implementation": "CPython",
+        "version": "3.13.12",
+        "version_detail": "3.13.12 | packaged by Anaconda, Inc. | (main, Feb 24 2026, 16:07:20) [Clang 20.1.8 ]"
+      },
+      "name": "python_runtime",
+      "status": "passed"
+    },
+    {
+      "detail": [],
+      "name": "python_packages",
+      "status": "passed"
+    },
+    {
+      "detail": {
+        "path": "/Users/concm/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override/pdfinfo",
+        "returncode": 0,
+        "version_output": "pdfinfo version 26.05.0\nCopyright 2005-2026 The Poppler Developers - http://poppler.freedesktop.org\nCopyright 1996-2011, 2022 Glyph & Cog, LLC"
+      },
+      "name": "host_tool:pdfinfo",
+      "status": "passed"
+    },
+    {
+      "detail": {
+        "path": "/opt/homebrew/bin/pdftocairo",
+        "returncode": 0,
+        "version_output": "pdftocairo version 26.04.0\nCopyright 2005-2026 The Poppler Developers - http://poppler.freedesktop.org\nCopyright 1996-2011, 2022 Glyph & Cog, LLC"
+      },
+      "name": "host_tool:pdftocairo",
+      "status": "passed"
+    },
+    {
+      "detail": {
+        "path": "/Users/concm/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override/pdftoppm",
+        "returncode": 0,
+        "version_output": "pdftoppm version 26.05.0\nCopyright 2005-2026 The Poppler Developers - http://poppler.freedesktop.org\nCopyright 1996-2011, 2022 Glyph & Cog, LLC"
+      },
+      "name": "host_tool:pdftoppm",
+      "status": "passed"
+    },
+    {
+      "detail": {
+        "path": "/usr/local/bin/docker",
+        "returncode": 0,
+        "version_output": "Docker version 29.6.1, build 8900f1d"
+      },
+      "name": "host_tool:docker",
+      "status": "passed"
+    },
+    {
+      "detail": {
+        "argv": [
+          "docker",
+          "inspect",
+          "--format",
+          "{{.Image}}",
+          "sharelatex"
+        ],
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "sha256:633e180fa9357c2b00e2fa9234b63460033fd2d4e4c441a5bb91c9697a08e145"
+      },
+      "name": "container_image",
+      "status": "passed"
+    },
+    {
+      "detail": {
+        "argv": [
+          "docker",
+          "exec",
+          "sharelatex",
+          "sh",
+          "-lc",
+          "xelatex --version | head -2"
+        ],
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "XeTeX 3.141592653-2.6-0.999997 (TeX Live 2025)\nkpathsea version 6.4.1"
+      },
+      "name": "container_xelatex",
+      "status": "passed"
+    },
+    {
+      "detail": {
+        "argv": [
+          "docker",
+          "exec",
+          "sharelatex",
+          "sh",
+          "-lc",
+          "latexmk -v | head -2"
+        ],
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "Latexmk, John Collins, 27 Dec. 2024. Version 4.86a"
+      },
+      "name": "container_latexmk",
+      "status": "passed"
+    },
+    {
+      "detail": {
+        "path": "2025教材模版新版.zip",
+        "sha256": "ebc5d6575153239552785265d2765de03b76c27d0532137712952f20ad0a9d4d"
+      },
+      "name": "fixed_template",
+      "status": "passed"
+    },
+    {
+      "detail": [],
+      "name": "skill_snapshots",
+      "status": "passed"
+    }
+  ],
+  "compile_runtime": {
+    "container": "sharelatex",
+    "image": {
+      "argv": [
+        "docker",
+        "inspect",
+        "--format",
+        "{{.Image}}",
+        "sharelatex"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "sha256:633e180fa9357c2b00e2fa9234b63460033fd2d4e4c441a5bb91c9697a08e145"
+    },
+    "latexmk": {
+      "argv": [
+        "docker",
+        "exec",
+        "sharelatex",
+        "sh",
+        "-lc",
+        "latexmk -v | head -2"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "Latexmk, John Collins, 27 Dec. 2024. Version 4.86a"
+    },
+    "xelatex": {
+      "argv": [
+        "docker",
+        "exec",
+        "sharelatex",
+        "sh",
+        "-lc",
+        "xelatex --version | head -2"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "XeTeX 3.141592653-2.6-0.999997 (TeX Live 2025)\nkpathsea version 6.4.1"
+    }
+  },
+  "generated_at": "2026-07-20T14:50:41+08:00",
+  "host_tools": {
+    "docker": {
+      "path": "/usr/local/bin/docker",
+      "returncode": 0,
+      "version_output": "Docker version 29.6.1, build 8900f1d"
+    },
+    "pdfinfo": {
+      "path": "/Users/concm/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override/pdfinfo",
+      "returncode": 0,
+      "version_output": "pdfinfo version 26.05.0\nCopyright 2005-2026 The Poppler Developers - http://poppler.freedesktop.org\nCopyright 1996-2011, 2022 Glyph & Cog, LLC"
+    },
+    "pdftocairo": {
+      "path": "/opt/homebrew/bin/pdftocairo",
+      "returncode": 0,
+      "version_output": "pdftocairo version 26.04.0\nCopyright 2005-2026 The Poppler Developers - http://poppler.freedesktop.org\nCopyright 1996-2011, 2022 Glyph & Cog, LLC"
+    },
+    "pdftoppm": {
+      "path": "/Users/concm/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override/pdftoppm",
+      "returncode": 0,
+      "version_output": "pdftoppm version 26.05.0\nCopyright 2005-2026 The Poppler Developers - http://poppler.freedesktop.org\nCopyright 1996-2011, 2022 Glyph & Cog, LLC"
+    }
+  },
+  "packages_lock": {
+    "packages": {
+      "Pillow": "12.2.0",
+      "PyMuPDF": "1.26.1",
+      "Pygments": "2.20.0",
+      "iniconfig": "2.3.0",
+      "numpy": "2.4.6",
+      "packaging": "26.2",
+      "pluggy": "1.6.0",
+      "pypdf": "6.10.0",
+      "pytest": "8.4.0"
+    },
+    "path": "/Users/concm/prod_workspace/ElegantbookCompiler/release/v1.0.0/requirements-v1.lock",
+    "sha256": "20f994471ac65870ca9f1c416a0f4620fd367479828a9041ff63f83cfdda141d"
+  },
+  "python": {
+    "executable": "/Users/concm/prod_workspace/ElegantbookCompiler/.venv-rc1/bin/python",
+    "implementation": "CPython",
+    "version": "3.13.12",
+    "version_detail": "3.13.12 | packaged by Anaconda, Inc. | (main, Feb 24 2026, 16:07:20) [Clang 20.1.8 ]"
+  },
+  "requirements": {
+    "path": "/Users/concm/prod_workspace/ElegantbookCompiler/release/v1.0.0/dependency_requirements.json",
+    "sha256": "172c86f14ecf8c79cb62d989346ae1c516611eb1a01f720c3121f88645fbdaab"
+  },
+  "schema_version": "elegantbookcompiler-dependency-lock/1.0",
+  "skill_snapshots": {
+    "cleanlatex-to-elegantbook": {
+      "path": "/Users/concm/.codex/skills/cleanlatex-to-elegantbook/SKILL.md",
+      "sha256": "409866923fb7a551833cd6441946f0f49c70828a589d791a5db9d1fabbb820f1"
+    },
+    "luceon-popo-to-refined-elegantbook": {
+      "path": "/Users/concm/.codex/skills/luceon-popo-to-refined-elegantbook/SKILL.md",
+      "sha256": "db3e7825dda2f7a1b61e7f24c1b2618d936edc944a5f7e17d03eb0840d242798"
+    },
+    "material-semantic-annotator": {
+      "path": "/Users/concm/.codex/skills/material-semantic-annotator/SKILL.md",
+      "sha256": "f80a6d1cbbfac2ec511ec206bf24e62a0280afad659f10a7e0c9b22ad936b7c3"
+    },
+    "pdf-clean-markdown-rebuild": {
+      "path": "/Users/concm/.codex/skills/pdf-clean-markdown-rebuild/SKILL.md",
+      "sha256": "d6f74f3e00632b6ba2e5a0327fa634d42472b604a59b7d87788f6bbf81dbfc51"
+    },
+    "refine-elegantbook-latex": {
+      "path": "/Users/concm/.codex/skills/refine-elegantbook-latex/SKILL.md",
+      "sha256": "4e106ced6120bc164cee8760c72c0b27efd1ecdcc6b39174ada5ca70f0a5de74"
+    }
+  },
+  "status": "passed",
+  "summary": {
+    "failed": 0,
+    "failed_checks": [],
+    "passed": 11
+  },
+  "template": {
+    "path": "2025教材模版新版.zip",
+    "sha256": "ebc5d6575153239552785265d2765de03b76c27d0532137712952f20ad0a9d4d"
+  }
+}

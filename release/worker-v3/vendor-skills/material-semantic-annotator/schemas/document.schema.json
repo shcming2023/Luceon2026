@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Annotated teaching material document",
+  "type": "object",
+  "required": ["schema_version", "source_markdown", "profile", "counts"],
+  "properties": {
+    "schema_version": {"type": "string"},
+    "source_markdown": {"type": "string"},
+    "profile": {"type": "string"},
+    "book_id": {"type": "string"},
+    "answer_policy": {"type": "string"},
+    "counts": {"type": "object"},
+    "inputs": {"type": "object"}
+  }
+}

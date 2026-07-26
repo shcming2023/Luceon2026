@@ -1,0 +1,24 @@
+{
+  "schema_version": "luceon.worker-v3-historical-ebc-provenance/v1",
+  "subject": "elegantbookcompiler-v1.0.0",
+  "classification": "provenance_only",
+  "execution_authority": false,
+  "runtime_dependency": false,
+  "normative_contract_authority": false,
+  "purpose": "Preserve immutable historical build and dependency evidence without extracting or executing it in Worker V3.",
+  "artifacts": [
+    {
+      "path": "references/provenance/elegantbookcompiler-v1.0.0.zip",
+      "sha256": "139a0e72f42f446643de91a366069ad8fcdb15c624c49fe806bc8473251b6fb5"
+    },
+    {
+      "path": "references/provenance/elegantbookcompiler-v1.0.0-dependency-lock.json",
+      "sha256": "bdd1ca96920ca5cc94a8ebecde8eb91123a66388640873a3f583f791e8c4c57b"
+    },
+    {
+      "path": "references/provenance/elegantbookcompiler-v1.0.0-requirements.lock",
+      "sha256": "20f994471ac65870ca9f1c416a0f4620fd367479828a9041ff63f83cfdda141d"
+    }
+  ],
+  "admission_rule": "No artifact in this attestation may appear in an entrypoint, dynamic resource, application dependency, runtime identity, or runtime attestation field."
+}

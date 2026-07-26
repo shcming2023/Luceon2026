@@ -1,0 +1,38 @@
+{
+  "architecture": "arm64",
+  "build_status": "clean_build_succeeded",
+  "built_at": "2026-07-26T04:27:46Z",
+  "image_id": "sha256:eec3c5865edb13374f7a788e2d81c398d5632450c8ee883ea47e4a36af5d46a5",
+  "image_size_bytes": 1459439228,
+  "local_manifest_digest": "sha256:eec3c5865edb13374f7a788e2d81c398d5632450c8ee883ea47e4a36af5d46a5",
+  "locked_template_smoke": {
+    "compiler": "latexmk -xelatex",
+    "pages": 2,
+    "pdfinfo": "passed",
+    "qpdf_check": "passed",
+    "status": "passed"
+  },
+  "registry_digest": null,
+  "registry_status": "pending_until_push",
+  "runtime_id": "worker-v3-runtime-91da4a53-be52a2e7",
+  "runtime_identity": {
+    "effective_uid": 10003,
+    "status": "passed",
+    "system_lock_entries": 19
+  },
+  "sbom": {
+    "component_count": 420,
+    "format": "CycloneDX",
+    "spec_version": "1.5"
+  },
+  "schema": "luceon.worker-v3-runtime-build-proof/v1",
+  "source_revision": "bd600ebb9eafb68481b56c48dadb5105ed4abcf7",
+  "tag": "luceonweb2026-worker-v3-runtime:baseline",
+  "tests": {
+    "backend/tests/test_workflow_v3_runtime_image.py": "passed",
+    "backend/tests/test_workflow_v3_spec05_06_stage_adapters.py": "passed",
+    "backend/tests/test_workflow_v3_stage_evaluation_entrypoints.py": "passed",
+    "combined_result": "17 passed, 5 deprecation warnings"
+  },
+  "user": "10003:10003"
+}

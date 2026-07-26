@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luceon.local/schemas/spec03-media-contract-stage-manifest.schema.json",
+  "title": "Native Spec 03 media stage commit manifest",
+  "type": "object",
+  "required": ["schema_version", "stage", "status", "spec_status", "ledger_checkpoint", "producer_mode", "render_plan_dependency", "execution_capability_E", "decision_index_D", "ledger_L", "precommit_evidence", "media_evidence_ledger", "media_representation_plan", "validation", "visual_region_integrity", "commit_order", "promotion_status"],
+  "properties": {
+    "schema_version": {"const": "spec03-media-contract-stage-manifest/1.3"},
+    "stage": {"const": "source_reconciled_media_contract_frozen"},
+    "status": {"const": "passed"},
+    "spec_status": {"const": "passed"},
+    "ledger_checkpoint": {"const": "source_reconciled"},
+    "producer_mode": {"const": "formal_native"},
+    "render_plan_dependency": {"const": false},
+    "execution_capability_E": {"$ref": "#/$defs/artifact"},
+    "promotion_status": {"const": "not_evaluated"},
+    "decision_index_D": {"$ref": "#/$defs/artifact"},
+    "ledger_L": {"$ref": "#/$defs/artifact"},
+    "media_evidence_ledger": {"$ref": "#/$defs/artifact"},
+    "media_representation_plan": {"$ref": "#/$defs/artifact"},
+    "validation": {"$ref": "#/$defs/artifact"},
+    "visual_region_integrity": {"$ref": "#/$defs/artifact"},
+    "commit_order": {
+      "const": ["precommit_evidence_and_execution_capability_E", "decision_index_D", "canonical_ledger_and_media_views_L", "stage_manifest_M"]
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "properties": {"path": {"type": "string", "minLength": 1}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}},
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

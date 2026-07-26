@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luceon.local/schemas/spec04c-construct-stage-manifest.schema.json",
+  "title": "Spec 04-C immutable stage manifest",
+  "type": "object",
+  "required": ["schema_version", "stage_kind", "run_id", "status", "slice_status", "full_spec04_status", "producer", "producer_mode", "commit_order", "parent_promotion", "execution_capability_E", "decision_index_D", "ledger_L", "template_capability_manifest", "construct_binding_ledger", "review_queue", "validation", "scope_prohibitions"],
+  "properties": {
+    "schema_version": {"const": "spec04c-construct-stage-manifest/1.0"},
+    "stage_kind": {"const": "spec04c_construct_binding_contract"},
+    "status": {"const": "passed"},
+    "slice_status": {"const": "passed"},
+    "full_spec04_status": {"const": "not_evaluated"},
+    "producer_mode": {"enum": ["formal_native", "migration_compatibility"]}
+  },
+  "additionalProperties": true
+}

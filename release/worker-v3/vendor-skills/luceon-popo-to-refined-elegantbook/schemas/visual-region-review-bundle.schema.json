@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luceon.local/schemas/visual-region-review-bundle.schema.json",
+  "title": "Spec 03 page visual-region and composite-media review bundle",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "scope_mode",
+    "source_pdf_sha256",
+    "parent_ledger_sha256",
+    "normalized_candidates_sha256",
+    "page_review",
+    "media_review",
+    "composite_regions"
+  ],
+  "properties": {
+    "schema_version": {"const": "visual-region-review-bundle/1.0"},
+    "scope_mode": {"enum": ["formal_full_source", "bounded_media_regression", "migration_hash_regression"]},
+    "source_pdf_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "parent_ledger_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "normalized_candidates_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "page_review": {
+      "type": "object",
+      "required": ["status", "decision_id", "reviewed_pages", "reviewed_pages_hash"],
+      "properties": {
+        "status": {"const": "closed"},
+        "decision_id": {"type": "string", "minLength": 1},
+        "reviewed_pages": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "integer", "minimum": 1}},
+        "reviewed_pages_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": true
+    },
+    "media_review": {
+      "type": "object",
+      "required": ["status", "decision_id", "candidate_fingerprints_hash", "default_disposition", "exceptions"],
+      "properties": {
+        "status": {"const": "closed"},
+        "decision_id": {"type": "string", "minLength": 1},
+        "candidate_fingerprints_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "default_disposition": {"const": "standalone_suitable"},
+        "exceptions": {"type": "array", "items": {"type": "object"}}
+      },
+      "additionalProperties": true
+    },
+    "composite_regions": {"type": "array", "items": {"type": "object"}}
+  },
+  "additionalProperties": true
+}

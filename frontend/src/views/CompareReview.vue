@@ -71,6 +71,20 @@
             :value="outputOptionValue(row)"
           />
         </el-select>
+        <el-select
+          v-if="availableVolumes.length > 1"
+          v-model="selectedVolumeId"
+          size="small"
+          class="output-select"
+          placeholder="交付分卷"
+        >
+          <el-option
+            v-for="volume in availableVolumes"
+            :key="volume.volume_id"
+            :label="volume.label || volume.volume_id"
+            :value="volume.volume_id"
+          />
+        </el-select>
         <div class="download-actions">
           <el-button
             v-if="canContinueCodex"
@@ -144,6 +158,7 @@ const search = ref('')
 const loading = ref(false)
 const selectedAssetId = ref('')
 const selectedOutputId = ref('')
+const selectedVolumeId = ref('')
 const compare = ref<LatexCompareResponse | null>(null)
 const compareError = ref('')
 const sourceActivePage = ref(1)
@@ -152,8 +167,13 @@ const continueCodexStarting = ref(false)
 
 const selectedAsset = computed(() => assets.value.find(row => row.id === selectedAssetId.value) || null)
 const sourcePdfUrl = computed(() => compare.value?.source_pdf_url || (selectedAssetId.value ? reviewApi.getContentUrl(selectedAssetId.value) : ''))
-const latexPdfUrl = computed(() => compare.value?.latex_pdf_url || '')
-const downloadUrls = computed(() => compare.value?.download_urls || {})
+const availableVolumes = computed(() => compare.value?.volumes || [])
+const selectedVolume = computed(() => {
+  const rows = availableVolumes.value
+  return rows.find(row => row.volume_id === selectedVolumeId.value) || rows[0] || null
+})
+const latexPdfUrl = computed(() => selectedVolume.value?.latex_pdf_url || compare.value?.latex_pdf_url || '')
+const downloadUrls = computed(() => selectedVolume.value?.download_urls || compare.value?.download_urls || {})
 const availableOutputs = computed(() => compare.value?.available_outputs || [])
 const outputOrigin = computed(() => String(compare.value?.output_origin || 'legacy_selfloop'))
 type AvailableOutput = NonNullable<LatexCompareResponse['available_outputs']>[number]
@@ -171,10 +191,14 @@ const outputOriginLabel = computed(() => {
 })
 const zipButtonText = computed(() => {
   if (outputOrigin.value === 'legacy_selfloop') return '导出 LaTeX ZIP'
+  if (outputOrigin.value === 'worker_v3') return '下载 Worker V3 LaTeX ZIP'
   if (outputOrigin.value === 'worker_v2') return '下载 LaTeX ZIP'
   return selectedQualityStatus.value === 'passed' ? '导出精修 LaTeX ZIP' : '导出候选 LaTeX ZIP'
 })
 const outputOriginTagType = computed(() => {
+  if (outputOrigin.value === 'worker_v3') {
+    return selectedQualityStatus.value === 'passed' ? 'success' : 'warning'
+  }
   if (outputOrigin.value === 'worker_v2') return 'success'
   if (outputOrigin.value === 'codex_refined' && selectedQualityStatus.value === 'passed') return 'success'
   if (outputOrigin.value === 'codex_refined') return 'warning'
@@ -205,6 +229,11 @@ function outputOptionValue(row: NonNullable<LatexCompareResponse['available_outp
 }
 
 function outputOriginText(origin: string, qualityStatus = '') {
+  if (origin === 'worker_v3') {
+    if (qualityStatus === 'passed') return 'Worker V3 已接受交付'
+    if (qualityStatus === 'ready_for_user_acceptance') return 'Worker V3 待人工接受'
+    return 'Worker V3 候选'
+  }
   if (origin === 'worker_v2') return qualityStatus === 'passed' ? 'Worker V2.3 核心产物' : 'Worker V2.3 候选'
   if (origin === 'codex_refined') {
     if (qualityStatus === 'passed') return 'Codex 精修'
@@ -289,6 +318,7 @@ async function refreshCurrent() {
 
 async function handleAssetChange() {
   selectedOutputId.value = ''
+  selectedVolumeId.value = ''
   await loadSelectedCompare()
 }
 
@@ -335,6 +365,7 @@ async function loadSelectedCompare() {
   compareError.value = ''
   sourceActivePage.value = 1
   latexActivePage.value = 1
+  selectedVolumeId.value = ''
   if (!selectedAssetId.value) return
   const query: Record<string, string> = { asset_id: selectedAssetId.value }
   if (selectedOutputId.value) query.output_id = selectedOutputId.value
@@ -342,6 +373,7 @@ async function loadSelectedCompare() {
   try {
     compare.value = await reviewApi.getLatexCompare(selectedAssetId.value, selectedOutputId.value)
     selectedOutputId.value = compare.value.output_id || selectedOutputId.value
+    selectedVolumeId.value = compare.value.volumes?.[0]?.volume_id || ''
   } catch (error: any) {
     compareError.value = error?.response?.data?.detail || error?.message || 'LaTeX 比对信息加载失败'
     ElMessage.error(compareError.value)

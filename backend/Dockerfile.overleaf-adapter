@@ -1,0 +1,38 @@
+FROM ghcr.io/lcpu-club/sharelatex@sha256:633e180fa9357c2b00e2fa9234b63460033fd2d4e4c441a5bb91c9697a08e145
+
+ARG OVERLEAF_ADAPTER_SOURCE_SHA256
+ARG VCS_REF=unknown
+ARG SOURCE_URL=local
+
+LABEL org.opencontainers.image.title="Luceon Worker V3 Overleaf compiler adapter" \
+      org.opencontainers.image.description="Isolated non-root XeLaTeX compiler using the exact local Overleaf-equivalent TeX Live 2025 baseline" \
+      org.opencontainers.image.source="${SOURCE_URL}" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      io.luceon.worker-v3.overleaf-base="ghcr.io/lcpu-club/sharelatex@sha256:633e180fa9357c2b00e2fa9234b63460033fd2d4e4c441a5bb91c9697a08e145" \
+      io.luceon.worker-v3.adapter-source-sha256="${OVERLEAF_ADAPTER_SOURCE_SHA256}"
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    HOME=/work/home \
+    OVERLEAF_ADAPTER_WORK_ROOT=/work \
+    OVERLEAF_ADAPTER_SOURCE_SHA256=${OVERLEAF_ADAPTER_SOURCE_SHA256}
+
+COPY overleaf-adapter/compiler_service.py /opt/luceon-overleaf/compiler_service.py
+
+RUN test -n "${OVERLEAF_ADAPTER_SOURCE_SHA256}" \
+    && test "$(sha256sum /opt/luceon-overleaf/compiler_service.py | awk '{print $1}')" = "${OVERLEAF_ADAPTER_SOURCE_SHA256}" \
+    && groupadd --gid 10004 luceon-compiler \
+    && useradd --uid 10004 --gid 10004 --no-create-home --home-dir /work/home --shell /usr/sbin/nologin luceon-compiler \
+    && mkdir -p /work/home \
+    && chown 10004:10004 /work \
+    && chmod 0555 /opt/luceon-overleaf/compiler_service.py
+
+USER 10004:10004
+WORKDIR /work
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+    CMD ["python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=5).read()"]
+
+ENTRYPOINT ["python3", "/opt/luceon-overleaf/compiler_service.py"]

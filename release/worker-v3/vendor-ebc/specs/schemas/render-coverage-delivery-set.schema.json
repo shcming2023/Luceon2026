@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "render-coverage-delivery-set.schema.json",
+  "type": "object",
+  "required": ["schema_version", "spec_status", "ledger_checkpoint", "delivery_set", "counts", "gate_results", "failure_codes"],
+  "properties": {
+    "schema_version": {"const": "render-coverage-delivery-set/1.0"},
+    "spec_status": {"const": "passed"},
+    "ledger_checkpoint": {"const": "render_coverage"},
+    "failure_codes": {"type": "array", "maxItems": 0}
+  },
+  "additionalProperties": true
+}

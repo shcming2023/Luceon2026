@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "canonical-decision-index.schema.json",
+  "title": "Canonical decision index",
+  "type": "object",
+  "required": ["schema_version", "decision_index_id", "snapshot_id", "version", "acyclic_commit_rule", "decisions", "summary", "spec_status"],
+  "properties": {
+    "schema_version": {"pattern": "^canonical-decision-index/"},
+    "version": {"type": "integer", "minimum": 1},
+    "parent_index_ref": {"type": ["string", "null"]},
+    "parent_index_hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["decision_id", "status", "rule_id", "event_file"],
+        "properties": {
+          "decision_id": {"type": "string", "minLength": 1},
+          "status": {"enum": ["open", "closed", "superseded", "stale", "invalidated"]}
+        }
+      }
+    },
+    "summary": {"type": "object"},
+    "spec_status": {"enum": ["blocked", "failed", "needs_review", "passed"]}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"version": {"minimum": 2}}},
+      "then": {
+        "required": ["parent_index_ref", "parent_index_hash"],
+        "properties": {
+          "parent_index_ref": {"type": "string", "minLength": 1},
+          "parent_index_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    }
+  ]
+}

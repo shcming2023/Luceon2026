@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luceon.local/schemas/template-capability-manifest.schema.json",
+  "title": "Deterministically extracted template capability manifest",
+  "type": "object",
+  "required": ["schema_version", "generator", "template_intake", "template_archive", "entry", "class", "documentclass", "constructs", "supported_parameters", "visibility_constraints", "toc_capability", "capability_payload_hash"],
+  "properties": {
+    "schema_version": {"const": "template-capability-manifest/2.0"},
+    "capability_payload_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "toc_capability": {
+      "type": "object",
+      "required": ["entry_type_depths", "effective_tocdepth", "effective_tocdepth_status", "tableofcontents", "native_visible_entry_types", "serialization_strategies"],
+      "properties": {
+        "effective_tocdepth": {"type": ["integer", "null"]},
+        "effective_tocdepth_status": {"enum": ["explicitly_declared", "unknown_fail_closed"]},
+        "entry_type_depths": {
+          "type": "object",
+          "required": ["chapter", "section", "subsection", "subsubsection"],
+          "additionalProperties": {"type": "integer"}
+        },
+        "serialization_strategies": {
+          "type": "object",
+          "required": ["native", "localized_depth_override"]
+        }
+      }
+    },
+    "constructs": {
+      "type": "object",
+      "required": ["sectioning", "generic_environments", "standard_serialization", "tcolorbox_styles", "custom_environments", "custom_commands"],
+      "properties": {
+        "sectioning": {"type": "array", "items": {"type": "string"}},
+        "standard_serialization": {
+          "type": "object",
+          "required": ["paragraph"],
+          "properties": {
+            "paragraph": {"type": "object"},
+            "display_math": {"type": "object"},
+            "source_asset_image": {"type": "object"},
+            "source_region_image": {"type": "object"},
+            "response_list": {"type": "object"}
+          },
+          "additionalProperties": false
+        },
+        "tcolorbox_styles": {"type": "object", "minProperties": 1}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

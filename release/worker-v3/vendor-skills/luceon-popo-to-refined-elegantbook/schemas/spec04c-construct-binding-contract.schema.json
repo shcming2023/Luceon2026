@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luceon.local/schemas/spec04c-construct-binding-contract.schema.json",
+  "title": "Spec 04-C construct binding ledger",
+  "type": "object",
+  "required": ["schema_version", "contract_id", "slice_status", "full_spec04_status", "parent", "template_capability_payload_hash", "bindings", "prohibitions", "summary"],
+  "properties": {
+    "schema_version": {"const": "spec04c-construct-binding-contract/1.0"},
+    "slice_status": {"const": "passed"},
+    "full_spec04_status": {"const": "not_evaluated"},
+    "bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["binding_id", "object_kind", "object_id", "semantic_role", "source_block_ids", "target_construct", "construct_parameters", "template_capability_payload_hash", "rule_id", "layer", "selection_reason", "why_box_or_not", "source_evidence_ids", "review_status", "decision_refs"],
+        "properties": {
+          "object_kind": {"enum": ["teaching_group", "standalone_label"]},
+          "target_construct": {"type": "string", "minLength": 1},
+          "review_status": {"const": "closed"},
+          "source_block_ids": {"type": "array", "minItems": 1, "uniqueItems": true},
+          "source_evidence_ids": {"type": "array", "minItems": 1}
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

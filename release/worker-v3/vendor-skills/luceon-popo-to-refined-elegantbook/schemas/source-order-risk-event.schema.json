@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luceon.local/schemas/source-order-risk-event.schema.json",
+  "title": "Actionable source-order risk event",
+  "type": "object",
+  "required": [
+    "event_id",
+    "physical_page",
+    "trigger_kind",
+    "trigger_code",
+    "action_kind",
+    "signal_only",
+    "requires_human_review",
+    "affected_source_refs",
+    "before_position",
+    "after_position",
+    "evidence_refs"
+  ],
+  "properties": {
+    "event_id": {"type": "string", "minLength": 1},
+    "physical_page": {"type": "integer", "minimum": 1},
+    "trigger_kind": {
+      "enum": ["source_tree_omission", "reading_order_reanchor", "manual_ambiguity"]
+    },
+    "trigger_code": {"type": "string", "minLength": 1},
+    "action_kind": {
+      "enum": ["reinsert_missing_source", "reanchor_reading_order", "queue_manual_review"]
+    },
+    "signal_only": {"const": false},
+    "requires_human_review": {"const": true},
+    "affected_source_refs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "before_position": {"type": ["integer", "null"], "minimum": 1},
+    "after_position": {"type": ["integer", "null"], "minimum": 1},
+    "evidence_refs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "template-contract.schema.json",
+  "title": "Frozen template contract",
+  "type": "object",
+  "required": ["schema_version", "status", "template_zip", "immutable_files", "main_template", "documentclass", "package_inventory", "custom_api_inventory", "metadata_allowlist", "selected_metadata", "body_insertion", "ancillary_policy", "compile_contract"],
+  "properties": {
+    "schema_version": {"pattern": "^template-contract/"},
+    "status": {"const": "frozen"},
+    "immutable_files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256"],
+        "properties": {"path": {"type": "string", "minLength": 1}, "sha256": {"pattern": "^[0-9a-f]{64}$"}}
+      }
+    },
+    "main_template": {
+      "type": "object",
+      "required": ["sha256", "masked_main_sha256", "body_marker", "body_end_token"],
+      "properties": {
+        "sha256": {"pattern": "^[0-9a-f]{64}$"},
+        "masked_main_sha256": {"pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "metadata_allowlist": {"type": "object"},
+    "selected_metadata": {"type": "object"},
+    "body_insertion": {"type": "object"},
+    "ancillary_policy": {"type": "object"},
+    "compile_contract": {"type": "object"}
+  }
+}

@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luceon.local/schemas/spec04d-render-policy.schema.json",
+  "type": "object",
+  "required": ["schema_version", "policy_id", "ownership_layer", "review", "structure_level_constructs", "toc_representation", "local_heading_construct", "plain_body_construct", "safe_textual_fragile_types", "fragile_types_requiring_media_representation", "media_constructs", "source_image_layout", "unsupported_representation_types", "prohibitions"],
+  "properties": {
+    "schema_version": {"const": "spec04d-render-policy/1.1"},
+    "ownership_layer": {"enum": ["core", "profile", "book_config"]},
+    "toc_representation": {
+      "type": "object",
+      "required": ["ownership_layer", "semantic_level_to_entry_type", "overflow_strategy", "decision_refs"],
+      "properties": {
+        "ownership_layer": {"enum": ["core", "profile", "book_config"]},
+        "overflow_strategy": {"const": "localized_depth_override"},
+        "semantic_level_to_entry_type": {"type": "object", "minProperties": 1},
+        "decision_refs": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+      }
+    },
+    "review": {
+      "type": "object",
+      "required": ["status", "decision_refs", "basis"],
+      "properties": {
+        "status": {"const": "closed"},
+        "decision_refs": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+      }
+    },
+    "structure_source_role_overrides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["structure_node_id", "block_id", "role", "decision_refs", "reason"],
+        "properties": {
+          "structure_node_id": {"type": "string", "minLength": 1},
+          "block_id": {"type": "string", "minLength": 1},
+          "role": {"enum": ["title_fragment", "post_heading_body"]},
+          "decision_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "reason": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    },
+    "pedagogical_layout": {
+      "type": "object",
+      "required": ["schema_version", "source_ref", "source_sha256", "deterministic_payload_hash", "heading_presentations", "numbering_map", "response_groups", "review", "invariants"],
+      "properties": {
+        "schema_version": {"const": "outline-pedagogical-layout-plan/1.0"},
+        "source_ref": {"type": "string", "minLength": 1},
+        "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "deterministic_payload_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "heading_presentations": {"type": "array"},
+        "numbering_map": {"type": "array"},
+        "response_groups": {"type": "array"},
+        "review": {
+          "type": "object",
+          "required": ["status", "open_items", "decision_refs"],
+          "properties": {
+            "status": {"const": "closed"},
+            "open_items": {"const": 0},
+            "decision_refs": {"type": "array", "minItems": 1}
+          }
+        },
+        "invariants": {"type": "object"}
+      },
+      "additionalProperties": false
+    },
+    "volume_partition": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": {
+        "mode": {"enum": ["single_volume", "two_volume"]},
+        "decision_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "trigger_evidence": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+        "non_media_file_entity_allowance": {"type": "integer", "minimum": 1},
+        "non_media_zip_bytes_allowance": {"type": "integer", "minimum": 1},
+        "boundary": {
+          "type": "object",
+          "properties": {
+            "before_render_node_id": {"type": "string", "minLength": 1},
+            "semantic_boundary_type": {"type": "string", "minLength": 1},
+            "source_evidence": {"type": "array", "minItems": 1}
+          },
+          "additionalProperties": true
+        },
+        "delivery_capacity_preflight": {"$ref": "#/$defs/deliveryCapacityPreflight"},
+        "volumes": {
+          "type": "array", "minItems": 2, "maxItems": 2,
+          "items": {
+            "type": "object",
+            "properties": {"delivery_capacity_preflight": {"$ref": "#/$defs/deliveryCapacityPreflight"}},
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "deliveryCapacityPreflight": {
+      "type": "object",
+      "required": ["estimated_generated_body_bytes_upper_bound", "estimated_editable_text_bytes_upper_bound", "largest_atomic_tex_line_bytes_upper_bound", "evidence_refs"],
+      "properties": {
+        "estimated_generated_body_bytes_upper_bound": {"type": "integer", "minimum": 0},
+        "estimated_editable_text_bytes_upper_bound": {"type": "integer", "minimum": 0},
+        "largest_atomic_tex_line_bytes_upper_bound": {"type": "integer", "minimum": 0},
+        "evidence_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

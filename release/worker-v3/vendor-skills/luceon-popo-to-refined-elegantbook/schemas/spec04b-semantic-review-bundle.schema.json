@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "spec04b-semantic-review-bundle.schema.json",
+  "title": "Closed source-supported semantic span and teaching-group review bundle",
+  "type": "object",
+  "required": [
+    "schema_version", "review_id", "parent_binding", "review",
+    "source_evidence", "teaching_groups", "standalone_labels"
+  ],
+  "properties": {
+    "schema_version": {"const": "spec04b-semantic-review-bundle/1.0"},
+    "review_id": {"type": "string", "minLength": 1},
+    "parent_binding": {
+      "type": "object",
+      "required": [
+        "ledger_snapshot_id", "ledger_payload_hash", "source_pdf_sha256",
+        "promotion_id", "promotion_manifest_sha256",
+        "source_outline_ledger_sha256", "final_toc_plan_sha256"
+      ]
+    },
+    "review": {
+      "type": "object",
+      "required": ["status", "open_items", "decision_refs"],
+      "properties": {
+        "status": {"const": "closed"},
+        "open_items": {"const": 0},
+        "decision_refs": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "source_evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["evidence_id", "path", "sha256", "pdf_physical_page"],
+        "properties": {
+          "evidence_id": {"type": "string", "minLength": 1},
+          "path": {"type": "string", "minLength": 1},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "pdf_physical_page": {"type": "integer", "minimum": 1}
+        }
+      }
+    },
+    "teaching_groups": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "group_id", "marker_block_id", "body_block_ids", "semantic_role",
+          "source_evidence_ids", "relation_rule", "review_status"
+        ],
+        "properties": {
+          "group_id": {"type": "string", "minLength": 1},
+          "marker_block_id": {"type": "string", "minLength": 1},
+          "body_block_ids": {"type": "array", "minItems": 1, "items": {"type": "string"}, "uniqueItems": true},
+          "semantic_role": {"type": "string", "minLength": 1},
+          "source_evidence_ids": {"type": "array", "minItems": 1, "items": {"type": "string"}, "uniqueItems": true},
+          "relation_rule": {
+            "type": "object",
+            "required": ["same_physical_page", "allowed_body_source_types", "basis"],
+            "properties": {
+              "same_physical_page": {"const": true},
+              "allowed_body_source_types": {
+                "type": "array", "minItems": 1, "uniqueItems": true,
+                "items": {"enum": ["text", "aside_text", "list"]}
+              },
+              "same_tree_path": {"type": "boolean"},
+              "basis": {"enum": ["same_tree_path_and_spatial_proximity", "reviewed_visual_bbox_subset"]}
+            }
+          },
+          "review_status": {"const": "closed"}
+        }
+      }
+    },
+    "standalone_labels": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["block_id", "semantic_role", "source_evidence_ids", "review_status"],
+        "properties": {
+          "block_id": {"type": "string", "minLength": 1},
+          "semantic_role": {"type": "string", "minLength": 1},
+          "source_evidence_ids": {"type": "array", "minItems": 1, "items": {"type": "string"}, "uniqueItems": true},
+          "review_status": {"const": "closed"}
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

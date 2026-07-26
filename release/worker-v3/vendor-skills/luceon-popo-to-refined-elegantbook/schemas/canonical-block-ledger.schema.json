@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "canonical-block-ledger.schema.json",
+  "title": "Canonical block ledger JSONL records",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["record_type", "schema_version", "ledger_id", "ledger_snapshot_id", "ledger_version", "ledger_checkpoint", "current_ledger_hash", "current_ledger_hash_scope", "spec_status", "summary"],
+      "properties": {
+        "record_type": {"const": "ledger_header"},
+        "schema_version": {"pattern": "^canonical-block-ledger/"},
+        "ledger_version": {"type": "integer", "minimum": 1},
+        "ledger_checkpoint": {"enum": ["atomized", "scope_frozen", "source_reconciled", "semantic_mapped", "semantic_frozen", "render_covered", "render_coverage", "final_accepted", "final_verified"]},
+        "current_ledger_hash": {"pattern": "^[0-9a-f]{64}$"},
+        "current_ledger_hash_scope": {
+          "enum": [
+            "canonical JSON hash of ordered source_block records",
+            "canonical JSON hash of ordered source_block records including native media_contracts"
+          ]
+        },
+        "spec_status": {"enum": ["blocked", "failed", "needs_review", "passed"]},
+        "summary": {"type": "object"}
+      }
+    },
+    {
+      "type": "object",
+      "required": ["record_type", "block_id", "pdf_physical_page", "bbox", "raw_content", "raw_content_sha256", "scope_status", "terminal_state", "review_required"],
+      "properties": {
+        "record_type": {"const": "source_block"},
+        "block_id": {"type": "string", "minLength": 1},
+        "pdf_physical_page": {"type": "integer", "minimum": 1},
+        "bbox": {"type": ["array", "null"], "items": {"type": "number"}, "minItems": 4, "maxItems": 4},
+        "raw_content": {"type": ["string", "object", "array", "number", "boolean", "null"]},
+        "raw_content_sha256": {"pattern": "^[0-9a-f]{64}$"},
+        "scope_status": {"enum": ["included", "excluded", "needs_review"]},
+        "terminal_state": {"type": "string", "minLength": 1},
+        "review_required": {"type": "boolean"}
+        ,"media_contracts": {
+          "type": "array",
+          "items": {"$ref": "canonical-media-atom.schema.json"}
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,5065 @@
+{
+  "bomFormat": "CycloneDX",
+  "components": [
+    {
+      "name": "adduser",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/adduser@3.152?distro=trixie",
+      "type": "library",
+      "version": "3.152"
+    },
+    {
+      "name": "alembic",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/alembic@1.16.1",
+      "type": "library",
+      "version": "1.16.1"
+    },
+    {
+      "name": "annotated-types",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/annotated-types@0.8.0",
+      "type": "library",
+      "version": "0.8.0"
+    },
+    {
+      "name": "anyio",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/anyio@4.14.2",
+      "type": "library",
+      "version": "4.14.2"
+    },
+    {
+      "name": "apt",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/apt@3.0.3?distro=trixie",
+      "type": "library",
+      "version": "3.0.3"
+    },
+    {
+      "name": "argon2-cffi",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/argon2-cffi@25.1.0",
+      "type": "library",
+      "version": "25.1.0"
+    },
+    {
+      "name": "argon2-cffi-bindings",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/argon2-cffi-bindings@25.1.0",
+      "type": "library",
+      "version": "25.1.0"
+    },
+    {
+      "name": "base-files",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/base-files@13.8%2Bdeb13u6?distro=trixie",
+      "type": "library",
+      "version": "13.8+deb13u6"
+    },
+    {
+      "name": "base-passwd",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/base-passwd@3.6.7?distro=trixie",
+      "type": "library",
+      "version": "3.6.7"
+    },
+    {
+      "name": "bash",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/bash@5.2.37-2%2Bb9?distro=trixie",
+      "type": "library",
+      "version": "5.2.37-2+b9"
+    },
+    {
+      "name": "biber",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/biber@2.20-2?distro=trixie",
+      "type": "library",
+      "version": "2.20-2"
+    },
+    {
+      "name": "bsdutils",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/bsdutils@1%3A2.41-5?distro=trixie",
+      "type": "library",
+      "version": "1:2.41-5"
+    },
+    {
+      "name": "ca-certificates",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/ca-certificates@20250419?distro=trixie",
+      "type": "library",
+      "version": "20250419"
+    },
+    {
+      "name": "certifi",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/certifi@2026.7.22",
+      "type": "library",
+      "version": "2026.7.22"
+    },
+    {
+      "name": "cffi",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/cffi@2.1.0",
+      "type": "library",
+      "version": "2.1.0"
+    },
+    {
+      "name": "click",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/click@8.4.2",
+      "type": "library",
+      "version": "8.4.2"
+    },
+    {
+      "name": "coreutils",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/coreutils@9.7-3?distro=trixie",
+      "type": "library",
+      "version": "9.7-3"
+    },
+    {
+      "name": "cryptography",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/cryptography@45.0.4",
+      "type": "library",
+      "version": "45.0.4"
+    },
+    {
+      "name": "dash",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/dash@0.5.12-12?distro=trixie",
+      "type": "library",
+      "version": "0.5.12-12"
+    },
+    {
+      "name": "debconf",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/debconf@1.5.91?distro=trixie",
+      "type": "library",
+      "version": "1.5.91"
+    },
+    {
+      "name": "debian-archive-keyring",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/debian-archive-keyring@2025.1?distro=trixie",
+      "type": "library",
+      "version": "2025.1"
+    },
+    {
+      "name": "debianutils",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/debianutils@5.23.2?distro=trixie",
+      "type": "library",
+      "version": "5.23.2"
+    },
+    {
+      "name": "diffutils",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/diffutils@1%3A3.10-4?distro=trixie",
+      "type": "library",
+      "version": "1:3.10-4"
+    },
+    {
+      "name": "dirmngr",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/dirmngr@2.4.7-21%2Bdeb13u1%2Bb4?distro=trixie",
+      "type": "library",
+      "version": "2.4.7-21+deb13u1+b4"
+    },
+    {
+      "name": "dpkg",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/dpkg@1.22.22?distro=trixie",
+      "type": "library",
+      "version": "1.22.22"
+    },
+    {
+      "name": "fastapi",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/fastapi@0.115.12",
+      "type": "library",
+      "version": "0.115.12"
+    },
+    {
+      "name": "findutils",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/findutils@4.10.0-3?distro=trixie",
+      "type": "library",
+      "version": "4.10.0-3"
+    },
+    {
+      "name": "fontconfig",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/fontconfig@2.15.0-2.3?distro=trixie",
+      "type": "library",
+      "version": "2.15.0-2.3"
+    },
+    {
+      "name": "fontconfig-config",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/fontconfig-config@2.15.0-2.3?distro=trixie",
+      "type": "library",
+      "version": "2.15.0-2.3"
+    },
+    {
+      "name": "fonts-arphic-bkai00mp",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/fonts-arphic-bkai00mp@2.10-21?distro=trixie",
+      "type": "library",
+      "version": "2.10-21"
+    },
+    {
+      "name": "fonts-arphic-bsmi00lp",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/fonts-arphic-bsmi00lp@2.10-18?distro=trixie",
+      "type": "library",
+      "version": "2.10-18"
+    },
+    {
+      "name": "fonts-arphic-gbsn00lp",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/fonts-arphic-gbsn00lp@2.11-16?distro=trixie",
+      "type": "library",
+      "version": "2.11-16"
+    },
+    {
+      "name": "fonts-arphic-gkai00mp",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/fonts-arphic-gkai00mp@2.11-16?distro=trixie",
+      "type": "library",
+      "version": "2.11-16"
+    },
+    {
+      "name": "fonts-gfs-baskerville",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/fonts-gfs-baskerville@1.1-6?distro=trixie",
+      "type": "library",
+      "version": "1.1-6"
+    },
+    {
+      "name": "fonts-gfs-porson",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/fonts-gfs-porson@1.1-7?distro=trixie",
+      "type": "library",
+      "version": "1.1-7"
+    },
+    {
+      "name": "fonts-lmodern",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/fonts-lmodern@2.005-1?distro=trixie",
+      "type": "library",
+      "version": "2.005-1"
+    },
+    {
+      "name": "fonts-noto-cjk",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/fonts-noto-cjk@1%3A20240730%2Brepack1-1?distro=trixie",
+      "type": "library",
+      "version": "1:20240730+repack1-1"
+    },
+    {
+      "name": "fonts-noto-core",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/fonts-noto-core@20201225-2?distro=trixie",
+      "type": "library",
+      "version": "20201225-2"
+    },
+    {
+      "name": "fonts-noto-mono",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/fonts-noto-mono@20201225-2?distro=trixie",
+      "type": "library",
+      "version": "20201225-2"
+    },
+    {
+      "name": "fonts-texgyre",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/fonts-texgyre@20180621-6?distro=trixie",
+      "type": "library",
+      "version": "20180621-6"
+    },
+    {
+      "name": "fonts-urw-base35",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/fonts-urw-base35@20200910-8?distro=trixie",
+      "type": "library",
+      "version": "20200910-8"
+    },
+    {
+      "name": "gcc-14-base:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/gcc-14-base%3Aarm64@14.2.0-19?distro=trixie",
+      "type": "library",
+      "version": "14.2.0-19"
+    },
+    {
+      "name": "ghostscript",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/ghostscript@10.05.1~dfsg-1%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "10.05.1~dfsg-1+deb13u1"
+    },
+    {
+      "name": "gnupg",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/gnupg@2.4.7-21%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "2.4.7-21+deb13u1"
+    },
+    {
+      "name": "gnupg-l10n",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/gnupg-l10n@2.4.7-21%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "2.4.7-21+deb13u1"
+    },
+    {
+      "name": "gpg",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/gpg@2.4.7-21%2Bdeb13u1%2Bb4?distro=trixie",
+      "type": "library",
+      "version": "2.4.7-21+deb13u1+b4"
+    },
+    {
+      "name": "gpg-agent",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/gpg-agent@2.4.7-21%2Bdeb13u1%2Bb4?distro=trixie",
+      "type": "library",
+      "version": "2.4.7-21+deb13u1+b4"
+    },
+    {
+      "name": "gpgconf",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/gpgconf@2.4.7-21%2Bdeb13u1%2Bb4?distro=trixie",
+      "type": "library",
+      "version": "2.4.7-21+deb13u1+b4"
+    },
+    {
+      "name": "gpgsm",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/gpgsm@2.4.7-21%2Bdeb13u1%2Bb4?distro=trixie",
+      "type": "library",
+      "version": "2.4.7-21+deb13u1+b4"
+    },
+    {
+      "name": "greenlet",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/greenlet@3.5.4",
+      "type": "library",
+      "version": "3.5.4"
+    },
+    {
+      "name": "grep",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/grep@3.11-4%2Bb1?distro=trixie",
+      "type": "library",
+      "version": "3.11-4+b1"
+    },
+    {
+      "name": "gzip",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/gzip@1.13-1?distro=trixie",
+      "type": "library",
+      "version": "1.13-1"
+    },
+    {
+      "name": "h11",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/h11@0.16.0",
+      "type": "library",
+      "version": "0.16.0"
+    },
+    {
+      "name": "hostname",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/hostname@3.25?distro=trixie",
+      "type": "library",
+      "version": "3.25"
+    },
+    {
+      "name": "httpcore",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/httpcore@1.0.9",
+      "type": "library",
+      "version": "1.0.9"
+    },
+    {
+      "name": "httptools",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/httptools@0.8.0",
+      "type": "library",
+      "version": "0.8.0"
+    },
+    {
+      "name": "httpx",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/httpx@0.28.1",
+      "type": "library",
+      "version": "0.28.1"
+    },
+    {
+      "name": "idna",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/idna@3.18",
+      "type": "library",
+      "version": "3.18"
+    },
+    {
+      "name": "iniconfig",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/iniconfig@2.3.0",
+      "type": "library",
+      "version": "2.3.0"
+    },
+    {
+      "name": "init-system-helpers",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/init-system-helpers@1.69~deb13u1?distro=trixie",
+      "type": "library",
+      "version": "1.69~deb13u1"
+    },
+    {
+      "name": "latexmk",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/latexmk@1%3A4.86~ds-1?distro=trixie",
+      "type": "library",
+      "version": "1:4.86~ds-1"
+    },
+    {
+      "name": "libacl1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libacl1%3Aarm64@2.3.2-2%2Bb1?distro=trixie",
+      "type": "library",
+      "version": "2.3.2-2+b1"
+    },
+    {
+      "name": "libalgorithm-c3-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libalgorithm-c3-perl@0.11-2?distro=trixie",
+      "type": "library",
+      "version": "0.11-2"
+    },
+    {
+      "name": "libapache-pom-java",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libapache-pom-java@33-2?distro=trixie",
+      "type": "library",
+      "version": "33-2"
+    },
+    {
+      "name": "libapt-pkg7.0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libapt-pkg7.0%3Aarm64@3.0.3?distro=trixie",
+      "type": "library",
+      "version": "3.0.3"
+    },
+    {
+      "name": "libassuan9:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libassuan9%3Aarm64@3.0.2-2?distro=trixie",
+      "type": "library",
+      "version": "3.0.2-2"
+    },
+    {
+      "name": "libatomic1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libatomic1%3Aarm64@14.2.0-19?distro=trixie",
+      "type": "library",
+      "version": "14.2.0-19"
+    },
+    {
+      "name": "libattr1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libattr1%3Aarm64@1%3A2.5.2-3?distro=trixie",
+      "type": "library",
+      "version": "1:2.5.2-3"
+    },
+    {
+      "name": "libaudit-common",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libaudit-common@1%3A4.0.2-2?distro=trixie",
+      "type": "library",
+      "version": "1:4.0.2-2"
+    },
+    {
+      "name": "libaudit1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libaudit1%3Aarm64@1%3A4.0.2-2%2Bb2?distro=trixie",
+      "type": "library",
+      "version": "1:4.0.2-2+b2"
+    },
+    {
+      "name": "libautovivification-perl:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libautovivification-perl%3Aarm64@0.18-2%2Bb4?distro=trixie",
+      "type": "library",
+      "version": "0.18-2+b4"
+    },
+    {
+      "name": "libavahi-client3:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libavahi-client3%3Aarm64@0.8-16?distro=trixie",
+      "type": "library",
+      "version": "0.8-16"
+    },
+    {
+      "name": "libavahi-common-data:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libavahi-common-data%3Aarm64@0.8-16?distro=trixie",
+      "type": "library",
+      "version": "0.8-16"
+    },
+    {
+      "name": "libavahi-common3:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libavahi-common3%3Aarm64@0.8-16?distro=trixie",
+      "type": "library",
+      "version": "0.8-16"
+    },
+    {
+      "name": "libb-hooks-endofscope-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libb-hooks-endofscope-perl@0.28-2?distro=trixie",
+      "type": "library",
+      "version": "0.28-2"
+    },
+    {
+      "name": "libb-hooks-op-check-perl:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libb-hooks-op-check-perl%3Aarm64@0.22-3%2Bb2?distro=trixie",
+      "type": "library",
+      "version": "0.22-3+b2"
+    },
+    {
+      "name": "libbibtex-parser-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libbibtex-parser-perl@1.05%2Bdfsg-1?distro=trixie",
+      "type": "library",
+      "version": "1.05+dfsg-1"
+    },
+    {
+      "name": "libblkid1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libblkid1%3Aarm64@2.41-5?distro=trixie",
+      "type": "library",
+      "version": "2.41-5"
+    },
+    {
+      "name": "libbrotli1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libbrotli1%3Aarm64@1.1.0-2%2Bb7?distro=trixie",
+      "type": "library",
+      "version": "1.1.0-2+b7"
+    },
+    {
+      "name": "libbsd0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libbsd0%3Aarm64@0.12.2-2?distro=trixie",
+      "type": "library",
+      "version": "0.12.2-2"
+    },
+    {
+      "name": "libbtparse2",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libbtparse2@0.91-1?distro=trixie",
+      "type": "library",
+      "version": "0.91-1"
+    },
+    {
+      "name": "libbusiness-isbn-data-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libbusiness-isbn-data-perl@20250418.001-1?distro=trixie",
+      "type": "library",
+      "version": "20250418.001-1"
+    },
+    {
+      "name": "libbusiness-isbn-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libbusiness-isbn-perl@3.012-1?distro=trixie",
+      "type": "library",
+      "version": "3.012-1"
+    },
+    {
+      "name": "libbusiness-ismn-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libbusiness-ismn-perl@1.205-1?distro=trixie",
+      "type": "library",
+      "version": "1.205-1"
+    },
+    {
+      "name": "libbusiness-issn-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libbusiness-issn-perl@1.008-1?distro=trixie",
+      "type": "library",
+      "version": "1.008-1"
+    },
+    {
+      "name": "libbz2-1.0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libbz2-1.0%3Aarm64@1.0.8-6?distro=trixie",
+      "type": "library",
+      "version": "1.0.8-6"
+    },
+    {
+      "name": "libc-bin",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libc-bin@2.41-12%2Bdeb13u3?distro=trixie",
+      "type": "library",
+      "version": "2.41-12+deb13u3"
+    },
+    {
+      "name": "libc6:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libc6%3Aarm64@2.41-12%2Bdeb13u3?distro=trixie",
+      "type": "library",
+      "version": "2.41-12+deb13u3"
+    },
+    {
+      "name": "libcairo2:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libcairo2%3Aarm64@1.18.4-1%2Bb1?distro=trixie",
+      "type": "library",
+      "version": "1.18.4-1+b1"
+    },
+    {
+      "name": "libcap-ng0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libcap-ng0%3Aarm64@0.8.5-4%2Bb1?distro=trixie",
+      "type": "library",
+      "version": "0.8.5-4+b1"
+    },
+    {
+      "name": "libcap2:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libcap2%3Aarm64@1%3A2.75-10%2Bdeb13u1%2Bb1?distro=trixie",
+      "type": "library",
+      "version": "1:2.75-10+deb13u1+b1"
+    },
+    {
+      "name": "libclass-accessor-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libclass-accessor-perl@0.51-2?distro=trixie",
+      "type": "library",
+      "version": "0.51-2"
+    },
+    {
+      "name": "libclass-c3-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libclass-c3-perl@0.35-2?distro=trixie",
+      "type": "library",
+      "version": "0.35-2"
+    },
+    {
+      "name": "libclass-data-inheritable-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libclass-data-inheritable-perl@0.10-1?distro=trixie",
+      "type": "library",
+      "version": "0.10-1"
+    },
+    {
+      "name": "libclass-inspector-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libclass-inspector-perl@1.36-3?distro=trixie",
+      "type": "library",
+      "version": "1.36-3"
+    },
+    {
+      "name": "libclass-method-modifiers-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libclass-method-modifiers-perl@2.15-1?distro=trixie",
+      "type": "library",
+      "version": "2.15-1"
+    },
+    {
+      "name": "libclass-singleton-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libclass-singleton-perl@1.6-2?distro=trixie",
+      "type": "library",
+      "version": "1.6-2"
+    },
+    {
+      "name": "libclone-perl:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libclone-perl%3Aarm64@0.47-1%2Bb1?distro=trixie",
+      "type": "library",
+      "version": "0.47-1+b1"
+    },
+    {
+      "name": "libcom-err2:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libcom-err2%3Aarm64@1.47.2-3%2Bb11?distro=trixie",
+      "type": "library",
+      "version": "1.47.2-3+b11"
+    },
+    {
+      "name": "libcommons-logging-java",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libcommons-logging-java@1.3.0-2?distro=trixie",
+      "type": "library",
+      "version": "1.3.0-2"
+    },
+    {
+      "name": "libcommons-parent-java",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libcommons-parent-java@56-1?distro=trixie",
+      "type": "library",
+      "version": "56-1"
+    },
+    {
+      "name": "libcrypt1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libcrypt1%3Aarm64@1%3A4.4.38-1?distro=trixie",
+      "type": "library",
+      "version": "1:4.4.38-1"
+    },
+    {
+      "name": "libcups2t64:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libcups2t64%3Aarm64@2.4.10-3%2Bdeb13u2?distro=trixie",
+      "type": "library",
+      "version": "2.4.10-3+deb13u2"
+    },
+    {
+      "name": "libcurl3t64-gnutls:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libcurl3t64-gnutls%3Aarm64@8.14.1-2%2Bdeb13u4?distro=trixie",
+      "type": "library",
+      "version": "8.14.1-2+deb13u4"
+    },
+    {
+      "name": "libdata-compare-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libdata-compare-perl@1.29-1?distro=trixie",
+      "type": "library",
+      "version": "1.29-1"
+    },
+    {
+      "name": "libdata-dump-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libdata-dump-perl@1.25-1?distro=trixie",
+      "type": "library",
+      "version": "1.25-1"
+    },
+    {
+      "name": "libdata-optlist-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libdata-optlist-perl@0.114-1?distro=trixie",
+      "type": "library",
+      "version": "0.114-1"
+    },
+    {
+      "name": "libdata-uniqid-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libdata-uniqid-perl@0.12-3?distro=trixie",
+      "type": "library",
+      "version": "0.12-3"
+    },
+    {
+      "name": "libdate-simple-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libdate-simple-perl@3.0300-3%2Bb6?distro=trixie",
+      "type": "library",
+      "version": "3.0300-3+b6"
+    },
+    {
+      "name": "libdatetime-calendar-julian-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libdatetime-calendar-julian-perl@0.107-1?distro=trixie",
+      "type": "library",
+      "version": "0.107-1"
+    },
+    {
+      "name": "libdatetime-format-builder-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libdatetime-format-builder-perl@0.8300-1?distro=trixie",
+      "type": "library",
+      "version": "0.8300-1"
+    },
+    {
+      "name": "libdatetime-format-strptime-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libdatetime-format-strptime-perl@1.7900-1?distro=trixie",
+      "type": "library",
+      "version": "1.7900-1"
+    },
+    {
+      "name": "libdatetime-locale-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libdatetime-locale-perl@1%3A1.41-1?distro=trixie",
+      "type": "library",
+      "version": "1:1.41-1"
+    },
+    {
+      "name": "libdatetime-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libdatetime-perl@2%3A1.65-1%2Bb2?distro=trixie",
+      "type": "library",
+      "version": "2:1.65-1+b2"
+    },
+    {
+      "name": "libdatetime-timezone-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libdatetime-timezone-perl@1%3A2.65-1%2B2026c?distro=trixie",
+      "type": "library",
+      "version": "1:2.65-1+2026c"
+    },
+    {
+      "name": "libdatrie1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libdatrie1%3Aarm64@0.2.13-3%2Bb1?distro=trixie",
+      "type": "library",
+      "version": "0.2.13-3+b1"
+    },
+    {
+      "name": "libdb5.3t64:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libdb5.3t64%3Aarm64@5.3.28%2Bdfsg2-9?distro=trixie",
+      "type": "library",
+      "version": "5.3.28+dfsg2-9"
+    },
+    {
+      "name": "libdbus-1-3:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libdbus-1-3%3Aarm64@1.16.2-2?distro=trixie",
+      "type": "library",
+      "version": "1.16.2-2"
+    },
+    {
+      "name": "libdebconfclient0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libdebconfclient0%3Aarm64@0.280?distro=trixie",
+      "type": "library",
+      "version": "0.280"
+    },
+    {
+      "name": "libdeflate0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libdeflate0%3Aarm64@1.23-2?distro=trixie",
+      "type": "library",
+      "version": "1.23-2"
+    },
+    {
+      "name": "libdevel-callchecker-perl:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libdevel-callchecker-perl%3Aarm64@0.009-2?distro=trixie",
+      "type": "library",
+      "version": "0.009-2"
+    },
+    {
+      "name": "libdevel-stacktrace-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libdevel-stacktrace-perl@2.0500-1?distro=trixie",
+      "type": "library",
+      "version": "2.0500-1"
+    },
+    {
+      "name": "libdynaloader-functions-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libdynaloader-functions-perl@0.004-2?distro=trixie",
+      "type": "library",
+      "version": "0.004-2"
+    },
+    {
+      "name": "libencode-eucjpascii-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libencode-eucjpascii-perl@0.03-1%2Bb4?distro=trixie",
+      "type": "library",
+      "version": "0.03-1+b4"
+    },
+    {
+      "name": "libencode-eucjpms-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libencode-eucjpms-perl@0.07-5?distro=trixie",
+      "type": "library",
+      "version": "0.07-5"
+    },
+    {
+      "name": "libencode-hanextra-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libencode-hanextra-perl@0.23-6%2Bb5?distro=trixie",
+      "type": "library",
+      "version": "0.23-6+b5"
+    },
+    {
+      "name": "libencode-jis2k-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libencode-jis2k-perl@0.05-1%2Bb3?distro=trixie",
+      "type": "library",
+      "version": "0.05-1+b3"
+    },
+    {
+      "name": "libencode-locale-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libencode-locale-perl@1.05-3?distro=trixie",
+      "type": "library",
+      "version": "1.05-3"
+    },
+    {
+      "name": "libeval-closure-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libeval-closure-perl@0.14-3?distro=trixie",
+      "type": "library",
+      "version": "0.14-3"
+    },
+    {
+      "name": "libexception-class-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libexception-class-perl@1.45-1?distro=trixie",
+      "type": "library",
+      "version": "1.45-1"
+    },
+    {
+      "name": "libexpat1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libexpat1%3Aarm64@2.7.1-2?distro=trixie",
+      "type": "library",
+      "version": "2.7.1-2"
+    },
+    {
+      "name": "libexporter-tiny-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libexporter-tiny-perl@1.006002-1?distro=trixie",
+      "type": "library",
+      "version": "1.006002-1"
+    },
+    {
+      "name": "libffi8:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libffi8%3Aarm64@3.4.8-2?distro=trixie",
+      "type": "library",
+      "version": "3.4.8-2"
+    },
+    {
+      "name": "libfile-find-rule-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libfile-find-rule-perl@0.34-4?distro=trixie",
+      "type": "library",
+      "version": "0.34-4"
+    },
+    {
+      "name": "libfile-listing-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libfile-listing-perl@6.16-1?distro=trixie",
+      "type": "library",
+      "version": "6.16-1"
+    },
+    {
+      "name": "libfile-sharedir-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libfile-sharedir-perl@1.118-3?distro=trixie",
+      "type": "library",
+      "version": "1.118-3"
+    },
+    {
+      "name": "libfile-slurper-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libfile-slurper-perl@0.014-1?distro=trixie",
+      "type": "library",
+      "version": "0.014-1"
+    },
+    {
+      "name": "libfontbox-java",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libfontbox-java@1%3A1.8.16-5?distro=trixie",
+      "type": "library",
+      "version": "1:1.8.16-5"
+    },
+    {
+      "name": "libfontconfig1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libfontconfig1%3Aarm64@2.15.0-2.3?distro=trixie",
+      "type": "library",
+      "version": "2.15.0-2.3"
+    },
+    {
+      "name": "libfontenc1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libfontenc1%3Aarm64@1%3A1.1.8-1%2Bb2?distro=trixie",
+      "type": "library",
+      "version": "1:1.1.8-1+b2"
+    },
+    {
+      "name": "libfreetype6:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libfreetype6%3Aarm64@2.13.3%2Bdfsg-1%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "2.13.3+dfsg-1+deb13u1"
+    },
+    {
+      "name": "libgcc-s1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libgcc-s1%3Aarm64@14.2.0-19?distro=trixie",
+      "type": "library",
+      "version": "14.2.0-19"
+    },
+    {
+      "name": "libgcrypt20:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libgcrypt20%3Aarm64@1.11.0-7%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "1.11.0-7+deb13u1"
+    },
+    {
+      "name": "libgdbm-compat4t64:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libgdbm-compat4t64%3Aarm64@1.24-2?distro=trixie",
+      "type": "library",
+      "version": "1.24-2"
+    },
+    {
+      "name": "libgdbm6t64:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libgdbm6t64%3Aarm64@1.24-2?distro=trixie",
+      "type": "library",
+      "version": "1.24-2"
+    },
+    {
+      "name": "libglib2.0-0t64:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libglib2.0-0t64%3Aarm64@2.84.4-3~deb13u3?distro=trixie",
+      "type": "library",
+      "version": "2.84.4-3~deb13u3"
+    },
+    {
+      "name": "libgmp10:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libgmp10%3Aarm64@2%3A6.3.0%2Bdfsg-3?distro=trixie",
+      "type": "library",
+      "version": "2:6.3.0+dfsg-3"
+    },
+    {
+      "name": "libgnutls30t64:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libgnutls30t64%3Aarm64@3.8.9-3%2Bdeb13u4?distro=trixie",
+      "type": "library",
+      "version": "3.8.9-3+deb13u4"
+    },
+    {
+      "name": "libgpg-error0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libgpg-error0%3Aarm64@1.51-4?distro=trixie",
+      "type": "library",
+      "version": "1.51-4"
+    },
+    {
+      "name": "libgpgme11t64:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libgpgme11t64%3Aarm64@1.24.2-3?distro=trixie",
+      "type": "library",
+      "version": "1.24.2-3"
+    },
+    {
+      "name": "libgpgmepp6t64:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libgpgmepp6t64%3Aarm64@1.24.2-3?distro=trixie",
+      "type": "library",
+      "version": "1.24.2-3"
+    },
+    {
+      "name": "libgraphite2-3:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libgraphite2-3%3Aarm64@1.3.14-2%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "1.3.14-2+deb13u1"
+    },
+    {
+      "name": "libgs-common",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libgs-common@10.05.1~dfsg-1%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "10.05.1~dfsg-1+deb13u1"
+    },
+    {
+      "name": "libgs10-common",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libgs10-common@10.05.1~dfsg-1%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "10.05.1~dfsg-1+deb13u1"
+    },
+    {
+      "name": "libgs10:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libgs10%3Aarm64@10.05.1~dfsg-1%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "10.05.1~dfsg-1+deb13u1"
+    },
+    {
+      "name": "libgssapi-krb5-2:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libgssapi-krb5-2%3Aarm64@1.21.3-5%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "1.21.3-5+deb13u1"
+    },
+    {
+      "name": "libharfbuzz0b:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libharfbuzz0b%3Aarm64@10.2.0-1%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "10.2.0-1+deb13u1"
+    },
+    {
+      "name": "libhogweed6t64:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libhogweed6t64%3Aarm64@3.10.1-1?distro=trixie",
+      "type": "library",
+      "version": "3.10.1-1"
+    },
+    {
+      "name": "libhtml-parser-perl:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libhtml-parser-perl%3Aarm64@3.83-2~deb13u1?distro=trixie",
+      "type": "library",
+      "version": "3.83-2~deb13u1"
+    },
+    {
+      "name": "libhtml-tagset-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libhtml-tagset-perl@3.24-1?distro=trixie",
+      "type": "library",
+      "version": "3.24-1"
+    },
+    {
+      "name": "libhtml-tree-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libhtml-tree-perl@5.07-3?distro=trixie",
+      "type": "library",
+      "version": "5.07-3"
+    },
+    {
+      "name": "libhttp-cookies-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libhttp-cookies-perl@6.11-1?distro=trixie",
+      "type": "library",
+      "version": "6.11-1"
+    },
+    {
+      "name": "libhttp-date-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libhttp-date-perl@6.06-1?distro=trixie",
+      "type": "library",
+      "version": "6.06-1"
+    },
+    {
+      "name": "libhttp-message-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libhttp-message-perl@7.00-2?distro=trixie",
+      "type": "library",
+      "version": "7.00-2"
+    },
+    {
+      "name": "libhttp-negotiate-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libhttp-negotiate-perl@6.01-2?distro=trixie",
+      "type": "library",
+      "version": "6.01-2"
+    },
+    {
+      "name": "libice6:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libice6%3Aarm64@2%3A1.1.1-1?distro=trixie",
+      "type": "library",
+      "version": "2:1.1.1-1"
+    },
+    {
+      "name": "libicu76:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libicu76%3Aarm64@76.1-4?distro=trixie",
+      "type": "library",
+      "version": "76.1-4"
+    },
+    {
+      "name": "libidn12:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libidn12%3Aarm64@1.43-1?distro=trixie",
+      "type": "library",
+      "version": "1.43-1"
+    },
+    {
+      "name": "libidn2-0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libidn2-0%3Aarm64@2.3.8-2?distro=trixie",
+      "type": "library",
+      "version": "2.3.8-2"
+    },
+    {
+      "name": "libijs-0.35:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libijs-0.35%3Aarm64@0.35-15.2?distro=trixie",
+      "type": "library",
+      "version": "0.35-15.2"
+    },
+    {
+      "name": "libio-html-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libio-html-perl@1.004-3?distro=trixie",
+      "type": "library",
+      "version": "1.004-3"
+    },
+    {
+      "name": "libio-socket-ssl-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libio-socket-ssl-perl@2.089-1?distro=trixie",
+      "type": "library",
+      "version": "2.089-1"
+    },
+    {
+      "name": "libio-string-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libio-string-perl@1.08-4?distro=trixie",
+      "type": "library",
+      "version": "1.08-4"
+    },
+    {
+      "name": "libipc-run3-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libipc-run3-perl@0.049-1?distro=trixie",
+      "type": "library",
+      "version": "0.049-1"
+    },
+    {
+      "name": "libjbig0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libjbig0%3Aarm64@2.1-6.1%2Bb2?distro=trixie",
+      "type": "library",
+      "version": "2.1-6.1+b2"
+    },
+    {
+      "name": "libjbig2dec0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libjbig2dec0%3Aarm64@0.20-1%2Bb3?distro=trixie",
+      "type": "library",
+      "version": "0.20-1+b3"
+    },
+    {
+      "name": "libjpeg62-turbo:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libjpeg62-turbo%3Aarm64@1%3A2.1.5-4?distro=trixie",
+      "type": "library",
+      "version": "1:2.1.5-4"
+    },
+    {
+      "name": "libk5crypto3:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libk5crypto3%3Aarm64@1.21.3-5%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "1.21.3-5+deb13u1"
+    },
+    {
+      "name": "libkeyutils1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libkeyutils1%3Aarm64@1.6.3-6?distro=trixie",
+      "type": "library",
+      "version": "1.6.3-6"
+    },
+    {
+      "name": "libkpathsea6:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libkpathsea6%3Aarm64@2024.20240313.70630%2Bds-6?distro=trixie",
+      "type": "library",
+      "version": "2024.20240313.70630+ds-6"
+    },
+    {
+      "name": "libkrb5-3:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libkrb5-3%3Aarm64@1.21.3-5%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "1.21.3-5+deb13u1"
+    },
+    {
+      "name": "libkrb5support0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libkrb5support0%3Aarm64@1.21.3-5%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "1.21.3-5+deb13u1"
+    },
+    {
+      "name": "libksba8:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libksba8%3Aarm64@1.6.7-2%2Bb1?distro=trixie",
+      "type": "library",
+      "version": "1.6.7-2+b1"
+    },
+    {
+      "name": "liblastlog2-2:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/liblastlog2-2%3Aarm64@2.41-5?distro=trixie",
+      "type": "library",
+      "version": "2.41-5"
+    },
+    {
+      "name": "liblatex-tounicode-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/liblatex-tounicode-perl@0.55-1?distro=trixie",
+      "type": "library",
+      "version": "0.55-1"
+    },
+    {
+      "name": "liblcms2-2:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/liblcms2-2%3Aarm64@2.16-2%2Bdeb13u2?distro=trixie",
+      "type": "library",
+      "version": "2.16-2+deb13u2"
+    },
+    {
+      "name": "libldap2:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libldap2%3Aarm64@2.6.10%2Bdfsg-1?distro=trixie",
+      "type": "library",
+      "version": "2.6.10+dfsg-1"
+    },
+    {
+      "name": "liblerc4:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/liblerc4%3Aarm64@4.0.0%2Bds-5?distro=trixie",
+      "type": "library",
+      "version": "4.0.0+ds-5"
+    },
+    {
+      "name": "liblingua-translit-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/liblingua-translit-perl@0.29-2?distro=trixie",
+      "type": "library",
+      "version": "0.29-2"
+    },
+    {
+      "name": "liblist-allutils-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/liblist-allutils-perl@0.19-1?distro=trixie",
+      "type": "library",
+      "version": "0.19-1"
+    },
+    {
+      "name": "liblist-moreutils-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/liblist-moreutils-perl@0.430-2?distro=trixie",
+      "type": "library",
+      "version": "0.430-2"
+    },
+    {
+      "name": "liblist-moreutils-xs-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/liblist-moreutils-xs-perl@0.430-4%2Bb2?distro=trixie",
+      "type": "library",
+      "version": "0.430-4+b2"
+    },
+    {
+      "name": "liblist-someutils-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/liblist-someutils-perl@0.59-1?distro=trixie",
+      "type": "library",
+      "version": "0.59-1"
+    },
+    {
+      "name": "liblist-utilsby-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/liblist-utilsby-perl@0.12-2?distro=trixie",
+      "type": "library",
+      "version": "0.12-2"
+    },
+    {
+      "name": "liblog-log4perl-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/liblog-log4perl-perl@1.57-1?distro=trixie",
+      "type": "library",
+      "version": "1.57-1"
+    },
+    {
+      "name": "liblwp-mediatypes-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/liblwp-mediatypes-perl@6.04-2?distro=trixie",
+      "type": "library",
+      "version": "6.04-2"
+    },
+    {
+      "name": "liblwp-protocol-https-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/liblwp-protocol-https-perl@6.14-1?distro=trixie",
+      "type": "library",
+      "version": "6.14-1"
+    },
+    {
+      "name": "liblz4-1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/liblz4-1%3Aarm64@1.10.0-4?distro=trixie",
+      "type": "library",
+      "version": "1.10.0-4"
+    },
+    {
+      "name": "liblzma5:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/liblzma5%3Aarm64@5.8.1-1%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "5.8.1-1+deb13u1"
+    },
+    {
+      "name": "libmd0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libmd0%3Aarm64@1.1.0-2%2Bb1?distro=trixie",
+      "type": "library",
+      "version": "1.1.0-2+b1"
+    },
+    {
+      "name": "libmime-charset-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libmime-charset-perl@1.013.1-2?distro=trixie",
+      "type": "library",
+      "version": "1.013.1-2"
+    },
+    {
+      "name": "libmodule-implementation-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libmodule-implementation-perl@0.09-2?distro=trixie",
+      "type": "library",
+      "version": "0.09-2"
+    },
+    {
+      "name": "libmodule-runtime-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libmodule-runtime-perl@0.018-1?distro=trixie",
+      "type": "library",
+      "version": "0.018-1"
+    },
+    {
+      "name": "libmount1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libmount1%3Aarm64@2.41-5?distro=trixie",
+      "type": "library",
+      "version": "2.41-5"
+    },
+    {
+      "name": "libmpfi0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libmpfi0%3Aarm64@1.5.4%2Bds-4?distro=trixie",
+      "type": "library",
+      "version": "1.5.4+ds-4"
+    },
+    {
+      "name": "libmpfr6:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libmpfr6%3Aarm64@4.2.2-1?distro=trixie",
+      "type": "library",
+      "version": "4.2.2-1"
+    },
+    {
+      "name": "libmro-compat-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libmro-compat-perl@0.15-2?distro=trixie",
+      "type": "library",
+      "version": "0.15-2"
+    },
+    {
+      "name": "libnamespace-autoclean-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libnamespace-autoclean-perl@0.31-1?distro=trixie",
+      "type": "library",
+      "version": "0.31-1"
+    },
+    {
+      "name": "libnamespace-clean-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libnamespace-clean-perl@0.27-2?distro=trixie",
+      "type": "library",
+      "version": "0.27-2"
+    },
+    {
+      "name": "libncursesw6:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libncursesw6%3Aarm64@6.5%2B20250216-2?distro=trixie",
+      "type": "library",
+      "version": "6.5+20250216-2"
+    },
+    {
+      "name": "libnet-http-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libnet-http-perl@6.23-1?distro=trixie",
+      "type": "library",
+      "version": "6.23-1"
+    },
+    {
+      "name": "libnet-ssleay-perl:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libnet-ssleay-perl%3Aarm64@1.94-3?distro=trixie",
+      "type": "library",
+      "version": "1.94-3"
+    },
+    {
+      "name": "libnettle8t64:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libnettle8t64%3Aarm64@3.10.1-1?distro=trixie",
+      "type": "library",
+      "version": "3.10.1-1"
+    },
+    {
+      "name": "libnghttp2-14:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libnghttp2-14%3Aarm64@1.64.0-1.1%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "1.64.0-1.1+deb13u1"
+    },
+    {
+      "name": "libnghttp3-9:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libnghttp3-9%3Aarm64@1.8.0-1?distro=trixie",
+      "type": "library",
+      "version": "1.8.0-1"
+    },
+    {
+      "name": "libngtcp2-16:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libngtcp2-16%3Aarm64@1.11.0-1%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "1.11.0-1+deb13u1"
+    },
+    {
+      "name": "libngtcp2-crypto-gnutls8:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libngtcp2-crypto-gnutls8%3Aarm64@1.11.0-1%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "1.11.0-1+deb13u1"
+    },
+    {
+      "name": "libnpth0t64:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libnpth0t64%3Aarm64@1.8-3?distro=trixie",
+      "type": "library",
+      "version": "1.8-3"
+    },
+    {
+      "name": "libnspr4:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libnspr4%3Aarm64@2%3A4.36-1?distro=trixie",
+      "type": "library",
+      "version": "2:4.36-1"
+    },
+    {
+      "name": "libnss3:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libnss3%3Aarm64@2%3A3.110-1%2Bdeb13u3?distro=trixie",
+      "type": "library",
+      "version": "2:3.110-1+deb13u3"
+    },
+    {
+      "name": "libnumber-compare-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libnumber-compare-perl@0.03-3?distro=trixie",
+      "type": "library",
+      "version": "0.03-3"
+    },
+    {
+      "name": "libopenjp2-7:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libopenjp2-7%3Aarm64@2.5.3-2.1~deb13u2?distro=trixie",
+      "type": "library",
+      "version": "2.5.3-2.1~deb13u2"
+    },
+    {
+      "name": "libp11-kit0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libp11-kit0%3Aarm64@0.25.5-3?distro=trixie",
+      "type": "library",
+      "version": "0.25.5-3"
+    },
+    {
+      "name": "libpackage-stash-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libpackage-stash-perl@0.40-1?distro=trixie",
+      "type": "library",
+      "version": "0.40-1"
+    },
+    {
+      "name": "libpam-modules-bin",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libpam-modules-bin@1.7.0-5?distro=trixie",
+      "type": "library",
+      "version": "1.7.0-5"
+    },
+    {
+      "name": "libpam-modules:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libpam-modules%3Aarm64@1.7.0-5?distro=trixie",
+      "type": "library",
+      "version": "1.7.0-5"
+    },
+    {
+      "name": "libpam-runtime",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libpam-runtime@1.7.0-5?distro=trixie",
+      "type": "library",
+      "version": "1.7.0-5"
+    },
+    {
+      "name": "libpam0g:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libpam0g%3Aarm64@1.7.0-5?distro=trixie",
+      "type": "library",
+      "version": "1.7.0-5"
+    },
+    {
+      "name": "libpaper-utils",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libpaper-utils@2.2.5-0.3%2Bb2?distro=trixie",
+      "type": "library",
+      "version": "2.2.5-0.3+b2"
+    },
+    {
+      "name": "libpaper2:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libpaper2%3Aarm64@2.2.5-0.3%2Bb2?distro=trixie",
+      "type": "library",
+      "version": "2.2.5-0.3+b2"
+    },
+    {
+      "name": "libparams-classify-perl:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libparams-classify-perl%3Aarm64@0.015-2%2Bb4?distro=trixie",
+      "type": "library",
+      "version": "0.015-2+b4"
+    },
+    {
+      "name": "libparams-util-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libparams-util-perl@1.102-3%2Bb1?distro=trixie",
+      "type": "library",
+      "version": "1.102-3+b1"
+    },
+    {
+      "name": "libparams-validate-perl:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libparams-validate-perl%3Aarm64@1.31-2%2Bb3?distro=trixie",
+      "type": "library",
+      "version": "1.31-2+b3"
+    },
+    {
+      "name": "libparams-validationcompiler-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libparams-validationcompiler-perl@0.31-1?distro=trixie",
+      "type": "library",
+      "version": "0.31-1"
+    },
+    {
+      "name": "libparse-recdescent-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libparse-recdescent-perl@1.967015%2Bdfsg-4?distro=trixie",
+      "type": "library",
+      "version": "1.967015+dfsg-4"
+    },
+    {
+      "name": "libpcre2-8-0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libpcre2-8-0%3Aarm64@10.46-1~deb13u1?distro=trixie",
+      "type": "library",
+      "version": "10.46-1~deb13u1"
+    },
+    {
+      "name": "libpdfbox-java",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libpdfbox-java@1%3A1.8.16-5?distro=trixie",
+      "type": "library",
+      "version": "1:1.8.16-5"
+    },
+    {
+      "name": "libperl5.40:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libperl5.40%3Aarm64@5.40.1-6?distro=trixie",
+      "type": "library",
+      "version": "5.40.1-6"
+    },
+    {
+      "name": "libpixman-1-0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libpixman-1-0%3Aarm64@0.44.0-3?distro=trixie",
+      "type": "library",
+      "version": "0.44.0-3"
+    },
+    {
+      "name": "libpng16-16t64:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libpng16-16t64%3Aarm64@1.6.48-1%2Bdeb13u5?distro=trixie",
+      "type": "library",
+      "version": "1.6.48-1+deb13u5"
+    },
+    {
+      "name": "libpoppler147:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libpoppler147%3Aarm64@25.03.0-5%2Bdeb13u4?distro=trixie",
+      "type": "library",
+      "version": "25.03.0-5+deb13u4"
+    },
+    {
+      "name": "libpotrace0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libpotrace0%3Aarm64@1.16-2%2Bb2?distro=trixie",
+      "type": "library",
+      "version": "1.16-2+b2"
+    },
+    {
+      "name": "libproc2-0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libproc2-0%3Aarm64@2%3A4.0.4-9?distro=trixie",
+      "type": "library",
+      "version": "2:4.0.4-9"
+    },
+    {
+      "name": "libpsl5t64:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libpsl5t64%3Aarm64@0.21.2-1.1%2Bb1?distro=trixie",
+      "type": "library",
+      "version": "0.21.2-1.1+b1"
+    },
+    {
+      "name": "libptexenc1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libptexenc1%3Aarm64@2024.20240313.70630%2Bds-6?distro=trixie",
+      "type": "library",
+      "version": "2024.20240313.70630+ds-6"
+    },
+    {
+      "name": "libpython3-stdlib:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libpython3-stdlib%3Aarm64@3.13.5-1?distro=trixie",
+      "type": "library",
+      "version": "3.13.5-1"
+    },
+    {
+      "name": "libpython3.13-minimal:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libpython3.13-minimal%3Aarm64@3.13.5-2%2Bdeb13u4?distro=trixie",
+      "type": "library",
+      "version": "3.13.5-2+deb13u4"
+    },
+    {
+      "name": "libpython3.13-stdlib:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libpython3.13-stdlib%3Aarm64@3.13.5-2%2Bdeb13u4?distro=trixie",
+      "type": "library",
+      "version": "3.13.5-2+deb13u4"
+    },
+    {
+      "name": "libqpdf30:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libqpdf30%3Aarm64@12.2.0-1?distro=trixie",
+      "type": "library",
+      "version": "12.2.0-1"
+    },
+    {
+      "name": "libreadline8t64:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libreadline8t64%3Aarm64@8.2-6?distro=trixie",
+      "type": "library",
+      "version": "8.2-6"
+    },
+    {
+      "name": "libreadonly-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libreadonly-perl@2.050-3?distro=trixie",
+      "type": "library",
+      "version": "2.050-3"
+    },
+    {
+      "name": "libregexp-common-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libregexp-common-perl@2024080801-1?distro=trixie",
+      "type": "library",
+      "version": "2024080801-1"
+    },
+    {
+      "name": "librole-tiny-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/librole-tiny-perl@2.002004-1?distro=trixie",
+      "type": "library",
+      "version": "2.002004-1"
+    },
+    {
+      "name": "librtmp1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/librtmp1%3Aarm64@2.4%2B20151223.gitfa8646d.1-2%2Bb5?distro=trixie",
+      "type": "library",
+      "version": "2.4+20151223.gitfa8646d.1-2+b5"
+    },
+    {
+      "name": "libsasl2-2:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libsasl2-2%3Aarm64@2.1.28%2Bdfsg1-9?distro=trixie",
+      "type": "library",
+      "version": "2.1.28+dfsg1-9"
+    },
+    {
+      "name": "libsasl2-modules-db:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libsasl2-modules-db%3Aarm64@2.1.28%2Bdfsg1-9?distro=trixie",
+      "type": "library",
+      "version": "2.1.28+dfsg1-9"
+    },
+    {
+      "name": "libseccomp2:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libseccomp2%3Aarm64@2.6.0-2?distro=trixie",
+      "type": "library",
+      "version": "2.6.0-2"
+    },
+    {
+      "name": "libselinux1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libselinux1%3Aarm64@3.8.1-1?distro=trixie",
+      "type": "library",
+      "version": "3.8.1-1"
+    },
+    {
+      "name": "libsemanage-common",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libsemanage-common@3.8.1-1?distro=trixie",
+      "type": "library",
+      "version": "3.8.1-1"
+    },
+    {
+      "name": "libsemanage2:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libsemanage2%3Aarm64@3.8.1-1?distro=trixie",
+      "type": "library",
+      "version": "3.8.1-1"
+    },
+    {
+      "name": "libsepol2:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libsepol2%3Aarm64@3.8.1-1?distro=trixie",
+      "type": "library",
+      "version": "3.8.1-1"
+    },
+    {
+      "name": "libsharpyuv0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libsharpyuv0%3Aarm64@1.5.0-0.1?distro=trixie",
+      "type": "library",
+      "version": "1.5.0-0.1"
+    },
+    {
+      "name": "libsm6:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libsm6%3Aarm64@2%3A1.2.6-1?distro=trixie",
+      "type": "library",
+      "version": "2:1.2.6-1"
+    },
+    {
+      "name": "libsmartcols1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libsmartcols1%3Aarm64@2.41-5?distro=trixie",
+      "type": "library",
+      "version": "2.41-5"
+    },
+    {
+      "name": "libsombok3:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libsombok3%3Aarm64@2.4.0-2%2Bb2?distro=trixie",
+      "type": "library",
+      "version": "2.4.0-2+b2"
+    },
+    {
+      "name": "libsort-key-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libsort-key-perl@1.33-3%2Bb5?distro=trixie",
+      "type": "library",
+      "version": "1.33-3+b5"
+    },
+    {
+      "name": "libspecio-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libspecio-perl@0.50-1?distro=trixie",
+      "type": "library",
+      "version": "0.50-1"
+    },
+    {
+      "name": "libsqlite3-0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libsqlite3-0%3Aarm64@3.46.1-7%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "3.46.1-7+deb13u1"
+    },
+    {
+      "name": "libssh2-1t64:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libssh2-1t64%3Aarm64@1.11.1-1%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "1.11.1-1+deb13u1"
+    },
+    {
+      "name": "libssl3t64:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libssl3t64%3Aarm64@3.5.6-1~deb13u2?distro=trixie",
+      "type": "library",
+      "version": "3.5.6-1~deb13u2"
+    },
+    {
+      "name": "libstdc++6:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libstdc%2B%2B6%3Aarm64@14.2.0-19?distro=trixie",
+      "type": "library",
+      "version": "14.2.0-19"
+    },
+    {
+      "name": "libsub-exporter-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libsub-exporter-perl@0.990-1?distro=trixie",
+      "type": "library",
+      "version": "0.990-1"
+    },
+    {
+      "name": "libsub-exporter-progressive-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libsub-exporter-progressive-perl@0.001013-3?distro=trixie",
+      "type": "library",
+      "version": "0.001013-3"
+    },
+    {
+      "name": "libsub-identify-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libsub-identify-perl@0.14-3%2Bb3?distro=trixie",
+      "type": "library",
+      "version": "0.14-3+b3"
+    },
+    {
+      "name": "libsub-install-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libsub-install-perl@0.929-1?distro=trixie",
+      "type": "library",
+      "version": "0.929-1"
+    },
+    {
+      "name": "libsub-name-perl:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libsub-name-perl%3Aarm64@0.28-1?distro=trixie",
+      "type": "library",
+      "version": "0.28-1"
+    },
+    {
+      "name": "libsub-quote-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libsub-quote-perl@2.006008-1?distro=trixie",
+      "type": "library",
+      "version": "2.006008-1"
+    },
+    {
+      "name": "libsynctex2:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libsynctex2%3Aarm64@2024.20240313.70630%2Bds-6?distro=trixie",
+      "type": "library",
+      "version": "2024.20240313.70630+ds-6"
+    },
+    {
+      "name": "libsystemd0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libsystemd0%3Aarm64@257.13-1~deb13u1?distro=trixie",
+      "type": "library",
+      "version": "257.13-1~deb13u1"
+    },
+    {
+      "name": "libtasn1-6:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libtasn1-6%3Aarm64@4.20.0-2%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "4.20.0-2+deb13u1"
+    },
+    {
+      "name": "libteckit0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libteckit0%3Aarm64@2.5.12%2Bds1-1%2Bb1?distro=trixie",
+      "type": "library",
+      "version": "2.5.12+ds1-1+b1"
+    },
+    {
+      "name": "libtexlua53-5:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libtexlua53-5%3Aarm64@2024.20240313.70630%2Bds-6?distro=trixie",
+      "type": "library",
+      "version": "2024.20240313.70630+ds-6"
+    },
+    {
+      "name": "libtext-bibtex-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libtext-bibtex-perl@0.91-1?distro=trixie",
+      "type": "library",
+      "version": "0.91-1"
+    },
+    {
+      "name": "libtext-charwidth-perl:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libtext-charwidth-perl%3Aarm64@0.04-11%2Bb4?distro=trixie",
+      "type": "library",
+      "version": "0.04-11+b4"
+    },
+    {
+      "name": "libtext-csv-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libtext-csv-perl@2.06-1?distro=trixie",
+      "type": "library",
+      "version": "2.06-1"
+    },
+    {
+      "name": "libtext-csv-xs-perl:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libtext-csv-xs-perl%3Aarm64@1.60-1%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "1.60-1+deb13u1"
+    },
+    {
+      "name": "libtext-glob-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libtext-glob-perl@0.11-3?distro=trixie",
+      "type": "library",
+      "version": "0.11-3"
+    },
+    {
+      "name": "libtext-roman-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libtext-roman-perl@3.5-4?distro=trixie",
+      "type": "library",
+      "version": "3.5-4"
+    },
+    {
+      "name": "libtext-wrapi18n-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libtext-wrapi18n-perl@0.06-10?distro=trixie",
+      "type": "library",
+      "version": "0.06-10"
+    },
+    {
+      "name": "libthai-data",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libthai-data@0.1.29-2?distro=trixie",
+      "type": "library",
+      "version": "0.1.29-2"
+    },
+    {
+      "name": "libthai0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libthai0%3Aarm64@0.1.29-2%2Bb1?distro=trixie",
+      "type": "library",
+      "version": "0.1.29-2+b1"
+    },
+    {
+      "name": "libtie-cycle-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libtie-cycle-perl@1.231-1?distro=trixie",
+      "type": "library",
+      "version": "1.231-1"
+    },
+    {
+      "name": "libtiff6:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libtiff6%3Aarm64@4.7.0-3%2Bdeb13u3?distro=trixie",
+      "type": "library",
+      "version": "4.7.0-3+deb13u3"
+    },
+    {
+      "name": "libtimedate-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libtimedate-perl@2.3300-2?distro=trixie",
+      "type": "library",
+      "version": "2.3300-2"
+    },
+    {
+      "name": "libtinfo6:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libtinfo6%3Aarm64@6.5%2B20250216-2?distro=trixie",
+      "type": "library",
+      "version": "6.5+20250216-2"
+    },
+    {
+      "name": "libtry-tiny-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libtry-tiny-perl@0.32-1?distro=trixie",
+      "type": "library",
+      "version": "0.32-1"
+    },
+    {
+      "name": "libudev1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libudev1%3Aarm64@257.13-1~deb13u1?distro=trixie",
+      "type": "library",
+      "version": "257.13-1~deb13u1"
+    },
+    {
+      "name": "libunicode-linebreak-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libunicode-linebreak-perl@0.0.20190101-1%2Bb8?distro=trixie",
+      "type": "library",
+      "version": "0.0.20190101-1+b8"
+    },
+    {
+      "name": "libunistring5:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libunistring5%3Aarm64@1.3-2?distro=trixie",
+      "type": "library",
+      "version": "1.3-2"
+    },
+    {
+      "name": "liburi-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/liburi-perl@5.30-1?distro=trixie",
+      "type": "library",
+      "version": "5.30-1"
+    },
+    {
+      "name": "libuuid1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libuuid1%3Aarm64@2.41-5?distro=trixie",
+      "type": "library",
+      "version": "2.41-5"
+    },
+    {
+      "name": "libvariable-magic-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libvariable-magic-perl@0.64-1%2Bb1?distro=trixie",
+      "type": "library",
+      "version": "0.64-1+b1"
+    },
+    {
+      "name": "libwebp7:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libwebp7%3Aarm64@1.5.0-0.1?distro=trixie",
+      "type": "library",
+      "version": "1.5.0-0.1"
+    },
+    {
+      "name": "libwww-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libwww-perl@6.78-1?distro=trixie",
+      "type": "library",
+      "version": "6.78-1"
+    },
+    {
+      "name": "libwww-robotrules-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libwww-robotrules-perl@6.02-1?distro=trixie",
+      "type": "library",
+      "version": "6.02-1"
+    },
+    {
+      "name": "libx11-6:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libx11-6%3Aarm64@2%3A1.8.12-1?distro=trixie",
+      "type": "library",
+      "version": "2:1.8.12-1"
+    },
+    {
+      "name": "libx11-data",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libx11-data@2%3A1.8.12-1?distro=trixie",
+      "type": "library",
+      "version": "2:1.8.12-1"
+    },
+    {
+      "name": "libxau6:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libxau6%3Aarm64@1%3A1.0.11-1?distro=trixie",
+      "type": "library",
+      "version": "1:1.0.11-1"
+    },
+    {
+      "name": "libxaw7:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libxaw7%3Aarm64@2%3A1.0.16-1?distro=trixie",
+      "type": "library",
+      "version": "2:1.0.16-1"
+    },
+    {
+      "name": "libxcb-render0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libxcb-render0%3Aarm64@1.17.0-2%2Bb1?distro=trixie",
+      "type": "library",
+      "version": "1.17.0-2+b1"
+    },
+    {
+      "name": "libxcb-shm0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libxcb-shm0%3Aarm64@1.17.0-2%2Bb1?distro=trixie",
+      "type": "library",
+      "version": "1.17.0-2+b1"
+    },
+    {
+      "name": "libxcb1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libxcb1%3Aarm64@1.17.0-2%2Bb1?distro=trixie",
+      "type": "library",
+      "version": "1.17.0-2+b1"
+    },
+    {
+      "name": "libxdmcp6:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libxdmcp6%3Aarm64@1%3A1.1.5-1?distro=trixie",
+      "type": "library",
+      "version": "1:1.1.5-1"
+    },
+    {
+      "name": "libxext6:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libxext6%3Aarm64@2%3A1.3.4-1%2Bb3?distro=trixie",
+      "type": "library",
+      "version": "2:1.3.4-1+b3"
+    },
+    {
+      "name": "libxi6:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libxi6%3Aarm64@2%3A1.8.2-1?distro=trixie",
+      "type": "library",
+      "version": "2:1.8.2-1"
+    },
+    {
+      "name": "libxml-libxml-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libxml-libxml-perl@2.0207%2Bdfsg%2Breally%2B2.0134-5%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "2.0207+dfsg+really+2.0134-5+deb13u1"
+    },
+    {
+      "name": "libxml-libxml-simple-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libxml-libxml-simple-perl@1.01-3?distro=trixie",
+      "type": "library",
+      "version": "1.01-3"
+    },
+    {
+      "name": "libxml-libxslt-perl:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libxml-libxslt-perl%3Aarm64@2.003000-2%2Bb1?distro=trixie",
+      "type": "library",
+      "version": "2.003000-2+b1"
+    },
+    {
+      "name": "libxml-namespacesupport-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libxml-namespacesupport-perl@1.12-2?distro=trixie",
+      "type": "library",
+      "version": "1.12-2"
+    },
+    {
+      "name": "libxml-sax-base-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libxml-sax-base-perl@1.09-3?distro=trixie",
+      "type": "library",
+      "version": "1.09-3"
+    },
+    {
+      "name": "libxml-sax-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libxml-sax-perl@1.02%2Bdfsg-4?distro=trixie",
+      "type": "library",
+      "version": "1.02+dfsg-4"
+    },
+    {
+      "name": "libxml-writer-perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libxml-writer-perl@0.900-2?distro=trixie",
+      "type": "library",
+      "version": "0.900-2"
+    },
+    {
+      "name": "libxml2:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libxml2%3Aarm64@2.12.7%2Bdfsg%2Breally2.9.14-2.1%2Bdeb13u3?distro=trixie",
+      "type": "library",
+      "version": "2.12.7+dfsg+really2.9.14-2.1+deb13u3"
+    },
+    {
+      "name": "libxmu6:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libxmu6%3Aarm64@2%3A1.1.3-3%2Bb4?distro=trixie",
+      "type": "library",
+      "version": "2:1.1.3-3+b4"
+    },
+    {
+      "name": "libxpm4:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libxpm4%3Aarm64@1%3A3.5.17-1%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "1:3.5.17-1+deb13u1"
+    },
+    {
+      "name": "libxrender1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libxrender1%3Aarm64@1%3A0.9.12-1?distro=trixie",
+      "type": "library",
+      "version": "1:0.9.12-1"
+    },
+    {
+      "name": "libxslt1.1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libxslt1.1%3Aarm64@1.1.35-1.2%2Bdeb13u3?distro=trixie",
+      "type": "library",
+      "version": "1.1.35-1.2+deb13u3"
+    },
+    {
+      "name": "libxstring-perl:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libxstring-perl%3Aarm64@0.005-2%2Bb4?distro=trixie",
+      "type": "library",
+      "version": "0.005-2+b4"
+    },
+    {
+      "name": "libxt6t64:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libxt6t64%3Aarm64@1%3A1.2.1-1.2%2Bb2?distro=trixie",
+      "type": "library",
+      "version": "1:1.2.1-1.2+b2"
+    },
+    {
+      "name": "libxxhash0:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libxxhash0%3Aarm64@0.8.3-2?distro=trixie",
+      "type": "library",
+      "version": "0.8.3-2"
+    },
+    {
+      "name": "libzstd1:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libzstd1%3Aarm64@1.5.7%2Bdfsg-1?distro=trixie",
+      "type": "library",
+      "version": "1.5.7+dfsg-1"
+    },
+    {
+      "name": "libzzip-0-13t64:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/libzzip-0-13t64%3Aarm64@0.13.78%2Bdfsg.1-0.1?distro=trixie",
+      "type": "library",
+      "version": "0.13.78+dfsg.1-0.1"
+    },
+    {
+      "name": "login",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/login@1%3A4.16.0-2%2Breally2.41-5?distro=trixie",
+      "type": "library",
+      "version": "1:4.16.0-2+really2.41-5"
+    },
+    {
+      "name": "login.defs",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/login.defs@1%3A4.17.4-2?distro=trixie",
+      "type": "library",
+      "version": "1:4.17.4-2"
+    },
+    {
+      "name": "loguru",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/loguru@0.7.3",
+      "type": "library",
+      "version": "0.7.3"
+    },
+    {
+      "name": "Mako",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/mako@1.3.12",
+      "type": "library",
+      "version": "1.3.12"
+    },
+    {
+      "name": "MarkupSafe",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/markupsafe@3.0.3",
+      "type": "library",
+      "version": "3.0.3"
+    },
+    {
+      "name": "mawk",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/mawk@1.3.4.20250131-1?distro=trixie",
+      "type": "library",
+      "version": "1.3.4.20250131-1"
+    },
+    {
+      "name": "media-types",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/media-types@13.0.0?distro=trixie",
+      "type": "library",
+      "version": "13.0.0"
+    },
+    {
+      "name": "minio",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/minio@7.2.15",
+      "type": "library",
+      "version": "7.2.15"
+    },
+    {
+      "name": "mount",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/mount@2.41-5?distro=trixie",
+      "type": "library",
+      "version": "2.41-5"
+    },
+    {
+      "name": "ncurses-base",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/ncurses-base@6.5%2B20250216-2?distro=trixie",
+      "type": "library",
+      "version": "6.5+20250216-2"
+    },
+    {
+      "name": "ncurses-bin",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/ncurses-bin@6.5%2B20250216-2?distro=trixie",
+      "type": "library",
+      "version": "6.5+20250216-2"
+    },
+    {
+      "name": "netbase",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/netbase@6.5?distro=trixie",
+      "type": "library",
+      "version": "6.5"
+    },
+    {
+      "name": "openssl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/openssl@3.5.6-1~deb13u2?distro=trixie",
+      "type": "library",
+      "version": "3.5.6-1~deb13u2"
+    },
+    {
+      "name": "openssl-provider-legacy",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/openssl-provider-legacy@3.5.6-1~deb13u2?distro=trixie",
+      "type": "library",
+      "version": "3.5.6-1~deb13u2"
+    },
+    {
+      "name": "packaging",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/packaging@26.2",
+      "type": "library",
+      "version": "26.2"
+    },
+    {
+      "name": "passwd",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/passwd@1%3A4.17.4-2?distro=trixie",
+      "type": "library",
+      "version": "1:4.17.4-2"
+    },
+    {
+      "name": "perl",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/perl@5.40.1-6?distro=trixie",
+      "type": "library",
+      "version": "5.40.1-6"
+    },
+    {
+      "name": "perl-base",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/perl-base@5.40.1-6?distro=trixie",
+      "type": "library",
+      "version": "5.40.1-6"
+    },
+    {
+      "name": "perl-modules-5.40",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/perl-modules-5.40@5.40.1-6?distro=trixie",
+      "type": "library",
+      "version": "5.40.1-6"
+    },
+    {
+      "name": "perl-openssl-defaults:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/perl-openssl-defaults%3Aarm64@7%2Bb2?distro=trixie",
+      "type": "library",
+      "version": "7+b2"
+    },
+    {
+      "name": "pillow",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/pillow@11.2.1",
+      "type": "library",
+      "version": "11.2.1"
+    },
+    {
+      "name": "pinentry-curses",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/pinentry-curses@1.3.1-2?distro=trixie",
+      "type": "library",
+      "version": "1.3.1-2"
+    },
+    {
+      "name": "pip",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/pip@25.0.1",
+      "type": "library",
+      "version": "25.0.1"
+    },
+    {
+      "name": "pluggy",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/pluggy@1.6.0",
+      "type": "library",
+      "version": "1.6.0"
+    },
+    {
+      "name": "poppler-data",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/poppler-data@0.4.12-1?distro=trixie",
+      "type": "library",
+      "version": "0.4.12-1"
+    },
+    {
+      "name": "poppler-utils",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/poppler-utils@25.03.0-5%2Bdeb13u4?distro=trixie",
+      "type": "library",
+      "version": "25.03.0-5+deb13u4"
+    },
+    {
+      "name": "preview-latex-style",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/preview-latex-style@13.2-1.1?distro=trixie",
+      "type": "library",
+      "version": "13.2-1.1"
+    },
+    {
+      "name": "procps",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/procps@2%3A4.0.4-9?distro=trixie",
+      "type": "library",
+      "version": "2:4.0.4-9"
+    },
+    {
+      "name": "pycparser",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/pycparser@3.0",
+      "type": "library",
+      "version": "3.0"
+    },
+    {
+      "name": "pycryptodome",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/pycryptodome@3.23.0",
+      "type": "library",
+      "version": "3.23.0"
+    },
+    {
+      "name": "pydantic",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/pydantic@2.13.4",
+      "type": "library",
+      "version": "2.13.4"
+    },
+    {
+      "name": "pydantic_core",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/pydantic-core@2.46.4",
+      "type": "library",
+      "version": "2.46.4"
+    },
+    {
+      "name": "Pygments",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/pygments@2.20.0",
+      "type": "library",
+      "version": "2.20.0"
+    },
+    {
+      "name": "PyMuPDF",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/pymupdf@1.26.1",
+      "type": "library",
+      "version": "1.26.1"
+    },
+    {
+      "name": "PyMySQL",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/pymysql@1.1.1",
+      "type": "library",
+      "version": "1.1.1"
+    },
+    {
+      "name": "pypdf",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/pypdf@6.10.0",
+      "type": "library",
+      "version": "6.10.0"
+    },
+    {
+      "name": "pytest",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/pytest@8.4.0",
+      "type": "library",
+      "version": "8.4.0"
+    },
+    {
+      "name": "python-dotenv",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/python-dotenv@1.2.2",
+      "type": "library",
+      "version": "1.2.2"
+    },
+    {
+      "name": "python-multipart",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/python-multipart@0.0.20",
+      "type": "library",
+      "version": "0.0.20"
+    },
+    {
+      "name": "python3",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/python3@3.13.5-1?distro=trixie",
+      "type": "library",
+      "version": "3.13.5-1"
+    },
+    {
+      "name": "python3-minimal",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/python3-minimal@3.13.5-1?distro=trixie",
+      "type": "library",
+      "version": "3.13.5-1"
+    },
+    {
+      "name": "python3.13",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/python3.13@3.13.5-2%2Bdeb13u4?distro=trixie",
+      "type": "library",
+      "version": "3.13.5-2+deb13u4"
+    },
+    {
+      "name": "python3.13-minimal",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/python3.13-minimal@3.13.5-2%2Bdeb13u4?distro=trixie",
+      "type": "library",
+      "version": "3.13.5-2+deb13u4"
+    },
+    {
+      "name": "PyYAML",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/pyyaml@6.0.3",
+      "type": "library",
+      "version": "6.0.3"
+    },
+    {
+      "name": "qpdf",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/qpdf@12.2.0-1?distro=trixie",
+      "type": "library",
+      "version": "12.2.0-1"
+    },
+    {
+      "name": "readline-common",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/readline-common@8.2-6?distro=trixie",
+      "type": "library",
+      "version": "8.2-6"
+    },
+    {
+      "name": "redis",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/redis@8.0.1",
+      "type": "library",
+      "version": "8.0.1"
+    },
+    {
+      "name": "sed",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/sed@4.9-2%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "4.9-2+deb13u1"
+    },
+    {
+      "name": "sensible-utils",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/sensible-utils@0.0.25?distro=trixie",
+      "type": "library",
+      "version": "0.0.25"
+    },
+    {
+      "name": "SQLAlchemy",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/sqlalchemy@2.0.41",
+      "type": "library",
+      "version": "2.0.41"
+    },
+    {
+      "name": "sqv",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/sqv@1.3.0-3%2Bb2?distro=trixie",
+      "type": "library",
+      "version": "1.3.0-3+b2"
+    },
+    {
+      "name": "starlette",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/starlette@0.46.2",
+      "type": "library",
+      "version": "0.46.2"
+    },
+    {
+      "name": "sysvinit-utils",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/sysvinit-utils@3.14-4?distro=trixie",
+      "type": "library",
+      "version": "3.14-4"
+    },
+    {
+      "name": "t1utils",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/t1utils@1.41-4%2Bb1?distro=trixie",
+      "type": "library",
+      "version": "1.41-4+b1"
+    },
+    {
+      "name": "tar",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/tar@1.35%2Bdfsg-3.1?distro=trixie",
+      "type": "library",
+      "version": "1.35+dfsg-3.1"
+    },
+    {
+      "name": "teckit",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/teckit@2.5.12%2Bds1-1%2Bb1?distro=trixie",
+      "type": "library",
+      "version": "2.5.12+ds1-1+b1"
+    },
+    {
+      "name": "tex-common",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/tex-common@6.19?distro=trixie",
+      "type": "library",
+      "version": "6.19"
+    },
+    {
+      "name": "texlive-base",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/texlive-base@2024.20250309-1?distro=trixie",
+      "type": "library",
+      "version": "2024.20250309-1"
+    },
+    {
+      "name": "texlive-bibtex-extra",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/texlive-bibtex-extra@2024.20250309-2?distro=trixie",
+      "type": "library",
+      "version": "2024.20250309-2"
+    },
+    {
+      "name": "texlive-binaries",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/texlive-binaries@2024.20240313.70630%2Bds-6?distro=trixie",
+      "type": "library",
+      "version": "2024.20240313.70630+ds-6"
+    },
+    {
+      "name": "texlive-fonts-extra",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/texlive-fonts-extra@2024.20250309-2?distro=trixie",
+      "type": "library",
+      "version": "2024.20250309-2"
+    },
+    {
+      "name": "texlive-fonts-recommended",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/texlive-fonts-recommended@2024.20250309-1?distro=trixie",
+      "type": "library",
+      "version": "2024.20250309-1"
+    },
+    {
+      "name": "texlive-lang-chinese",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/texlive-lang-chinese@2024.20250309-1?distro=trixie",
+      "type": "library",
+      "version": "2024.20250309-1"
+    },
+    {
+      "name": "texlive-lang-cjk",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/texlive-lang-cjk@2024.20250309-1?distro=trixie",
+      "type": "library",
+      "version": "2024.20250309-1"
+    },
+    {
+      "name": "texlive-lang-greek",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/texlive-lang-greek@2024.20250309-1?distro=trixie",
+      "type": "library",
+      "version": "2024.20250309-1"
+    },
+    {
+      "name": "texlive-latex-base",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/texlive-latex-base@2024.20250309-1?distro=trixie",
+      "type": "library",
+      "version": "2024.20250309-1"
+    },
+    {
+      "name": "texlive-latex-extra",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/texlive-latex-extra@2024.20250309-2?distro=trixie",
+      "type": "library",
+      "version": "2024.20250309-2"
+    },
+    {
+      "name": "texlive-latex-recommended",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/texlive-latex-recommended@2024.20250309-1?distro=trixie",
+      "type": "library",
+      "version": "2024.20250309-1"
+    },
+    {
+      "name": "texlive-pictures",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/texlive-pictures@2024.20250309-1?distro=trixie",
+      "type": "library",
+      "version": "2024.20250309-1"
+    },
+    {
+      "name": "texlive-plain-generic",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/texlive-plain-generic@2024.20250309-2?distro=trixie",
+      "type": "library",
+      "version": "2024.20250309-2"
+    },
+    {
+      "name": "texlive-science",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/texlive-science@2024.20250309-2?distro=trixie",
+      "type": "library",
+      "version": "2024.20250309-2"
+    },
+    {
+      "name": "texlive-xetex",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/texlive-xetex@2024.20250309-1?distro=trixie",
+      "type": "library",
+      "version": "2024.20250309-1"
+    },
+    {
+      "name": "tipa",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/tipa@2%3A1.3-21?distro=trixie",
+      "type": "library",
+      "version": "2:1.3-21"
+    },
+    {
+      "name": "typing-inspection",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/typing-inspection@0.4.2",
+      "type": "library",
+      "version": "0.4.2"
+    },
+    {
+      "name": "typing_extensions",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/typing-extensions@4.16.0",
+      "type": "library",
+      "version": "4.16.0"
+    },
+    {
+      "name": "tzdata",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/tzdata@2026b-0%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "2026b-0+deb13u1"
+    },
+    {
+      "name": "ucf",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/ucf@3.0052?distro=trixie",
+      "type": "library",
+      "version": "3.0052"
+    },
+    {
+      "name": "urllib3",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/urllib3@2.7.0",
+      "type": "library",
+      "version": "2.7.0"
+    },
+    {
+      "name": "util-linux",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/util-linux@2.41-5?distro=trixie",
+      "type": "library",
+      "version": "2.41-5"
+    },
+    {
+      "name": "uvicorn",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/uvicorn@0.34.3",
+      "type": "library",
+      "version": "0.34.3"
+    },
+    {
+      "name": "uvloop",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/uvloop@0.22.1",
+      "type": "library",
+      "version": "0.22.1"
+    },
+    {
+      "name": "watchfiles",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/watchfiles@1.2.0",
+      "type": "library",
+      "version": "1.2.0"
+    },
+    {
+      "name": "websockets",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "python"
+        }
+      ],
+      "purl": "pkg:pypi/websockets@16.1.1",
+      "type": "library",
+      "version": "16.1.1"
+    },
+    {
+      "name": "x11-common",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/x11-common@1%3A7.7%2B24%2Bdeb13u1?distro=trixie",
+      "type": "library",
+      "version": "1:7.7+24+deb13u1"
+    },
+    {
+      "name": "xdg-utils",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/xdg-utils@1.2.1-2?distro=trixie",
+      "type": "library",
+      "version": "1.2.1-2"
+    },
+    {
+      "name": "xfonts-encodings",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/xfonts-encodings@1%3A1.0.4-2.2?distro=trixie",
+      "type": "library",
+      "version": "1:1.0.4-2.2"
+    },
+    {
+      "name": "xfonts-utils",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/xfonts-utils@1%3A7.7%2B7?distro=trixie",
+      "type": "library",
+      "version": "1:7.7+7"
+    },
+    {
+      "name": "zlib1g:arm64",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/zlib1g%3Aarm64@1%3A1.3.dfsg%2Breally1.3.1-1%2Bb1?distro=trixie",
+      "type": "library",
+      "version": "1:1.3.dfsg+really1.3.1-1+b1"
+    }
+  ],
+  "metadata": {
+    "component": {
+      "name": "luceonweb2026-worker-v3-runtime",
+      "properties": [
+        {
+          "name": "luceon.runtime.schema",
+          "value": "luceon.worker-v3-runtime-identity/v1"
+        },
+        {
+          "name": "luceon.base.image",
+          "value": "python:3.12.13-slim@sha256:64695412729fbe8cf054511723820c82bbe5a077d4a6b4070cd4a7225d3422ce"
+        }
+      ],
+      "type": "container",
+      "version": "worker-v3-runtime-91da4a53-be52a2e7"
+    }
+  },
+  "serialNumber": "urn:uuid:bad79b67-6b83-5877-ada1-82e8d678ec32",
+  "specVersion": "1.5",
+  "version": 1
+}

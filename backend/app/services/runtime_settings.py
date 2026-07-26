@@ -113,7 +113,11 @@ def default_runtime_config() -> dict[str, Any]:
             "vision": {
                 "enabled": _env_bool("LUCEON_RAW_OUTLINE_VISION", False),
                 "provider": "dashscope",
-                "model": os.getenv("VISION_MODEL") or os.getenv("DASHSCOPE_VISION_MODEL") or "qwen3.7-plus",
+                "model": (
+                    os.getenv("VISION_MODEL")
+                    or os.getenv("DASHSCOPE_VISION_MODEL")
+                    or "qwen3.7-plus-2026-05-26"
+                ),
                 "dashscope": {
                     "base_url": os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
                     "api_key": os.getenv("DASHSCOPE_API_KEY", ""),

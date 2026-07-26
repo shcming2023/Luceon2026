@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.elegantbookcompiler/schemas/elegantbookcompiler-pipeline.schema.json",
+  "title": "ElegantBookCompiler manifest-driven pipeline",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "pipeline_id", "fixed_template", "stages"],
+  "properties": {
+    "schema_version": {"const": "elegantbookcompiler-pipeline/1.0"},
+    "pipeline_id": {"type": "string", "minLength": 1},
+    "fixed_template": {"$ref": "#/$defs/artifact"},
+    "scope_contract": {"$ref": "#/$defs/artifact"},
+    "stages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/stage"}
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "from_stage": {"type": "string", "minLength": 1}
+      },
+      "anyOf": [
+        {"required": ["sha256"]},
+        {"required": ["from_stage"]}
+      ]
+    },
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage_id", "owner", "execution_mode", "command_argv"],
+      "properties": {
+        "stage_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$"},
+        "owner": {"type": "string", "minLength": 1},
+        "execution_mode": {"enum": ["execute", "verify_only"]},
+        "requires": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "cwd": {"type": "string"},
+        "command_argv": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "inputs": {"type": "array", "items": {"$ref": "#/$defs/artifact"}},
+        "outputs": {"type": "array", "items": {"$ref": "#/$defs/artifact"}},
+        "immutable_outputs": {"type": "boolean"},
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "llm": {"type": "boolean"},
+            "gpu": {"type": "boolean"},
+            "external_write": {"const": false}
+          }
+        }
+      }
+    }
+  }
+}

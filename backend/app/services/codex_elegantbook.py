@@ -156,6 +156,11 @@ def infer_ids(object_name: str, manifest: dict[str, Any], material: Material) ->
 def classify_output(ref: ObjectRef, manifest: dict[str, Any]) -> str:
     text = json.dumps(manifest, ensure_ascii=False).lower()
     object_name = ref.object.lower()
+    if (
+        str(manifest.get("origin") or "").lower() == "worker_v3"
+        or str(manifest.get("workflow_version") or "").lower().startswith("worker-v3")
+    ):
+        return "worker_v3"
     if manifest.get("schema") == "luceon.workflow.artifact-manifest/v1" or object_name.startswith("worker-v2/"):
         return "worker_v2"
     if "legacy_selfloop" in text or object_name.startswith("latex/"):
@@ -169,6 +174,7 @@ def classify_output(ref: ObjectRef, manifest: dict[str, Any]) -> str:
 
 def output_priority(output: ElegantBookOutput) -> tuple[int, str, str]:
     origin_priority = {
+        "worker_v3": 50,
         "worker_v2": 40,
         "codex_refined": 30,
         "codex_skill": 25,
@@ -243,8 +249,52 @@ def output_artifact_paths(output: ElegantBookOutput) -> dict[str, str]:
     }
 
 
+def output_artifact_volumes(output: ElegantBookOutput) -> list[dict[str, str]]:
+    volumes = output.manifest.get("volumes")
+    if not isinstance(volumes, list) or not volumes:
+        paths = output_artifact_paths(output)
+        return [
+            {
+                "volume_id": "volume-1",
+                "label": "第 1 卷",
+                "compiled_pdf": paths["compiled_pdf"],
+                "package_zip": paths["package_zip"],
+                "compile_report": paths["compile_report"],
+            }
+        ]
+    result: list[dict[str, str]] = []
+    for index, row in enumerate(volumes):
+        if not isinstance(row, dict):
+            continue
+        objects = row.get("objects") if isinstance(row.get("objects"), dict) else row
+        compiled_pdf = clean_path(
+            objects.get("compiled_pdf") or objects.get("pdf") or ""
+        )
+        package_zip = clean_path(
+            objects.get("package_zip") or objects.get("latex_project_zip") or ""
+        )
+        compile_report = clean_path(objects.get("compile_report") or "")
+        if not compiled_pdf or not package_zip:
+            continue
+        result.append(
+            {
+                "volume_id": str(row.get("volume_id") or f"volume-{index + 1}"),
+                "label": str(row.get("label") or f"第 {index + 1} 卷"),
+                "compiled_pdf": compiled_pdf,
+                "package_zip": package_zip,
+                "compile_report": compile_report,
+            }
+        )
+    return result
+
+
 def normalize_workflow_artifact_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
     if manifest.get("schema") != "luceon.workflow.artifact-manifest/v1":
+        return manifest
+    if (
+        str(manifest.get("origin") or "").lower() == "worker_v3"
+        or str(manifest.get("workflow_version") or "").lower().startswith("worker-v3")
+    ):
         return manifest
     available = {
         clean_path(str(row.get("path") or ""))

@@ -11,6 +11,7 @@
     "test:auth": "node scripts/check-auth.mjs",
     "test:nginx-dns": "node scripts/check-nginx-backend-dns.mjs",
     "test:workflow-v2-recovery": "node scripts/check-workflow-v2-recovery.mjs",
+    "test:workflow-v3-review-identity": "node scripts/check-workflow-v3-review-identity.mjs",
     "test:popo-resume": "node scripts/check-popo-resume.mjs",
     "test:source-trace": "node scripts/check-source-trace.mjs"
   },

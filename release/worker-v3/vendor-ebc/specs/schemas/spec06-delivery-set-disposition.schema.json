@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "spec06-delivery-set-disposition.schema.json",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "manifest_kind",
+    "spec_status",
+    "acceptance_status",
+    "human_accepted",
+    "delivery_set",
+    "volumes",
+    "render_coverage_parent",
+    "decision_index_D",
+    "final_verified_ledger_L"
+  ],
+  "properties": {
+    "schema_version": {"const": "spec06-delivery-set-disposition/1.0"},
+    "manifest_kind": {"enum": ["spec06_review_pending", "spec06_failure_commit", "spec06_acceptance_commit_M"]},
+    "spec_status": {"enum": ["needs_review", "failed", "passed"]},
+    "acceptance_status": {"enum": ["not_ready", "ready_for_user_acceptance", "human_accepted", "human_rejected", "invalidated"]},
+    "human_accepted": {"type": "boolean"},
+    "delivery_set": {
+      "type": "object",
+      "required": ["path", "sha256", "delivery_set_id"],
+      "properties": {"sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+    },
+    "volumes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["volume_id", "final_pdf_sha256", "final_zip_sha256", "render_pack_sha256", "page_ledger"],
+        "properties": {
+          "volume_id": {"type": "string", "pattern": "^volume-0[12]$"},
+          "final_pdf_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "final_zip_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "render_pack_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "page_ledger": {
+            "type": "object",
+            "required": ["path", "sha256"],
+            "properties": {"sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+          }
+        }
+      }
+    },
+    "final_verified_ledger_L": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "object", "required": ["path", "sha256"]}
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"spec_status": {"const": "passed"}}, "required": ["spec_status"]},
+      "then": {
+        "properties": {
+          "manifest_kind": {"const": "spec06_acceptance_commit_M"},
+          "acceptance_status": {"enum": ["ready_for_user_acceptance", "human_accepted"]},
+          "final_verified_ledger_L": {"type": "object"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"spec_status": {"enum": ["failed", "needs_review"]}}, "required": ["spec_status"]},
+      "then": {
+        "properties": {
+          "acceptance_status": {"const": "not_ready"},
+          "human_accepted": {"const": false},
+          "final_verified_ledger_L": {"type": "null"}
+        }
+      }
+    }
+  ]
+}

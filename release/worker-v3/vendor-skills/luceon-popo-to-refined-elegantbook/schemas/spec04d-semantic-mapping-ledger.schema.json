@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luceon.local/schemas/spec04d-semantic-mapping-ledger.schema.json",
+  "type": "object",
+  "required": ["schema_version", "status", "full_spec04_status", "render_plan_sha256", "assignments", "summary"],
+  "properties": {
+    "schema_version": {"const": "semantic-mapping-ledger/2.0"},
+    "status": {"const": "passed"},
+    "full_spec04_status": {"const": "passed"},
+    "assignments": {"type": "array", "minItems": 1}
+  },
+  "additionalProperties": true
+}

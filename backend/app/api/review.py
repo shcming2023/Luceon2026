@@ -22,7 +22,12 @@ from app.models.final_review import FinalReviewAnnotation, FinalReviewSession
 from app.models.material import Material
 from app.models.review_asset import ReviewAsset
 from app.services import final_review as final_review_service
-from app.services.codex_elegantbook import output_artifact_paths, output_from_ref, select_elegantbook_output
+from app.services.codex_elegantbook import (
+    output_artifact_paths,
+    output_artifact_volumes,
+    output_from_ref,
+    select_elegantbook_output,
+)
 from app.services.luceon_review import (
     ObjectRef,
     clean_path,
@@ -1548,9 +1553,14 @@ def review_asset_latex_compare(
     manifest_ref = output.manifest_ref
     manifest = output.manifest
     paths = output_artifact_paths(output)
+    volume_paths = output_artifact_volumes(output)
     compiled_pdf = paths["compiled_pdf"]
     package_zip = paths["package_zip"]
     compile_report = paths["compile_report"]
+    if volume_paths:
+        compiled_pdf = volume_paths[0]["compiled_pdf"]
+        package_zip = volume_paths[0]["package_zip"]
+        compile_report = volume_paths[0]["compile_report"] or compile_report
     final_review_report = paths["final_review_report"]
     final_review_report_json = paths["final_review_report_json"]
     render_review = paths["render_review"]
@@ -1563,6 +1573,22 @@ def review_asset_latex_compare(
     def artifact_url(path: str) -> str:
         return f"/api/review/assets/{asset_id}/artifact?stage={artifact_stage}&path={quote(path)}{output_query}"
 
+    volume_rows = [
+        {
+            **row,
+            "latex_pdf_url": artifact_url(row["compiled_pdf"]),
+            "download_urls": {
+                "compiled_pdf": artifact_url(row["compiled_pdf"]),
+                "package_zip": artifact_url(row["package_zip"]),
+                "compile_report": (
+                    artifact_url(row["compile_report"])
+                    if row["compile_report"]
+                    else ""
+                ),
+            },
+        }
+        for row in volume_paths
+    ]
     return {
         "asset_id": str(asset.id),
         "material_pk": str(material.id),
@@ -1578,6 +1604,7 @@ def review_asset_latex_compare(
         "source_pdf_url": f"/api/review/assets/{asset_id}/review_pdf",
         "source_pdf_original_url": f"/api/review/assets/{asset_id}/content",
         "latex_pdf_url": artifact_url(compiled_pdf),
+        "volumes": volume_rows,
         "download_urls": {
             "compiled_pdf": artifact_url(compiled_pdf),
             "package_zip": artifact_url(package_zip),

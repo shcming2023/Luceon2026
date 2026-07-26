@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "spec04b-semantic-span-contract.schema.json",
+  "title": "Spec 04-B exact semantic span partition",
+  "type": "object",
+  "required": [
+    "schema_version", "contract_id", "slice_status", "full_spec04_status",
+    "parent", "spans", "prohibitions", "summary"
+  ],
+  "properties": {
+    "schema_version": {"const": "spec04b-semantic-span-contract/1.0"},
+    "slice_status": {"const": "passed"},
+    "full_spec04_status": {"const": "not_evaluated"},
+    "spans": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "span_id", "semantic_disposition", "source_block_ids",
+          "source_order_start", "source_order_end", "pdf_physical_pages",
+          "review_status", "decision_refs"
+        ],
+        "properties": {
+          "semantic_disposition": {
+            "enum": [
+              "book_structure", "teaching_column", "standalone_semantic_label",
+              "local_heading", "fragile_or_media", "plain_body"
+            ]
+          },
+          "source_block_ids": {"type": "array", "minItems": 1, "uniqueItems": true},
+          "teaching_group_id": {"type": "string"}
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

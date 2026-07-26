@@ -1,0 +1,4 @@
+interface:
+  display_name: "CleanLaTeX to ElegantBook"
+  short_description: "Mechanically render frozen ElegantBook plans"
+  default_prompt: "Use $cleanlatex-to-elegantbook to mechanically render this closed ledger and frozen render plan into the supplied template."

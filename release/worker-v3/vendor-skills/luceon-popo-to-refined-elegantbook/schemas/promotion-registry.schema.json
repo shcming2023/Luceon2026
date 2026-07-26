@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luceon.local/schemas/promotion-registry.schema.json",
+  "title": "Immutable promotion registry snapshot",
+  "type": "object",
+  "required": ["schema_version", "registry_id", "snapshot_id", "version", "entries", "active_promotions", "selection_rule", "payload_hash"],
+  "properties": {
+    "schema_version": {"const": "promotion-registry/1.0"},
+    "version": {"type": "integer", "minimum": 1},
+    "entries": {"type": "array"},
+    "active_promotions": {"type": "object"},
+    "payload_hash": {"pattern": "^[0-9a-f]{64}$"}
+  },
+  "additionalProperties": true
+}

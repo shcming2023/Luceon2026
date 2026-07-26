@@ -1,0 +1,4 @@
+interface:
+  display_name: "Audit ElegantBook LaTeX"
+  short_description: "Read-only diagnostics for ElegantBook projects"
+  default_prompt: "Use $refine-elegantbook-latex to audit this ElegantBook project without changing its content or template."

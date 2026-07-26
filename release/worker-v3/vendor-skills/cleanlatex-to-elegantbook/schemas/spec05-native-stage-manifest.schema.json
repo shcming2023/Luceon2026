@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "spec05-native-stage-manifest.schema.json",
+  "title": "Formal-native Spec 05 stage manifest",
+  "type": "object",
+  "required": [
+    "schema_version", "run_id", "stage_kind", "status", "spec_status",
+    "promotion_class", "producer", "commit_order", "parent_spec04d",
+    "execution_capability_E", "decision_index_D", "build_manifest_M",
+    "final_pdf", "delivery_zip", "render_pack", "hard_gates",
+    "template_contract", "presentation_config", "presentation_hard_gates",
+    "template_local_api_usage", "delivery_size_report", "delivery_asset_report",
+    "overleaf_delivery_compatibility_report", "delivery_naming_report",
+    "scope_prohibitions", "scope_limit"
+  ],
+  "properties": {
+    "schema_version": {"const": "spec05-native-stage-manifest/1.6"},
+    "stage_kind": {"const": "spec05_native_execution"},
+    "status": {"const": "passed"},
+    "spec_status": {"const": "passed"},
+    "promotion_class": {"const": "formal_native"},
+    "commit_order": {
+      "const": [
+        "producer_execution_capability_E",
+        "exact_zip_compile_and_render_evidence_B",
+        "decision_index_D",
+        "build_and_stage_commit_M"
+      ]
+    },
+    "scope_prohibitions": {
+      "type": "array",
+      "allOf": [
+        {"contains": {"const": "spec06_claim"}},
+        {"contains": {"const": "presentation_inference"}}
+      ]
+    },
+    "presentation_hard_gates": {
+      "type": "object",
+      "required": [
+        "PR-H01-explicit-cover-logo",
+        "PR-H02-closed-decisions",
+        "PR-H03-frozen-assets-preserved",
+        "PR-H04-materialized-assets-bound"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "PR-H01-explicit-cover-logo": {"const": true},
+        "PR-H02-closed-decisions": {"const": true},
+        "PR-H03-frozen-assets-preserved": {"const": true},
+        "PR-H04-materialized-assets-bound": {"const": true}
+      }
+    }
+  },
+  "additionalProperties": true
+}

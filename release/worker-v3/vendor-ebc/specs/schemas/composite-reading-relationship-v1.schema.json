@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elegantbookcompiler.local/schemas/composite-reading-relationship-v1.schema.json",
+  "title": "Composite reading relationship contract",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "relationship_type",
+    "spec_status",
+    "relationships",
+    "unresolved_candidates",
+    "summary"
+  ],
+  "properties": {
+    "schema_version": {"const": "composite-reading-relationship/1.0"},
+    "relationship_type": {"const": "stem_media_options"},
+    "spec_status": {"enum": ["passed", "needs_review", "failed", "blocked"]},
+    "relationships": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "relationship_id",
+          "relationship_type",
+          "physical_page",
+          "review_status",
+          "roles",
+          "source_ids_by_role",
+          "before_order",
+          "after_order",
+          "source_geometry",
+          "rationale",
+          "evidence_refs"
+        ],
+        "properties": {
+          "relationship_id": {"type": "string", "minLength": 1},
+          "relationship_type": {"const": "stem_media_options"},
+          "physical_page": {"type": "integer", "minimum": 1},
+          "review_status": {"const": "closed"},
+          "roles": {"$ref": "#/$defs/rolePartition"},
+          "source_ids_by_role": {"$ref": "#/$defs/rolePartition"},
+          "before_order": {"$ref": "#/$defs/nonEmptyUniqueStrings"},
+          "after_order": {"$ref": "#/$defs/nonEmptyUniqueStrings"},
+          "source_geometry": {
+            "type": "object",
+            "required": ["stem_bottom", "media_top", "media_bottom", "options_top"],
+            "additionalProperties": false,
+            "properties": {
+              "stem_bottom": {"type": "number"},
+              "media_top": {"type": "number"},
+              "media_bottom": {"type": "number"},
+              "options_top": {"type": "number"}
+            }
+          },
+          "rationale": {"type": "string", "minLength": 1},
+          "evidence_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+        },
+        "additionalProperties": false
+      }
+    },
+    "unresolved_candidates": {"type": "array"},
+    "summary": {
+      "type": "object",
+      "required": ["closed_relationships", "unresolved_candidates", "affected_pages"],
+      "properties": {
+        "closed_relationships": {"type": "integer", "minimum": 0},
+        "unresolved_candidates": {"type": "integer", "minimum": 0},
+        "affected_pages": {"type": "array", "uniqueItems": true, "items": {"type": "integer", "minimum": 1}}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "nonEmptyUniqueStrings": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "rolePartition": {
+      "type": "object",
+      "required": ["stem", "media", "options"],
+      "properties": {
+        "stem": {"$ref": "#/$defs/nonEmptyUniqueStrings"},
+        "media": {"$ref": "#/$defs/nonEmptyUniqueStrings"},
+        "options": {"$ref": "#/$defs/nonEmptyUniqueStrings"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

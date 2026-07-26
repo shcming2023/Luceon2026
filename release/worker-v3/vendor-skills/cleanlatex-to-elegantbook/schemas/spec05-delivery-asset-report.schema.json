@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luceon.local/schemas/spec05-delivery-asset-report.schema.json",
+  "title": "Spec 05 exact delivery asset and raster-image capacity report",
+  "type": "object",
+  "required": ["schema_version", "spec_status", "delivery_zip", "constraints", "checks", "assets", "failure_codes"],
+  "properties": {
+    "schema_version": {"const": "spec05-delivery-asset-report/1.2"},
+    "spec_status": {"enum": ["passed", "failed"]},
+    "constraints": {
+      "type": "object",
+      "required": ["file_entities", "image_output_formats", "image_to_pdf_transport", "raster_image_bytes"],
+      "properties": {
+        "file_entities": {"const": {"operator": "strictly_less_than", "max_exclusive": 2000}},
+        "image_output_formats": {"const": [".jpeg", ".jpg", ".png"]},
+        "image_to_pdf_transport": {"const": "forbidden"},
+        "raster_image_bytes": {"const": {"operator": "strictly_less_than", "max_exclusive": 1000000}}
+      }
+    },
+    "checks": {
+      "type": "object",
+      "required": ["file_entities_strictly_under_2000", "all_tex_media_references_resolve", "no_unreferenced_generated_media", "no_unreferenced_project_media", "native_raster_image_representation_preserved", "each_raster_image_strictly_under_1mb", "unreferenced_template_media_matches_frozen_bytes"]
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256", "size_bytes", "suffix", "referenced"],
+        "properties": {
+          "size_bytes": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
+    "failure_codes": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": true
+}
