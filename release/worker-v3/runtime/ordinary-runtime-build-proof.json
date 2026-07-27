@@ -37,8 +37,8 @@
   "tag": "luceonweb2026-worker-v3-runtime:rc-df357bf",
   "tests": {
     "backend/tests/test_workflow_v3_runtime_image.py": "passed as part of the complete repository integration suite",
-    "backend/tests/test_workflow_v3_*.py": "324 passed, 2 skipped with source revision mounted read-only into the final image",
-    "combined_result": "runtime identity passed; 324 passed, 2 skipped; production-forbidden runtime scan passed; locked-template XeLaTeX/qpdf/pdfinfo smoke passed",
+    "backend/tests/test_workflow_v3_*.py": "325 passed, 2 skipped with source revision mounted read-only into the final image",
+    "combined_result": "runtime identity passed; 325 passed, 2 skipped; production-forbidden runtime scan passed; locked-template XeLaTeX/qpdf/pdfinfo smoke passed",
     "image_contained_attempt": "297 passed, 1 skipped; 8 repository-path-bound tests were not accepted as image-only evidence because release/, Compose and Overleaf adapter intentionally sit outside the backend build context"
   },
   "user": "10003:10003"

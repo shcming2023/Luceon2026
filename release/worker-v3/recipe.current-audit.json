@@ -344,7 +344,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-build-proof.json",
       "destination": "runtime/ordinary-runtime-build-proof.json",
-      "expected_sha256": "9b822e31230a85b5a1bba0964e1014036657d51b59a351d7a687ff20e3f52de1"
+      "expected_sha256": "d53b486fb46eb96fe34d737885f8914350ce66f658d008849d862c1698b79713"
     },
     {
       "id": "worker-v3-ordinary-runtime-sbom",
