@@ -1,10 +1,10 @@
 {
   "architecture": "arm64",
   "build_status": "clean_build_succeeded",
-  "built_at": "2026-07-27T02:12:10.990300878Z",
-  "image_id": "sha256:5f7978de36d2334c3ed7e980d3c98ffd612bb2d947ba221f0a5322db54dcb7cf",
-  "image_size_bytes": 1455149387,
-  "local_manifest_digest": "sha256:5f7978de36d2334c3ed7e980d3c98ffd612bb2d947ba221f0a5322db54dcb7cf",
+  "built_at": "2026-07-27T03:26:41.107342836Z",
+  "image_id": "sha256:584f1690f30aa2474d023f57143ec26726c517b8626aa8f1b403b8a5cc528604",
+  "image_size_bytes": 1455144428,
+  "local_manifest_digest": "sha256:584f1690f30aa2474d023f57143ec26726c517b8626aa8f1b403b8a5cc528604",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
     "pages": 2,
@@ -14,7 +14,14 @@
   },
   "registry_digest": null,
   "registry_status": "pending_until_push",
-  "runtime_id": "worker-v3-runtime-rc-3369f81",
+  "rejected_build_attempts": [
+    {
+      "image_digest": "sha256:e0b2074a3de7ea7c3f18982d03f18c9eb87aa27dc30f31ad6fd17288c3363cd9",
+      "reason": "OCI revision label did not equal the actual full source revision",
+      "status": "rejected_before_qualification"
+    }
+  ],
+  "runtime_id": "worker-v3-runtime-rc-df357bf",
   "runtime_identity": {
     "effective_uid": 10003,
     "status": "passed",
@@ -26,12 +33,13 @@
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "3369f8183d84c5f43f6d92df4b1a91def6fe1503",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-3369f81",
+  "source_revision": "df357bf689f5218a5157d787f694b06feee68a97",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-df357bf",
   "tests": {
-    "backend/tests/test_workflow_v3_runtime_image.py": "passed",
-    "backend/tests/test_workflow_v3_*.py": "323 passed, 2 skipped",
-    "combined_result": "323 passed, 2 skipped; locked-template XeLaTeX/qpdf/pdfinfo smoke passed"
+    "backend/tests/test_workflow_v3_runtime_image.py": "passed as part of the complete repository integration suite",
+    "backend/tests/test_workflow_v3_*.py": "324 passed, 2 skipped with source revision mounted read-only into the final image",
+    "combined_result": "runtime identity passed; 324 passed, 2 skipped; production-forbidden runtime scan passed; locked-template XeLaTeX/qpdf/pdfinfo smoke passed",
+    "image_contained_attempt": "297 passed, 1 skipped; 8 repository-path-bound tests were not accepted as image-only evidence because release/, Compose and Overleaf adapter intentionally sit outside the backend build context"
   },
   "user": "10003:10003"
 }
