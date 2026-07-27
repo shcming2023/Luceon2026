@@ -666,6 +666,37 @@ def test_intake_rejects_frozen_marker_source_mismatch(tmp_path: Path) -> None:
         raise AssertionError("drifted frozen marker must fail")
 
 
+def test_mineru_directory_placeholder_is_not_treated_as_media_asset() -> None:
+    rows = kernel._normalize_mineru_media(  # noqa: SLF001
+        [
+            [
+                {
+                    "type": "table",
+                    "bbox": [0, 0, 1000, 1000],
+                    "content": {
+                        "image_source": {"path": "images/"},
+                        "html": "",
+                        "table_type": "simple_table",
+                    },
+                }
+            ]
+        ],
+        page_count=1,
+        mineru_run_id="mineru-directory-placeholder",
+        assets_by_basename={},
+        content_list_entry={
+            "provider": "mineru",
+            "member": "mineru/input/vlm/input_content_list_v2.json",
+        },
+    )
+
+    assert len(rows) == 1
+    assert [candidate["representation_type"] for candidate in rows[0]["candidates"]] == [
+        "source_region_image",
+        "structured_table",
+    ]
+
+
 def test_safe_tar_rejects_parent_traversal(tmp_path: Path) -> None:
     archive_path = tmp_path / "unsafe.tar"
     with tarfile.open(archive_path, "w") as archive:

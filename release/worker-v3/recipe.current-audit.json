@@ -245,7 +245,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec01_03_atomic_kernel.py",
       "destination": "scripts/worker-v3/spec01_03_atomic_kernel.py",
-      "expected_sha256": "009cd2dfbec2b7a9cee04ed39235941b6c47ac9276253a418a658fc3a514699e"
+      "expected_sha256": "c6237dd76b6af04681fb8f23ea87b430a4d1da1b96b6e2d57071536c1f65588b"
     },
     {
       "id": "worker-v3-stage-producer-entrypoints",

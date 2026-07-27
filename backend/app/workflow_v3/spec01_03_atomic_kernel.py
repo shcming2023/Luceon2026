@@ -801,8 +801,9 @@ def _normalize_mineru_media(
                     "bbox_coordinate_space": "pdf_cropbox_normalized_0_1_top_left",
                 }
             ]
-            if image_ref:
-                basename = PurePosixPath(image_ref.replace("\\", "/")).name
+            normalized_image_ref = image_ref.replace("\\", "/").strip()
+            if normalized_image_ref and not normalized_image_ref.endswith("/"):
+                basename = PurePosixPath(normalized_image_ref).name
                 matches = list(assets_by_basename.get(basename, ()))
                 if len(matches) != 1:
                     _fail(
