@@ -13,8 +13,26 @@ from app.workflow_v3.visual_review import (
     VISUAL_PROVIDER_PROTOCOL,
     VISUAL_PROMPT_ID,
     VisualReviewError,
+    _visual_model_call_id,
     build_full_page_review_inputs,
 )
+
+
+def test_visual_model_call_id_is_stable_for_the_same_job_scope() -> None:
+    values = {
+        "call_scope_id": "stable-job-idempotency-key",
+        "stage_key": "independent_full_page_review",
+        "stage_attempt": 1,
+        "batch_offset": 0,
+        "evidence_sha256": "a" * 64,
+        "prompt_sha256": "b" * 64,
+    }
+
+    first = _visual_model_call_id(**values)
+    assert first == _visual_model_call_id(**values)
+    assert first != _visual_model_call_id(
+        **{**values, "call_scope_id": "different-job-scope"}
+    )
 
 
 def _sha(path: Path) -> str:
@@ -414,6 +432,7 @@ def test_dynamic_visual_review_covers_every_candidate_page(
 
     result = build_full_page_review_inputs(
         job_id="job-1",
+        call_scope_id="stable-job-scope-1",
         stage_key="independent_full_page_review",
         stage_version="spec06.v1",
         stage_attempt=1,
@@ -498,6 +517,7 @@ def test_visual_review_rejects_source_page_outside_allowed_set(
     with pytest.raises(VisualReviewError, match="source mapping is invalid"):
         build_full_page_review_inputs(
             job_id="job-1",
+            call_scope_id="stable-job-scope-1",
             stage_key="independent_full_page_review",
             stage_version="spec06.v1",
             stage_attempt=1,
@@ -526,6 +546,7 @@ def test_visual_review_fails_closed_when_runtime_model_drifts(
     with pytest.raises(VisualReviewError, match="differs"):
         build_full_page_review_inputs(
             job_id="job-1",
+            call_scope_id="stable-job-scope-1",
             stage_key="independent_full_page_review",
             stage_version="spec06.v1",
             stage_attempt=1,
@@ -570,6 +591,7 @@ def test_visual_review_resource_gates_run_before_provider(
     with pytest.raises(VisualReviewError, match=message):
         build_full_page_review_inputs(
             job_id="job-1",
+            call_scope_id="stable-job-scope-1",
             stage_key="independent_full_page_review",
             stage_version="spec06.v1",
             stage_attempt=1,

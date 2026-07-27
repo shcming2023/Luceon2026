@@ -447,7 +447,11 @@ def test_pretty_printed_release_schema_uses_raw_file_hash_then_canonical_call_ha
         db=_Db(),
         session_factory=lambda: None,
         artifact_store=object(),
-        job=SimpleNamespace(public_id="job-1", material_id="pdf-1"),
+            job=SimpleNamespace(
+                public_id="job-1",
+                idempotency_key="stable-job-scope-1",
+                material_id="pdf-1",
+            ),
         stage=SimpleNamespace(
             stage_key="outline_reconstruction",
             attempt=1,
@@ -528,7 +532,10 @@ def test_stage10_builds_dynamic_visual_inputs_instead_of_release_fixtures(
         db=object(),
         session_factory=lambda: None,
         artifact_store=object(),
-        job=SimpleNamespace(public_id="job-1"),
+            job=SimpleNamespace(
+                public_id="job-1",
+                idempotency_key="stable-job-scope-1",
+            ),
         stage=SimpleNamespace(
             stage_key="independent_full_page_review",
             stage_version="spec06.v1",

@@ -13,6 +13,7 @@ from sqlalchemy.orm import sessionmaker
 from app.workflow_v3.contracts import STAGE_CONTRACTS, WORKFLOW_VERSION
 from app.workflow_v3.evaluator import WorkflowV3Evaluator, WorkflowV3PromotionController
 from app.workflow_v3.executor import (
+    _bounded_model_call_id,
     DirectoryArtifactStore,
     DirectoryReleaseResolver,
     SubprocessTransport,
@@ -52,6 +53,22 @@ from app.workflow_v3.state_machine import (
     retry_failed_stage,
     submit_candidate,
 )
+
+
+def test_bounded_model_call_id_is_stable_for_the_same_job_scope() -> None:
+    values = {
+        "job_scope_id": "stable-job-idempotency-key",
+        "stage_key": "source_scope_and_order",
+        "attempt": 1,
+        "prompt_sha256": "a" * 64,
+        "input_sha256": "b" * 64,
+    }
+
+    first = _bounded_model_call_id(**values)
+    assert first == _bounded_model_call_id(**values)
+    assert first != _bounded_model_call_id(
+        **{**values, "job_scope_id": "different-job-scope"}
+    )
 
 
 PRODUCER_SCRIPT = """#!/usr/bin/env python3

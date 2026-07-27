@@ -334,6 +334,7 @@ class OpenAiCompatibleVisionTransport:
 def build_full_page_review_inputs(
     *,
     job_id: str,
+    call_scope_id: str,
     stage_key: str,
     stage_version: str,
     stage_attempt: int,
@@ -694,14 +695,13 @@ def build_full_page_review_inputs(
             ],
         }
         call = ReleaseBoundLlmCall(
-            call_id=_stable_id(
-                "visual",
-                job_id,
-                stage_key,
-                str(stage_attempt),
-                str(offset),
-                sha256_json(evidence),
-                str(prompt["sha256"]),
+            call_id=_visual_model_call_id(
+                call_scope_id=call_scope_id,
+                stage_key=stage_key,
+                stage_attempt=stage_attempt,
+                batch_offset=offset,
+                evidence_sha256=sha256_json(evidence),
+                prompt_sha256=str(prompt["sha256"]),
             ),
             release_id=release_id,
             release_sha256=release_manifest_sha256,
@@ -1882,3 +1882,25 @@ def _stable_id(*parts: str) -> str:
         digest.update(str(part).encode("utf-8"))
         digest.update(b"\0")
     return digest.hexdigest()
+
+
+def _visual_model_call_id(
+    *,
+    call_scope_id: str,
+    stage_key: str,
+    stage_attempt: int,
+    batch_offset: int,
+    evidence_sha256: str,
+    prompt_sha256: str,
+) -> str:
+    """Bind visual replay identity to the stable job scope."""
+
+    return _stable_id(
+        "visual",
+        call_scope_id,
+        stage_key,
+        str(stage_attempt),
+        str(batch_offset),
+        evidence_sha256,
+        prompt_sha256,
+    )

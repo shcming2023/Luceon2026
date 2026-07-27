@@ -1709,13 +1709,12 @@ class _StageRequestBuilder:
             )
         input_sha = sha256_json(evidence)
         call = ReleaseBoundLlmCall(
-            call_id=_idempotency_key(
-                "bounded-llm",
-                self.job.public_id,
-                self.stage.stage_key,
-                str(self.stage.attempt),
-                str(prompt.get("sha256") or ""),
-                input_sha,
+            call_id=_bounded_model_call_id(
+                job_scope_id=self.job.idempotency_key,
+                stage_key=self.stage.stage_key,
+                attempt=self.stage.attempt,
+                prompt_sha256=str(prompt.get("sha256") or ""),
+                input_sha256=input_sha,
             ),
             release_id=self.bound.verification.release_id,
             release_sha256=self.bound.manifest_sha256,
@@ -1946,6 +1945,7 @@ class _StageRequestBuilder:
             )
         generated = build_full_page_review_inputs(
             job_id=self.job.public_id,
+            call_scope_id=self.job.idempotency_key,
             stage_key=self.stage.stage_key,
             stage_version=self.stage.stage_version,
             stage_attempt=self.stage.attempt,
@@ -2847,6 +2847,26 @@ def _sha256_file(path: Path) -> str:
 
 def _idempotency_key(*parts: str) -> str:
     return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
+
+
+def _bounded_model_call_id(
+    *,
+    job_scope_id: str,
+    stage_key: str,
+    attempt: int,
+    prompt_sha256: str,
+    input_sha256: str,
+) -> str:
+    """Bind replay identity to the stable job scope, not its random public ID."""
+
+    return _idempotency_key(
+        "bounded-llm",
+        job_scope_id,
+        stage_key,
+        str(attempt),
+        prompt_sha256,
+        input_sha256,
+    )
 
 
 def _tail_text(path: Path, limit: int = 32_768) -> str:
