@@ -6,8 +6,8 @@
   "engine": "xelatex",
   "endpoint": "http://workflow-v3-overleaf-compiler:8080/compile",
   "base_image": "ghcr.io/lcpu-club/sharelatex@sha256:633e180fa9357c2b00e2fa9234b63460033fd2d4e4c441a5bb91c9697a08e145",
-  "adapter_image_digest": "sha256:4c07f2e2cc6a17997fb35ba55f638c8925aaf8291e0b75b7722814ec2b6ecf91",
-  "adapter_runtime_identity_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "adapter_image_digest": "sha256:e983be555820cc24d6d69e813142d1e7bca7fdc514c9a8a29aa139801e7c7ccf",
+  "adapter_runtime_identity_sha256": "2e6ca6c393be2ba6b28871d7dd872c0362974fc846145e510049b66a810a2691",
   "adapter_source_sha256": "141557c44bd48ed3a7f651615cdf73a97e373bfa6f738db21489b2224d201a59",
   "compiler_command": [
     "latexmk",

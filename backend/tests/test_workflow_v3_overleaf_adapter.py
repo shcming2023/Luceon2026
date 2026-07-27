@@ -37,6 +37,10 @@ from app.workflow_v3.stage_entrypoint import StageEntrypointError
 ROOT = Path(__file__).resolve().parents[2]
 SERVICE_PATH = ROOT / "backend/overleaf-adapter/compiler_service.py"
 DOCKERFILE = ROOT / "backend/Dockerfile.overleaf-adapter"
+TARGET_PROFILE_PATH = (
+    ROOT / "release/worker-v3/runtime/overleaf-target-environment.json"
+)
+RELEASE_RECIPE_PATH = ROOT / "release/worker-v3/recipe.current-audit.json"
 SERVICE_SPEC = importlib.util.spec_from_file_location(
     "workflow_v3_overleaf_compiler_service",
     SERVICE_PATH,
@@ -272,6 +276,32 @@ def test_target_profile_is_exact_and_rejects_mutable_or_local_runtime() -> None:
         drifted[field] = value
         with pytest.raises(StageEntrypointError, match="target environment"):
             validate_target_environment(drifted)
+
+
+def test_release_recipe_binds_current_overleaf_target_profile_bytes() -> None:
+    profile_bytes = TARGET_PROFILE_PATH.read_bytes()
+    profile_sha256 = hashlib.sha256(profile_bytes).hexdigest()
+    profile = json.loads(profile_bytes)
+    recipe = json.loads(RELEASE_RECIPE_PATH.read_text(encoding="utf-8"))
+    source = next(
+        row
+        for row in recipe["sources"]
+        if row["id"] == "worker-v3-overleaf-target-environment"
+    )
+
+    assert source["expected_sha256"] == profile_sha256
+    assert (
+        recipe["runtime"]["system_tools"]["overleaf_compiler"][
+            "profile_sha256"
+        ]
+        == profile_sha256
+    )
+    assert profile["adapter_source_sha256"] == hashlib.sha256(
+        SERVICE_PATH.read_bytes()
+    ).hexdigest()
+    assert profile["adapter_image_digest"].startswith("sha256:")
+    assert profile["adapter_runtime_identity_sha256"] != "0" * 64
+    assert profile["status"] in {"unqualified", "approved"}
 
 
 def test_client_binds_zip_runtime_and_result_manifest(tmp_path: Path) -> None:

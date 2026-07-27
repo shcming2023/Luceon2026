@@ -362,7 +362,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/overleaf-target-environment.json",
       "destination": "runtime/overleaf-target-environment.json",
-      "expected_sha256": "e69253e162e308665c4e530b1a50a4c8b846be863deea3b96e05fd5175090e01"
+      "expected_sha256": "684c334f7cf9c90c22d4a9a73a6c026284e2c900759d22962e5c089bf723297d"
     },
     {
       "id": "worker-v3-template-capabilities",
@@ -900,7 +900,7 @@
       "identity": "runtime/ordinary-runtime-identity.json",
       "overleaf_compiler": {
         "profile_path": "runtime/overleaf-target-environment.json",
-        "profile_sha256": "08c9c5d762899167ed991503632aa32accc2891aa2a1dd323d9c9346d991b4da"
+        "profile_sha256": "684c334f7cf9c90c22d4a9a73a6c026284e2c900759d22962e5c089bf723297d"
       }
     },
     "fonts_identity_path": "runtime/ordinary-runtime-identity.json",
@@ -933,7 +933,7 @@
     {
       "code": "overleaf_adapter_image_qualification_pending",
       "stage": "delivery_recompile",
-      "detail": "the isolated adapter source and exact Overleaf-equivalent base image are bound, but the final adapter image digest, runtime identity, and real ZIP compile proof must replace the unqualified target profile before RC admission"
+      "detail": "the final adapter image digest, runtime identity, source and exact Overleaf-equivalent base image are bound and pass the no-network health gate, but a real Worker-produced ZIP compile proof is still required before the target profile can become approved"
     },
     {
       "code": "full_page_review_evidence_provider_unqualified",
