@@ -9,13 +9,22 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Sequence
 
-from .contracts import contracts_for_version
-from .stage_entrypoint import (
-    BUNDLE_PROTOCOL,
-    StageEntrypointError,
-    sha256_file,
-    write_json,
-)
+try:
+    from .contracts import contracts_for_version
+    from .stage_entrypoint import (
+        BUNDLE_PROTOCOL,
+        StageEntrypointError,
+        sha256_file,
+        write_json,
+    )
+except ImportError:  # Release-local scripts are imported outside the backend package.
+    from contracts import contracts_for_version  # type: ignore[no-redef]
+    from stage_entrypoint import (  # type: ignore[no-redef]
+        BUNDLE_PROTOCOL,
+        StageEntrypointError,
+        sha256_file,
+        write_json,
+    )
 
 
 EVALUATION_REQUEST_PROTOCOL = "luceon.worker-v3-evaluation-request/v1"

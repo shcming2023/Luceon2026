@@ -1,8 +1,16 @@
 {
   "architecture": "aarch64",
   "base_image": "python:3.12.13-slim@sha256:64695412729fbe8cf054511723820c82bbe5a077d4a6b4070cd4a7225d3422ce",
+  "control_plane": {
+    "actual_tree_sha256": "d2bc594d6c3a86584d0d7064885745c0c6fb1f6e8aaac55af8ef45ce0fde87fb",
+    "expected_tree_sha256": "d2bc594d6c3a86584d0d7064885745c0c6fb1f6e8aaac55af8ef45ce0fde87fb",
+    "manifest_path": "/opt/worker-v3/control-plane-baseline.json",
+    "manifest_sha256": "690233bfe3eec645787e7f156c72998b56f7f6d02631e05382371ce12794cc54",
+    "matches": true
+  },
   "effective_uid": 10003,
-  "image_digest": "sha256:eec3c5865edb13374f7a788e2d81c398d5632450c8ee883ea47e4a36af5d46a5",
+  "image_digest": "sha256:90f0365c905c8cb412a0b8c49203270ca5f99325d391780faed13c66785ba0ac",
+  "image_reference_pinned": true,
   "locks": {
     "python": {
       "expected_sha256": "be52a2e7be1cf8e4ad27d93606f9970bc9420b7a449df208bca3d0a4f4643cba",
@@ -17,7 +25,7 @@
   },
   "non_root": true,
   "python": "3.12.13",
-  "runtime_id": "worker-v3-runtime-91da4a53-be52a2e7",
+  "runtime_id": "worker-v3-runtime-rc-1a8f1fe",
   "schema": "luceon.worker-v3-runtime-identity/v1",
   "system_packages": {
     "biber": {

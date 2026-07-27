@@ -15,7 +15,7 @@ def main() -> int:
     parser.add_argument("--request", required=True)
     parser.add_argument("--result", required=True)
     args = parser.parse_args()
-    release_root = Path(__file__).resolve().parents[2]
+    release_root = Path(__file__).resolve().parents[3]
     sys.path.insert(0, str(release_root / "scripts" / "worker-v3"))
     from stage_evaluation_entrypoint import run_stage_evaluation_entrypoint
     from stage_evaluators import evaluate_stage

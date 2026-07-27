@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import io
 import json
+import shutil
+import sys
 import tarfile
 from pathlib import Path
 from typing import Any
@@ -345,7 +348,37 @@ def test_all_stages_have_distinct_physical_producer_and_evaluator_wrappers() -> 
         assert 'WORKER_V3_ENTRYPOINT_ROLE = "evaluator"' in evaluator
         assert f'WORKER_V3_STAGE = "{stage}"' in producer
         assert f'WORKER_V3_STAGE = "{stage}"' in evaluator
+        assert "Path(__file__).resolve().parents[3]" in producer
+        assert "Path(__file__).resolve().parents[3]" in evaluator
         assert producers / f"{stage}.py" != evaluators / f"{stage}.py"
+
+
+def test_release_local_evaluation_runtime_imports_outside_backend_package(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = Path(__file__).resolve().parents[2]
+    runtime = tmp_path / "scripts/worker-v3"
+    runtime.mkdir(parents=True)
+    for name in (
+        "contracts.py",
+        "stage_entrypoint.py",
+        "stage_evaluation_entrypoint.py",
+    ):
+        shutil.copy2(
+            repo / "backend/app/workflow_v3" / name,
+            runtime / name,
+        )
+    monkeypatch.syspath_prepend(str(runtime))
+    spec = importlib.util.spec_from_file_location(
+        "_release_stage_evaluation_entrypoint_test",
+        runtime / "stage_evaluation_entrypoint.py",
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, spec.name, module)
+    spec.loader.exec_module(module)
+    assert callable(module.run_stage_evaluation_entrypoint)
 
 
 def test_large_overflow_gate_counts_real_xelatex_hbox_and_vbox_syntax() -> None:
