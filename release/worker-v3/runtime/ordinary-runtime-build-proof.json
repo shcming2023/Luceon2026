@@ -1,10 +1,10 @@
 {
   "architecture": "arm64",
   "build_status": "clean_build_succeeded",
-  "built_at": "2026-07-26T23:29:54.440304594Z",
-  "image_id": "sha256:90f0365c905c8cb412a0b8c49203270ca5f99325d391780faed13c66785ba0ac",
-  "image_size_bytes": 1455159691,
-  "local_manifest_digest": "sha256:90f0365c905c8cb412a0b8c49203270ca5f99325d391780faed13c66785ba0ac",
+  "built_at": "2026-07-27T02:12:10.990300878Z",
+  "image_id": "sha256:5f7978de36d2334c3ed7e980d3c98ffd612bb2d947ba221f0a5322db54dcb7cf",
+  "image_size_bytes": 1455149387,
+  "local_manifest_digest": "sha256:5f7978de36d2334c3ed7e980d3c98ffd612bb2d947ba221f0a5322db54dcb7cf",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
     "pages": 2,
@@ -14,7 +14,7 @@
   },
   "registry_digest": null,
   "registry_status": "pending_until_push",
-  "runtime_id": "worker-v3-runtime-rc-1a8f1fe",
+  "runtime_id": "worker-v3-runtime-rc-3369f81",
   "runtime_identity": {
     "effective_uid": 10003,
     "status": "passed",
@@ -26,13 +26,12 @@
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "1a8f1fe51590bcbd15cbd10e89cc2a88f2c6f9a1",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-1a8f1fe",
+  "source_revision": "3369f8183d84c5f43f6d92df4b1a91def6fe1503",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-3369f81",
   "tests": {
     "backend/tests/test_workflow_v3_runtime_image.py": "passed",
-    "backend/tests/test_workflow_v3_spec05_06_stage_adapters.py": "passed",
-    "backend/tests/test_workflow_v3_stage_evaluation_entrypoints.py": "passed",
-    "combined_result": "964 passed, 2 skipped; locked-template XeLaTeX/qpdf/pdfinfo smoke passed"
+    "backend/tests/test_workflow_v3_*.py": "323 passed, 2 skipped",
+    "combined_result": "323 passed, 2 skipped; locked-template XeLaTeX/qpdf/pdfinfo smoke passed"
   },
   "user": "10003:10003"
 }
