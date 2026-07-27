@@ -269,8 +269,14 @@ def _build_installed_release(tmp_path: Path, *, behavior: str = "valid"):
             "archive_path": "templates/elegantbook.zip",
             "archive_sha256": template_hash,
             "tree_sha256": "1" * 64,
+            "main_member": "main.tex",
             "main_sha256": "2" * 64,
+            "class_member": "elegantbook.cls",
             "class_sha256": "3" * 64,
+            "fixed_asset_members": [
+                "figure/cover.jpg",
+                "figure/logo.jpg",
+            ],
             "fixed_assets_sha256": "4" * 64,
             "capabilities_sha256": "5" * 64,
         },
@@ -397,6 +403,10 @@ def test_producer_evaluator_and_promoter_are_separate_and_sha_chained(tmp_path, 
     assert produced["status"] == "awaiting_evaluation"
     assert calls and all(call[1]["shell"] is False for call in calls)
     assert all(".codex/skills" not in token for token in calls[0][0][0])
+    assert all(
+        call[1]["env"]["PYTHONDONTWRITEBYTECODE"] == "1"
+        for call in calls
+    )
     db = env["factory"]()
     try:
         assert db.query(WorkflowV3Candidate).count() == 1

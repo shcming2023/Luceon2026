@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import uuid
 from datetime import datetime
 
@@ -9,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.workflow_v3.contracts import WORKFLOW_VERSION, contracts_for_version
 from app.workflow_v3.release import require_qualification_environment
+from app.workflow_v3.release_identity import runtime_identity_for_manifest
 from app.workflow_v3.pricing import (
     PricingError,
     aggregate_model_costs,
@@ -185,35 +185,6 @@ def register_skill_release(
     db.add(release)
     db.flush()
     return release, True
-
-
-def runtime_identity_for_manifest(manifest: dict) -> str:
-    runtime = manifest.get("runtime")
-    if not isinstance(runtime, dict):
-        raise ValueError("release manifest runtime is missing")
-    system_tools = runtime.get("system_tools")
-    identity_path = (
-        system_tools.get("identity")
-        if isinstance(system_tools, dict)
-        else None
-    )
-    if isinstance(identity_path, str) and identity_path:
-        files = manifest.get("files")
-        if not isinstance(files, list):
-            raise ValueError("release manifest files are missing")
-        matches = [
-            row
-            for row in files
-            if isinstance(row, dict) and row.get("path") == identity_path
-        ]
-        if len(matches) != 1:
-            raise ValueError(
-                "release runtime identity file is missing or duplicated"
-            )
-        digest = str(matches[0].get("sha256") or "")
-        return _require_sha256(digest, "runtime identity file sha256")
-    canonical = json.dumps(runtime, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def list_skill_releases(db: Session, *, include_retired: bool = False) -> list[dict]:

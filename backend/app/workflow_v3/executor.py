@@ -344,6 +344,7 @@ class SubprocessTransport:
             "LANG": os.environ.get("LANG", "C.UTF-8"),
             "LC_ALL": os.environ.get("LC_ALL", "C.UTF-8"),
             "LUCEON_WORKER_V3_REQUEST": str(cwd / "request.json"),
+            "PYTHONDONTWRITEBYTECODE": "1",
         }
         with stdout_path.open("wb") as stdout_handle, stderr_path.open("wb") as stderr_handle:
             process = subprocess.Popen(

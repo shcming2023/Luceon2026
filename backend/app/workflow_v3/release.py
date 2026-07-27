@@ -438,8 +438,11 @@ def _validate_manifest(
         "archive_path",
         "archive_sha256",
         "tree_sha256",
+        "main_member",
         "main_sha256",
+        "class_member",
         "class_sha256",
+        "fixed_asset_members",
         "fixed_assets_sha256",
         "capabilities_sha256",
     )
@@ -451,7 +454,31 @@ def _validate_manifest(
     archive_path = _relative_path(template["archive_path"], field="template.archive_path")
     if archive_path not in file_by_path or file_by_path[archive_path]["role"] != "templates":
         _fail("template archive is not declared")
-    for field in template_keys[3:]:
+    _relative_path(template["main_member"], field="template.main_member")
+    _relative_path(template["class_member"], field="template.class_member")
+    fixed_asset_members = _expect_list(
+        template["fixed_asset_members"],
+        field="template.fixed_asset_members",
+    )
+    if (
+        not fixed_asset_members
+        or any(not isinstance(member, str) for member in fixed_asset_members)
+        or len(fixed_asset_members) != len(set(fixed_asset_members))
+    ):
+        _fail("template.fixed_asset_members must be non-empty and unique")
+    for index, member in enumerate(fixed_asset_members):
+        _relative_path(
+            member,
+            field=f"template.fixed_asset_members[{index}]",
+        )
+    for field in (
+        "archive_sha256",
+        "tree_sha256",
+        "main_sha256",
+        "class_sha256",
+        "fixed_assets_sha256",
+        "capabilities_sha256",
+    ):
         _sha256(template[field], field=f"template.{field}")
     if template["archive_sha256"] != file_by_path[archive_path]["sha256"]:
         _fail("template archive hash does not match declared file")

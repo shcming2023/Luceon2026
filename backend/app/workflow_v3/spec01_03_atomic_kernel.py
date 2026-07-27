@@ -272,17 +272,30 @@ def _safe_extract_tar(source: Path, destination: Path, label: str) -> dict[str, 
             if len(members) > MAX_ARCHIVE_MEMBERS:
                 _fail("archive_member_budget_exceeded", f"{label} has too many members")
             for member in members:
-                name = _safe_relative(member.name, f"{label} member")
-                if name in seen:
-                    _fail("archive_duplicate_member", f"{label} repeats {name!r}")
-                seen.add(name)
                 if (
                     member.issym()
                     or member.islnk()
                     or member.isdev()
                     or member.isfifo()
                 ):
-                    _fail("archive_unsafe_member", f"{label} contains unsafe member {name!r}")
+                    _fail(
+                        "archive_unsafe_member",
+                        f"{label} contains unsafe member {member.name!r}",
+                    )
+                if member.isdir() and member.name in {".", "./"}:
+                    if member.size != 0:
+                        _fail(
+                            "archive_unsafe_member",
+                            f"{label} root directory member has content",
+                        )
+                    continue
+                raw_name = member.name[2:] if member.name.startswith("./") else member.name
+                if member.isdir() and raw_name.endswith("/"):
+                    raw_name = raw_name[:-1]
+                name = _safe_relative(raw_name, f"{label} member")
+                if name in seen:
+                    _fail("archive_duplicate_member", f"{label} repeats {name!r}")
+                seen.add(name)
                 total += max(0, int(member.size))
                 if total > MAX_ARCHIVE_BYTES:
                     _fail("archive_byte_budget_exceeded", f"{label} is too large")

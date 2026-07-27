@@ -525,6 +525,12 @@ def test_hash_bound_recipe_assembles_standard_release_source_and_builds(tmp_path
     manifest = json.loads((output / "release-manifest.json").read_text())
     assert manifest["status"] == "rc"
     assert manifest["eligibility"]["rc_eligible"] is True
+    assert manifest["template"]["main_member"] == "main.tex"
+    assert manifest["template"]["class_member"] == "elegantbook.cls"
+    assert manifest["template"]["fixed_asset_members"] == [
+        "figure/cover.jpg",
+        "figure/logo.jpg",
+    ]
     assert len(manifest["entrypoints"]["formal"]) == 24
     assert {
         definition["execution_role"]

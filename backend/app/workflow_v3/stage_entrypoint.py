@@ -13,6 +13,11 @@ from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import Any, Callable, Mapping, Sequence
 
+try:
+    from .release_identity import runtime_identity_for_manifest
+except ImportError:  # Release-local scripts are imported outside the backend package.
+    from release_identity import runtime_identity_for_manifest  # type: ignore[no-redef]
+
 
 ENTRYPOINT_PROTOCOL = "luceon.worker-v3-stage-entrypoint/v1"
 REQUEST_PROTOCOL = "luceon.worker-v3-stage-request/v1"
@@ -1110,22 +1115,14 @@ def _verify_release_binding(root: Path, binding: ReleaseBinding) -> None:
             exit_code=3,
         )
     manifest = _load_json_object(manifest_path, "release manifest")
-    runtime = manifest.get("runtime")
-    if not isinstance(runtime, dict):
+    try:
+        runtime_identity = runtime_identity_for_manifest(manifest)
+    except ValueError as exc:
         raise StageEntrypointError(
             "release_runtime_identity_missing",
-            "installed release has no canonical runtime identity",
+            f"installed release has no canonical runtime identity: {exc}",
             exit_code=3,
-        )
-    runtime_identity = hashlib.sha256(
-        json.dumps(
-            runtime,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        ).encode("utf-8")
-    ).hexdigest()
+        ) from exc
     expected = {
         "release_id": (manifest.get("release_id"), binding.release_id),
         "version": (manifest.get("version"), binding.version),

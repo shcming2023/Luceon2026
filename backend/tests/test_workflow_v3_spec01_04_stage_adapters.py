@@ -16,11 +16,13 @@ from app.workflow_v3.stage_entrypoint import (
     KernelExecution,
     REQUEST_PROTOCOL,
     RESULT_PROTOCOL,
+    ReleaseBinding,
     StageEntrypointError,
     StageProduction,
     StageRequest,
     prepare_input_root,
     run_stage_entrypoint,
+    _verify_release_binding,
 )
 
 
@@ -326,6 +328,31 @@ def test_release_runtime_identity_drift_fails_before_producer(
         == 3
     )
     assert _failure_code(tmp_path / "result.json") == "release_binding_mismatch"
+
+
+def test_release_runtime_identity_uses_bound_identity_file(
+    tmp_path: Path,
+) -> None:
+    release, binding = _release(tmp_path)
+    identity = release / "runtime/ordinary-runtime-identity.json"
+    identity.parent.mkdir()
+    identity.write_bytes(b'{"schema":"runtime-identity/v1"}\n')
+    manifest_path = release / "release-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["runtime"]["system_tools"] = {
+        "identity": "runtime/ordinary-runtime-identity.json",
+    }
+    manifest["files"] = [
+        {
+            "path": "runtime/ordinary-runtime-identity.json",
+            "sha256": _sha(identity),
+        },
+    ]
+    _json(manifest_path, manifest)
+    binding["manifest_sha256"] = _sha(manifest_path)
+    binding["runtime_identity_sha256"] = _sha(identity)
+
+    _verify_release_binding(release, ReleaseBinding(**binding))
 
 
 def test_promoted_input_requires_exact_artifact_and_manifest_hashes(

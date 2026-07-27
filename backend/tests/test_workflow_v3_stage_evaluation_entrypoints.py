@@ -362,6 +362,7 @@ def test_release_local_evaluation_runtime_imports_outside_backend_package(
     runtime.mkdir(parents=True)
     for name in (
         "contracts.py",
+        "release_identity.py",
         "stage_entrypoint.py",
         "stage_evaluation_entrypoint.py",
     ):

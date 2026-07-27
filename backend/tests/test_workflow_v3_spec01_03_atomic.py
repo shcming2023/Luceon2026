@@ -686,6 +686,34 @@ def test_safe_tar_rejects_parent_traversal(tmp_path: Path) -> None:
     assert not (tmp_path / "escape.txt").exists()
 
 
+def test_safe_tar_accepts_standard_dot_prefixed_root_directory(
+    tmp_path: Path,
+) -> None:
+    archive_path = tmp_path / "standard.tar"
+    with tarfile.open(archive_path, "w") as archive:
+        root = tarfile.TarInfo(".")
+        root.type = tarfile.DIRTYPE
+        root.size = 0
+        archive.addfile(root)
+        directory = tarfile.TarInfo("./safe/")
+        directory.type = tarfile.DIRTYPE
+        directory.size = 0
+        archive.addfile(directory)
+        payload = b"safe"
+        member = tarfile.TarInfo("./safe/file.txt")
+        member.size = len(payload)
+        archive.addfile(member, __import__("io").BytesIO(payload))
+
+    files = kernel._safe_extract_tar(  # noqa: SLF001
+        archive_path,
+        tmp_path / "extract",
+        "standard test archive",
+    )
+
+    assert set(files) == {"safe/file.txt"}
+    assert files["safe/file.txt"].read_bytes() == b"safe"
+
+
 def test_scope_review_rejects_omitted_unit(tmp_path: Path) -> None:
     spec01, _, _, _ = _run_pipeline(tmp_path)
     task = kernel._scope_review_task(spec01)  # noqa: SLF001

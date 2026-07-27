@@ -146,7 +146,16 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/stage_entrypoint.py",
       "destination": "scripts/worker-v3/stage_entrypoint.py",
-      "expected_sha256": "33401092c293556e4e6b2f3e5e9821d2d65d110de57cfd4151f8dc5d6b51f157"
+      "expected_sha256": "82f393590c3ead01d945b951ee561a3d1b1b56c0f6b33d57bf7e1dc427d414a8"
+    },
+    {
+      "id": "worker-v3-release-identity-runtime",
+      "kind": "file",
+      "source_role": "executable_baseline",
+      "root": "worker_v3",
+      "path": "backend/app/workflow_v3/release_identity.py",
+      "destination": "scripts/worker-v3/release_identity.py",
+      "expected_sha256": "4d8671f3d16aa66e5c081f902c820a78dc4248fe7ba9141f99ae3e765fde3281"
     },
     {
       "id": "worker-v3-evaluation-entrypoint-runtime",
@@ -236,7 +245,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec01_03_atomic_kernel.py",
       "destination": "scripts/worker-v3/spec01_03_atomic_kernel.py",
-      "expected_sha256": "d6a87ce2e4a707cc5c1e4823adccec81faaf5bb074089a276c84d1009e12209a"
+      "expected_sha256": "009cd2dfbec2b7a9cee04ed39235941b6c47ac9276253a418a658fc3a514699e"
     },
     {
       "id": "worker-v3-stage-producer-entrypoints",
@@ -384,6 +393,7 @@
       "skill-refine-elegantbook-latex",
       "skill-finished-textbook-final-review",
       "worker-v3-stage-entrypoint-runtime",
+      "worker-v3-release-identity-runtime",
       "worker-v3-evaluation-entrypoint-runtime",
       "worker-v3-contracts-runtime",
       "worker-v3-spec01-04-adapters",
