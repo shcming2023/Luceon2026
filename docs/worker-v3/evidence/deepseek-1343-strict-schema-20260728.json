@@ -1,0 +1,83 @@
+{
+  "schema_version": "luceon.worker-v3-live-provider-qualification-evidence/v1",
+  "qualification_id": "deepseek-1343-strict-schema-20260728",
+  "executed_at": "2026-07-28",
+  "scope": {
+    "material_pk": 1343,
+    "material_id": "pdf-8e5464971a3e1d6b",
+    "stage_key": "source_scope_and_order",
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "attempts": 1,
+    "retry_count": 0
+  },
+  "authorization": {
+    "contract_sha256": "04464b5363b65d2b9a1de7b3a26ea303034ad2034ed6c2df19fa941b76164d12",
+    "maximum_provider_calls": 1
+  },
+  "runtime": {
+    "image_digest": "sha256:584f1690f30aa2474d023f57143ec26726c517b8626aa8f1b403b8a5cc528604",
+    "runtime_id": "worker-v3-runtime-rc-df357bf",
+    "source_revision": "df357bf689f5218a5157d787f694b06feee68a97"
+  },
+  "request": {
+    "file_sha256": "ff29c700842a956038a6e3640fd995abbcb28e03f47535be7b1b940f14771b27",
+    "canonical_sha256": "83e6f67a0707908b77b8702e8fea469ff724a8f5d9fa7ffb05bb28a8b726628e",
+    "canonical_bytes": 1474196,
+    "input_sha256": "20fb4ba66ad6fc16704cafd52bff11ddcfbdf53030a37fce6d4052bdc081c5f2",
+    "schema_sha256": "b1d6a474dfea84271e7ec782cfc7139e0be30f17421cb1f95356aa63460f789e",
+    "prompt_sha256": "3a8deaae2faab7cb149fb7e437920fd4e5bb63585f0abb64dadab7edd0d13006",
+    "physical_pages": 200,
+    "source_units": 2859,
+    "release_max_input_tokens": 500000,
+    "release_max_output_tokens": 16000
+  },
+  "provider_response": {
+    "http_status": 200,
+    "response_id": "0cc55bef-68af-4e23-844a-958445691608",
+    "raw_response_sha256": "5e0c2acc5df8a0194470dba6834fdaa787486be6b49d1618bf334c6262f894c5",
+    "latency_ms": 163307,
+    "usage": {
+      "input_tokens": 556086,
+      "output_tokens": 13589,
+      "total_tokens": 569675,
+      "cache_hit_input_tokens": 0,
+      "cache_miss_input_tokens": 556086
+    },
+    "cost": {
+      "currency": "CNY",
+      "micro_units": 583264,
+      "amount": "0.583264",
+      "pricing_snapshot_sha256": "be481c936ec3f89adee98f390d0b2a94bef0a4b79fc82e5741e4e6cc69278b45"
+    }
+  },
+  "strict_gateway_result": {
+    "status": "rejected",
+    "error_code": "schema_mismatch",
+    "retryable": false,
+    "returned_page_rows": 10,
+    "required_page_rows": 200,
+    "missing_top_level_fields": [
+      "open_reviews",
+      "relationships",
+      "review_id",
+      "review_status",
+      "source_pdf_sha256"
+    ],
+    "minimum_complete_response_bytes": 627766,
+    "minimum_complete_response_bytes_per_allowed_output_token": "39.235375",
+    "fixture_created": false,
+    "qualification_passed": false
+  },
+  "evidence_handling": {
+    "private_failure_evidence_sha256": "9b2894cc92d12c759c5fddc73fc283cf612efadc9a0b2162c2704b91808cedc6",
+    "raw_provider_content_committed": false,
+    "runtime_secret_committed": false
+  },
+  "conclusion": {
+    "classification": "production_blocker",
+    "responsibility": "worker-v3-spec02-request-and-response-contract",
+    "reason": "The monolithic full-book review request exceeded the release input-token cap and required a complete response that cannot fit the release output-token cap. HTTP 200 is not a qualification pass.",
+    "required_change": "Replace the monolithic full-book response contract with a deterministic exhaustive baseline plus release-bound compact or sharded review deltas, enforce budgets before provider transmission, and prove exact deterministic merge and total coverage before retrying live qualification."
+  }
+}

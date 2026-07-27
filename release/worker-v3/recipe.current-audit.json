@@ -931,6 +931,11 @@
   },
   "known_gaps": [
     {
+      "code": "spec02_bounded_review_capacity_unqualified",
+      "stage": "source_scope_and_order",
+      "detail": "the one approved material 1343 strict-schema call proved that the monolithic full-book request exceeds the release input-token cap and its exhaustive response cannot fit the output-token cap; replace it with a deterministic exhaustive baseline plus compact or sharded review deltas and enforce capacity before transmission"
+    },
+    {
       "code": "overleaf_adapter_image_qualification_pending",
       "stage": "delivery_recompile",
       "detail": "the final adapter image digest, runtime identity, source and exact Overleaf-equivalent base image are bound and pass the no-network health gate, but a real Worker-produced ZIP compile proof is still required before the target profile can become approved"
