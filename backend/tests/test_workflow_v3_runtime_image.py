@@ -52,6 +52,8 @@ def test_worker_v3_docker_context_excludes_codex_expert_runtime() -> None:
         "app/workflow_v3/expert_spool.py",
         "scripts/workflow_v3_codex_expert.py",
         "scripts/workflow_v3_expert_*.py",
+        "scripts/codex_*.py",
+        "tests/test_codex_*.py",
         "**/__pycache__/",
         "**/*.pyc",
         "**/*.pyo",

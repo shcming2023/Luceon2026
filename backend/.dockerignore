@@ -33,3 +33,8 @@ scripts/workflow_v3_expert_*.py
 tests/test_workflow_v3_codex_*.py
 tests/test_workflow_v3_expert_*.py
 tests/test_workflow_v3_llm_expert.py
+
+# Historical Codex V1/V2 remains readable in the application backend, but its
+# executable workers and tests are not part of the dedicated Worker V3 image.
+scripts/codex_*.py
+tests/test_codex_*.py
