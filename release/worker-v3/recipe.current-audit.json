@@ -18,7 +18,7 @@
     "requested_status": "incomplete",
     "created_at": "2026-07-26T00:00:00+08:00",
     "source": {
-      "git_sha": "ab95812b5a060a76b9009c08a9086ddab8fd4450",
+      "git_sha": "df357bf689f5218a5157d787f694b06feee68a97",
       "git_tag": null,
       "dirty": false
     },
@@ -895,7 +895,7 @@
     "python": "CPython 3.12.13",
     "application_dependencies_path": "runtime/requirements-worker-v3.lock",
     "system_tools": {
-      "runtime_id": "worker-v3-runtime-rc-3369f81",
+      "runtime_id": "worker-v3-runtime-rc-df357bf",
       "system_lock": "runtime/worker-v3-system-packages.lock",
       "identity": "runtime/ordinary-runtime-identity.json",
       "overleaf_compiler": {
@@ -906,7 +906,7 @@
     "fonts_identity_path": "runtime/ordinary-runtime-identity.json",
     "tex_identity_path": "runtime/ordinary-runtime-identity.json",
     "poppler_identity_path": "runtime/ordinary-runtime-identity.json",
-    "container_image_digest": "sha256:5f7978de36d2334c3ed7e980d3c98ffd612bb2d947ba221f0a5322db54dcb7cf",
+    "container_image_digest": "sha256:584f1690f30aa2474d023f57143ec26726c517b8626aa8f1b403b8a5cc528604",
     "sbom_path": "runtime/ordinary-runtime-sbom.cdx.json",
     "attestations": [
       "runtime/ordinary-runtime-identity.json",

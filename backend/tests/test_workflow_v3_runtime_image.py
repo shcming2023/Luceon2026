@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
 
 
@@ -10,6 +11,10 @@ DOCKERFILE = BACKEND_ROOT / "Dockerfile.worker-v3"
 PYTHON_LOCK = BACKEND_ROOT / "requirements-worker-v3.lock"
 SYSTEM_LOCK = BACKEND_ROOT / "worker-v3-system-packages.lock"
 IDENTITY_SCRIPT = BACKEND_ROOT / "scripts" / "workflow_v3_runtime_identity.py"
+REPOSITORY_ROOT = BACKEND_ROOT.parent
+RELEASE_ROOT = REPOSITORY_ROOT / "release" / "worker-v3"
+RELEASE_RECIPE = RELEASE_ROOT / "recipe.current-audit.json"
+RUNTIME_EVIDENCE_ROOT = RELEASE_ROOT / "runtime"
 PINNED_BASE = (
     "python:3.12.13-slim@"
     "sha256:64695412729fbe8cf054511723820c82bbe5a077d4a6b4070cd4a7225d3422ce"
@@ -231,3 +236,30 @@ def test_dockerfile_embeds_current_python_lock_digest() -> None:
     dockerfile = DOCKERFILE.read_text(encoding="utf-8")
     assert f"WORKER_V3_PYTHON_LOCK_SHA256={expected_python}" in dockerfile
     assert f"WORKER_V3_SYSTEM_LOCK_SHA256={expected_system}" in dockerfile
+
+
+def test_release_recipe_binds_exact_runtime_build_evidence() -> None:
+    recipe = json.loads(RELEASE_RECIPE.read_text(encoding="utf-8"))
+    identity = json.loads(
+        (RUNTIME_EVIDENCE_ROOT / "ordinary-runtime-identity.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    build = json.loads(
+        (RUNTIME_EVIDENCE_ROOT / "ordinary-runtime-build-proof.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert recipe["release"]["source"]["git_sha"] == build["source_revision"]
+    assert (
+        recipe["runtime"]["system_tools"]["runtime_id"]
+        == identity["runtime_id"]
+        == build["runtime_id"]
+    )
+    assert (
+        recipe["runtime"]["container_image_digest"]
+        == identity["image_digest"]
+        == build["image_id"]
+        == build["local_manifest_digest"]
+    )
