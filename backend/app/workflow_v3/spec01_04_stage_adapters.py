@@ -244,7 +244,7 @@ def _produce_scope_order(
     schema_path, schema_sha = _release_schema_binding(
         release,
         schema_id="worker-v3.spec02-scope-order-review",
-        schema_version="1.0.0",
+        schema_version="2.0.0",
     )
     if binding.schema_sha256 != schema_sha:
         raise StageEntrypointError(

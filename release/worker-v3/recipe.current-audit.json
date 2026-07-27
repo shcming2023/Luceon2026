@@ -182,7 +182,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec01_04_stage_adapters.py",
       "destination": "scripts/worker-v3/spec01_04_stage_adapters.py",
-      "expected_sha256": "f50b3a33340f6095ae26db3b80cba1445c83ab59240d49bed1261b3d7155d012"
+      "expected_sha256": "b0e0782f86709e57341edad365cb8a7d24fd3ca135affed82395d860466b6176"
     },
     {
       "id": "worker-v3-spec05-06-adapters",
@@ -245,7 +245,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec01_03_atomic_kernel.py",
       "destination": "scripts/worker-v3/spec01_03_atomic_kernel.py",
-      "expected_sha256": "c6237dd76b6af04681fb8f23ea87b430a4d1da1b96b6e2d57071536c1f65588b"
+      "expected_sha256": "d2835027e2d3340535c823693e94ef9389c83922e61e316205fe5bde712dd677"
     },
     {
       "id": "worker-v3-stage-producer-entrypoints",
@@ -281,7 +281,7 @@
       "include": [
         "spec*.txt"
       ],
-      "expected_tree_sha256": "00abc36edcdecf37feea3cbeaec84c6debaae29b3bfe6a4db735da801e2417bb"
+      "expected_tree_sha256": "e9f7d5f7dbe06d914031217e086d2262715a72f567f8c9feef12aeb642640dd3"
     },
     {
       "id": "worker-v3-ordinary-schemas",
@@ -293,7 +293,7 @@
       "include": [
         "spec*.schema.json"
       ],
-      "expected_tree_sha256": "dc46bf10d23118264e2a0c194bf13ad6c6885b8cc0163f570cd8b971339df875"
+      "expected_tree_sha256": "e42f13bde78b55627ca95a3269c62baa043bff4611ad1a9e62afa3b1c985274f"
     },
     {
       "id": "worker-v3-spec04-review-schemas",
@@ -516,8 +516,8 @@
       },
       {
         "id": "worker-v3.spec02-scope-order-review",
-        "version": "1.0.0",
-        "path": "schemas/spec02-scope-order-review-v1.schema.json"
+        "version": "2.0.0",
+        "path": "schemas/spec02-scope-order-review-v2.schema.json"
       },
       {
         "id": "worker-v3.spec03-media-review",
@@ -712,9 +712,9 @@
   "prompts": [
     {
       "id": "worker-v3.spec02-scope-order-review",
-      "version": "1.0.0",
-      "path": "prompts/spec02-scope-order-review-v1.txt",
-      "output_schema": "schemas/spec02-scope-order-review-v1.schema.json"
+      "version": "2.0.0",
+      "path": "prompts/spec02-scope-order-review-v2.txt",
+      "output_schema": "schemas/spec02-scope-order-review-v2.schema.json"
     },
     {
       "id": "worker-v3.spec03-media-review",
@@ -767,6 +767,8 @@
     "max_stage_calls": 1,
     "max_stage_input_tokens": 500000,
     "max_stage_output_tokens": 16000,
+    "max_stage_request_bytes": 1000000,
+    "max_output_json_bytes_per_token": 16,
     "max_stage_seconds": 900,
     "ordinary_models": [
       "deepseek-v4-flash",
@@ -933,7 +935,7 @@
     {
       "code": "spec02_bounded_review_capacity_unqualified",
       "stage": "source_scope_and_order",
-      "detail": "the one approved material 1343 strict-schema call proved that the monolithic full-book request exceeds the release input-token cap and its exhaustive response cannot fit the output-token cap; replace it with a deterministic exhaustive baseline plus compact or sharded review deltas and enforce capacity before transmission"
+      "detail": "the compact Spec 02 v2 deterministic-baseline plus bounded-delta contract passes offline capacity, merge and coverage regression and reduces the exact material 1343 request to 820827 bytes, but the rebuilt final image and one separately authorized live v2 response still require qualification"
     },
     {
       "code": "overleaf_adapter_image_qualification_pending",

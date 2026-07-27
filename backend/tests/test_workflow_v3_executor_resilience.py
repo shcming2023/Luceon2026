@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import time
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -10,6 +11,7 @@ import pytest
 from app.workflow_v3.executor import (
     ModelCallHeartbeatFailed,
     ReleaseBindingError,
+    _enforce_model_request_budget,
     _enforce_model_result_budget,
     _execute_model_call_with_heartbeat,
     _ordinary_model_budget,
@@ -123,6 +125,8 @@ def test_ordinary_model_budget_is_release_bound_and_usage_checked():
         "max_stage_calls": 1,
         "max_stage_input_tokens": 1000,
         "max_stage_output_tokens": 100,
+        "max_stage_request_bytes": 10_000,
+        "max_output_json_bytes_per_token": 16,
         "max_stage_seconds": 60,
     }
     request = {"temperature": 0, "max_output_tokens": 100}
@@ -147,6 +151,40 @@ def test_ordinary_model_budget_is_release_bound_and_usage_checked():
             budget,
         )
     assert raised.value.code == "model_output_budget_exceeded"
+
+
+def test_ordinary_model_request_budget_fails_before_provider_transmission():
+    policy = {
+        "timeout_seconds": 30,
+        "max_stage_calls": 1,
+        "max_stage_input_tokens": 1000,
+        "max_stage_output_tokens": 100,
+        "max_stage_request_bytes": 10_000,
+        "max_output_json_bytes_per_token": 16,
+        "max_stage_seconds": 60,
+    }
+    budget = _ordinary_model_budget(
+        policy,
+        {"temperature": 0, "max_output_tokens": 100},
+    )
+    call = _call()
+    oversized_capacity = {"task": "one", "capacity": {"minimum_response_bytes": 1601}}
+    call = replace(
+        call,
+        input_evidence=oversized_capacity,
+        input_sha256=sha256_json(oversized_capacity),
+    )
+    with pytest.raises(LlmGatewayError) as raised:
+        _enforce_model_request_budget(call, budget)
+    assert raised.value.code == "model_minimum_output_budget_exceeded"
+    assert raised.value.audit["provider_call_started"] is False
+
+    byte_limited = dict(budget)
+    byte_limited["max_stage_request_bytes"] = 1
+    with pytest.raises(LlmGatewayError) as raised:
+        _enforce_model_request_budget(_call(), byte_limited)
+    assert raised.value.code == "model_request_budget_exceeded"
+    assert raised.value.audit["provider_call_started"] is False
 
 
 def test_visual_limits_require_explicit_resource_and_call_budgets():

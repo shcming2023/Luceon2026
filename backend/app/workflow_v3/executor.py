@@ -30,6 +30,7 @@ from app.workflow_v3.llm_gateway import (
     LlmCallResult,
     LlmGatewayError,
     ReleaseBoundLlmCall,
+    canonical_json_bytes,
     execute_bounded_call,
     sha256_json,
 )
@@ -1742,6 +1743,7 @@ class _StageRequestBuilder:
             timeout_seconds=budget["timeout_seconds"],
             attempt_number=self.stage.attempt,
         )
+        _enforce_model_request_budget(call, budget)
         start_model_call(self.db, self.job.public_id, call=call)
         self.db.commit()
         try:
@@ -2685,6 +2687,18 @@ def _ordinary_model_budget(
         policy,
         "max_stage_seconds",
     )
+    max_request_bytes = _positive_policy_int(
+        policy,
+        "max_stage_request_bytes",
+    )
+    max_output_json_bytes_per_token = _positive_policy_int(
+        policy,
+        "max_output_json_bytes_per_token",
+    )
+    if max_output_json_bytes_per_token > 64:
+        raise ReleaseBindingError(
+            "ordinary model max_output_json_bytes_per_token exceeds the fail-closed limit"
+        )
     timeout_seconds = _positive_policy_number(policy, "timeout_seconds")
     if timeout_seconds > min(900.0, max_stage_seconds):
         raise ReleaseBindingError(
@@ -2704,9 +2718,102 @@ def _ordinary_model_budget(
         "max_stage_calls": max_calls,
         "max_stage_input_tokens": max_input_tokens,
         "max_stage_output_tokens": max_output_tokens,
+        "max_stage_request_bytes": max_request_bytes,
+        "max_output_json_bytes_per_token": max_output_json_bytes_per_token,
         "max_stage_seconds": max_stage_seconds,
         "timeout_seconds": timeout_seconds,
     }
+
+
+def _enforce_model_request_budget(
+    call: ReleaseBoundLlmCall,
+    budget: Mapping[str, int | float],
+) -> None:
+    request = {
+        "call_id": call.call_id,
+        "binding": {
+            "release_id": call.release_id,
+            "release_sha256": call.release_sha256,
+            "stage_key": call.stage_key,
+            "prompt_id": call.prompt_id,
+            "prompt_version": call.prompt_version,
+            "prompt_sha256": call.prompt_sha256,
+            "schema_id": call.schema_id,
+            "schema_version": call.schema_version,
+            "schema_sha256": call.schema_sha256,
+            "input_sha256": call.input_sha256,
+        },
+        "provider": call.provider,
+        "model": call.model,
+        "parameters": dict(call.request_parameters),
+        "prompt": call.prompt_text,
+        "input": call.input_evidence,
+        "output_schema": call.output_schema,
+    }
+    request_bytes = len(canonical_json_bytes(request))
+    max_request_bytes = int(budget["max_stage_request_bytes"])
+    if request_bytes > max_request_bytes:
+        raise LlmGatewayError(
+            "model_request_budget_exceeded",
+            "ordinary model request exceeds its release-bound byte budget before transmission",
+            audit={
+                "status": "failed",
+                "stage_key": call.stage_key,
+                "request_sha256": sha256_json(request),
+                "request_bytes": request_bytes,
+                "max_stage_request_bytes": max_request_bytes,
+                "error_code": "model_request_budget_exceeded",
+                "provider_call_started": False,
+            },
+        )
+    capacity = (
+        call.input_evidence.get("capacity")
+        if isinstance(call.input_evidence, Mapping)
+        else None
+    )
+    if not isinstance(capacity, Mapping):
+        return
+    minimum_response_bytes = capacity.get("minimum_response_bytes")
+    if (
+        not isinstance(minimum_response_bytes, int)
+        or isinstance(minimum_response_bytes, bool)
+        or minimum_response_bytes < 1
+    ):
+        raise LlmGatewayError(
+            "model_capacity_evidence_invalid",
+            "bounded model task capacity evidence is missing or invalid",
+            audit={
+                "status": "failed",
+                "stage_key": call.stage_key,
+                "request_sha256": sha256_json(request),
+                "error_code": "model_capacity_evidence_invalid",
+                "provider_call_started": False,
+            },
+        )
+    maximum_response_bytes = (
+        int(call.request_parameters["max_output_tokens"])
+        * int(budget["max_output_json_bytes_per_token"])
+    )
+    if minimum_response_bytes > maximum_response_bytes:
+        raise LlmGatewayError(
+            "model_minimum_output_budget_exceeded",
+            "minimum schema-complete response exceeds the release-bound output capacity before transmission",
+            audit={
+                "status": "failed",
+                "stage_key": call.stage_key,
+                "request_sha256": sha256_json(request),
+                "minimum_response_bytes": minimum_response_bytes,
+                "maximum_response_bytes": maximum_response_bytes,
+                "max_output_tokens": int(
+                    call.request_parameters["max_output_tokens"]
+                ),
+                "max_output_json_bytes_per_token": int(
+                    budget["max_output_json_bytes_per_token"]
+                ),
+                "error_code": "model_minimum_output_budget_exceeded",
+                "provider_call_started": False,
+            },
+        )
 
 
 def _enforce_model_result_budget(

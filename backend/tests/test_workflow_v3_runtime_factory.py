@@ -419,6 +419,8 @@ def test_pretty_printed_release_schema_uses_raw_file_hash_then_canonical_call_ha
             "max_stage_calls": 1,
             "max_stage_input_tokens": 10_000,
             "max_stage_output_tokens": 1_000,
+            "max_stage_request_bytes": 100_000,
+            "max_output_json_bytes_per_token": 16,
             "max_stage_seconds": 60,
         },
     }

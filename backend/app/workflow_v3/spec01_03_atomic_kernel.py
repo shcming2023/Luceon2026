@@ -22,11 +22,11 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping, Sequence
 
 
-KERNEL_VERSION = "luceon-worker-v3-spec01-03-atomic/1.1.0"
+KERNEL_VERSION = "luceon-worker-v3-spec01-03-atomic/1.2.0"
 INTAKE_SCHEMA = "luceon.worker-v3-spec01-intake-contract/v1"
-SCOPE_REVIEW_SCHEMA = "luceon.worker-v3-spec02-scope-order-review/v1"
+SCOPE_REVIEW_SCHEMA = "luceon.worker-v3-spec02-scope-order-review/v2"
 MEDIA_REVIEW_SCHEMA = "luceon.worker-v3-spec03-media-review/v1"
-SCOPE_REVIEW_TASK_SCHEMA = "luceon.worker-v3-spec02-review-task/v1"
+SCOPE_REVIEW_TASK_SCHEMA = "luceon.worker-v3-spec02-review-task/v2"
 MEDIA_REVIEW_TASK_SCHEMA = "luceon.worker-v3-spec03-review-task/v1"
 ATOMIC_STAGE_MANIFEST_SCHEMA = "luceon.worker-v3-atomic-stage-manifest/v1"
 RUN_MANIFEST_SCHEMA = "luceon.worker-v3-atomic-run-manifest/v1"
@@ -43,6 +43,11 @@ MEDIA_TYPES = {"image", "table", "chart", "equation_interline"}
 MAX_ARCHIVE_MEMBERS = 40_000
 MAX_ARCHIVE_BYTES = 4_000_000_000
 MAX_JSON_BYTES = 300_000_000
+SCOPE_BASELINE_ALGORITHM = "popo-evidence-scope-order-baseline/1.0"
+SCOPE_BASELINE_EXCLUDED_LABELS = frozenset(
+    {"footer", "header", "page_number", "watermark"}
+)
+SCOPE_REVIEW_EXCERPT_CHARS = 240
 
 SPEC01_COMPACT_PARENT_FILES = (
     "contracts/input_contract.json",
@@ -1594,23 +1599,212 @@ def _verify_materialized_parent(parent: Path) -> dict[str, Any]:
     return contract
 
 
+def _scope_content_excerpt(value: object) -> str:
+    text = " ".join(str(value or "").split())
+    if len(text) <= SCOPE_REVIEW_EXCERPT_CHARS:
+        return text
+    head = SCOPE_REVIEW_EXCERPT_CHARS * 2 // 3
+    tail = SCOPE_REVIEW_EXCERPT_CHARS - head - 1
+    return text[:head] + "…" + text[-tail:]
+
+
+def _scope_unit_sort_key(unit: Mapping[str, Any]) -> tuple[object, ...]:
+    bbox = unit.get("bbox")
+    normalized_bbox = (
+        tuple(float(item) for item in bbox)
+        if isinstance(bbox, list) and len(bbox) == 4
+        else (0.0, 0.0, 0.0, 0.0)
+    )
+    tree = unit.get("tree_context")
+    node_path = (
+        tuple(int(item) for item in tree.get("node_path") or [])
+        if isinstance(tree, Mapping)
+        else ()
+    )
+    rank = unit.get("popo_tree_rank")
+    return (
+        rank is None,
+        int(rank) if isinstance(rank, int) and not isinstance(rank, bool) else 0,
+        node_path,
+        normalized_bbox[1],
+        normalized_bbox[0],
+        str(unit.get("source_id") or ""),
+    )
+
+
+def _scope_baseline(
+    *,
+    page_count: int,
+    source_units: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    source_by_page: dict[int, list[Mapping[str, Any]]] = {
+        page: [] for page in range(1, page_count + 1)
+    }
+    for unit in source_units:
+        page = int(unit["physical_page"])
+        if page not in source_by_page:
+            _fail("review_task_source_invalid", f"source unit references unknown page {page}")
+        source_by_page[page].append(unit)
+
+    baseline_pages: list[dict[str, Any]] = []
+    baseline_units: list[dict[str, Any]] = []
+    for page in range(1, page_count + 1):
+        ordered = sorted(source_by_page[page], key=_scope_unit_sort_key)
+        page_units: list[dict[str, Any]] = []
+        for page_order, unit in enumerate(ordered, 1):
+            label = str(unit.get("source_label") or "").strip().lower()
+            source_type = str(unit.get("source_type") or "").strip().lower()
+            excluded = (
+                label in SCOPE_BASELINE_EXCLUDED_LABELS
+                or source_type in SCOPE_BASELINE_EXCLUDED_LABELS
+            )
+            row = {
+                "source_id": str(unit["source_id"]),
+                "physical_page": page,
+                "scope_status": "excluded" if excluded else "included",
+                "scope_reason": (
+                    f"deterministic non-body label:{label or source_type}"
+                    if excluded
+                    else "deterministic Popo source unit"
+                ),
+                "baseline_page_order": page_order,
+                "evidence_refs": [f"source:{unit['source_id']}"],
+            }
+            page_units.append(row)
+            baseline_units.append(row)
+        included = [row for row in page_units if row["scope_status"] == "included"]
+        if not page_units:
+            category = "blank"
+        elif not included:
+            category = "non_body"
+        elif any(
+            str(unit.get("source_type") or "").lower() in MEDIA_TYPES
+            or str(unit.get("source_label") or "").lower() in MEDIA_TYPES
+            for unit in ordered
+        ):
+            category = "body_with_media"
+        else:
+            category = "body"
+        baseline_pages.append(
+            {
+                "physical_page": page,
+                "scope_status": "included" if included else "excluded",
+                "page_category": category,
+                "reason": (
+                    "contains deterministic body source units"
+                    if included
+                    else "contains no deterministic body source units"
+                ),
+                "evidence_refs": [
+                    f"source:{row['source_id']}" for row in page_units[:4]
+                ]
+                or [f"physical-page:{page}"],
+            }
+        )
+    baseline = {
+        "schema_version": "luceon.worker-v3-spec02-deterministic-baseline/v1",
+        "algorithm": SCOPE_BASELINE_ALGORITHM,
+        "pages": baseline_pages,
+        "source_units": baseline_units,
+    }
+    baseline["sha256"] = _canonical_hash(baseline)
+    return baseline
+
+
+def _scope_page_complexity(
+    source_units: Sequence[Mapping[str, Any]],
+    media_atoms: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    flags: list[str] = []
+    if len(source_units) > 30:
+        flags.append("dense_page")
+    if any(unit.get("popo_tree_rank") is None for unit in source_units):
+        flags.append("missing_popo_tree_rank")
+    if media_atoms and any(
+        str(unit.get("source_type") or "").lower() not in MEDIA_TYPES
+        for unit in source_units
+    ):
+        flags.append("mixed_media_and_text")
+    x_centers = sorted(
+        (float(unit["bbox"][0]) + float(unit["bbox"][2])) / 2
+        for unit in source_units
+        if isinstance(unit.get("bbox"), list) and len(unit["bbox"]) == 4
+    )
+    if (
+        len(x_centers) >= 6
+        and sum(center < 0.45 for center in x_centers) >= 2
+        and sum(center > 0.55 for center in x_centers) >= 2
+    ):
+        flags.append("possible_multi_column")
+    return flags
+
+
+def _minimum_scope_review_bytes(
+    *,
+    material_id: str,
+    source_pdf_sha256: str,
+    baseline_sha256: str,
+    page_count: int,
+) -> int:
+    minimal = {
+        "schema_version": SCOPE_REVIEW_SCHEMA,
+        "review_id": "x",
+        "material_id": material_id,
+        "source_pdf_sha256": source_pdf_sha256,
+        "baseline_sha256": baseline_sha256,
+        "review_status": "closed",
+        "pages": [
+            {
+                "physical_page": page,
+                "scope_status": "excluded",
+                "page_category": "x",
+                "reason": "x",
+                "evidence_refs": ["x"],
+                "review_status": "closed",
+            }
+            for page in range(1, page_count + 1)
+        ],
+        "unit_scope_overrides": [],
+        "reading_order_overrides": [],
+        "relationships": [],
+        "open_reviews": [],
+    }
+    return len(_canonical_bytes(minimal))
+
+
 def _scope_review_task(parent: Path) -> dict[str, Any]:
     contract = _verify_materialized_parent(parent)
     identity = contract["material_identity"]
     source_units = _read_jsonl(parent / "source/popo_source_units.jsonl", "Popo source units")
     media_atoms = _read_jsonl(parent / "source/mineru_media_atoms.jsonl", "MinerU media atoms")
     geometry = _read_json(parent / "evidence/pdf_page_geometry.json", "PDF geometry")
+    page_count = int(identity["page_count"])
+    baseline = _scope_baseline(
+        page_count=page_count,
+        source_units=source_units,
+    )
+    baseline_units = {
+        row["source_id"]: row for row in baseline["source_units"]
+    }
+    baseline_pages = {
+        int(row["physical_page"]): row for row in baseline["pages"]
+    }
     pages_by_number = {
         int(item["physical_page"]): {
             "physical_page": int(item["physical_page"]),
-            "geometry": item,
+            "geometry": {
+                "physical_page": int(item["physical_page"]),
+                "width_points": item["width_points"],
+                "height_points": item["height_points"],
+                "rotation_degrees": item["rotation_degrees"],
+            },
             "source_units": [],
             "mineru_media_atoms": [],
         }
         for item in geometry.get("pages") or []
         if isinstance(item, Mapping)
     }
-    expected_pages = set(range(1, int(identity["page_count"]) + 1))
+    expected_pages = set(range(1, page_count + 1))
     if set(pages_by_number) != expected_pages:
         _fail("review_task_geometry_invalid", "PDF geometry does not cover every page")
     for unit in source_units:
@@ -1620,14 +1814,16 @@ def _scope_review_task(parent: Path) -> dict[str, Any]:
         pages_by_number[page]["source_units"].append(
             {
                 "source_id": unit["source_id"],
-                "source_type": unit["source_type"],
                 "source_label": unit["source_label"],
                 "bbox": unit["bbox"],
-                "bbox_basis": unit["bbox_basis"],
-                "raw_content": unit["raw_content"],
-                "raw_content_sha256": unit["raw_content_sha256"],
+                "content_excerpt": _scope_content_excerpt(unit["raw_content"]),
                 "popo_tree_rank": unit.get("popo_tree_rank"),
-                "tree_context": unit.get("tree_context"),
+                "baseline_scope_status": baseline_units[unit["source_id"]][
+                    "scope_status"
+                ],
+                "baseline_page_order": baseline_units[unit["source_id"]][
+                    "baseline_page_order"
+                ],
             }
         )
     for atom in media_atoms:
@@ -1639,29 +1835,28 @@ def _scope_review_task(parent: Path) -> dict[str, Any]:
                 "media_id": atom["media_id"],
                 "media_kind": atom["media_kind"],
                 "bbox": atom["bbox"],
-                "bbox_basis": atom["bbox_basis"],
-                "candidate_ids": [
-                    item["candidate_id"]
-                    for item in atom.get("candidates") or []
-                    if isinstance(item, Mapping) and item.get("candidate_id")
-                ],
             }
         )
     for page in pages_by_number.values():
-        page["source_units"].sort(
-            key=lambda item: (
-                item["popo_tree_rank"] is None,
-                item["popo_tree_rank"] or 0,
-                item["source_id"],
-            )
-        )
+        page["source_units"].sort(key=_scope_unit_sort_key)
         page["mineru_media_atoms"].sort(key=lambda item: item["media_id"])
+        page_number = int(page["physical_page"])
+        page["baseline_scope_status"] = baseline_pages[page_number]["scope_status"]
+        page["baseline_page_category"] = baseline_pages[page_number]["page_category"]
+        page["complexity_flags"] = _scope_page_complexity(
+            page["source_units"],
+            page["mineru_media_atoms"],
+        )
     task = {
         "schema_version": SCOPE_REVIEW_TASK_SCHEMA,
         "stage_key": "source_scope_and_order",
         "material_id": identity["material_id"],
         "source_pdf_sha256": identity["source_pdf_sha256"],
-        "page_count": identity["page_count"],
+        "page_count": page_count,
+        "source_unit_count": len(source_units),
+        "bbox_basis": "pdf_cropbox_normalized_0_1_top_left",
+        "baseline_algorithm": SCOPE_BASELINE_ALGORITHM,
+        "baseline_sha256": baseline["sha256"],
         "required_output_schema": SCOPE_REVIEW_SCHEMA,
         "allowed_choices": {
             "page_scope_status": ["included", "excluded"],
@@ -1674,13 +1869,20 @@ def _scope_review_task(parent: Path) -> dict[str, Any]:
         },
         "constraints": [
             "Classify every physical page exactly once.",
-            "Classify every enumerated Popo source_id exactly once.",
-            "Assign explicit contiguous final_order 1..N to all and only included units.",
-            "Do not use source array order as final reading order.",
+            "Return only source-unit scope or page-order overrides that differ from the deterministic baseline.",
+            "A reading-order override must enumerate every included source_id on that page exactly once.",
             "Close complex, multi-column, cross-page, and composite relationships with evidence.",
             "Do not infer scope from filename, title keywords, language, or sample identity.",
         ],
         "pages": [pages_by_number[index] for index in sorted(pages_by_number)],
+    }
+    task["capacity"] = {
+        "minimum_response_bytes": _minimum_scope_review_bytes(
+            material_id=identity["material_id"],
+            source_pdf_sha256=identity["source_pdf_sha256"],
+            baseline_sha256=baseline["sha256"],
+            page_count=page_count,
+        )
     }
     task["task_id"] = "scope-review-" + _canonical_hash(task)[:24]
     return task
@@ -1697,7 +1899,9 @@ def prepare_scope_review_task(args: argparse.Namespace) -> dict[str, Any]:
         "task_sha256": task_hash,
         "task_canonical_sha256": _canonical_hash(task),
         "pages": task["page_count"],
-        "source_units": sum(len(page["source_units"]) for page in task["pages"]),
+        "source_units": task["source_unit_count"],
+        "baseline_sha256": task["baseline_sha256"],
+        "minimum_response_bytes": task["capacity"]["minimum_response_bytes"],
     }
 
 
@@ -1917,7 +2121,8 @@ def _validate_scope_review(
     *,
     material_id: str,
     source_sha256: str,
-    page_count: int,
+    review_task: Mapping[str, Any],
+    baseline: Mapping[str, Any],
     source_units: Sequence[Mapping[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     expected_fields = {
@@ -1925,8 +2130,11 @@ def _validate_scope_review(
         "review_id",
         "material_id",
         "source_pdf_sha256",
+        "baseline_sha256",
         "review_status",
         "pages",
+        "unit_scope_overrides",
+        "reading_order_overrides",
         "relationships",
         "open_reviews",
     }
@@ -1934,19 +2142,36 @@ def _validate_scope_review(
         _fail("scope_review_shape_invalid", "scope/order review has missing or unknown fields")
     if review.get("material_id") != material_id or review.get("source_pdf_sha256") != source_sha256:
         _fail("scope_review_identity_mismatch", "scope/order review names another source")
+    if review.get("baseline_sha256") != baseline.get("sha256"):
+        _fail(
+            "scope_review_baseline_mismatch",
+            "scope/order review names another deterministic baseline",
+        )
     if review.get("review_status") != "closed" or review.get("open_reviews") != []:
         _fail("scope_review_open", "scope/order review is not closed")
+    page_count = int(review_task["page_count"])
     pages = review.get("pages")
     if not isinstance(pages, list) or len(pages) != page_count:
         _fail("scope_page_partition_invalid", "review must classify every physical page")
-    source_by_page: dict[int, set[str]] = {}
-    for unit in source_units:
-        source_by_page.setdefault(int(unit["physical_page"]), set()).add(str(unit["source_id"]))
-    normalized_units: list[dict[str, Any]] = []
+    baseline_pages = {
+        int(item["physical_page"]): item
+        for item in baseline.get("pages") or []
+        if isinstance(item, Mapping)
+    }
+    baseline_units = {
+        str(item["source_id"]): item
+        for item in baseline.get("source_units") or []
+        if isinstance(item, Mapping)
+    }
+    source_ids = {str(item["source_id"]) for item in source_units}
+    if set(baseline_pages) != set(range(1, page_count + 1)):
+        _fail("scope_baseline_invalid", "deterministic baseline page partition is not exact")
+    if set(baseline_units) != source_ids:
+        _fail("scope_baseline_invalid", "deterministic baseline source-unit partition is not exact")
+
     normalized_pages: list[dict[str, Any]] = []
     seen_pages: set[int] = set()
-    seen_units: set[str] = set()
-    included_orders: list[int] = []
+    page_decisions: dict[int, Mapping[str, Any]] = {}
     for raw_page in pages:
         if not isinstance(raw_page, Mapping):
             _fail("scope_page_partition_invalid", "review page must be an object")
@@ -1955,11 +2180,8 @@ def _validate_scope_review(
             "scope_status",
             "page_category",
             "reason",
-            "complexity_flags",
-            "cross_page_relationship_ids",
             "evidence_refs",
             "review_status",
-            "units",
         }
         if set(raw_page) != required:
             _fail("scope_page_shape_invalid", "review page has missing or unknown fields")
@@ -1974,111 +2196,203 @@ def _validate_scope_review(
         if raw_page.get("review_status") != "closed":
             _fail("scope_review_open", f"page {page_number} is not closed")
         evidence_refs = raw_page.get("evidence_refs")
-        flags = raw_page.get("complexity_flags")
         if (
             not isinstance(evidence_refs, list)
+            or not evidence_refs
             or any(not isinstance(item, str) or not item for item in evidence_refs)
-            or not isinstance(flags, list)
-            or any(not isinstance(item, str) or not item for item in flags)
         ):
             _fail("scope_evidence_invalid", f"page {page_number} review evidence is invalid")
-        if flags and not evidence_refs:
-            _fail("complex_page_evidence_missing", f"page {page_number} is complex without evidence")
-        units = raw_page.get("units")
-        if not isinstance(units, list):
-            _fail("scope_unit_partition_invalid", f"page {page_number}.units must be an array")
-        local_seen: set[str] = set()
-        for raw_unit in units:
-            if not isinstance(raw_unit, Mapping):
-                _fail("scope_unit_partition_invalid", "review unit must be an object")
-            fields = {
-                "source_id",
-                "scope_status",
-                "reason",
-                "final_order",
-                "semantic_group_id",
-                "composite_relationship_ids",
-                "evidence_refs",
-                "review_status",
-            }
-            if set(raw_unit) != fields:
-                _fail("scope_unit_shape_invalid", "review unit has missing or unknown fields")
-            source_id = _require_text(raw_unit.get("source_id"), "review unit source_id")
-            if source_id in local_seen or source_id in seen_units:
-                _fail("scope_unit_partition_invalid", f"source unit {source_id!r} is duplicated")
-            if source_id not in source_by_page.get(page_number, set()):
-                _fail("scope_unit_partition_invalid", f"source unit {source_id!r} is on another page")
-            local_seen.add(source_id)
-            seen_units.add(source_id)
-            status = raw_unit.get("scope_status")
-            if status not in {"included", "excluded"}:
-                _fail("scope_status_invalid", f"source unit {source_id!r} status is invalid")
-            reason = _require_text(raw_unit.get("reason"), f"{source_id}.reason")
-            unit_evidence = raw_unit.get("evidence_refs")
-            if (
-                not isinstance(unit_evidence, list)
-                or not unit_evidence
-                or any(not isinstance(item, str) or not item for item in unit_evidence)
-            ):
-                _fail("scope_evidence_invalid", f"{source_id} lacks evidence")
-            if raw_unit.get("review_status") != "closed":
-                _fail("scope_review_open", f"source unit {source_id!r} is not closed")
-            final_order = raw_unit.get("final_order")
-            if status == "included":
-                final_order = _require_positive_int(final_order, f"{source_id}.final_order")
-                included_orders.append(final_order)
-            elif final_order != 0:
-                _fail(
-                    "excluded_unit_ordered",
-                    f"excluded source unit {source_id!r} must use final_order 0",
-                )
-            else:
-                final_order = None
-            if raw_page.get("scope_status") == "excluded" and status != "excluded":
-                _fail("excluded_page_contains_body", f"excluded page {page_number} includes a source unit")
-            composite_refs = raw_unit.get("composite_relationship_ids")
-            if not isinstance(composite_refs, list) or any(
-                not isinstance(item, str) or not item for item in composite_refs
-            ):
-                _fail("scope_relationship_invalid", f"{source_id} relationship refs are invalid")
-            semantic_group_id = raw_unit.get("semantic_group_id")
-            if not isinstance(semantic_group_id, str):
-                _fail("scope_relationship_invalid", f"{source_id} semantic_group_id is invalid")
-            semantic_group_id = semantic_group_id or None
-            normalized_units.append(
-                {
-                    "source_id": source_id,
-                    "physical_page": page_number,
-                    "scope_status": status,
-                    "scope_reason": reason,
-                    "candidate_final_order": final_order,
-                    "semantic_group_id": semantic_group_id,
-                    "composite_relationship_ids": list(composite_refs),
-                    "evidence_refs": list(unit_evidence),
-                    "review_status": "closed",
-                }
-            )
-        if local_seen != source_by_page.get(page_number, set()):
-            missing = sorted(source_by_page.get(page_number, set()) - local_seen)
-            _fail("scope_unit_partition_invalid", f"page {page_number} omits units {missing[:10]}")
+        page_decisions[page_number] = raw_page
         normalized_pages.append(
             {
                 "physical_page": page_number,
                 "scope_status": raw_page["scope_status"],
                 "page_category": raw_page["page_category"],
                 "reason": raw_page["reason"],
-                "complexity_flags": list(flags),
-                "cross_page_relationship_ids": list(raw_page["cross_page_relationship_ids"]),
+                "complexity_flags": [],
+                "cross_page_relationship_ids": [],
                 "evidence_refs": list(evidence_refs),
                 "review_status": "closed",
             }
         )
     if seen_pages != set(range(1, page_count + 1)):
         _fail("scope_page_partition_invalid", "review page partition is not exact")
-    if seen_units != {str(item["source_id"]) for item in source_units}:
-        _fail("scope_unit_partition_invalid", "review source-unit partition is not exact")
-    if sorted(included_orders) != list(range(1, len(included_orders) + 1)):
-        _fail("reading_order_not_contiguous", "included final_order must be exactly 1..N")
+
+    unit_overrides = review.get("unit_scope_overrides")
+    if not isinstance(unit_overrides, list):
+        _fail("scope_unit_override_invalid", "unit_scope_overrides must be an array")
+    overrides_by_id: dict[str, Mapping[str, Any]] = {}
+    for raw in unit_overrides:
+        if not isinstance(raw, Mapping) or set(raw) != {
+            "source_id",
+            "scope_status",
+            "reason",
+            "evidence_refs",
+            "review_status",
+        }:
+            _fail("scope_unit_override_invalid", "unit scope override shape is invalid")
+        source_id = _require_text(raw.get("source_id"), "unit scope override source_id")
+        if source_id not in baseline_units or source_id in overrides_by_id:
+            _fail(
+                "scope_unit_override_invalid",
+                f"unit scope override {source_id!r} is unknown or duplicated",
+            )
+        if raw.get("scope_status") not in {"included", "excluded"}:
+            _fail("scope_status_invalid", f"source unit {source_id!r} status is invalid")
+        _require_text(raw.get("reason"), f"{source_id}.reason")
+        evidence = raw.get("evidence_refs")
+        if (
+            not isinstance(evidence, list)
+            or not evidence
+            or any(not isinstance(item, str) or not item for item in evidence)
+        ):
+            _fail("scope_evidence_invalid", f"{source_id} override lacks evidence")
+        if raw.get("review_status") != "closed":
+            _fail("scope_review_open", f"source unit {source_id!r} override is not closed")
+        overrides_by_id[source_id] = raw
+
+    normalized_units: list[dict[str, Any]] = []
+    for source_id, baseline_unit in sorted(
+        baseline_units.items(),
+        key=lambda item: (
+            int(item[1]["physical_page"]),
+            int(item[1]["baseline_page_order"]),
+            item[0],
+        ),
+    ):
+        page_number = int(baseline_unit["physical_page"])
+        page_decision = page_decisions[page_number]
+        override = overrides_by_id.get(source_id)
+        status = (
+            str(override["scope_status"])
+            if override is not None
+            else str(baseline_unit["scope_status"])
+        )
+        reason = (
+            str(override["reason"])
+            if override is not None
+            else str(baseline_unit["scope_reason"])
+        )
+        evidence_refs = (
+            list(override["evidence_refs"])
+            if override is not None
+            else list(baseline_unit["evidence_refs"])
+        )
+        if page_decision["scope_status"] == "excluded":
+            status = "excluded"
+            reason = f"page excluded: {page_decision['reason']}"
+            evidence_refs = list(page_decision["evidence_refs"])
+        normalized_units.append(
+            {
+                "source_id": source_id,
+                "physical_page": page_number,
+                "scope_status": status,
+                "scope_reason": reason,
+                "candidate_final_order": None,
+                "baseline_page_order": int(baseline_unit["baseline_page_order"]),
+                "semantic_group_id": None,
+                "composite_relationship_ids": [],
+                "evidence_refs": evidence_refs,
+                "review_status": "closed",
+            }
+        )
+    units_by_page: dict[int, list[dict[str, Any]]] = {
+        page: [] for page in range(1, page_count + 1)
+    }
+    for unit in normalized_units:
+        units_by_page[int(unit["physical_page"])].append(unit)
+    for page_number, page_decision in page_decisions.items():
+        if (
+            page_decision["scope_status"] == "included"
+            and not any(
+                unit["scope_status"] == "included"
+                for unit in units_by_page[page_number]
+            )
+        ):
+            _fail(
+                "included_page_without_body",
+                f"included page {page_number} has no included source unit",
+            )
+
+    order_overrides = review.get("reading_order_overrides")
+    if not isinstance(order_overrides, list):
+        _fail(
+            "reading_order_override_invalid",
+            "reading_order_overrides must be an array",
+        )
+    order_by_page: dict[int, list[str]] = {}
+    for raw in order_overrides:
+        if not isinstance(raw, Mapping) or set(raw) != {
+            "physical_page",
+            "ordered_source_ids",
+            "reason",
+            "evidence_refs",
+            "review_status",
+        }:
+            _fail(
+                "reading_order_override_invalid",
+                "reading order override shape is invalid",
+            )
+        page_number = _require_positive_int(
+            raw.get("physical_page"),
+            "reading order override physical_page",
+        )
+        if page_number > page_count or page_number in order_by_page:
+            _fail(
+                "reading_order_override_invalid",
+                f"reading order override page {page_number} is invalid or duplicated",
+            )
+        ordered_ids = raw.get("ordered_source_ids")
+        expected_ids = {
+            unit["source_id"]
+            for unit in units_by_page[page_number]
+            if unit["scope_status"] == "included"
+        }
+        if (
+            not isinstance(ordered_ids, list)
+            or len(ordered_ids) != len(set(ordered_ids))
+            or set(ordered_ids) != expected_ids
+        ):
+            _fail(
+                "reading_order_override_invalid",
+                f"reading order override page {page_number} is not an exact included-unit partition",
+            )
+        _require_text(raw.get("reason"), f"page {page_number} order reason")
+        evidence = raw.get("evidence_refs")
+        if (
+            not isinstance(evidence, list)
+            or not evidence
+            or any(not isinstance(item, str) or not item for item in evidence)
+            or raw.get("review_status") != "closed"
+        ):
+            _fail(
+                "reading_order_override_invalid",
+                f"reading order override page {page_number} lacks closed evidence",
+            )
+        order_by_page[page_number] = list(ordered_ids)
+
+    next_order = 1
+    for page_number in range(1, page_count + 1):
+        included = [
+            unit
+            for unit in sorted(
+                units_by_page[page_number],
+                key=lambda item: (
+                    int(item["baseline_page_order"]),
+                    item["source_id"],
+                ),
+            )
+            if unit["scope_status"] == "included"
+        ]
+        if page_number in order_by_page:
+            included_by_id = {unit["source_id"]: unit for unit in included}
+            included = [
+                included_by_id[source_id]
+                for source_id in order_by_page[page_number]
+            ]
+        for unit in included:
+            unit["candidate_final_order"] = next_order
+            next_order += 1
 
     relationships = review.get("relationships")
     if not isinstance(relationships, list):
@@ -2086,6 +2400,9 @@ def _validate_scope_review(
     normalized_relationships: list[dict[str, Any]] = []
     relationship_ids: set[str] = set()
     units_by_id = {item["source_id"]: item for item in normalized_units}
+    page_relationships: dict[int, list[str]] = {
+        page: [] for page in range(1, page_count + 1)
+    }
     for raw in relationships:
         if not isinstance(raw, Mapping):
             _fail("scope_relationship_invalid", "relationship must be an object")
@@ -2157,14 +2474,45 @@ def _validate_scope_review(
                 "scope_relationship_invalid",
                 f"{relationship_id} must use an empty fixed roles object",
             )
+        if relationship_type == "semantic_group":
+            for member in members:
+                existing = units_by_id[member]["semantic_group_id"]
+                if existing not in {None, relationship_id}:
+                    _fail(
+                        "scope_relationship_invalid",
+                        f"source unit {member!r} has conflicting semantic groups",
+                    )
+                units_by_id[member]["semantic_group_id"] = relationship_id
+        else:
+            for member in members:
+                units_by_id[member]["composite_relationship_ids"].append(
+                    relationship_id
+                )
+        for page_number in pages_set:
+            page_relationships[page_number].append(relationship_id)
         normalized_relationships.append(dict(raw))
-    referenced = {
-        relationship_id
-        for unit in normalized_units
-        for relationship_id in unit["composite_relationship_ids"]
+    complexity_by_page = {
+        int(item["physical_page"]): list(item.get("complexity_flags") or [])
+        for item in review_task.get("pages") or []
+        if isinstance(item, Mapping)
     }
-    if referenced - relationship_ids:
-        _fail("scope_relationship_invalid", "source units reference unknown relationships")
+    for page in normalized_pages:
+        page_number = int(page["physical_page"])
+        page["complexity_flags"] = complexity_by_page.get(page_number, [])
+        page["cross_page_relationship_ids"] = sorted(
+            relationship_id
+            for relationship_id in page_relationships[page_number]
+            if len(
+                next(
+                    item["physical_pages"]
+                    for item in normalized_relationships
+                    if item["relationship_id"] == relationship_id
+                )
+            )
+            > 1
+        )
+    for unit in normalized_units:
+        unit.pop("baseline_page_order", None)
     return normalized_pages, normalized_units, normalized_relationships
 
 
@@ -2194,17 +2542,23 @@ def produce_scope(args: argparse.Namespace) -> dict[str, Any]:
     source_sha = identity["source_pdf_sha256"]
     page_count = int(identity["page_count"])
     source_units = _read_jsonl(parent / "source/popo_source_units.jsonl", "Popo source units")
+    expected_review_task = _scope_review_task(parent)
     review_task_hash = _verify_review_task(
         args.review_task.resolve(),
-        _scope_review_task(parent),
+        expected_review_task,
         "scope review task",
     )
     review = _read_json(args.review.resolve(), "scope/order review")
+    baseline = _scope_baseline(
+        page_count=page_count,
+        source_units=source_units,
+    )
     pages, units, relationships = _validate_scope_review(
         review,
         material_id=material_id,
         source_sha256=source_sha,
-        page_count=page_count,
+        review_task=expected_review_task,
+        baseline=baseline,
         source_units=source_units,
     )
 
@@ -2273,7 +2627,7 @@ def produce_scope(args: argparse.Namespace) -> dict[str, Any]:
         "decision_id": args.stage_decision_id,
         "rule_id": "SC-H01..SC-H09/RO-H01..RO-H08",
         "status": "closed",
-        "decision": "Freeze the explicit all-page and all-source-unit scope/order review; no flat-array order is inferred.",
+        "decision": "Freeze the explicit all-page review over the deterministic exhaustive source-unit baseline and its bounded deltas; no flat-array order is inferred.",
         "evidence_refs": [
             "reviews/spec02_scope_order_review.json",
             "ledgers/source_page_render_ledger.jsonl",

@@ -41,7 +41,7 @@ remains deliberately `incomplete` and is not installable as RC.
 | Twelve persisted stages | passed in code and tests | 12 Producer and 12 distinct Evaluator entrypoints; state-machine and API tests |
 | Producer/Evaluator/Promotion/Projector separation | passed in code and tests; live role probe pending | four services and identities; control-plane, operation-attempt and projection tests |
 | Frozen-input lineage and fail-closed admission | passed for five input packages and Stage 1 preflight | materials 1339-1343 seven-object sets and isolated qualification reports; full downstream lineage pending |
-| Bounded LLM schema, telemetry and cost accounting | strict rejection proved; Spec 02 capacity is blocked | the one approved material 1343 call returned HTTP 200 but was rejected as `schema_mismatch`; 556,086 input tokens exceeded the 500,000 release cap and the exhaustive response has a 627,766-byte minimum against a 16,000-token output cap |
+| Bounded LLM schema, telemetry and cost accounting | strict rejection proved; v2 offline remediation passed; live requalification pending | v1 was rejected after 556,086 input tokens; v2 uses an exhaustive deterministic baseline plus compact deltas, reduces the exact material 1343 request from 1,474,196 to 820,827 bytes and minimum response from 627,766 to 25,910 bytes, and adds pre-transmission gates |
 | Full-page visual review | contract and evaluator passed; provider qualification pending | all-page binding tests pass; clean-image provider/reviewer proof is missing |
 | Deterministic ElegantBook on real material | adapter and regression tests passed; final-image qualification pending | locked-template smoke passed; unchanged-image real-book Spec 05 proof is missing |
 | Independent Overleaf/XeLaTeX recompile | adapter image health passed; real ZIP compile pending | adapter digest and non-root health exist; Worker-to-adapter compile requires one temporary internal network |
@@ -71,10 +71,9 @@ publication proofs in the table above remain separately required.
 
 ## Next evidence sequence
 
-1. Replace the monolithic Spec 02 full-book response with a deterministic
-   exhaustive baseline plus compact or sharded review deltas. Enforce input and
-   minimum-output capacity before provider transmission, then qualify the exact
-   merge and coverage gates offline before requesting another live call.
+1. Rebuild the exact Worker V3 image with the offline-passed compact Spec 02 v2
+   contract. After separate authorization, execute one new v2 live call and
+   replay its exact response through isolated qualification.
 2. Produce a real Worker V3 ZIP and complete the approved temporary-network
    Worker-to-Overleaf compile,
    then remove the network.

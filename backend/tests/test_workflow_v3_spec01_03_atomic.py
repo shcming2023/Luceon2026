@@ -368,35 +368,16 @@ def _run_pipeline(root: Path, *, padding_bytes: int = 0) -> tuple[Path, Path, Pa
         argparse.Namespace(parent=spec01, output=scope_task)
     )
     task = json.loads(scope_task.read_text(encoding="utf-8"))
-    order = 0
     review_pages = []
     for page in task["pages"]:
-        review_units = []
-        for unit in page["source_units"]:
-            order += 1
-            review_units.append(
-                {
-                    "source_id": unit["source_id"],
-                    "scope_status": "included",
-                    "reason": "enumerated source body",
-                    "final_order": order,
-                    "semantic_group_id": "",
-                    "composite_relationship_ids": [],
-                    "evidence_refs": [f"source:{unit['source_id']}"],
-                    "review_status": "closed",
-                }
-            )
         review_pages.append(
             {
                 "physical_page": page["physical_page"],
-                "scope_status": "included",
-                "page_category": "body",
-                "reason": "enumerated source page",
-                "complexity_flags": [],
-                "cross_page_relationship_ids": [],
-                "evidence_refs": [],
+                "scope_status": page["baseline_scope_status"],
+                "page_category": page["baseline_page_category"],
+                "reason": "reviewed deterministic page baseline",
+                "evidence_refs": [f"physical-page:{page['physical_page']}"],
                 "review_status": "closed",
-                "units": review_units,
             }
         )
     scope_review = root / "scope-review.json"
@@ -407,8 +388,11 @@ def _run_pipeline(root: Path, *, padding_bytes: int = 0) -> tuple[Path, Path, Pa
             "review_id": "scope-review-1",
             "material_id": task["material_id"],
             "source_pdf_sha256": task["source_pdf_sha256"],
+            "baseline_sha256": task["baseline_sha256"],
             "review_status": "closed",
             "pages": review_pages,
+            "unit_scope_overrides": [],
+            "reading_order_overrides": [],
             "relationships": [],
             "open_reviews": [],
         },
@@ -568,7 +552,15 @@ def test_large_frozen_inputs_are_referenced_not_recursively_materialized(
         )
         assert sum(path.stat().st_size for path in files) < frozen_bytes // 4
     assert not list(spec01.rglob("*.png"))
-    assert not list(spec02.rglob("*.png"))
+    risk_thumbnails = list(
+        spec02.glob("evidence/risk-page-thumbnails/page-*.png")
+    )
+    assert 0 < len(risk_thumbnails) <= 12
+    assert not [
+        path
+        for path in spec02.rglob("*.png")
+        if path not in risk_thumbnails
+    ]
     selected = list(spec03.glob("media/selected/*.png"))
     assert len(selected) == 1
     contract = json.loads(
@@ -745,52 +737,45 @@ def test_safe_tar_accepts_standard_dot_prefixed_root_directory(
     assert files["safe/file.txt"].read_bytes() == b"safe"
 
 
-def test_scope_review_rejects_omitted_unit(tmp_path: Path) -> None:
+def test_scope_review_rejects_unknown_unit_override(tmp_path: Path) -> None:
     spec01, _, _, _ = _run_pipeline(tmp_path)
     task = kernel._scope_review_task(spec01)  # noqa: SLF001
     source_units = kernel._read_jsonl(  # noqa: SLF001
         spec01 / "source/popo_source_units.jsonl",
         "test source units",
     )
-    pages = []
-    order = 0
-    for task_page in task["pages"]:
-        units = []
-        for unit in task_page["source_units"]:
-            order += 1
-            units.append(
-                {
-                    "source_id": unit["source_id"],
-                    "scope_status": "included",
-                    "reason": "source body",
-                    "final_order": order,
-                    "semantic_group_id": "",
-                    "composite_relationship_ids": [],
-                    "evidence_refs": [f"source:{unit['source_id']}"],
-                    "review_status": "closed",
-                }
-            )
-        pages.append(
-            {
-                "physical_page": task_page["physical_page"],
-                "scope_status": "included",
-                "page_category": "body",
-                "reason": "source page",
-                "complexity_flags": [],
-                "cross_page_relationship_ids": [],
-                "evidence_refs": [],
-                "review_status": "closed",
-                "units": units,
-            }
-        )
-    pages[0]["units"] = []
+    baseline = kernel._scope_baseline(  # noqa: SLF001
+        page_count=task["page_count"],
+        source_units=source_units,
+    )
     review = {
         "schema_version": kernel.SCOPE_REVIEW_SCHEMA,
-        "review_id": "omitted-unit",
+        "review_id": "unknown-unit-override",
         "material_id": task["material_id"],
         "source_pdf_sha256": task["source_pdf_sha256"],
+        "baseline_sha256": task["baseline_sha256"],
         "review_status": "closed",
-        "pages": pages,
+        "pages": [
+            {
+                "physical_page": page["physical_page"],
+                "scope_status": page["baseline_scope_status"],
+                "page_category": page["baseline_page_category"],
+                "reason": "reviewed deterministic page baseline",
+                "evidence_refs": [f"physical-page:{page['physical_page']}"],
+                "review_status": "closed",
+            }
+            for page in task["pages"]
+        ],
+        "unit_scope_overrides": [
+            {
+                "source_id": "not-enumerated",
+                "scope_status": "excluded",
+                "reason": "invalid test override",
+                "evidence_refs": ["test:evidence"],
+                "review_status": "closed",
+            }
+        ],
+        "reading_order_overrides": [],
         "relationships": [],
         "open_reviews": [],
     }
@@ -799,13 +784,152 @@ def test_scope_review_rejects_omitted_unit(tmp_path: Path) -> None:
             review,
             material_id=task["material_id"],
             source_sha256=task["source_pdf_sha256"],
-            page_count=task["page_count"],
+            review_task=task,
+            baseline=baseline,
             source_units=source_units,
         )
     except kernel.KernelContractError as exc:
-        assert exc.code == "scope_unit_partition_invalid"
+        assert exc.code == "scope_unit_override_invalid"
     else:
-        raise AssertionError("omitted source unit must fail")
+        raise AssertionError("unknown source-unit override must fail")
+
+
+def test_compact_scope_review_expands_large_exhaustive_baseline() -> None:
+    page_count = 200
+    source_units = [
+        {
+            "source_id": f"unit-{page:04d}-{index:02d}",
+            "physical_page": page,
+            "source_label": "text",
+            "source_type": "text",
+            "bbox": [0.1, index / 20, 0.9, (index + 1) / 20],
+            "popo_tree_rank": (page - 1) * 15 + index,
+        }
+        for page in range(1, page_count + 1)
+        for index in range(15)
+    ]
+    baseline = kernel._scope_baseline(  # noqa: SLF001
+        page_count=page_count,
+        source_units=source_units,
+    )
+    task = {
+        "page_count": page_count,
+        "pages": [
+            {"physical_page": page, "complexity_flags": []}
+            for page in range(1, page_count + 1)
+        ],
+    }
+    review = {
+        "schema_version": kernel.SCOPE_REVIEW_SCHEMA,
+        "review_id": "large-compact-review",
+        "material_id": "pdf-large-generic",
+        "source_pdf_sha256": "a" * 64,
+        "baseline_sha256": baseline["sha256"],
+        "review_status": "closed",
+        "pages": [
+            {
+                "physical_page": page,
+                "scope_status": "included",
+                "page_category": "body",
+                "reason": "deterministic baseline accepted",
+                "evidence_refs": [f"physical-page:{page}"],
+                "review_status": "closed",
+            }
+            for page in range(1, page_count + 1)
+        ],
+        "unit_scope_overrides": [],
+        "reading_order_overrides": [],
+        "relationships": [],
+        "open_reviews": [],
+    }
+    pages, units, relationships = kernel._validate_scope_review(  # noqa: SLF001
+        review,
+        material_id="pdf-large-generic",
+        source_sha256="a" * 64,
+        review_task=task,
+        baseline=baseline,
+        source_units=source_units,
+    )
+    assert len(pages) == page_count
+    assert len(units) == 3000
+    assert relationships == []
+    assert [unit["candidate_final_order"] for unit in units] == list(
+        range(1, 3001)
+    )
+    assert (
+        kernel._minimum_scope_review_bytes(  # noqa: SLF001
+            material_id="pdf-large-generic",
+            source_pdf_sha256="a" * 64,
+            baseline_sha256=baseline["sha256"],
+            page_count=page_count,
+        )
+        < 16_000 * 16
+    )
+
+
+def test_scope_review_rejects_nonempty_roles_for_semantic_group() -> None:
+    source_units = [
+        {
+            "source_id": "unit-1",
+            "physical_page": 1,
+            "source_label": "text",
+            "source_type": "text",
+            "bbox": [0.1, 0.1, 0.9, 0.2],
+            "popo_tree_rank": 1,
+        }
+    ]
+    baseline = kernel._scope_baseline(  # noqa: SLF001
+        page_count=1,
+        source_units=source_units,
+    )
+    review = {
+        "schema_version": kernel.SCOPE_REVIEW_SCHEMA,
+        "review_id": "invalid-semantic-group-roles",
+        "material_id": "pdf-generic",
+        "source_pdf_sha256": "a" * 64,
+        "baseline_sha256": baseline["sha256"],
+        "review_status": "closed",
+        "pages": [
+            {
+                "physical_page": 1,
+                "scope_status": "included",
+                "page_category": "body",
+                "reason": "reviewed",
+                "evidence_refs": ["physical-page:1"],
+                "review_status": "closed",
+            }
+        ],
+        "unit_scope_overrides": [],
+        "reading_order_overrides": [],
+        "relationships": [
+            {
+                "relationship_id": "semantic-1",
+                "relationship_type": "semantic_group",
+                "member_source_ids": ["unit-1"],
+                "roles": {"stem": ["unit-1"], "media": [], "options": []},
+                "physical_pages": [1],
+                "evidence_refs": ["source:unit-1"],
+                "review_status": "closed",
+            }
+        ],
+        "open_reviews": [],
+    }
+    try:
+        kernel._validate_scope_review(  # noqa: SLF001
+            review,
+            material_id="pdf-generic",
+            source_sha256="a" * 64,
+            review_task={
+                "page_count": 1,
+                "pages": [{"physical_page": 1, "complexity_flags": []}],
+            },
+            baseline=baseline,
+            source_units=source_units,
+        )
+    except kernel.KernelContractError as exc:
+        assert exc.code == "scope_relationship_invalid"
+    else:
+        raise AssertionError("semantic group roles must be empty")
 
 
 def test_media_review_rejects_unknown_candidate(tmp_path: Path) -> None:

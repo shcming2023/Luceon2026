@@ -1,0 +1,66 @@
+{
+  "schema_version": "luceon.worker-v3-offline-remediation-evidence/v1",
+  "remediation_id": "spec02-compact-delta-v2-20260728",
+  "status": "offline_passed_live_pending",
+  "change": {
+    "stage_key": "source_scope_and_order",
+    "task_schema": "luceon.worker-v3-spec02-review-task/v2",
+    "response_schema": "luceon.worker-v3-spec02-scope-order-review/v2",
+    "baseline_algorithm": "popo-evidence-scope-order-baseline/1.0",
+    "architecture": "deterministic exhaustive baseline plus compact bounded review deltas plus strict deterministic merge",
+    "sample_specific_rules_added": false,
+    "codex_runtime_dependency_added": false
+  },
+  "pre_transmission_gates": {
+    "max_stage_request_bytes": 1000000,
+    "max_output_json_bytes_per_token": 16,
+    "request_byte_gate_runs_before_provider_call": true,
+    "minimum_response_capacity_gate_runs_before_provider_call": true,
+    "failure_audit_marks_provider_call_started_false": true
+  },
+  "generic_regression": {
+    "physical_pages": 200,
+    "source_units": 3000,
+    "all_source_units_expanded_locally": true,
+    "contiguous_final_order_verified": true,
+    "minimum_response_capacity_verified": true
+  },
+  "material_1343_offline_capture": {
+    "material_id": "pdf-8e5464971a3e1d6b",
+    "physical_pages": 200,
+    "source_units": 2859,
+    "old_request_canonical_bytes": 1474196,
+    "new_task_canonical_bytes": 814660,
+    "new_request_canonical_bytes": 820827,
+    "old_minimum_complete_response_bytes": 627766,
+    "new_minimum_complete_response_bytes": 25910,
+    "maximum_admitted_response_bytes": 256000,
+    "new_input_sha256": "fa52112c476263c7ce4b934f8b2c4cd75dddff3bfe85b083bf32b3a3b8bae821",
+    "new_request_sha256": "b7ec20f5375a711da0bff95273f3414aedc2197d052c6314f0f1a44defff7bb8",
+    "prompt_sha256": "93539983e7c799cf537c596bacad981f9782f429a11186d8df0487f5a2a2ca29",
+    "schema_sha256": "5f9b7704a128ae9a5ead790838f6a031225db1ac87898bae91791baa69078a24",
+    "network_used": false,
+    "expected_terminal_error": "qualification_fixture_missing",
+    "qualification_report_sha256": "d3a5dc0549722c403779a6c708b9744bf87e81a384c0dd542c3ca10d64eba547"
+  },
+  "intermediate_release_evidence": {
+    "archive_sha256": "df15e93868e996015109a6f6fe9d19b653d000824d8691c4680c0779f804bc3d",
+    "tree_sha256": "8abb5f54242b05077d1170f1a569af484e6d4c2ab394e63d8b85db3780e85ac3",
+    "status": "incomplete",
+    "final_image_bound": false,
+    "known_gap_count": 4
+  },
+  "tests": {
+    "targeted_passed": 65,
+    "targeted_failed": 0,
+    "full_worker_v3_passed": 329,
+    "full_worker_v3_skipped": 2,
+    "full_worker_v3_failed": 0
+  },
+  "remaining_proof": [
+    "rebuild the Worker V3 image from the remediated source",
+    "obtain separate approval for a new live v2 provider call",
+    "replay the exact valid response in an isolated qualification run",
+    "continue through deterministic ElegantBook and real ZIP generation"
+  ]
+}
