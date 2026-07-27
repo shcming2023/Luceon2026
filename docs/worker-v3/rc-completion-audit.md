@@ -19,10 +19,10 @@ evidence-complete `needs_review`.
 
 The immutable Worker image currently qualified for code execution is:
 
-- source revision: `df357bf689f5218a5157d787f694b06feee68a97`;
-- runtime ID: `worker-v3-runtime-rc-df357bf`;
+- source revision: `521fee15ee857cf07115eb77d369c7597c2887ab`;
+- runtime ID: `worker-v3-runtime-rc-521fee1`;
 - local image digest:
-  `sha256:584f1690f30aa2474d023f57143ec26726c517b8626aa8f1b403b8a5cc528604`;
+  `sha256:6f622548b136c302256cc7174cb2cb889e1790c06f42dbd2528d285711325b11`;
 - runtime identity evidence:
   `release/worker-v3/runtime/ordinary-runtime-identity.json`;
 - clean-build and regression evidence:
