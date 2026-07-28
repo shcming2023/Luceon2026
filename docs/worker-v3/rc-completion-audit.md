@@ -124,3 +124,12 @@ step.
 
 Until those steps are complete, the correct conclusion is:
 `技术 RC 尚未通过，目标继续执行`.
+
+The one-shot Overleaf qualification client and lifecycle wrapper are prepared
+outside the release source. They bind the exact Worker and adapter image
+digests, reject a missing or hash-drifted ZIP before creating Docker objects,
+use one isolated internal network with no published port, and remove the
+adapter container, network and temporary volume on exit. The missing-ZIP guard
+was exercised without creating any network, container or volume. It has not
+been run against a substitute ZIP: the authorized connection remains
+conditional on a real Worker-produced ZIP from the strict qualification chain.

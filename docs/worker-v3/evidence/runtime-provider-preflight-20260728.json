@@ -42,6 +42,10 @@
     "adapter_image_digest": "sha256:e983be555820cc24d6d69e813142d1e7bca7fdc514c9a8a29aa139801e7c7ccf",
     "adapter_image_present": true,
     "temporary_network_present": false,
-    "compile_started": false
+    "compile_started": false,
+    "one_shot_client_sha256": "28c988684234fab7b0f05e646c920200ad4cba43c5731871e96972ff6a5dc9ce",
+    "one_shot_lifecycle_wrapper_sha256": "5224907f1eff909c44a3861a01878f4e777d9ec1bc59836f921016715620ba5a",
+    "missing_zip_guard_verified": true,
+    "guard_test_created_network_container_or_volume": false
   }
 }
