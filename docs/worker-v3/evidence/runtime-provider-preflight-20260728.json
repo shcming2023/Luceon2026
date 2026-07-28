@@ -17,15 +17,25 @@
     "provider_call_started": false
   },
   "visual_review": {
-    "status": "blocked_by_runtime_model_binding_mismatch",
+    "status": "runtime_binding_corrected_provider_call_not_started",
     "enabled": true,
     "provider": "dashscope",
-    "runtime_model": "qwen3.7-plus",
+    "runtime_model": "qwen3.7-plus-2026-05-26",
     "release_model": "qwen3.7-plus-2026-05-26",
     "credential_configured": true,
     "network_used": false,
     "provider_call_started": false,
-    "required_action": "bind the current development runtime to the exact release model before any full-page provider qualification"
+    "configuration_change": {
+      "changed_path": "models.vision.model",
+      "previous_value": "qwen3.7-plus",
+      "current_value": "qwen3.7-plus-2026-05-26",
+      "other_configuration_values_changed": false,
+      "backup_sha256": "750671246a725136935d2be78ce8e0b8b19cb138c549e61d21d08d4f0a0fa111",
+      "current_config_sha256": "e05d4668445ba8225160035a2af162f7f59042dd4b613419c4327b027d7f250a",
+      "config_mode": "0600",
+      "runtime_reload_verified": true
+    },
+    "required_action": "obtain separate authorization before any full-page provider qualification request"
   },
   "overleaf": {
     "status": "waiting_for_real_worker_zip",

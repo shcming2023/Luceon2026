@@ -78,7 +78,7 @@
     "release_model_policy_verified": true,
     "runtime_provider_model_endpoint_and_credential_verified": true,
     "replay_guard": "output directory must not already exist and execute-confirm-sha must equal the exact canonical request SHA-256",
-    "one_shot_wrapper_sha256": "db5fa316270683a2e2f1e7517f384e65dc78616bc9c0970a81894b4cf596047c"
+    "one_shot_wrapper_sha256": "f63d2c8ce2506d88d8970c60ff485294df478335fd07a449f6f256a079ba9dd2"
   },
   "authorization": {
     "previous_live_call_consumed": true,
