@@ -19,10 +19,10 @@ evidence-complete `needs_review`.
 
 The immutable Worker image currently qualified for code execution is:
 
-- source revision: `e51dab320db3ac1ccabe11e090ee1a4843e714f9`;
-- runtime ID: `worker-v3-runtime-rc-e51dab3`;
+- source revision: `9447aedb688dd7d0f4c78978a4e5d95892554675`;
+- runtime ID: `worker-v3-runtime-rc-9447aed`;
 - local image digest:
-  `sha256:6b88bc6a79827ce7a50e1ed1826efb3f44692d2b09bea9ae21c2da3eb78097fe`;
+  `sha256:e35e466e0e7b1f7a82404b577683617d264aba7b23bf8d6fbaea92fe407fa9a9`;
 - runtime identity evidence:
   `release/worker-v3/runtime/ordinary-runtime-identity.json`;
 - clean-build and regression evidence:
@@ -41,7 +41,7 @@ remains deliberately `incomplete` and is not installable as RC.
 | Twelve persisted stages | passed in code and tests | 12 Producer and 12 distinct Evaluator entrypoints; state-machine and API tests |
 | Producer/Evaluator/Promotion/Projector separation | passed in code and tests; live role probe pending | four services and identities; control-plane, operation-attempt and projection tests |
 | Frozen-input lineage and fail-closed admission | passed for five input packages and Stage 1 preflight | materials 1339-1343 seven-object sets and isolated qualification reports; full downstream lineage pending |
-| Bounded LLM schema, telemetry and cost accounting | compact exhaustive v3 passed clean-image tests; new live response pending authorization | v1 exposed an impossible monolithic capacity; v2 made the schema provider-visible but repeated full fields and truncated after page 185/200. v3 retains one disposition per physical page, moves full fields to exact overrides, projects the deterministic baseline locally, and reduces the 200-page minimum complete response from 25,910 to 11,530 bytes. Exact request `907c4dac...d350` is captured offline; no additional provider call has started |
+| Bounded LLM schema, telemetry and cost accounting | compact exhaustive v3 passed one live call and production-policy offline replay; final-release exact qualification pending authorization | v1 exposed an impossible monolithic capacity; v2 made the schema provider-visible but repeated full fields and truncated after page 185/200. v3 retains one disposition per physical page, moves full fields to exact overrides, projects the deterministic baseline locally, and reduces the 200-page minimum complete response from 25,910 to 11,530 bytes. Request `907c4dac...d350` was called exactly once and returned a complete response. Qualification then exposed two generic schema-identity defects; both are fixed, but final frozen release request `82de64d1...7f89` is a distinct exact binding and has not been called |
 | Full-page visual review | contract and evaluator passed; exact runtime model binding corrected; provider qualification pending | all-page binding tests pass; the current runtime now binds `qwen3.7-plus-2026-05-26`, but no clean-image provider/reviewer request has been authorized or sent |
 | Deterministic ElegantBook on real material | adapter and regression tests passed; final-image qualification pending | locked-template smoke passed; unchanged-image real-book Spec 05 proof is missing |
 | Independent Overleaf/XeLaTeX recompile | adapter image health passed; real ZIP compile pending | adapter digest and non-root health exist; Worker-to-adapter compile requires one temporary internal network |
@@ -81,17 +81,35 @@ rejected it as `output_truncated`. It cost CNY `0.037731` using the provider's
 actual cache-hit/miss breakdown. No response fixture, stage candidate,
 promotion, Worker ZIP or temporary Overleaf network was created.
 
-Runtime `worker-v3-runtime-rc-e51dab3` now binds the compact exhaustive v3
-contract. Its clean build passed runtime identity, 333 Worker V3 tests (two
-skipped), and the locked-template XeLaTeX/qpdf/pdfinfo smoke. The new incomplete
-release archive has SHA-256 `2b703c8b...7feb` and tree SHA-256
-`f5bb8051...9646`. An isolated, no-network qualification captured canonical
-request `907c4dac...d350`; the expected `qualification_fixture_missing`
-termination proves that no provider call, fixture, candidate or promotion was
-created. A no-network exact-image preflight subsequently verified the request
-hashes, release model policy and current DeepSeek provider/model/endpoint and
-credential availability. A new explicit authorization is still required before
-sending this exact request.
+Request `907c4dac...d350` was explicitly authorized and called exactly once.
+DeepSeek returned HTTP 200 with `finish_reason=stop`, response ID
+`531b98ca-93c6-477c-b95d-a4b365c54832`, and 289,715 total tokens; there was no
+retry. The external one-shot harness initially rejected the complete response
+because it reconstructed an `allowed_choices` policy not used by the production
+Executor. Immutable no-network replay with the actual production policy passed
+with parsed-result SHA-256 `6934b38a...652b`.
+
+The subsequent exact qualification exposed two real release-binding defects:
+the adapter conflated a raw schema-file hash with the gateway's canonical JSON
+hash, and the first correction then propagated the canonical hash into
+non-LLM candidate lineage where the raw file hash is required. Commits
+`38e8a60` and `9447aed` fix those responsibilities separately and add regression
+coverage. Runtime `worker-v3-runtime-rc-9447aed` passed runtime identity, 335
+Worker V3 tests (two skipped), and the locked-template
+XeLaTeX/qpdf/pdfinfo smoke.
+
+The rebuilt incomplete release archive has SHA-256 `e92eaa13...23c0`, tree
+SHA-256 `1e8fc01d...3714`, and manifest SHA-256 `249412df...55db`. A second clean
+assembly produced the same archive and tree hashes. Its isolated
+recapture proves Stage 1 Producer, Evaluator and Promotion all pass. Because
+the fixed release identity and deterministic call ID are part of the request,
+the final request is `82de64d1...7f89`, not the already authorized
+`907c4dac...d350`. The model-visible prompt, input, schema, provider, model and
+parameters are equal, but the exact-response protocol forbids rebinding across
+release identities. The final request hash is deliberately kept only in
+external audit evidence, not inside its own release recipe, to avoid recursive
+manifest drift. No second provider call has been made. Evidence is recorded
+in `docs/worker-v3/evidence/deepseek-1343-spec02-v3-live-and-release-rebind-20260729.json`.
 
 The same preflight found a separate future Stage 10 blocker: the current
 development runtime selected the alias `qwen3.7-plus`, while the immutable
@@ -103,9 +121,10 @@ step.
 
 ## Next evidence sequence
 
-1. After a new exact-request authorization, execute canonical request
-   `907c4dac...d350` exactly once and replay
-   its exact response through isolated qualification.
+1. After a new exact-request authorization, execute final-release request
+   `82de64d1...7f89` exactly once and replay its exact response through isolated
+   qualification. The consumed authorization for `907c4dac...d350` must not be
+   reused.
 2. Produce a real Worker V3 ZIP and complete the approved temporary-network
    Worker-to-Overleaf compile,
    then remove the network.

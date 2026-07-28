@@ -1,0 +1,101 @@
+{
+  "schema_version": "luceon.worker-v3-spec02-v3-live-and-release-rebind-evidence/v1",
+  "material": {
+    "database_id": 1343,
+    "material_id": "pdf-8e5464971a3e1d6b",
+    "source_pdf_sha256": "8e5464971a3e1d6b40f5afc996dba67efc9af60e29d73ce10730e91c4fa12fad",
+    "page_count": 200
+  },
+  "authorization": {
+    "request_sha256": "907c4dac467cf112731d8a05a581d3d778631060690aeb4db2129b693196d350",
+    "scope": "exactly one provider call",
+    "consumed": true,
+    "attempts": 1,
+    "retries": 0
+  },
+  "provider_call": {
+    "status": "http_succeeded",
+    "http_status": 200,
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "response_id": "531b98ca-93c6-477c-b95d-a4b365c54832",
+    "finish_reason": "stop",
+    "call_id": "d374750866a5d475093efbb1dc848e22b04d2bf45d9a57d18c1b19320a416cf0",
+    "raw_response_sha256": "8cb450b719e36ba1ea297b0e2cee76cb89d6e1e0d770caa15c54cc6240cfd20b",
+    "usage": {
+      "input_tokens": 285898,
+      "output_tokens": 3817,
+      "total_tokens": 289715,
+      "cache_hit_input_tokens": 0,
+      "cache_miss_input_tokens": 285898
+    },
+    "live_evidence_sha256": "47bad5623d63f56398aa23538d36e979b1b3b8ac693473ee237720fe039692a5"
+  },
+  "one_shot_harness_finding": {
+    "observed_status": "decision_policy_violation",
+    "root_cause": "the external one-shot harness reconstructed allowed_choices from the Spec 02 input, while the production Executor intentionally binds allowed_choices to an empty object",
+    "provider_or_schema_failure": false,
+    "production_replay_required": true
+  },
+  "immutable_offline_replay": {
+    "status": "succeeded",
+    "network_used": false,
+    "production_allowed_choices": {},
+    "parsed_result_sha256": "6934b38a57afb48021dcfeba28ffe2dc3264f02180bedc980203e79cb980652b",
+    "fixture_sha256": "fba19f71aed1768d69df07c9b2219a33dadb6375b738c7a8c641b0698ca34297",
+    "replay_evidence_sha256": "d01a8af55a94b28e950446e1a06807e694593f7942b8e2fb84e58441b18e117b"
+  },
+  "qualification_findings": [
+    {
+      "status": "fixed",
+      "code": "review_schema_release_binding_missing",
+      "root_cause": "the immutable release manifest bound the raw schema file bytes while the LLM gateway correctly bound canonical parsed JSON; the adapter compared the two distinct identities as if they were the same hash",
+      "fix_commit": "38e8a602895d5e6c710d567f7cf14b63998bd589"
+    },
+    {
+      "status": "fixed",
+      "code": "skill_release_identity_verified_false",
+      "root_cause": "the first fix returned the canonical schema hash to non-LLM candidate manifests, but candidate lineage must preserve the raw release file hash",
+      "fix_commit": "9447aedb688dd7d0f4c78978a4e5d95892554675"
+    }
+  ],
+  "final_runtime": {
+    "source_revision": "9447aedb688dd7d0f4c78978a4e5d95892554675",
+    "image_tag": "luceonweb2026-worker-v3-runtime:rc-9447aed",
+    "image_digest": "sha256:e35e466e0e7b1f7a82404b577683617d264aba7b23bf8d6fbaea92fe407fa9a9",
+    "runtime_identity_sha256": "ef729dc22ed232a68acc1efc0f39eff54eca51033dd1f28894dac6e10877ff46",
+    "sbom_sha256": "c8835ee14f245b7d80838972c4aa02de0b05a14d4fd6fa037694dbc29c24e2e3",
+    "tests": {
+      "passed": 335,
+      "skipped": 2,
+      "failed": 0
+    }
+  },
+  "final_release": {
+    "archive_sha256": "e92eaa1394db83d58a01c6d9a9430a86735cb0e78979d144ed6eac1d72f923c0",
+    "tree_sha256": "1e8fc01dc6585db3e16f3f31081c0ad37a1520f822f1063f88ba7f4e3ee13714",
+    "manifest_sha256": "249412df30addb925a17c798e470f63d3c2d9fe4744a46bb38e873ed3d9755db",
+    "recapture_report_sha256": "24075ff90ab00babcf123ae31964b5301b9cdabbbf9ca7ab38607282af132c76",
+    "deterministic_rebuild_archive_sha256": "e92eaa1394db83d58a01c6d9a9430a86735cb0e78979d144ed6eac1d72f923c0",
+    "self_reference_removed": true,
+    "intake_snapshot": {
+      "producer": "succeeded",
+      "evaluator": "passed",
+      "promotion": "created"
+    }
+  },
+  "request_rebind_decision": {
+    "original_authorized_request_sha256": "907c4dac467cf112731d8a05a581d3d778631060690aeb4db2129b693196d350",
+    "final_release_request_sha256": "82de64d19edcd9e98ac7333ad939fb06386700935e7c421dce025b63109a7f89",
+    "final_release_call_id": "92dd2742be0ac91fd05dc52a7620dfc0191c5036e2fba204e28897b7e9a5c2ba",
+    "model_visible_payload_equal": true,
+    "changed_request_paths": [
+      "call_id",
+      "binding.release_sha256"
+    ],
+    "rebind_allowed": false,
+    "reason": "the qualification protocol is exact-request-hash bound; a response authorized for and returned against the original release identity cannot be represented as provider evidence for a different final release request. The final request hash is stored only in external audit evidence so it does not recursively change the release manifest.",
+    "next_authorization_required": true
+  },
+  "verdict": "The authorized request was called exactly once and produced a complete schema-valid response under the production gateway policy. Two release-binding defects were fixed generically. The final release remains unqualified until its distinct exact request receives separate one-call authorization; no second call was made."
+}
