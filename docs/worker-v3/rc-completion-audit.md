@@ -54,6 +54,7 @@ remains deliberately `incomplete` and is not installable as RC.
 | Downloads, review rendering and clean recompile | not achieved for V3 cohort | final browser, MinIO, ZIP/PDF and compile evidence missing |
 | Performance, latency, tokens and cost comparison | not achieved | final cohort telemetry and comparison report missing |
 | Current development site remains usable | not yet proven after V3 RC deployment | final deployment and browser regression pending |
+| RC Compose exact-image and capability wiring | static gate passed; deployment pending | four ordinary roles bind the exact Worker image, the adapter binds its exact image, role credentials interpolate, no V3 service mounts mutable skills or exposes Codex/Expert runtime material |
 | Annotated tag, push and GitHub RC | not started | only after final recipe, image and smoke are sealed |
 
 ## Current release gaps

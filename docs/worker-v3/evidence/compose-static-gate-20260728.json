@@ -1,0 +1,76 @@
+{
+  "schema_version": "luceon.worker-v3-compose-static-gate-evidence/v1",
+  "captured_at": "2026-07-28",
+  "status": "passed",
+  "scope": {
+    "environment": "current-development",
+    "operation": "docker-compose-config-only",
+    "containers_created": false,
+    "network_created": false,
+    "deployment_changed": false
+  },
+  "inputs": {
+    "base_compose": "docker-compose.luceon-review.yml",
+    "rc_overlay": "docker-compose.worker-v3-rc.yml",
+    "profile": "worker-v3",
+    "role_environment_mode": "0600",
+    "secret_values_recorded": false
+  },
+  "ordinary_runtime": {
+    "image": "luceonweb2026-worker-v3-runtime@sha256:93f477eb3a6d7ad406fae371d40ed3e20a23effa14bf43f60f803fb8880211a9",
+    "image_user": "10003:10003",
+    "source_revision": "90ccb9a32bebbb714920abb5d73fc0a4226d28d4",
+    "services": [
+      "workflow-v3-executor",
+      "workflow-v3-evaluator",
+      "workflow-v3-promoter",
+      "workflow-v3-projector"
+    ],
+    "all_services_use_exact_image": true
+  },
+  "overleaf_adapter": {
+    "image": "luceonweb2026-overleaf-adapter@sha256:e983be555820cc24d6d69e813142d1e7bca7fdc514c9a8a29aa139801e7c7ccf",
+    "image_user": "10004:10004",
+    "service": "workflow-v3-overleaf-compiler",
+    "internal_network_declared": true,
+    "qualification_network_started": false
+  },
+  "capability_isolation": {
+    "producer_has_model_credentials": true,
+    "evaluator_has_model_credentials": false,
+    "promoter_has_model_credentials": false,
+    "projector_has_model_credentials": false,
+    "role_specific_minio_credentials": true,
+    "mutable_skill_mounts_on_v3_services": false,
+    "codex_or_expert_environment_mount_or_trigger": false
+  },
+  "mount_targets": {
+    "workflow-v3-executor": [
+      "/data",
+      "/worker-v3/releases",
+      "/worker-v3/work"
+    ],
+    "workflow-v3-evaluator": [
+      "/data",
+      "/worker-v3/evaluation-work",
+      "/worker-v3/releases"
+    ],
+    "workflow-v3-promoter": [
+      "/data",
+      "/worker-v3/promotion-work",
+      "/worker-v3/releases"
+    ],
+    "workflow-v3-projector": [
+      "/data",
+      "/worker-v3/projection-work",
+      "/worker-v3/releases"
+    ]
+  },
+  "gate_result": {
+    "compose_interpolation": "passed",
+    "exact_runtime_binding": "passed",
+    "role_credential_interpolation": "passed",
+    "production_forbidden_scan": "passed",
+    "deployment_or_network_side_effect": "none"
+  }
+}
