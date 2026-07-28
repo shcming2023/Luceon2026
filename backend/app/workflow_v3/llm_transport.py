@@ -29,6 +29,7 @@ _ALLOWED_PARAMETERS = {
     "max_output_tokens",
     "seed",
     "temperature",
+    "thinking",
     "top_p",
 }
 
@@ -281,6 +282,12 @@ def _provider_parameters(parameters: Mapping[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {"temperature": 0}
     if float(parameters.get("temperature", 0)) != 0:
         raise LlmGatewayError("unbounded_parameters", "bounded calls require temperature=0")
+    if parameters.get("thinking") != {"type": "disabled"}:
+        raise LlmGatewayError(
+            "unbounded_parameters",
+            "bounded JSON calls require release-bound non-thinking mode",
+        )
+    result["thinking"] = {"type": "disabled"}
     if "max_output_tokens" in parameters:
         value = parameters["max_output_tokens"]
         if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 32_000:

@@ -71,7 +71,11 @@ def _policy():
         "endpoint_origin_sha256": sha256_text(
             "https://api.deepseek.example"
         ),
-        "request_parameters": {"temperature": 0, "max_output_tokens": 1000},
+        "request_parameters": {
+            "temperature": 0,
+            "max_output_tokens": 1000,
+            "thinking": {"type": "disabled"},
+        },
     }
 
 
@@ -116,7 +120,11 @@ def _call():
         input_evidence=evidence,
         provider="deepseek",
         model="deepseek-v4-flash",
-        request_parameters={"temperature": 0, "max_output_tokens": 1000},
+        request_parameters={
+            "temperature": 0,
+            "max_output_tokens": 1000,
+            "thinking": {"type": "disabled"},
+        },
         allowed_choices={"t1": ("a", "b")},
         timeout_seconds=30,
     )
@@ -187,6 +195,7 @@ def test_runtime_transport_executes_one_schema_bounded_call_without_persisting_s
     assert captured["payload"]["temperature"] == 0
     assert captured["payload"]["max_tokens"] == 1000
     assert captured["payload"]["response_format"] == {"type": "json_object"}
+    assert captured["payload"]["thinking"] == {"type": "disabled"}
     provider_task = json.loads(captured["payload"]["messages"][1]["content"])
     assert provider_task == {
         "input": _call().input_evidence,
@@ -276,6 +285,7 @@ def test_transport_rejects_release_parameters_outside_bounded_allowlist_before_i
             "request_parameters": {
                 "temperature": 0,
                 "max_output_tokens": 1000,
+                "thinking": {"type": "disabled"},
                 "tools": [{"type": "function"}],
             },
         }
@@ -286,6 +296,55 @@ def test_transport_rejects_release_parameters_outside_bounded_allowlist_before_i
 
     assert exc.value.code == "unbounded_parameters"
     assert captured == {}
+
+
+def test_transport_rejects_missing_non_thinking_binding_before_io():
+    transport, captured = _transport()
+    call = _call()
+    call = ReleaseBoundLlmCall(
+        **{
+            **call.__dict__,
+            "request_parameters": {
+                "temperature": 0,
+                "max_output_tokens": 1000,
+            },
+        }
+    )
+
+    with pytest.raises(LlmGatewayError) as exc:
+        execute_bounded_call(call, transport)
+
+    assert exc.value.code == "unbounded_parameters"
+    assert captured == {}
+
+
+def test_provider_length_finish_reason_is_reported_as_output_truncated():
+    transport, _captured = _transport(
+        _Response(
+            200,
+            {
+                **_success().json(),
+                "choices": [
+                    {
+                        "finish_reason": "length",
+                        "message": {"content": '{"decisions": ['},
+                    }
+                ],
+            },
+        )
+    )
+
+    with pytest.raises(LlmGatewayError) as exc:
+        execute_bounded_call(_call(), transport)
+
+    assert exc.value.code == "output_truncated"
+    assert exc.value.retryable is False
+    assert exc.value.audit["finish_reason"] == "length"
+    assert exc.value.audit["usage"] == {
+        "input_tokens": 42,
+        "output_tokens": 7,
+        "total_tokens": 49,
+    }
 
 
 def test_provider_model_fallback_is_detected_by_release_bound_gateway():

@@ -204,6 +204,9 @@ def execute_bounded_call(call: ReleaseBoundLlmCall, transport: Transport) -> Llm
     # credentials and HTTP headers never enter the transport response.
     audit["raw_response"] = response.raw_response
     audit["raw_response_sha256"] = sha256_json(response.raw_response)
+    finish_reason = _provider_finish_reason(response.raw_response)
+    if finish_reason:
+        audit["finish_reason"] = finish_reason
     if response.status_code >= 400:
         if response.status_code in {401, 403}:
             code, retryable = "provider_auth_error", False
@@ -239,6 +242,12 @@ def execute_bounded_call(call: ReleaseBoundLlmCall, transport: Transport) -> Llm
             audit=_failed_audit(audit, "missing_usage", started),
         )
     audit["usage"] = normalized_usage
+    if finish_reason == "length":
+        raise LlmGatewayError(
+            "output_truncated",
+            "LLM provider exhausted the release-bound output budget",
+            audit=_failed_audit(audit, "output_truncated", started),
+        )
 
     parsed = _parse_content(response.content, audit, started)
     try:
@@ -752,6 +761,19 @@ def _parse_content(content: Any, audit: dict[str, Any], started: float) -> Any:
         "LLM content is not JSON",
         audit=_failed_audit(audit, "malformed_json", started),
     )
+
+
+def _provider_finish_reason(raw_response: Any) -> str:
+    if not isinstance(raw_response, Mapping):
+        return ""
+    choices = raw_response.get("choices")
+    if not isinstance(choices, list) or len(choices) != 1:
+        return ""
+    choice = choices[0]
+    if not isinstance(choice, Mapping):
+        return ""
+    value = choice.get("finish_reason")
+    return value.strip() if isinstance(value, str) else ""
 
 
 def _normalize_usage(usage: Mapping[str, Any]) -> dict[str, int] | None:

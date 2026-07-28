@@ -1,0 +1,107 @@
+{
+  "schema_version": "luceon.worker-v3-live-provider-qualification-evidence/v1",
+  "qualification_id": "deepseek-1343-spec02-v2-schema-visible-live-20260728",
+  "executed_at": "2026-07-28T00:41:16Z",
+  "scope": {
+    "material_pk": 1343,
+    "material_id": "pdf-8e5464971a3e1d6b",
+    "stage_key": "source_scope_and_order",
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "attempts": 1,
+    "retry_count": 0
+  },
+  "runtime": {
+    "source_revision": "90ccb9a32bebbb714920abb5d73fc0a4226d28d4",
+    "runtime_id": "worker-v3-runtime-rc-90ccb9a",
+    "image_digest": "sha256:93f477eb3a6d7ad406fae371d40ed3e20a23effa14bf43f60f803fb8880211a9",
+    "identity_sha256": "8d74e6dfdd89c97b707b3699383b7b8a4674c0feb4a6835992aed912b757b279"
+  },
+  "request": {
+    "call_id": "d9745238d139e617583f18515532b2ff0281c0ad1f976975da60f7efe50aa5cf",
+    "file_sha256": "0f410b6452a7499e0b9cc3b14960f28eddb82796521f4447d7ac11a009d22954",
+    "canonical_sha256": "d2177d132e4c4fb4f2f6a6dea9a8a004bdb4aa6f95a551416e93a3f5dd23adc6",
+    "canonical_bytes": 820827,
+    "provider_visible_payload": [
+      "input",
+      "output_schema"
+    ],
+    "response_format": {
+      "type": "json_object"
+    },
+    "thinking_parameter_sent": false,
+    "temperature": 0,
+    "max_output_tokens": 16000,
+    "timeout_seconds": 600
+  },
+  "provider_response": {
+    "http_status": 200,
+    "response_id": "6951375a-b37d-47b5-9ee6-e347d9efafe1",
+    "latency_ms": 119548,
+    "finish_reason": "length",
+    "raw_response_sha256": "6a4753adfce3711315d95073c3e21c1d13c341a9b215bf4f587dda56d52ed334",
+    "content_sha256": "a24816c846bb47e94971bd1a547c3015a324cb700b7a31fd95d4f29232c35476",
+    "content_chars": 35123,
+    "content_started_as_json_object": true,
+    "content_ended_as_json_object": false,
+    "usage": {
+      "input_tokens": 285713,
+      "output_tokens": 16000,
+      "reasoning_tokens": 6448,
+      "total_tokens": 301713,
+      "cache_hit_input_tokens": 0,
+      "cache_miss_input_tokens": 285713
+    },
+    "cost": {
+      "currency": "CNY",
+      "micro_units": 317713,
+      "amount": "0.317713",
+      "pricing_snapshot_sha256": "be481c936ec3f89adee98f390d0b2a94bef0a4b79fc82e5741e4e6cc69278b45"
+    }
+  },
+  "strict_gateway_result": {
+    "status": "rejected",
+    "error_code_at_execution": "malformed_json",
+    "retryable": false,
+    "call_count": 1,
+    "fixture_created": false,
+    "candidate_created": false,
+    "promotion_created": false,
+    "qualification_passed": false,
+    "private_failure_evidence_sha256": "d7d57e6a7e2e8b1864f0cd6a1819852f0f5b584c04d965f6fcbf74163b45f8fc"
+  },
+  "root_cause": {
+    "classification": "production_blocker",
+    "responsibility": "worker-v3-release-bound-inference-mode",
+    "detail": "DeepSeek V4 Flash defaults to thinking mode. The 16000-token output budget included 6448 reasoning tokens, leaving the otherwise schema-shaped JSON response truncated during physical page 181 of 200."
+  },
+  "remediation": {
+    "status": "implemented_locally_tests_passed_rebuild_pending",
+    "changes": [
+      "Bind thinking={type:disabled} in immutable model request parameters and require the transport to send it.",
+      "Classify provider finish_reason=length as output_truncated before JSON parsing."
+    ],
+    "local_targeted_tests": {
+      "passed": 63,
+      "failed": 0
+    },
+    "live_requalification_authorized": false
+  },
+  "external_contract_sources": [
+    {
+      "title": "Create Chat Completion",
+      "url": "https://api-docs.deepseek.com/api/create-chat-completion",
+      "verified_fact": "thinking defaults to enabled and can be disabled; finish_reason length means output was cut off"
+    },
+    {
+      "title": "JSON Output",
+      "url": "https://api-docs.deepseek.com/guides/json_mode/",
+      "verified_fact": "JSON Output requires response_format json_object and sufficient max_tokens to avoid truncation"
+    }
+  ],
+  "overleaf": {
+    "real_worker_zip_exists": false,
+    "temporary_network_created": false,
+    "authorization_retained_for_after_real_zip": true
+  }
+}

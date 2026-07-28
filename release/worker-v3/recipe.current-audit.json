@@ -761,7 +761,10 @@
     "endpoint_origin_sha256": "a34e2a4708ed1c61008a151688838dcf1c44d4e7f08054633e72ba7c0b16cfc1",
     "request_parameters": {
       "temperature": 0,
-      "max_output_tokens": 16000
+      "max_output_tokens": 16000,
+      "thinking": {
+        "type": "disabled"
+      }
     },
     "timeout_seconds": 600,
     "max_stage_calls": 1,
@@ -935,7 +938,7 @@
     {
       "code": "spec02_bounded_review_capacity_unqualified",
       "stage": "source_scope_and_order",
-      "detail": "the compact Spec 02 v2 deterministic-baseline plus bounded-delta contract passes offline capacity, merge and coverage regression; the first v2 live call proved that the provider transport omitted the already-bound output schema, and the generic schema-visible transport fix is now bound to the rebuilt final image but still requires one separately authorized live response"
+      "detail": "the compact Spec 02 v2 deterministic-baseline plus bounded-delta contract passes offline capacity, merge and coverage regression; the schema-visible live call proved that DeepSeek default thinking consumed the release output budget and truncated JSON at page 181/200; non-thinking mode is now release-bound and finish_reason=length is classified as output_truncated, but the rebuilt image still requires one separately authorized live response"
     },
     {
       "code": "overleaf_adapter_image_qualification_pending",
