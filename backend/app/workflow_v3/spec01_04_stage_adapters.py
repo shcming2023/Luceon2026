@@ -900,8 +900,16 @@ def _release_schema_binding(
             f"release schema {schema_id!r} has incomplete identity",
             exit_code=3,
         )
-    _release_bound_file(release_root, path, sha, f"stage schema {schema_id}")
-    return path, sha
+    schema_path = _release_bound_file(
+        release_root,
+        path,
+        sha,
+        f"stage schema {schema_id}",
+    )
+    schema_canonical_sha = _canonical_hash(
+        _read_json(schema_path, f"stage schema {schema_id}")
+    )
+    return path, schema_canonical_sha
 
 
 def _require_roles(request: StageRequest, expected: set[str]) -> None:
@@ -1010,17 +1018,31 @@ def _verify_bounded_review(
         and row.get("version") == binding.schema_version
         and row.get("path") == output_schema
     ]
-    if len(schemas) != 1 or schemas[0].get("sha256") != binding.schema_sha256:
+    if len(schemas) != 1:
         raise StageEntrypointError(
             "review_schema_release_binding_missing",
             "bounded review output schema is not uniquely hash-bound by the release",
         )
-    _release_bound_file(
+    schema_file_sha = schemas[0].get("sha256")
+    if not isinstance(schema_file_sha, str):
+        raise StageEntrypointError(
+            "review_schema_release_binding_missing",
+            "bounded review output schema has no release file hash",
+        )
+    schema_path = _release_bound_file(
         release_root,
         schemas[0].get("path"),
-        binding.schema_sha256,
+        schema_file_sha,
         "bounded review schema",
     )
+    schema_canonical_sha = _canonical_hash(
+        _read_json(schema_path, "bounded review schema")
+    )
+    if schema_canonical_sha != binding.schema_sha256:
+        raise StageEntrypointError(
+            "review_schema_release_binding_missing",
+            "bounded review output schema canonical hash differs from the release",
+        )
     model_policy = manifest.get("model_policy")
     if (
         not isinstance(model_policy, dict)

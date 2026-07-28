@@ -638,13 +638,22 @@ def _stage4_case(
     released_prompt_hash: bool = True,
     host_reference: bool = False,
     qualified_model_policy: bool = True,
+    pretty_schema: bool = False,
 ) -> tuple[int, Path]:
     prompt_path = root / "prompt.txt"
     schema_path = root / "schema.json"
     prompt_path.write_text("bounded prompt\n", encoding="utf-8")
-    _json(schema_path, {"type": "object"})
+    schema_value = {"type": "object"}
+    if pretty_schema:
+        schema_path.write_text(
+            json.dumps(schema_value, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    else:
+        _json(schema_path, schema_value)
     prompt_sha = _sha(prompt_path)
-    schema_sha = _sha(schema_path)
+    schema_file_sha = _sha(schema_path)
+    schema_sha = _canonical_sha(schema_value)
     release, provisional = _release(
         root,
         prompts=[
@@ -661,7 +670,7 @@ def _stage4_case(
                 "id": "spec04a-outline-review-bundle",
                 "version": "1.0.0",
                 "path": "schemas/spec04a-outline-review-bundle.schema.json",
-                "sha256": schema_sha,
+                "sha256": schema_file_sha,
             }
         ],
         model_policy=(
@@ -841,6 +850,13 @@ def test_stage4_adapter_accepts_only_hash_bound_bounded_review_and_fixed_kernel(
     result = json.loads((tmp_path / "result.json").read_text(encoding="utf-8"))
     assert result["status"] == "candidate_ready"
     assert result["metrics"]["promotion_status"] == "not_evaluated"
+
+
+def test_stage4_adapter_separates_release_file_hash_from_canonical_schema_hash(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert _stage4_case(tmp_path, monkeypatch, pretty_schema=True)[0] == 0
 
 
 def test_stage4_adapter_rejects_unreleased_prompt_hash(
