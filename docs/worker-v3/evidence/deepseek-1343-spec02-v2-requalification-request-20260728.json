@@ -1,0 +1,75 @@
+{
+  "schema_version": "luceon.worker-v3-live-provider-request-evidence/v1",
+  "qualification_id": "deepseek-1343-spec02-v2-schema-visible-requalification-20260728",
+  "status": "exact_request_captured_offline_live_call_not_started",
+  "scope": {
+    "material_pk": 1343,
+    "material_id": "pdf-8e5464971a3e1d6b",
+    "stage_key": "source_scope_and_order",
+    "task_schema": "luceon.worker-v3-spec02-review-task/v2",
+    "response_schema": "luceon.worker-v3-spec02-scope-order-review/v2",
+    "physical_pages": 200,
+    "source_units": 2859
+  },
+  "runtime": {
+    "source_revision": "90ccb9a32bebbb714920abb5d73fc0a4226d28d4",
+    "runtime_id": "worker-v3-runtime-rc-90ccb9a",
+    "image_digest": "sha256:93f477eb3a6d7ad406fae371d40ed3e20a23effa14bf43f60f803fb8880211a9",
+    "identity_sha256": "8d74e6dfdd89c97b707b3699383b7b8a4674c0feb4a6835992aed912b757b279"
+  },
+  "release": {
+    "archive_sha256": "8079f1fe0120c6d377424f8968c2d3018c68637f518854def56e797111c6719c",
+    "tree_sha256": "edbfdf96560dc3b06dee23d2a9b38f0c92e52a76e3c7b0057e31582f04c2defc",
+    "manifest_sha256": "3f9b7ef8c6e3789520f1b4596260e46204525c8fd5469942f06413f2c44967db",
+    "status": "incomplete",
+    "file_count": 215,
+    "known_gap_count": 4
+  },
+  "request": {
+    "call_id": "d9745238d139e617583f18515532b2ff0281c0ad1f976975da60f7efe50aa5cf",
+    "file_sha256": "0f410b6452a7499e0b9cc3b14960f28eddb82796521f4447d7ac11a009d22954",
+    "canonical_sha256": "d2177d132e4c4fb4f2f6a6dea9a8a004bdb4aa6f95a551416e93a3f5dd23adc6",
+    "canonical_bytes": 820827,
+    "input_sha256": "fa52112c476263c7ce4b934f8b2c4cd75dddff3bfe85b083bf32b3a3b8bae821",
+    "prompt_sha256": "93539983e7c799cf537c596bacad981f9782f429a11186d8df0487f5a2a2ca29",
+    "schema_sha256": "5f9b7704a128ae9a5ead790838f6a031225db1ac87898bae91791baa69078a24",
+    "baseline_sha256": "59328c2b001774d717eda43720fa57bd4658fe84fac3f6a2f2cc046e4cd541e0",
+    "minimum_complete_response_bytes": 25910,
+    "maximum_admitted_response_bytes": 256000
+  },
+  "provider_contract": {
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "temperature": 0,
+    "max_output_tokens": 16000,
+    "timeout_seconds": 600,
+    "max_stage_calls": 1,
+    "provider_visible_payload": [
+      "input",
+      "output_schema"
+    ],
+    "strict_local_validation_retained": true
+  },
+  "cost_bound": {
+    "currency": "CNY",
+    "pricing_snapshot_sha256": "be481c936ec3f89adee98f390d0b2a94bef0a4b79fc82e5741e4e6cc69278b45",
+    "policy_hard_max_input_tokens": 500000,
+    "policy_hard_max_output_tokens": 16000,
+    "policy_hard_max_amount": "0.532000",
+    "basis": "all input charged at cache-miss rate plus maximum output at the release-bound public list rate"
+  },
+  "offline_capture": {
+    "network_used": false,
+    "provider_call_started": false,
+    "expected_terminal_error": "qualification_fixture_missing",
+    "qualification_report_sha256": "877f453c4c8b8040c65c6fd600e546597d53947c7918001fb571448e752135c6"
+  },
+  "authorization": {
+    "previous_live_call_consumed": true,
+    "additional_live_call_authorized": false
+  },
+  "overleaf": {
+    "real_worker_zip_exists": false,
+    "temporary_network_created": false
+  }
+}
