@@ -69,12 +69,26 @@
     "qualification_report_sha256": "00abc510c547cd82477538cfab96a32b3779b9cdcaea9f2308fc0a64f9a4ec71",
     "qualification_payload_sha256": "84451288a98ee889fc66f6a1c372aa6676a4f14d6e85712bcddcfe75ab7ee6fb"
   },
+  "execution_preflight": {
+    "verified_at": "2026-07-28T02:09:37Z",
+    "network_used": false,
+    "provider_call_started": false,
+    "exact_runtime_image_used": true,
+    "request_file_and_canonical_hashes_verified": true,
+    "release_model_policy_verified": true,
+    "runtime_provider_model_endpoint_and_credential_verified": true,
+    "replay_guard": "output directory must not already exist and execute-confirm-sha must equal the exact canonical request SHA-256",
+    "one_shot_wrapper_sha256": "db5fa316270683a2e2f1e7517f384e65dc78616bc9c0970a81894b4cf596047c"
+  },
   "authorization": {
     "previous_live_call_consumed": true,
     "additional_live_call_authorized": false
   },
   "overleaf": {
     "real_worker_zip_exists": false,
-    "temporary_network_created": false
+    "temporary_network_created": false,
+    "adapter_image_digest_present": true,
+    "temporary_network_baseline_absent": true,
+    "compile_remains_conditional_on_strict_spec02_success_and_a_real_worker_zip": true
   }
 }

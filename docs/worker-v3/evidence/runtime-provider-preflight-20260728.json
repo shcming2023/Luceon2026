@@ -1,0 +1,37 @@
+{
+  "schema_version": "luceon.worker-v3-runtime-provider-preflight/v1",
+  "verified_at": "2026-07-28T02:09:37Z",
+  "runtime": {
+    "environment": "current-development",
+    "secret_values_recorded": false
+  },
+  "ordinary_llm": {
+    "status": "preflight_passed_no_network",
+    "enabled": true,
+    "provider": "deepseek",
+    "runtime_model": "deepseek-v4-flash",
+    "release_model": "deepseek-v4-flash",
+    "credential_configured": true,
+    "exact_request_sha256": "907c4dac467cf112731d8a05a581d3d778631060690aeb4db2129b693196d350",
+    "network_used": false,
+    "provider_call_started": false
+  },
+  "visual_review": {
+    "status": "blocked_by_runtime_model_binding_mismatch",
+    "enabled": true,
+    "provider": "dashscope",
+    "runtime_model": "qwen3.7-plus",
+    "release_model": "qwen3.7-plus-2026-05-26",
+    "credential_configured": true,
+    "network_used": false,
+    "provider_call_started": false,
+    "required_action": "bind the current development runtime to the exact release model before any full-page provider qualification"
+  },
+  "overleaf": {
+    "status": "waiting_for_real_worker_zip",
+    "adapter_image_digest": "sha256:e983be555820cc24d6d69e813142d1e7bca7fdc514c9a8a29aa139801e7c7ccf",
+    "adapter_image_present": true,
+    "temporary_network_present": false,
+    "compile_started": false
+  }
+}

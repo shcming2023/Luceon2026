@@ -42,7 +42,7 @@ remains deliberately `incomplete` and is not installable as RC.
 | Producer/Evaluator/Promotion/Projector separation | passed in code and tests; live role probe pending | four services and identities; control-plane, operation-attempt and projection tests |
 | Frozen-input lineage and fail-closed admission | passed for five input packages and Stage 1 preflight | materials 1339-1343 seven-object sets and isolated qualification reports; full downstream lineage pending |
 | Bounded LLM schema, telemetry and cost accounting | compact exhaustive v3 passed clean-image tests; new live response pending authorization | v1 exposed an impossible monolithic capacity; v2 made the schema provider-visible but repeated full fields and truncated after page 185/200. v3 retains one disposition per physical page, moves full fields to exact overrides, projects the deterministic baseline locally, and reduces the 200-page minimum complete response from 25,910 to 11,530 bytes. Exact request `907c4dac...d350` is captured offline; no additional provider call has started |
-| Full-page visual review | contract and evaluator passed; provider qualification pending | all-page binding tests pass; clean-image provider/reviewer proof is missing |
+| Full-page visual review | contract and evaluator passed; provider qualification blocked by current runtime binding | all-page binding tests pass; clean-image provider/reviewer proof is missing, and the current runtime alias `qwen3.7-plus` does not equal the release-bound `qwen3.7-plus-2026-05-26` |
 | Deterministic ElegantBook on real material | adapter and regression tests passed; final-image qualification pending | locked-template smoke passed; unchanged-image real-book Spec 05 proof is missing |
 | Independent Overleaf/XeLaTeX recompile | adapter image health passed; real ZIP compile pending | adapter digest and non-root health exist; Worker-to-adapter compile requires one temporary internal network |
 | Database forward/backup/rollback | current-development SQLite evidence passed; final deployment snapshot pending | dedicated 14-table schema is ready; integrity-checked 0600 backup and isolated hash-equal rollback drill passed without touching the development DB |
@@ -88,8 +88,16 @@ release archive has SHA-256 `2b703c8b...7feb` and tree SHA-256
 `f5bb8051...9646`. An isolated, no-network qualification captured canonical
 request `907c4dac...d350`; the expected `qualification_fixture_missing`
 termination proves that no provider call, fixture, candidate or promotion was
-created. A new explicit authorization is required before sending this exact
-request.
+created. A no-network exact-image preflight subsequently verified the request
+hashes, release model policy and current DeepSeek provider/model/endpoint and
+credential availability. A new explicit authorization is still required before
+sending this exact request.
+
+The same preflight found a separate future Stage 10 blocker: the current
+development runtime selects the alias `qwen3.7-plus`, while the immutable
+release requires `qwen3.7-plus-2026-05-26`. No visual request has been sent.
+The exact runtime binding must be corrected before full-page provider
+qualification; an alias is not accepted as evidence of model identity.
 
 ## Next evidence sequence
 
