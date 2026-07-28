@@ -187,6 +187,11 @@ def test_runtime_transport_executes_one_schema_bounded_call_without_persisting_s
     assert captured["payload"]["temperature"] == 0
     assert captured["payload"]["max_tokens"] == 1000
     assert captured["payload"]["response_format"] == {"type": "json_object"}
+    provider_task = json.loads(captured["payload"]["messages"][1]["content"])
+    assert provider_task == {
+        "input": _call().input_evidence,
+        "output_schema": _call().output_schema,
+    }
     assert "runtime-only-secret" not in json.dumps(
         {"audit": result.audit, "payload": captured["payload"]}
     )

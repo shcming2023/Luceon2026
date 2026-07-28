@@ -77,7 +77,12 @@ class OpenAiCompatibleJsonTransport:
                 {"role": "system", "content": str(request["prompt"])},
                 {
                     "role": "user",
-                    "content": canonical_json_bytes(request["input"]).decode("utf-8"),
+                    "content": canonical_json_bytes(
+                        {
+                            "input": request["input"],
+                            "output_schema": request["output_schema"],
+                        }
+                    ).decode("utf-8"),
                 },
             ],
             "response_format": {"type": "json_object"},

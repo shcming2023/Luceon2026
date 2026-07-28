@@ -935,7 +935,7 @@
     {
       "code": "spec02_bounded_review_capacity_unqualified",
       "stage": "source_scope_and_order",
-      "detail": "the compact Spec 02 v2 deterministic-baseline plus bounded-delta contract passes offline capacity, merge and coverage regression and reduces the exact material 1343 request to 820827 bytes, but the rebuilt final image and one separately authorized live v2 response still require qualification"
+      "detail": "the compact Spec 02 v2 deterministic-baseline plus bounded-delta contract passes offline capacity, merge and coverage regression; the first v2 live call proved that the provider transport omitted the already-bound output schema, and the generic schema-visible transport fix now requires a rebuilt final image plus one separately authorized live response"
     },
     {
       "code": "overleaf_adapter_image_qualification_pending",

@@ -58,9 +58,17 @@
     "full_worker_v3_failed": 0
   },
   "remaining_proof": [
-    "rebuild the Worker V3 image from the remediated source",
-    "obtain separate approval for a new live v2 provider call",
+    "rebuild the Worker V3 image with the schema-visible provider transport",
+    "obtain separate approval for an additional live v2 provider call",
     "replay the exact valid response in an isolated qualification run",
     "continue through deterministic ElegantBook and real ZIP generation"
-  ]
+  ],
+  "first_live_v2_attempt": {
+    "request_sha256": "3d5e894cc936b375a5b0276c4c6cb9f16addf79157e559e68cbb0fe5b5197bd9",
+    "provider_response_id": "9f7febac-3eed-478d-bc1d-4232cf6abea6",
+    "strict_result": "schema_mismatch",
+    "root_cause": "the provider payload omitted the release-bound output_schema",
+    "fixture_created": false,
+    "overleaf_network_created": false
+  }
 }
