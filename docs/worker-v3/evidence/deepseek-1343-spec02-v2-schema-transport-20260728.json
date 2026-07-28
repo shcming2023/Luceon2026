@@ -88,7 +88,7 @@
     "detail": "The release-bound output schema was present in the audited gateway request and local validator, but the provider payload sent only the prompt and input. DeepSeek therefore never received the exact output schema and returned an invented partial shape."
   },
   "remediation": {
-    "status": "implemented_offline_requalification_pending",
+    "status": "implemented_rebuilt_live_requalification_pending",
     "change": "Send one canonical user payload containing both input and output_schema; retain the same strict local validator and do not add aliases, field synthesis, or relaxed gates.",
     "files": [
       "backend/app/workflow_v3/llm_transport.py",
@@ -102,6 +102,13 @@
       "passed": 329,
       "skipped": 2,
       "failed": 0
+    },
+    "rebuilt_runtime": {
+      "source_revision": "90ccb9a32bebbb714920abb5d73fc0a4226d28d4",
+      "runtime_id": "worker-v3-runtime-rc-90ccb9a",
+      "image_digest": "sha256:93f477eb3a6d7ad406fae371d40ed3e20a23effa14bf43f60f803fb8880211a9",
+      "identity_status": "passed",
+      "locked_template_smoke": "passed"
     }
   },
   "evidence_handling": {
@@ -110,5 +117,5 @@
     "runtime_secret_committed": false,
     "overleaf_network_created": false
   },
-  "next_gate": "Rebuild and bind a new immutable Worker image, regenerate the exact request, then obtain explicit approval before any additional provider call."
+  "next_gate": "Regenerate the exact request from the rebuilt immutable Worker image, then obtain explicit approval before any additional provider call."
 }

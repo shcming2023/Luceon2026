@@ -57,8 +57,16 @@
     "full_worker_v3_skipped": 2,
     "full_worker_v3_failed": 0
   },
+  "rebuilt_runtime": {
+    "source_revision": "90ccb9a32bebbb714920abb5d73fc0a4226d28d4",
+    "runtime_id": "worker-v3-runtime-rc-90ccb9a",
+    "image_digest": "sha256:93f477eb3a6d7ad406fae371d40ed3e20a23effa14bf43f60f803fb8880211a9",
+    "identity_status": "passed",
+    "full_worker_v3_tests": "329 passed, 2 skipped, 0 failed",
+    "locked_template_smoke": "passed"
+  },
   "remaining_proof": [
-    "rebuild the Worker V3 image with the schema-visible provider transport",
+    "regenerate the exact request from the rebuilt schema-visible Worker image",
     "obtain separate approval for an additional live v2 provider call",
     "replay the exact valid response in an isolated qualification run",
     "continue through deterministic ElegantBook and real ZIP generation"

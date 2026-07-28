@@ -19,10 +19,10 @@ evidence-complete `needs_review`.
 
 The immutable Worker image currently qualified for code execution is:
 
-- source revision: `521fee15ee857cf07115eb77d369c7597c2887ab`;
-- runtime ID: `worker-v3-runtime-rc-521fee1`;
+- source revision: `90ccb9a32bebbb714920abb5d73fc0a4226d28d4`;
+- runtime ID: `worker-v3-runtime-rc-90ccb9a`;
 - local image digest:
-  `sha256:6f622548b136c302256cc7174cb2cb889e1790c06f42dbd2528d285711325b11`;
+  `sha256:93f477eb3a6d7ad406fae371d40ed3e20a23effa14bf43f60f803fb8880211a9`;
 - runtime identity evidence:
   `release/worker-v3/runtime/ordinary-runtime-identity.json`;
 - clean-build and regression evidence:
@@ -71,10 +71,9 @@ publication proofs in the table above remain separately required.
 
 ## Next evidence sequence
 
-1. Rebuild the exact Worker V3 image with the compact Spec 02 v2 contract and
-   the schema-visible provider transport. After separate authorization,
-   execute one new v2 live call and replay its exact response through isolated
-   qualification.
+1. Regenerate the exact Spec 02 v2 request from the rebuilt schema-visible
+   Worker image. After separate authorization, execute one new v2 live call
+   and replay its exact response through isolated qualification.
 2. Produce a real Worker V3 ZIP and complete the approved temporary-network
    Worker-to-Overleaf compile,
    then remove the network.
