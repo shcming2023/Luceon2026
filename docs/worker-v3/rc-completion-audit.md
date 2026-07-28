@@ -19,10 +19,10 @@ evidence-complete `needs_review`.
 
 The immutable Worker image currently qualified for code execution is:
 
-- source revision: `90ccb9a32bebbb714920abb5d73fc0a4226d28d4`;
-- runtime ID: `worker-v3-runtime-rc-90ccb9a`;
+- source revision: `ab9806ead64e7441b0425eeca6ab98ddd9868f53`;
+- runtime ID: `worker-v3-runtime-rc-ab9806e`;
 - local image digest:
-  `sha256:93f477eb3a6d7ad406fae371d40ed3e20a23effa14bf43f60f803fb8880211a9`;
+  `sha256:deb794e8b0f575367696b885c626e12c2cb90279e82c618e485e41f9c28dd0d4`;
 - runtime identity evidence:
   `release/worker-v3/runtime/ordinary-runtime-identity.json`;
 - clean-build and regression evidence:
@@ -70,12 +70,14 @@ These are package-admission gaps, not the complete project completion list.
 The live database, MinIO, browser, five-material, runtime-health, deployment and
 publication proofs in the table above remain separately required.
 
-The rebuilt image produced one new exact offline request for material 1343:
-canonical SHA-256
-`d2177d132e4c4fb4f2f6a6dea9a8a004bdb4aa6f95a551416e93a3f5dd23adc6`.
-No provider call was made during that capture. The previous live authorization
-was consumed by the strict failed attempt, so a new explicit authorization is
-required before this request may leave the host.
+The previous schema-visible request for material 1343 belonged to runtime
+`worker-v3-runtime-rc-90ccb9a`. Its one authorized provider call failed closed
+after the provider consumed part of the output budget for reasoning and
+returned a truncated document. Runtime `worker-v3-runtime-rc-ab9806e` now binds
+non-thinking mode, passes `331` Worker V3 tests with `2` skipped, and passes the
+locked-template compile smoke. Its replacement exact offline request has not
+yet been generated. A new explicit authorization is required before that new
+request may leave the host.
 
 ## Next evidence sequence
 
