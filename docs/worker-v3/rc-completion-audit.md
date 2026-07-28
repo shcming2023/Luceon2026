@@ -41,7 +41,7 @@ remains deliberately `incomplete` and is not installable as RC.
 | Twelve persisted stages | passed in code and tests | 12 Producer and 12 distinct Evaluator entrypoints; state-machine and API tests |
 | Producer/Evaluator/Promotion/Projector separation | passed in code and tests; live role probe pending | four services and identities; control-plane, operation-attempt and projection tests |
 | Frozen-input lineage and fail-closed admission | passed for five input packages and Stage 1 preflight | materials 1339-1343 seven-object sets and isolated qualification reports; full downstream lineage pending |
-| Bounded LLM schema, telemetry and cost accounting | three strict rejections proved; non-thinking remediation passed locally; live requalification pending | v1 exposed an impossible monolithic capacity; v2 reduced material 1343 to 820,827 request bytes and 25,910 minimum response bytes; the next call exposed the omitted provider-visible schema; the schema-visible call then proved that DeepSeek's default thinking consumed 6,448 of 16,000 output tokens and truncated otherwise schema-shaped JSON at page 181/200. The release now binds non-thinking mode and reports `finish_reason=length` as `output_truncated`, without relaxing the schema |
+| Bounded LLM schema, telemetry and cost accounting | non-thinking live requalification strictly rejected; compact response remediation pending | v1 exposed an impossible monolithic capacity; v2 reduced material 1343 to an 820,858-byte request and made the schema provider-visible. The rebuilt non-thinking image sent the exact authorized request, but the strict page-complete response still reached 16,000 output tokens and truncated after page 185/200. The gateway rejected it as `output_truncated`; no fixture, candidate or promotion exists. The next contract must retain exhaustive coverage while avoiding repeated baseline decisions |
 | Full-page visual review | contract and evaluator passed; provider qualification pending | all-page binding tests pass; clean-image provider/reviewer proof is missing |
 | Deterministic ElegantBook on real material | adapter and regression tests passed; final-image qualification pending | locked-template smoke passed; unchanged-image real-book Spec 05 proof is missing |
 | Independent Overleaf/XeLaTeX recompile | adapter image health passed; real ZIP compile pending | adapter digest and non-root health exist; Worker-to-adapter compile requires one temporary internal network |
@@ -71,32 +71,36 @@ The live database, MinIO, browser, five-material, runtime-health, deployment and
 publication proofs in the table above remain separately required.
 
 The previous schema-visible request for material 1343 belonged to runtime
-`worker-v3-runtime-rc-90ccb9a`. Its one authorized provider call failed closed
-after the provider consumed part of the output budget for reasoning and
-returned a truncated document. Runtime `worker-v3-runtime-rc-ab9806e` now binds
-non-thinking mode, passes `331` Worker V3 tests with `2` skipped, and passes the
-locked-template compile smoke. Its replacement exact offline request has not
-yet been generated. A new explicit authorization is required before that new
-request may leave the host.
+`worker-v3-runtime-rc-90ccb9a`. It failed closed after the provider consumed
+part of the output budget for reasoning. Runtime
+`worker-v3-runtime-rc-ab9806e` then generated canonical request
+`f3d45d43...74b1f`; the separately authorized non-thinking call was executed
+once. Non-thinking mode worked, but the 200-page response itself still reached
+the 16,000-token output limit and truncated after page 185. The strict gateway
+rejected it as `output_truncated`. It cost CNY `0.037731` using the provider's
+actual cache-hit/miss breakdown. No response fixture, stage candidate,
+promotion, Worker ZIP or temporary Overleaf network was created.
 
 ## Next evidence sequence
 
-1. Regenerate the exact Spec 02 v2 request from the rebuilt schema-visible
-   Worker image. After separate authorization, execute one new v2 live call
-   and replay its exact response through isolated qualification.
-2. Produce a real Worker V3 ZIP and complete the approved temporary-network
+1. Replace repeated per-page baseline decisions with a compact, strict,
+   exhaustive Spec 02 review contract; independently test its projection,
+   capacity admission and failure modes; rebuild the exact image and request.
+2. After a new exact-request authorization, execute one live call and replay
+   its exact response through isolated qualification.
+3. Produce a real Worker V3 ZIP and complete the approved temporary-network
    Worker-to-Overleaf compile,
    then remove the network.
-3. Produce and qualify the release-scoped all-page provider/reviewer evidence.
-4. Reassemble an immutable RC release with no known admission gaps.
-5. Recheck the already-passed dedicated V3 database recovery and MinIO
+4. Produce and qualify the release-scoped all-page provider/reviewer evidence.
+5. Reassemble an immutable RC release with no known admission gaps.
+6. Recheck the already-passed dedicated V3 database recovery and MinIO
    role-policy/versioning probes after final deployment, and capture their
    final-smoke deltas.
-6. Deploy that exact image/release to the current development environment.
-7. Run materials 1339-1343 without code change, rebuild or redeploy through all
+7. Deploy that exact image/release to the current development environment.
+8. Run materials 1339-1343 without code change, rebuild or redeploy through all
    12 stages; collect page, DB, MinIO, queue, model, runtime, download and
    independent recompile evidence.
-8. Close all Major findings, create the annotated RC tag, push the dedicated
+9. Close all Major findings, create the annotated RC tag, push the dedicated
    branch/tag, publish the GitHub Release Candidate and issue one unambiguous
    verdict.
 
