@@ -41,7 +41,7 @@ remains deliberately `incomplete` and is not installable as RC.
 | Twelve persisted stages | passed in code and tests | 12 Producer and 12 distinct Evaluator entrypoints; state-machine and API tests |
 | Producer/Evaluator/Promotion/Projector separation | passed in code and tests; live role probe pending | four services and identities; control-plane, operation-attempt and projection tests |
 | Frozen-input lineage and fail-closed admission | passed for five input packages and Stage 1 preflight | materials 1339-1343 seven-object sets and isolated qualification reports; full downstream lineage pending |
-| Bounded LLM schema, telemetry and cost accounting | compact exhaustive v3 passed one live call and production-policy offline replay; final-release exact qualification pending authorization | v1 exposed an impossible monolithic capacity; v2 made the schema provider-visible but repeated full fields and truncated after page 185/200. v3 retains one disposition per physical page, moves full fields to exact overrides, projects the deterministic baseline locally, and reduces the 200-page minimum complete response from 25,910 to 11,530 bytes. Request `907c4dac...d350` was called exactly once and returned a complete response. Qualification then exposed two generic schema-identity defects; both are fixed, but final frozen release request `82de64d1...7f89` is a distinct exact binding and has not been called |
+| Bounded LLM schema, telemetry and cost accounting | passed for final frozen executable candidate; final archive attestation reassembly pending | v1 exposed an impossible monolithic capacity; v2 made the schema provider-visible but repeated full fields and truncated after page 185/200. v3 retains one disposition per physical page, moves full fields to exact overrides, projects the deterministic baseline locally, and reduces the 200-page minimum complete response from 25,910 to 11,530 bytes. Separately authorized requests `907c4dac...d350` and final-release binding `82de64d1...7f89` were each called exactly once. Final-image no-network replay passed Spec 02 Producer, Evaluator and Promotion, then failed closed before any Spec 03 provider call |
 | Full-page visual review | contract and evaluator passed; exact runtime model binding corrected; provider qualification pending | all-page binding tests pass; the current runtime now binds `qwen3.7-plus-2026-05-26`, but no clean-image provider/reviewer request has been authorized or sent |
 | Deterministic ElegantBook on real material | adapter and regression tests passed; final-image qualification pending | locked-template smoke passed; unchanged-image real-book Spec 05 proof is missing |
 | Independent Overleaf/XeLaTeX recompile | adapter image health passed; real ZIP compile pending | adapter digest and non-root health exist; Worker-to-adapter compile requires one temporary internal network |
@@ -59,14 +59,22 @@ remains deliberately `incomplete` and is not installable as RC.
 
 ## Current release gaps
 
-The release verifier currently reports exactly these package-admission gaps:
+The currently frozen incomplete archive still reports exactly these
+package-admission gaps:
 
 1. `spec02_bounded_review_capacity_unqualified`;
 2. `full_page_review_evidence_provider_unqualified`;
 3. `spec05_worker_v3_runtime_qualification_pending`;
 4. `overleaf_adapter_image_qualification_pending`.
 
-These are package-admission gaps, not the complete project completion list.
+The first declaration is now resolved by external final-image qualification
+evidence but has deliberately not been edited inside the already frozen
+archive. It will be removed when the final evidence-bearing RC source is
+reassembled; rewriting it now would create a new release manifest and
+invalidate the continuation request sequence. The other three declarations
+remain unresolved.
+
+These are package-admission declarations, not the complete project completion list.
 The live database, MinIO, browser, five-material, runtime-health, deployment and
 publication proofs in the table above remain separately required.
 
@@ -103,13 +111,29 @@ SHA-256 `1e8fc01d...3714`, and manifest SHA-256 `249412df...55db`. A second clea
 assembly produced the same archive and tree hashes. Its isolated
 recapture proves Stage 1 Producer, Evaluator and Promotion all pass. Because
 the fixed release identity and deterministic call ID are part of the request,
-the final request is `82de64d1...7f89`, not the already authorized
+the final request is `82de64d1...7f89`, not the previously authorized
 `907c4dac...d350`. The model-visible prompt, input, schema, provider, model and
 parameters are equal, but the exact-response protocol forbids rebinding across
 release identities. The final request hash is deliberately kept only in
 external audit evidence, not inside its own release recipe, to avoid recursive
-manifest drift. No second provider call has been made. Evidence is recorded
-in `docs/worker-v3/evidence/deepseek-1343-spec02-v3-live-and-release-rebind-20260729.json`.
+manifest drift.
+
+Request `82de64d1...7f89` was separately authorized and called exactly once.
+It returned HTTP 200 with `finish_reason=stop`, response ID
+`66742af4-b33e-4c7b-bdd4-b264998b6d96`, and 289,715 total tokens; there was no
+retry. The response used 285,824 cache-hit input tokens, 74 cache-miss input
+tokens and 3,817 output tokens. Its raw-response SHA-256 is
+`70be002f...c726`; its parsed-result SHA-256 remains
+`6934b38a...652b`.
+
+Final-image replay used Docker network `none`, consumed that one exact fixture
+once, and passed `intake_snapshot` and `source_scope_and_order` through
+Producer, independent Evaluator and Promotion. The latter produced promoted
+candidate SHA-256 `0004210c...3b35`. Replay then failed closed at
+`canonical_block_ledger` with `qualification_fixture_missing`; it made no
+Spec 03 provider call, wrote no production state and promoted no release. The
+qualification report SHA-256 is `e474a807...aff9`. Evidence is recorded in
+`docs/worker-v3/evidence/deepseek-1343-spec02-v3-live-and-release-rebind-20260729.json`.
 
 The same preflight found a separate future Stage 10 blocker: the current
 development runtime selected the alias `qwen3.7-plus`, while the immutable
@@ -121,23 +145,25 @@ step.
 
 ## Next evidence sequence
 
-1. After a new exact-request authorization, execute final-release request
-   `82de64d1...7f89` exactly once and replay its exact response through isolated
-   qualification. The consumed authorization for `907c4dac...d350` must not be
-   reused.
-2. Produce a real Worker V3 ZIP and complete the approved temporary-network
+1. After a new exact-request authorization, execute Spec 03 request
+   `9e679330...8b79` exactly once and replay only from the smallest failed
+   stage. The consumed authorizations for `907c4dac...d350` and
+   `82de64d1...7f89` must not be reused.
+2. Continue the exact-request/fail-closed qualification sequence until the
+   unchanged final image produces a real Worker V3 ZIP.
+3. Produce a real Worker V3 ZIP and complete the approved temporary-network
    Worker-to-Overleaf compile,
    then remove the network.
-3. Produce and qualify the release-scoped all-page provider/reviewer evidence.
-4. Reassemble an immutable RC release with no known admission gaps.
-5. Recheck the already-passed dedicated V3 database recovery and MinIO
+4. Produce and qualify the release-scoped all-page provider/reviewer evidence.
+5. Reassemble an immutable RC release with no known admission gaps.
+6. Recheck the already-passed dedicated V3 database recovery and MinIO
    role-policy/versioning probes after final deployment, and capture their
    final-smoke deltas.
-6. Deploy that exact image/release to the current development environment.
-7. Run materials 1339-1343 without code change, rebuild or redeploy through all
+7. Deploy that exact image/release to the current development environment.
+8. Run materials 1339-1343 without code change, rebuild or redeploy through all
    12 stages; collect page, DB, MinIO, queue, model, runtime, download and
    independent recompile evidence.
-8. Close all Major findings, create the annotated RC tag, push the dedicated
+9. Close all Major findings, create the annotated RC tag, push the dedicated
    branch/tag, publish the GitHub Release Candidate and issue one unambiguous
    verdict.
 

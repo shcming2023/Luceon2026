@@ -95,7 +95,103 @@
     ],
     "rebind_allowed": false,
     "reason": "the qualification protocol is exact-request-hash bound; a response authorized for and returned against the original release identity cannot be represented as provider evidence for a different final release request. The final request hash is stored only in external audit evidence so it does not recursively change the release manifest.",
-    "next_authorization_required": true
+    "next_authorization_required": false,
+    "authorization_consumed": true
+  },
+  "final_request_authorization": {
+    "request_sha256": "82de64d19edcd9e98ac7333ad939fb06386700935e7c421dce025b63109a7f89",
+    "scope": "exactly one provider call",
+    "consumed": true,
+    "attempts": 1,
+    "retries": 0,
+    "attempt_started_sha256": "a599011f374b6ae2c71c35d69552229a2b7fcc91f83d4215c6cf5a2943a4b923"
+  },
+  "final_provider_call": {
+    "status": "succeeded",
+    "http_status": 200,
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "response_id": "66742af4-b33e-4c7b-bdd4-b264998b6d96",
+    "finish_reason": "stop",
+    "call_id": "92dd2742be0ac91fd05dc52a7620dfc0191c5036e2fba204e28897b7e9a5c2ba",
+    "raw_response_sha256": "70be002fb5bf3d005bad5e13fc9f5add64338ec0ef937e4b8a3affa11bb7c726",
+    "parsed_result_sha256": "6934b38a57afb48021dcfeba28ffe2dc3264f02180bedc980203e79cb980652b",
+    "usage": {
+      "input_tokens": 285898,
+      "output_tokens": 3817,
+      "total_tokens": 289715,
+      "cache_hit_input_tokens": 285824,
+      "cache_miss_input_tokens": 74
+    },
+    "latency_ms_wall": 20628,
+    "live_evidence_sha256": "1b628fcd711beeb1f9e6dfb5499f09da17c13d00ed814dcaa5ff0433c170ac22",
+    "fixture_sha256": "e32e537c7237c2a26da852b2e434887b07ca096d00f8f0b0d291c4c10a0e62d7"
+  },
+  "final_image_qualification_replay": {
+    "status": "spec02_passed_then_failed_closed_at_next_missing_fixture",
+    "network_used": false,
+    "production_state_written": false,
+    "release_promoted": false,
+    "job_id": "c699d7e4-c532-4fb5-ab3e-bd95195a6890",
+    "report_sha256": "e474a8070c3e3a3cd28bb1321e6b4914d1e18450d2b70829260891f4bb6eaff9",
+    "payload_sha256": "be96fa040d5fca566dcf704886cc3f4ee146ebe25e27dcb1944505572acc7609",
+    "fixture_transport": {
+      "declared_responses": 1,
+      "observed_calls": 1,
+      "observed_request_sha256": [
+        "82de64d19edcd9e98ac7333ad939fb06386700935e7c421dce025b63109a7f89"
+      ],
+      "unused_request_sha256": []
+    },
+    "stages": [
+      {
+        "stage": "intake_snapshot",
+        "producer": "succeeded",
+        "evaluator": "passed",
+        "promotion_id": "1"
+      },
+      {
+        "stage": "source_scope_and_order",
+        "producer": "succeeded",
+        "evaluator": "passed",
+        "promotion_id": "2",
+        "candidate_sha256": "0004210c8d989acf3853fc2d1b63a1b8320ac991f717ede05508b0881bd53b35"
+      }
+    ],
+    "next_failure": {
+      "stage": "canonical_block_ledger",
+      "error_code": "qualification_fixture_missing",
+      "provider_called": false
+    }
+  },
+  "next_exact_request": {
+    "stage": "canonical_block_ledger",
+    "request_sha256": "9e6793307ede5b994a5a7b33c4b62f4237cf0ff111ea159a99244ed952798b79",
+    "call_id": "21c1ea2f734b45ae3b9951c68f6050d4c5c9ddf8b29ff99d4d1cee1455e08df3",
+    "input_sha256": "dac09d825ad15ffff0205c26ecf07d8f2e220593d49d00995fdf998ceda17e4d",
+    "request_file_sha256": "9e6793307ede5b994a5a7b33c4b62f4237cf0ff111ea159a99244ed952798b79",
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "prompt": {
+      "id": "worker-v3.spec03-media-review",
+      "version": "1.0.0",
+      "sha256": "6f1e6656e8db84ccae62c96bb51a74a4ac95b2de9eb1cae0b6657b15f03f1a8f"
+    },
+    "schema": {
+      "id": "worker-v3.spec03-media-review",
+      "version": "1.0.0",
+      "canonical_sha256": "21112be6f524146a3dcff401e30f068d5bffa761f6d800c492cb912f76893117",
+      "file_sha256": "64f84427860b9a1c71d155f334619159c09743787486e10277428356c18b5811"
+    },
+    "parameters": {
+      "temperature": 0,
+      "thinking": {
+        "type": "disabled"
+      },
+      "max_output_tokens": 16000
+    },
+    "authorization_required": true,
+    "provider_calls_so_far": 0
   },
   "final_call_guard": {
     "runner_path": "/private/tmp/worker_v3_call_82de64d1_once.py",
@@ -126,5 +222,5 @@
       "guard_docker_counts_before_after": "0/0/0 -> 0/0/0"
     }
   },
-  "verdict": "The authorized request was called exactly once and produced a complete schema-valid response under the production gateway policy. Two release-binding defects were fixed generically. The final release remains unqualified until its distinct exact request receives separate one-call authorization; no second call was made."
+  "verdict": "Both separately authorized exact Spec 02 requests were each called exactly once. The final frozen-release request succeeded with no retry, and isolated final-image replay passed Spec 02 Producer, Evaluator and Promotion. Execution then failed closed at Spec 03 because no exact fixture was authorized; no Spec 03 provider call occurred. The executable candidate has passed the Spec 02 capacity qualification, while the current incomplete archive still retains its admission-gap declaration until final evidence reassembly."
 }
