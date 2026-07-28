@@ -1,10 +1,10 @@
 {
   "architecture": "arm64",
   "build_status": "clean_build_succeeded",
-  "built_at": "2026-07-28T00:54:08.288054924Z",
-  "image_id": "sha256:deb794e8b0f575367696b885c626e12c2cb90279e82c618e485e41f9c28dd0d4",
-  "image_size_bytes": 1455166285,
-  "local_manifest_digest": "sha256:deb794e8b0f575367696b885c626e12c2cb90279e82c618e485e41f9c28dd0d4",
+  "built_at": "2026-07-28T01:41:27.438918794Z",
+  "image_id": "sha256:6b88bc6a79827ce7a50e1ed1826efb3f44692d2b09bea9ae21c2da3eb78097fe",
+  "image_size_bytes": 1455149059,
+  "local_manifest_digest": "sha256:6b88bc6a79827ce7a50e1ed1826efb3f44692d2b09bea9ae21c2da3eb78097fe",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
     "pages": 2,
@@ -27,28 +27,28 @@
       "status": "rejected_before_qualification"
     }
   ],
-  "runtime_id": "worker-v3-runtime-rc-ab9806e",
+  "runtime_id": "worker-v3-runtime-rc-e51dab3",
   "runtime_identity": {
     "effective_uid": 10003,
-    "evidence_sha256": "4efff01f64c1b8590a2dff8ea0ececd54fc8728407b644c2e252e0288b91344f",
+    "evidence_sha256": "1a58897483623de6b26d5dca933f964d2de3f842a18209e041cf64f13b9f1a20",
     "status": "passed",
     "system_lock_entries": 19
   },
   "sbom": {
     "component_count": 420,
-    "evidence_sha256": "b493df7b71853006f4bb3452fc14e6aac7eaeceee452c7a752457784355c1a59",
+    "evidence_sha256": "907ef0bf79ef0a057fa776cb565356bd56e563612b03932082535ce4e3d4addd",
     "format": "CycloneDX",
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "ab9806ead64e7441b0425eeca6ab98ddd9868f53",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-ab9806e",
+  "source_revision": "e51dab320db3ac1ccabe11e090ee1a4843e714f9",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-e51dab3",
   "tests": {
     "backend/tests/test_workflow_v3_runtime_image.py": "passed as part of the complete repository integration suite",
-    "backend/tests/test_workflow_v3_*.py": "331 passed, 2 skipped with source revision mounted read-only into the exact rebuilt image",
-    "combined_result": "runtime identity passed; 331 passed, 2 skipped; production-forbidden runtime scan passed; locked-template XeLaTeX/qpdf/pdfinfo smoke passed",
-    "spec02_v2_targeted": "non-thinking transport and output-truncated regressions passed inside the complete suite",
-    "warnings": "7277 existing deprecation and read-only cache warnings; zero test failures"
+    "backend/tests/test_workflow_v3_*.py": "333 passed, 2 skipped with source revision mounted read-only into the exact rebuilt image",
+    "combined_result": "runtime identity passed; 333 passed, 2 skipped; production-forbidden runtime scan passed; locked-template XeLaTeX/qpdf/pdfinfo smoke passed",
+    "spec02_v3_targeted": "compact exhaustive page coverage, deterministic baseline projection, exact override matching and sub-16000-byte 200-page minimum-response regressions passed inside the complete suite",
+    "warnings": "7275 existing deprecation and read-only cache warnings; zero test failures"
   },
   "user": "10003:10003"
 }

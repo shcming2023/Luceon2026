@@ -19,10 +19,10 @@ evidence-complete `needs_review`.
 
 The immutable Worker image currently qualified for code execution is:
 
-- source revision: `ab9806ead64e7441b0425eeca6ab98ddd9868f53`;
-- runtime ID: `worker-v3-runtime-rc-ab9806e`;
+- source revision: `e51dab320db3ac1ccabe11e090ee1a4843e714f9`;
+- runtime ID: `worker-v3-runtime-rc-e51dab3`;
 - local image digest:
-  `sha256:deb794e8b0f575367696b885c626e12c2cb90279e82c618e485e41f9c28dd0d4`;
+  `sha256:6b88bc6a79827ce7a50e1ed1826efb3f44692d2b09bea9ae21c2da3eb78097fe`;
 - runtime identity evidence:
   `release/worker-v3/runtime/ordinary-runtime-identity.json`;
 - clean-build and regression evidence:
@@ -41,7 +41,7 @@ remains deliberately `incomplete` and is not installable as RC.
 | Twelve persisted stages | passed in code and tests | 12 Producer and 12 distinct Evaluator entrypoints; state-machine and API tests |
 | Producer/Evaluator/Promotion/Projector separation | passed in code and tests; live role probe pending | four services and identities; control-plane, operation-attempt and projection tests |
 | Frozen-input lineage and fail-closed admission | passed for five input packages and Stage 1 preflight | materials 1339-1343 seven-object sets and isolated qualification reports; full downstream lineage pending |
-| Bounded LLM schema, telemetry and cost accounting | non-thinking live requalification strictly rejected; compact response remediation pending | v1 exposed an impossible monolithic capacity; v2 reduced material 1343 to an 820,858-byte request and made the schema provider-visible. The rebuilt non-thinking image sent the exact authorized request, but the strict page-complete response still reached 16,000 output tokens and truncated after page 185/200. The gateway rejected it as `output_truncated`; no fixture, candidate or promotion exists. The next contract must retain exhaustive coverage while avoiding repeated baseline decisions |
+| Bounded LLM schema, telemetry and cost accounting | compact exhaustive v3 passed clean-image tests; new live response pending authorization | v1 exposed an impossible monolithic capacity; v2 made the schema provider-visible but repeated full fields and truncated after page 185/200. v3 retains one disposition per physical page, moves full fields to exact overrides, projects the deterministic baseline locally, and reduces the 200-page minimum complete response from 25,910 to 11,530 bytes. Exact request `907c4dac...d350` is captured offline; no additional provider call has started |
 | Full-page visual review | contract and evaluator passed; provider qualification pending | all-page binding tests pass; clean-image provider/reviewer proof is missing |
 | Deterministic ElegantBook on real material | adapter and regression tests passed; final-image qualification pending | locked-template smoke passed; unchanged-image real-book Spec 05 proof is missing |
 | Independent Overleaf/XeLaTeX recompile | adapter image health passed; real ZIP compile pending | adapter digest and non-root health exist; Worker-to-adapter compile requires one temporary internal network |
@@ -81,26 +81,34 @@ rejected it as `output_truncated`. It cost CNY `0.037731` using the provider's
 actual cache-hit/miss breakdown. No response fixture, stage candidate,
 promotion, Worker ZIP or temporary Overleaf network was created.
 
+Runtime `worker-v3-runtime-rc-e51dab3` now binds the compact exhaustive v3
+contract. Its clean build passed runtime identity, 333 Worker V3 tests (two
+skipped), and the locked-template XeLaTeX/qpdf/pdfinfo smoke. The new incomplete
+release archive has SHA-256 `2b703c8b...7feb` and tree SHA-256
+`f5bb8051...9646`. An isolated, no-network qualification captured canonical
+request `907c4dac...d350`; the expected `qualification_fixture_missing`
+termination proves that no provider call, fixture, candidate or promotion was
+created. A new explicit authorization is required before sending this exact
+request.
+
 ## Next evidence sequence
 
-1. Replace repeated per-page baseline decisions with a compact, strict,
-   exhaustive Spec 02 review contract; independently test its projection,
-   capacity admission and failure modes; rebuild the exact image and request.
-2. After a new exact-request authorization, execute one live call and replay
+1. After a new exact-request authorization, execute canonical request
+   `907c4dac...d350` exactly once and replay
    its exact response through isolated qualification.
-3. Produce a real Worker V3 ZIP and complete the approved temporary-network
+2. Produce a real Worker V3 ZIP and complete the approved temporary-network
    Worker-to-Overleaf compile,
    then remove the network.
-4. Produce and qualify the release-scoped all-page provider/reviewer evidence.
-5. Reassemble an immutable RC release with no known admission gaps.
-6. Recheck the already-passed dedicated V3 database recovery and MinIO
+3. Produce and qualify the release-scoped all-page provider/reviewer evidence.
+4. Reassemble an immutable RC release with no known admission gaps.
+5. Recheck the already-passed dedicated V3 database recovery and MinIO
    role-policy/versioning probes after final deployment, and capture their
    final-smoke deltas.
-7. Deploy that exact image/release to the current development environment.
-8. Run materials 1339-1343 without code change, rebuild or redeploy through all
+6. Deploy that exact image/release to the current development environment.
+7. Run materials 1339-1343 without code change, rebuild or redeploy through all
    12 stages; collect page, DB, MinIO, queue, model, runtime, download and
    independent recompile evidence.
-9. Close all Major findings, create the annotated RC tag, push the dedicated
+8. Close all Major findings, create the annotated RC tag, push the dedicated
    branch/tag, publish the GitHub Release Candidate and issue one unambiguous
    verdict.
 

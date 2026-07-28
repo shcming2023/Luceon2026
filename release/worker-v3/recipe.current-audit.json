@@ -18,7 +18,7 @@
     "requested_status": "incomplete",
     "created_at": "2026-07-26T00:00:00+08:00",
     "source": {
-      "git_sha": "ab9806ead64e7441b0425eeca6ab98ddd9868f53",
+      "git_sha": "e51dab320db3ac1ccabe11e090ee1a4843e714f9",
       "git_tag": null,
       "dirty": false
     },
@@ -335,7 +335,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-identity.json",
       "destination": "runtime/ordinary-runtime-identity.json",
-      "expected_sha256": "4efff01f64c1b8590a2dff8ea0ececd54fc8728407b644c2e252e0288b91344f"
+      "expected_sha256": "1a58897483623de6b26d5dca933f964d2de3f842a18209e041cf64f13b9f1a20"
     },
     {
       "id": "worker-v3-ordinary-runtime-build-proof",
@@ -344,7 +344,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-build-proof.json",
       "destination": "runtime/ordinary-runtime-build-proof.json",
-      "expected_sha256": "a57e1e9fe110a44bf6909bfb1cbd4ff396e8c9ca71f0fd34da750ca130702178"
+      "expected_sha256": "79aea809378d3d1a6f6fd9bca005db883ab0b323094604e4cc5ffa41c9417d0d"
     },
     {
       "id": "worker-v3-ordinary-runtime-sbom",
@@ -353,7 +353,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-sbom.cdx.json",
       "destination": "runtime/ordinary-runtime-sbom.cdx.json",
-      "expected_sha256": "b493df7b71853006f4bb3452fc14e6aac7eaeceee452c7a752457784355c1a59"
+      "expected_sha256": "907ef0bf79ef0a057fa776cb565356bd56e563612b03932082535ce4e3d4addd"
     },
     {
       "id": "worker-v3-overleaf-target-environment",
@@ -900,7 +900,7 @@
     "python": "CPython 3.12.13",
     "application_dependencies_path": "runtime/requirements-worker-v3.lock",
     "system_tools": {
-      "runtime_id": "worker-v3-runtime-rc-ab9806e",
+      "runtime_id": "worker-v3-runtime-rc-e51dab3",
       "system_lock": "runtime/worker-v3-system-packages.lock",
       "identity": "runtime/ordinary-runtime-identity.json",
       "overleaf_compiler": {
@@ -911,7 +911,7 @@
     "fonts_identity_path": "runtime/ordinary-runtime-identity.json",
     "tex_identity_path": "runtime/ordinary-runtime-identity.json",
     "poppler_identity_path": "runtime/ordinary-runtime-identity.json",
-    "container_image_digest": "sha256:deb794e8b0f575367696b885c626e12c2cb90279e82c618e485e41f9c28dd0d4",
+    "container_image_digest": "sha256:6b88bc6a79827ce7a50e1ed1826efb3f44692d2b09bea9ae21c2da3eb78097fe",
     "sbom_path": "runtime/ordinary-runtime-sbom.cdx.json",
     "attestations": [
       "runtime/ordinary-runtime-identity.json",
@@ -938,7 +938,7 @@
     {
       "code": "spec02_bounded_review_capacity_unqualified",
       "stage": "source_scope_and_order",
-      "detail": "the Spec 02 v3 contract preserves an exact one-row disposition for every physical page while emitting full page fields only for baseline overrides; deterministic projection, exact override matching and sub-16000-byte 200-page minimum-response capacity pass offline, but a rebuilt image and separately authorized live response are still required"
+      "detail": "the Spec 02 v3 contract preserves an exact one-row disposition for every physical page while emitting full page fields only for baseline overrides; deterministic projection, exact override matching and sub-16000-byte 200-page minimum-response capacity pass in the clean rebuilt runtime image, but a separately authorized live response is still required"
     },
     {
       "code": "overleaf_adapter_image_qualification_pending",
