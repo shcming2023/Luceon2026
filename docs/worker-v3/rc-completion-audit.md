@@ -45,8 +45,8 @@ remains deliberately `incomplete` and is not installable as RC.
 | Full-page visual review | contract and evaluator passed; provider qualification pending | all-page binding tests pass; clean-image provider/reviewer proof is missing |
 | Deterministic ElegantBook on real material | adapter and regression tests passed; final-image qualification pending | locked-template smoke passed; unchanged-image real-book Spec 05 proof is missing |
 | Independent Overleaf/XeLaTeX recompile | adapter image health passed; real ZIP compile pending | adapter digest and non-root health exist; Worker-to-adapter compile requires one temporary internal network |
-| Database forward/backup/rollback | implementation and tests passed; deployment evidence pending | explicit admin CLI and rollback tests; current development V3 DB backup/bootstrap/restore evidence not yet captured |
-| MinIO role isolation and immutable writes | implementation/tests passed; live probe pending | role policy and conditional-create tests; final candidate/formal bucket probe and versioning evidence missing |
+| Database forward/backup/rollback | current-development SQLite evidence passed; final deployment snapshot pending | dedicated 14-table schema is ready; integrity-checked 0600 backup and isolated hash-equal rollback drill passed without touching the development DB |
+| MinIO role isolation and immutable writes | current-development live probe passed; final-smoke delta pending | four-role allow/deny matrix, conditional-create rejection, delete denial and candidate/formal versioning passed against the pinned MinIO release |
 | UI semantics and browser path | implementation present; browser UAT pending | V3 page distinguishes machine/spec/readiness/human state; final public browser screenshots and interactions missing |
 | Five-material final batch smoke | not achieved | only frozen-input and Stage 1 offline preflight are complete; full 12-stage final-image run is required |
 | Failure isolation and minimum-stage recovery | passed in tests; cohort proof pending | executor/control-plane fault tests; final five-material run must demonstrate independent outcomes and no rerun of promoted stages |
@@ -86,8 +86,9 @@ required before this request may leave the host.
    then remove the network.
 3. Produce and qualify the release-scoped all-page provider/reviewer evidence.
 4. Reassemble an immutable RC release with no known admission gaps.
-5. Bootstrap the dedicated V3 database with backup/rollback evidence and run
-   the live MinIO role-policy/versioning probe.
+5. Recheck the already-passed dedicated V3 database recovery and MinIO
+   role-policy/versioning probes after final deployment, and capture their
+   final-smoke deltas.
 6. Deploy that exact image/release to the current development environment.
 7. Run materials 1339-1343 without code change, rebuild or redeploy through all
    12 stages; collect page, DB, MinIO, queue, model, runtime, download and
