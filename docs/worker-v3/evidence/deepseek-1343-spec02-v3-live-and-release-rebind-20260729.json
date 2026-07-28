@@ -108,6 +108,22 @@
     "missing_authorization_test": {
       "status": "rejected_before_network",
       "output_directory_created": false
+    },
+    "qualification_replay_runner": {
+      "path": "/private/tmp/run_worker_v3_qualification_after_82de64d1.sh",
+      "sha256": "6140d864abc20b0ba1adf1f52b30033a57d0e3f2da0fed4c437d243e0138428d",
+      "mode": "0500",
+      "network": "none",
+      "empty_fixture_guard": "rejected_before_run_root_creation"
+    },
+    "overleaf_one_shot_runner": {
+      "path": "/private/tmp/run_overleaf_compile_once_final.sh",
+      "sha256": "60b70d62dea0ea791b4ed9abd1317cc9a2735227ed1651d76dcae3abfed03a60",
+      "mode": "0500",
+      "worker_image_digest": "sha256:e35e466e0e7b1f7a82404b577683617d264aba7b23bf8d6fbaea92fe407fa9a9",
+      "adapter_image_digest": "sha256:e983be555820cc24d6d69e813142d1e7bca7fdc514c9a8a29aa139801e7c7ccf",
+      "missing_zip_guard": "rejected_before_docker_object_creation",
+      "guard_docker_counts_before_after": "0/0/0 -> 0/0/0"
     }
   },
   "verdict": "The authorized request was called exactly once and produced a complete schema-valid response under the production gateway policy. Two release-binding defects were fixed generically. The final release remains unqualified until its distinct exact request receives separate one-call authorization; no second call was made."
