@@ -122,7 +122,7 @@ def _produce_intake(
             "intake primary input must be the exact frozen Popo manifest",
         )
     _verify_template_archive(request, inputs, release)
-    schema_path, schema_sha = _release_schema_binding(
+    schema_path, schema_file_sha, _ = _release_schema_binding(
         release,
         schema_id="worker-v3.spec01-intake-contract",
         schema_version="1.0.0",
@@ -163,7 +163,7 @@ def _produce_intake(
             "--contract-schema-path",
             schema_path,
             "--contract-schema-sha256",
-            schema_sha,
+            schema_file_sha,
             "--output-dir",
             str(output),
         ),
@@ -241,12 +241,12 @@ def _produce_scope_order(
         expected_input_canonical_sha256=task_hash,
     )
     binding = _review_binding(parameters["review_binding"])
-    schema_path, schema_sha = _release_schema_binding(
+    schema_path, schema_file_sha, schema_canonical_sha = _release_schema_binding(
         release,
         schema_id="worker-v3.spec02-scope-order-review",
         schema_version="3.0.0",
     )
-    if binding.schema_sha256 != schema_sha:
+    if binding.schema_sha256 != schema_canonical_sha:
         raise StageEntrypointError(
             "review_schema_release_binding_missing",
             "scope/order review schema differs from the release",
@@ -283,7 +283,7 @@ def _produce_scope_order(
             "--contract-schema-path",
             schema_path,
             "--contract-schema-sha256",
-            schema_sha,
+            schema_file_sha,
             "--output-dir",
             str(output),
         ),
@@ -378,12 +378,12 @@ def _produce_canonical_ledger(
         expected_input_canonical_sha256=task_hash,
     )
     binding = _review_binding(parameters["review_binding"])
-    schema_path, schema_sha = _release_schema_binding(
+    schema_path, schema_file_sha, schema_canonical_sha = _release_schema_binding(
         release,
         schema_id="worker-v3.spec03-media-review",
         schema_version="1.0.0",
     )
-    if binding.schema_sha256 != schema_sha:
+    if binding.schema_sha256 != schema_canonical_sha:
         raise StageEntrypointError(
             "review_schema_release_binding_missing",
             "media review schema differs from the release",
@@ -426,7 +426,7 @@ def _produce_canonical_ledger(
             "--contract-schema-path",
             schema_path,
             "--contract-schema-sha256",
-            schema_sha,
+            schema_file_sha,
             "--output-dir",
             str(output),
         ),
@@ -877,7 +877,7 @@ def _release_schema_binding(
     *,
     schema_id: str,
     schema_version: str,
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     manifest = _read_json(release_root / "release-manifest.json", "release manifest")
     matches = [
         row
@@ -909,7 +909,7 @@ def _release_schema_binding(
     schema_canonical_sha = _canonical_hash(
         _read_json(schema_path, f"stage schema {schema_id}")
     )
-    return path, schema_canonical_sha
+    return path, sha, schema_canonical_sha
 
 
 def _require_roles(request: StageRequest, expected: set[str]) -> None:

@@ -859,6 +859,37 @@ def test_stage4_adapter_separates_release_file_hash_from_canonical_schema_hash(
     assert _stage4_case(tmp_path, monkeypatch, pretty_schema=True)[0] == 0
 
 
+def test_release_schema_binding_preserves_file_and_canonical_hashes(
+    tmp_path: Path,
+) -> None:
+    schema = {"type": "object"}
+    schema_bytes = (json.dumps(schema, indent=2) + "\n").encode()
+    release, _ = _release(
+        tmp_path,
+        schemas=[
+            {
+                "id": "worker-v3.test-schema",
+                "version": "1.0.0",
+                "path": "schema.json",
+                "sha256": hashlib.sha256(schema_bytes).hexdigest(),
+            }
+        ],
+    )
+    schema_path = release / "schema.json"
+    schema_path.write_bytes(schema_bytes)
+
+    path, file_sha, canonical_sha = adapters._release_schema_binding(
+        release,
+        schema_id="worker-v3.test-schema",
+        schema_version="1.0.0",
+    )
+
+    assert path == "schema.json"
+    assert file_sha == _sha(schema_path)
+    assert canonical_sha == _canonical_sha(schema)
+    assert file_sha != canonical_sha
+
+
 def test_stage4_adapter_rejects_unreleased_prompt_hash(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
