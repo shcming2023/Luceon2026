@@ -97,5 +97,18 @@
     "reason": "the qualification protocol is exact-request-hash bound; a response authorized for and returned against the original release identity cannot be represented as provider evidence for a different final release request. The final request hash is stored only in external audit evidence so it does not recursively change the release manifest.",
     "next_authorization_required": true
   },
+  "final_call_guard": {
+    "runner_path": "/private/tmp/worker_v3_call_82de64d1_once.py",
+    "runner_sha256": "60efee6eeffe8c89df79aec3d239123627cf565b20da82eeb874f2899090cc77",
+    "runner_mode": "0500",
+    "preflight_status": "passed",
+    "preflight_network_used": false,
+    "production_allowed_choices": {},
+    "authorization_environment": "WORKER_V3_AUTHORIZED_REQUEST_SHA256",
+    "missing_authorization_test": {
+      "status": "rejected_before_network",
+      "output_directory_created": false
+    }
+  },
   "verdict": "The authorized request was called exactly once and produced a complete schema-valid response under the production gateway policy. Two release-binding defects were fixed generically. The final release remains unqualified until its distinct exact request receives separate one-call authorization; no second call was made."
 }
