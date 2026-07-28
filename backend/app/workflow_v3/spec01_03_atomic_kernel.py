@@ -22,9 +22,9 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping, Sequence
 
 
-KERNEL_VERSION = "luceon-worker-v3-spec01-03-atomic/1.2.0"
+KERNEL_VERSION = "luceon-worker-v3-spec01-03-atomic/1.3.0"
 INTAKE_SCHEMA = "luceon.worker-v3-spec01-intake-contract/v1"
-SCOPE_REVIEW_SCHEMA = "luceon.worker-v3-spec02-scope-order-review/v2"
+SCOPE_REVIEW_SCHEMA = "luceon.worker-v3-spec02-scope-order-review/v3"
 MEDIA_REVIEW_SCHEMA = "luceon.worker-v3-spec03-media-review/v1"
 SCOPE_REVIEW_TASK_SCHEMA = "luceon.worker-v3-spec02-review-task/v2"
 MEDIA_REVIEW_TASK_SCHEMA = "luceon.worker-v3-spec03-review-task/v1"
@@ -1756,14 +1756,11 @@ def _minimum_scope_review_bytes(
         "pages": [
             {
                 "physical_page": page,
-                "scope_status": "excluded",
-                "page_category": "x",
-                "reason": "x",
-                "evidence_refs": ["x"],
-                "review_status": "closed",
+                "baseline_disposition": "accepted",
             }
             for page in range(1, page_count + 1)
         ],
+        "page_overrides": [],
         "unit_scope_overrides": [],
         "reading_order_overrides": [],
         "relationships": [],
@@ -1869,6 +1866,7 @@ def _scope_review_task(parent: Path) -> dict[str, Any]:
         },
         "constraints": [
             "Classify every physical page exactly once.",
+            "Accept the deterministic page baseline compactly and return full page fields only for overrides.",
             "Return only source-unit scope or page-order overrides that differ from the deterministic baseline.",
             "A reading-order override must enumerate every included source_id on that page exactly once.",
             "Close complex, multi-column, cross-page, and composite relationships with evidence.",
@@ -2133,6 +2131,7 @@ def _validate_scope_review(
         "baseline_sha256",
         "review_status",
         "pages",
+        "page_overrides",
         "unit_scope_overrides",
         "reading_order_overrides",
         "relationships",
@@ -2169,12 +2168,33 @@ def _validate_scope_review(
     if set(baseline_units) != source_ids:
         _fail("scope_baseline_invalid", "deterministic baseline source-unit partition is not exact")
 
-    normalized_pages: list[dict[str, Any]] = []
     seen_pages: set[int] = set()
-    page_decisions: dict[int, Mapping[str, Any]] = {}
+    page_dispositions: dict[int, str] = {}
     for raw_page in pages:
         if not isinstance(raw_page, Mapping):
             _fail("scope_page_partition_invalid", "review page must be an object")
+        required = {"physical_page", "baseline_disposition"}
+        if set(raw_page) != required:
+            _fail("scope_page_shape_invalid", "review page has missing or unknown fields")
+        page_number = _require_positive_int(raw_page.get("physical_page"), "physical_page")
+        if page_number > page_count or page_number in seen_pages:
+            _fail("scope_page_partition_invalid", f"page {page_number} is invalid or duplicated")
+        seen_pages.add(page_number)
+        disposition = raw_page.get("baseline_disposition")
+        if disposition not in {"accepted", "overridden"}:
+            _fail(
+                "scope_page_disposition_invalid",
+                f"page {page_number} has invalid baseline disposition",
+            )
+        page_dispositions[page_number] = str(disposition)
+    if seen_pages != set(range(1, page_count + 1)):
+        _fail("scope_page_partition_invalid", "review page partition is not exact")
+
+    raw_page_overrides = review.get("page_overrides")
+    if not isinstance(raw_page_overrides, list):
+        _fail("scope_page_override_invalid", "page_overrides must be an array")
+    page_overrides: dict[int, Mapping[str, Any]] = {}
+    for raw_page in raw_page_overrides:
         required = {
             "physical_page",
             "scope_status",
@@ -2183,12 +2203,24 @@ def _validate_scope_review(
             "evidence_refs",
             "review_status",
         }
-        if set(raw_page) != required:
-            _fail("scope_page_shape_invalid", "review page has missing or unknown fields")
-        page_number = _require_positive_int(raw_page.get("physical_page"), "physical_page")
-        if page_number > page_count or page_number in seen_pages:
-            _fail("scope_page_partition_invalid", f"page {page_number} is invalid or duplicated")
-        seen_pages.add(page_number)
+        if not isinstance(raw_page, Mapping) or set(raw_page) != required:
+            _fail(
+                "scope_page_override_invalid",
+                "page override has missing or unknown fields",
+            )
+        page_number = _require_positive_int(
+            raw_page.get("physical_page"),
+            "page override physical_page",
+        )
+        if (
+            page_number > page_count
+            or page_number in page_overrides
+            or page_dispositions.get(page_number) != "overridden"
+        ):
+            _fail(
+                "scope_page_override_invalid",
+                f"page override {page_number} is unknown, duplicated, or not declared",
+            )
         if raw_page.get("scope_status") not in {"included", "excluded"}:
             _fail("scope_status_invalid", f"page {page_number} has invalid scope status")
         _require_text(raw_page.get("page_category"), f"page {page_number}.page_category")
@@ -2202,21 +2234,35 @@ def _validate_scope_review(
             or any(not isinstance(item, str) or not item for item in evidence_refs)
         ):
             _fail("scope_evidence_invalid", f"page {page_number} review evidence is invalid")
-        page_decisions[page_number] = raw_page
+        page_overrides[page_number] = raw_page
+    expected_override_pages = {
+        page
+        for page, disposition in page_dispositions.items()
+        if disposition == "overridden"
+    }
+    if set(page_overrides) != expected_override_pages:
+        _fail(
+            "scope_page_override_invalid",
+            "page overrides do not exactly match overridden page dispositions",
+        )
+
+    normalized_pages: list[dict[str, Any]] = []
+    page_decisions: dict[int, Mapping[str, Any]] = {}
+    for page_number in range(1, page_count + 1):
+        decision = page_overrides.get(page_number) or baseline_pages[page_number]
+        page_decisions[page_number] = decision
         normalized_pages.append(
             {
                 "physical_page": page_number,
-                "scope_status": raw_page["scope_status"],
-                "page_category": raw_page["page_category"],
-                "reason": raw_page["reason"],
+                "scope_status": decision["scope_status"],
+                "page_category": decision["page_category"],
+                "reason": decision["reason"],
                 "complexity_flags": [],
                 "cross_page_relationship_ids": [],
-                "evidence_refs": list(evidence_refs),
+                "evidence_refs": list(decision["evidence_refs"]),
                 "review_status": "closed",
             }
         )
-    if seen_pages != set(range(1, page_count + 1)):
-        _fail("scope_page_partition_invalid", "review page partition is not exact")
 
     unit_overrides = review.get("unit_scope_overrides")
     if not isinstance(unit_overrides, list):

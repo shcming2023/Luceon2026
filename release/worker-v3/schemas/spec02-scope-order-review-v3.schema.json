@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "worker-v3.spec02-scope-order-review/2.0.0",
+  "$id": "worker-v3.spec02-scope-order-review/3.0.0",
   "title": "Worker V3 Spec 02 compact scope and reading-order review",
   "type": "object",
   "required": [
@@ -11,6 +11,7 @@
     "baseline_sha256",
     "review_status",
     "pages",
+    "page_overrides",
     "unit_scope_overrides",
     "reading_order_overrides",
     "relationships",
@@ -19,7 +20,7 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "const": "luceon.worker-v3-spec02-scope-order-review/v2"
+      "const": "luceon.worker-v3-spec02-scope-order-review/v3"
     },
     "review_id": {
       "type": "string",
@@ -46,6 +47,31 @@
     "pages": {
       "type": "array",
       "minItems": 1,
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "required": [
+          "physical_page",
+          "baseline_disposition"
+        ],
+        "properties": {
+          "physical_page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "baseline_disposition": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "overridden"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "page_overrides": {
+      "type": "array",
       "maxItems": 100000,
       "items": {
         "type": "object",

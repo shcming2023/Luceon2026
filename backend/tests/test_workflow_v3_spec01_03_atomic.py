@@ -373,11 +373,7 @@ def _run_pipeline(root: Path, *, padding_bytes: int = 0) -> tuple[Path, Path, Pa
         review_pages.append(
             {
                 "physical_page": page["physical_page"],
-                "scope_status": page["baseline_scope_status"],
-                "page_category": page["baseline_page_category"],
-                "reason": "reviewed deterministic page baseline",
-                "evidence_refs": [f"physical-page:{page['physical_page']}"],
-                "review_status": "closed",
+                "baseline_disposition": "accepted",
             }
         )
     scope_review = root / "scope-review.json"
@@ -391,6 +387,7 @@ def _run_pipeline(root: Path, *, padding_bytes: int = 0) -> tuple[Path, Path, Pa
             "baseline_sha256": task["baseline_sha256"],
             "review_status": "closed",
             "pages": review_pages,
+            "page_overrides": [],
             "unit_scope_overrides": [],
             "reading_order_overrides": [],
             "relationships": [],
@@ -758,14 +755,11 @@ def test_scope_review_rejects_unknown_unit_override(tmp_path: Path) -> None:
         "pages": [
             {
                 "physical_page": page["physical_page"],
-                "scope_status": page["baseline_scope_status"],
-                "page_category": page["baseline_page_category"],
-                "reason": "reviewed deterministic page baseline",
-                "evidence_refs": [f"physical-page:{page['physical_page']}"],
-                "review_status": "closed",
+                "baseline_disposition": "accepted",
             }
             for page in task["pages"]
         ],
+        "page_overrides": [],
         "unit_scope_overrides": [
             {
                 "source_id": "not-enumerated",
@@ -829,14 +823,11 @@ def test_compact_scope_review_expands_large_exhaustive_baseline() -> None:
         "pages": [
             {
                 "physical_page": page,
-                "scope_status": "included",
-                "page_category": "body",
-                "reason": "deterministic baseline accepted",
-                "evidence_refs": [f"physical-page:{page}"],
-                "review_status": "closed",
+                "baseline_disposition": "accepted",
             }
             for page in range(1, page_count + 1)
         ],
+        "page_overrides": [],
         "unit_scope_overrides": [],
         "reading_order_overrides": [],
         "relationships": [],
@@ -863,8 +854,108 @@ def test_compact_scope_review_expands_large_exhaustive_baseline() -> None:
             baseline_sha256=baseline["sha256"],
             page_count=page_count,
         )
-        < 16_000 * 16
+        < 16_000
     )
+
+
+def test_compact_scope_review_projects_only_declared_page_override() -> None:
+    source_units = [
+        {
+            "source_id": "unit-1",
+            "physical_page": 1,
+            "source_label": "text",
+            "source_type": "text",
+            "bbox": [0.1, 0.1, 0.9, 0.2],
+            "popo_tree_rank": 1,
+        }
+    ]
+    baseline = kernel._scope_baseline(  # noqa: SLF001
+        page_count=1,
+        source_units=source_units,
+    )
+    review = {
+        "schema_version": kernel.SCOPE_REVIEW_SCHEMA,
+        "review_id": "page-override",
+        "material_id": "pdf-generic",
+        "source_pdf_sha256": "a" * 64,
+        "baseline_sha256": baseline["sha256"],
+        "review_status": "closed",
+        "pages": [
+            {"physical_page": 1, "baseline_disposition": "overridden"}
+        ],
+        "page_overrides": [
+            {
+                "physical_page": 1,
+                "scope_status": "excluded",
+                "page_category": "non_body",
+                "reason": "reviewed source evidence excludes this page",
+                "evidence_refs": ["physical-page:1"],
+                "review_status": "closed",
+            }
+        ],
+        "unit_scope_overrides": [],
+        "reading_order_overrides": [],
+        "relationships": [],
+        "open_reviews": [],
+    }
+    pages, units, relationships = kernel._validate_scope_review(  # noqa: SLF001
+        review,
+        material_id="pdf-generic",
+        source_sha256="a" * 64,
+        review_task={"page_count": 1, "pages": []},
+        baseline=baseline,
+        source_units=source_units,
+    )
+    assert pages[0]["scope_status"] == "excluded"
+    assert pages[0]["reason"] == "reviewed source evidence excludes this page"
+    assert units[0]["scope_status"] == "excluded"
+    assert relationships == []
+
+
+def test_compact_scope_review_rejects_missing_declared_page_override() -> None:
+    source_units = [
+        {
+            "source_id": "unit-1",
+            "physical_page": 1,
+            "source_label": "text",
+            "source_type": "text",
+            "bbox": [0.1, 0.1, 0.9, 0.2],
+            "popo_tree_rank": 1,
+        }
+    ]
+    baseline = kernel._scope_baseline(  # noqa: SLF001
+        page_count=1,
+        source_units=source_units,
+    )
+    review = {
+        "schema_version": kernel.SCOPE_REVIEW_SCHEMA,
+        "review_id": "missing-page-override",
+        "material_id": "pdf-generic",
+        "source_pdf_sha256": "a" * 64,
+        "baseline_sha256": baseline["sha256"],
+        "review_status": "closed",
+        "pages": [
+            {"physical_page": 1, "baseline_disposition": "overridden"}
+        ],
+        "page_overrides": [],
+        "unit_scope_overrides": [],
+        "reading_order_overrides": [],
+        "relationships": [],
+        "open_reviews": [],
+    }
+    try:
+        kernel._validate_scope_review(  # noqa: SLF001
+            review,
+            material_id="pdf-generic",
+            source_sha256="a" * 64,
+            review_task={"page_count": 1, "pages": []},
+            baseline=baseline,
+            source_units=source_units,
+        )
+    except kernel.KernelContractError as exc:
+        assert exc.code == "scope_page_override_invalid"
+    else:
+        raise AssertionError("declared page override must have one exact payload")
 
 
 def test_scope_review_rejects_nonempty_roles_for_semantic_group() -> None:
@@ -892,13 +983,10 @@ def test_scope_review_rejects_nonempty_roles_for_semantic_group() -> None:
         "pages": [
             {
                 "physical_page": 1,
-                "scope_status": "included",
-                "page_category": "body",
-                "reason": "reviewed",
-                "evidence_refs": ["physical-page:1"],
-                "review_status": "closed",
+                "baseline_disposition": "accepted",
             }
         ],
+        "page_overrides": [],
         "unit_scope_overrides": [],
         "reading_order_overrides": [],
         "relationships": [

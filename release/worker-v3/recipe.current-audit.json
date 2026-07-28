@@ -182,7 +182,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec01_04_stage_adapters.py",
       "destination": "scripts/worker-v3/spec01_04_stage_adapters.py",
-      "expected_sha256": "b0e0782f86709e57341edad365cb8a7d24fd3ca135affed82395d860466b6176"
+      "expected_sha256": "f383398fd08637f3593c8df897500d78261f5693a801e5c2cf9a42b4ea952fb4"
     },
     {
       "id": "worker-v3-spec05-06-adapters",
@@ -245,7 +245,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec01_03_atomic_kernel.py",
       "destination": "scripts/worker-v3/spec01_03_atomic_kernel.py",
-      "expected_sha256": "d2835027e2d3340535c823693e94ef9389c83922e61e316205fe5bde712dd677"
+      "expected_sha256": "7cdcb6b90d523deb490d42dc1954e9a6f9d045997d4249254b2a02de1aa0e8a2"
     },
     {
       "id": "worker-v3-stage-producer-entrypoints",
@@ -281,7 +281,7 @@
       "include": [
         "spec*.txt"
       ],
-      "expected_tree_sha256": "e9f7d5f7dbe06d914031217e086d2262715a72f567f8c9feef12aeb642640dd3"
+      "expected_tree_sha256": "c331033ce0daafc37d89eb02796d39ee4d12dbe0f64903807b449c52e34f1f65"
     },
     {
       "id": "worker-v3-ordinary-schemas",
@@ -293,7 +293,7 @@
       "include": [
         "spec*.schema.json"
       ],
-      "expected_tree_sha256": "e42f13bde78b55627ca95a3269c62baa043bff4611ad1a9e62afa3b1c985274f"
+      "expected_tree_sha256": "63cf1efdf758767eabd8b215a1e19ead33d78eb2f3ca89da482d1167cb64eab0"
     },
     {
       "id": "worker-v3-spec04-review-schemas",
@@ -516,8 +516,8 @@
       },
       {
         "id": "worker-v3.spec02-scope-order-review",
-        "version": "2.0.0",
-        "path": "schemas/spec02-scope-order-review-v2.schema.json"
+        "version": "3.0.0",
+        "path": "schemas/spec02-scope-order-review-v3.schema.json"
       },
       {
         "id": "worker-v3.spec03-media-review",
@@ -712,9 +712,9 @@
   "prompts": [
     {
       "id": "worker-v3.spec02-scope-order-review",
-      "version": "2.0.0",
-      "path": "prompts/spec02-scope-order-review-v2.txt",
-      "output_schema": "schemas/spec02-scope-order-review-v2.schema.json"
+      "version": "3.0.0",
+      "path": "prompts/spec02-scope-order-review-v3.txt",
+      "output_schema": "schemas/spec02-scope-order-review-v3.schema.json"
     },
     {
       "id": "worker-v3.spec03-media-review",
@@ -938,7 +938,7 @@
     {
       "code": "spec02_bounded_review_capacity_unqualified",
       "stage": "source_scope_and_order",
-      "detail": "the compact Spec 02 v2 deterministic-baseline plus bounded-delta contract passes offline capacity, merge and coverage regression; the schema-visible live call proved that DeepSeek default thinking consumed the release output budget and truncated JSON at page 181/200; non-thinking mode is now release-bound and finish_reason=length is classified as output_truncated, but the rebuilt image still requires one separately authorized live response"
+      "detail": "the Spec 02 v3 contract preserves an exact one-row disposition for every physical page while emitting full page fields only for baseline overrides; deterministic projection, exact override matching and sub-16000-byte 200-page minimum-response capacity pass offline, but a rebuilt image and separately authorized live response are still required"
     },
     {
       "code": "overleaf_adapter_image_qualification_pending",
