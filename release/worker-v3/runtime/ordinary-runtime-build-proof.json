@@ -1,10 +1,10 @@
 {
   "architecture": "arm64",
   "build_status": "clean_build_succeeded",
-  "built_at": "2026-07-29T09:36:42Z",
-  "image_id": "sha256:e5a3b87e82331c9273d4caa7cf86c08969ed164d43926bd7103337008f4ebdf8",
-  "image_size_bytes": 1455160814,
-  "local_manifest_digest": "sha256:e5a3b87e82331c9273d4caa7cf86c08969ed164d43926bd7103337008f4ebdf8",
+  "built_at": "2026-07-29T11:10:40Z",
+  "image_id": "sha256:34ee2a0f57f51c257700599ad0f651fd3864e415ab8138a5b219907a403e787e",
+  "image_size_bytes": 1455162393,
+  "local_manifest_digest": "sha256:34ee2a0f57f51c257700599ad0f651fd3864e415ab8138a5b219907a403e787e",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
     "pages": 2,
@@ -16,6 +16,12 @@
   "registry_digest": null,
   "registry_status": "pending_until_push",
   "superseded_builds": [
+    {
+      "image_digest": "sha256:e5a3b87e82331c9273d4caa7cf86c08969ed164d43926bd7103337008f4ebdf8",
+      "reason": "real-material Spec 04-B qualification returned a schema-valid teaching_group choice for a candidate whose frozen allowed_dispositions excluded teaching_group; the replacement binds candidate-local disposition and semantic-role choices before a model call can be recorded as succeeded",
+      "source_revision": "28d2801aa618f3d75e78318ad096cb1af378320a",
+      "status": "superseded_before_release_admission"
+    },
     {
       "image_digest": "sha256:fc7937b022ecfe68b8233abe83e38264e5776fab0813c2d094c21c87e71c28f4",
       "reason": "real-material semantic qualification proved that the compact review protocol still let the model restate a deterministic contiguous body boundary; the replacement mechanically consumes every exact body option and limits the model to disposition and semantic role",
@@ -87,31 +93,32 @@
       "status": "rejected_before_qualification"
     }
   ],
-  "runtime_id": "worker-v3-runtime-rc-28d2801",
+  "runtime_id": "worker-v3-runtime-rc-8b1d2c0",
   "runtime_identity": {
     "effective_uid": 10003,
-    "evidence_sha256": "8473f4890d4ff6e51071424d1ee19f6c5c7eeb3a1309026422f3d1099f5d0e90",
+    "evidence_sha256": "bb5ba337ff1dc04a7d7bc4d1db2a53c4e93d1f9fb27f0e362395ee556fdefb8b",
     "status": "passed",
     "system_lock_entries": 19
   },
   "sbom": {
     "component_count": 420,
-    "evidence_sha256": "2a0aa0b4889fc8ad30e8549e432d4aac2e9c5d0eeba72afe7d146ea5b78619ea",
+    "evidence_sha256": "3d0dc018e08511a2e837aa46b15f47d70eafd5686ef49777aa55b8b934f8dd3b",
     "format": "CycloneDX",
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "28d2801aa618f3d75e78318ad096cb1af378320a",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-28d2801",
+  "source_revision": "8b1d2c0001b19cd9c570c59647ec246771579b17",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-8b1d2c0",
   "tests": {
     "backend/tests/test_workflow_v3_runtime_image.py": "passed as part of the complete repository integration suite",
-    "backend/tests/test_workflow_v3_*.py": "354 passed, 2 skipped in the exact rebuilt image",
-    "backend/tests": "995 passed, 2 skipped with source revision mounted read-only into the exact rebuilt image, a writable tmpfs working directory, no network, and UID 10003",
-    "combined_result": "runtime identity passed with digest-pinned reference; 995 passed, 2 skipped; locked-template XeLaTeX/qpdf/pdfinfo smoke passed",
+    "backend/tests/test_workflow_v3_*.py": "357 passed, 2 skipped in the exact rebuilt image",
+    "backend/tests": "998 passed, 2 skipped with source revision mounted read-only into the exact rebuilt image, a writable tmpfs working directory, no network, and UID 10003",
+    "combined_result": "runtime identity passed with digest-pinned reference; 998 passed, 2 skipped; locked-template XeLaTeX/qpdf/pdfinfo smoke passed",
     "spec02_v3_targeted": "compact exhaustive page coverage, deterministic baseline projection, exact override matching and sub-16000-byte 200-page minimum-response regressions passed in the prior qualified image and remain in the regression suite",
     "spec03_v2_targeted": "40 passed in the exact rebuilt image, including deterministic source-region baseline projection, index-to-immutable-ID expansion, baseline drift rejection, evidence-backed exclusion and 255/1000-item capacity bounds",
     "spec04a_bounded_review_targeted": "the exact rebuilt image passed the compact decision schema, deterministic full-bundle projector, order/coverage rejection and provider response-capacity regressions; material 1343 has 339 bounded title candidates and a worst-case schema-complete response of 19389 bytes within the 256000-byte release limit",
-    "warnings": "10035 existing deprecation warnings in the complete repository suite; zero test failures"
+    "spec04b_candidate_choice_targeted": "candidate-local disposition plus semantic-role combinations are bound from the frozen review task and rejected before a model call can be persisted as succeeded; the regression reproduces material 1343 candidate 226 without sample-specific code",
+    "warnings": "8955 existing deprecation warnings in the complete repository suite; zero test failures"
   },
   "user": "10003:10003"
 }
