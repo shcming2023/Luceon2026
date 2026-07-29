@@ -20,6 +20,7 @@ from app.workflow_v3.executor import (
     BoundRelease,
     PreparedInputArtifact,
     _StageRequestBuilder,
+    _review_allowed_choices,
 )
 from app.workflow_v3.llm_gateway import sha256_json
 from app.workflow_v3.models import WorkflowV3Base, WorkflowV3WorkerHeartbeat
@@ -63,6 +64,36 @@ def test_directory_backend_is_explicit_and_test_only(monkeypatch, tmp_path: Path
 
     monkeypatch.setenv("LUCEON_ENVIRONMENT", "test")
     assert artifact_backend_mode() == "directory"
+
+
+def test_semantic_review_choices_are_bound_per_candidate():
+    evidence = {
+        "semantic_role_choices": ["plain_body", "source_label", "exercise"],
+        "candidates": [
+            {
+                "candidate_index": 0,
+                "allowed_dispositions": ["plain_body", "standalone_label"],
+            },
+            {
+                "candidate_index": 1,
+                "allowed_dispositions": [
+                    "plain_body",
+                    "standalone_label",
+                    "teaching_group",
+                ],
+            },
+        ],
+    }
+
+    choices = _review_allowed_choices(
+        "worker-v3.spec04b-semantic-review",
+        evidence,
+    )
+
+    assert "teaching_group|source_label" not in choices["candidate:0"]
+    assert "standalone_label|source_label" in choices["candidate:0"]
+    assert "teaching_group|exercise" in choices["candidate:1"]
+    assert choices["candidate:0"][0] == "plain_body|plain_body"
 
 
 def test_outline_review_preparation_uses_stable_source_pdf_reference(

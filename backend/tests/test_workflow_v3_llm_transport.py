@@ -158,6 +158,49 @@ def _success():
     )
 
 
+def _candidate_call():
+    call = _call()
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["decisions"],
+        "properties": {
+            "decisions": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": [
+                        "candidate_index",
+                        "disposition",
+                        "semantic_role",
+                    ],
+                    "properties": {
+                        "candidate_index": {"type": "integer", "minimum": 0},
+                        "disposition": {"type": "string"},
+                        "semantic_role": {"type": "string"},
+                    },
+                },
+            }
+        },
+    }
+    return ReleaseBoundLlmCall(
+        **{
+            **call.__dict__,
+            "schema_sha256": sha256_json(schema),
+            "output_schema": schema,
+            "allowed_choices": {
+                "candidate:226": (
+                    "plain_body|plain_body",
+                    "standalone_label|source_label",
+                )
+            },
+        }
+    )
+
+
 def _transport(response=None, *, timeout_error=False):
     captured = {}
 
@@ -205,6 +248,79 @@ def test_runtime_transport_executes_one_schema_bounded_call_without_persisting_s
         {"audit": result.audit, "payload": captured["payload"]}
     )
     assert captured["headers"]["Authorization"] == "Bearer runtime-only-secret"
+
+
+def test_candidate_local_choice_policy_rejects_schema_valid_semantic_drift():
+    transport, _captured = _transport(
+        _Response(
+            200,
+            {
+                **_success().json(),
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "decisions": [
+                                        {
+                                            "candidate_index": 226,
+                                            "disposition": "teaching_group",
+                                            "semantic_role": "source_label",
+                                        }
+                                    ]
+                                }
+                            )
+                        }
+                    }
+                ],
+            },
+        )
+    )
+    call = _candidate_call()
+
+    with pytest.raises(LlmGatewayError) as exc:
+        execute_bounded_call(call, transport)
+
+    assert exc.value.code == "decision_policy_violation"
+    assert exc.value.audit["status"] == "failed"
+    assert exc.value.audit["allowed_choices_sha256"] == sha256_json(
+        call.allowed_choices
+    )
+
+
+def test_candidate_local_choice_policy_accepts_exact_frozen_semantic_choice():
+    transport, _captured = _transport(
+        _Response(
+            200,
+            {
+                **_success().json(),
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "decisions": [
+                                        {
+                                            "candidate_index": 226,
+                                            "disposition": "standalone_label",
+                                            "semantic_role": "source_label",
+                                        }
+                                    ]
+                                }
+                            )
+                        }
+                    }
+                ],
+            },
+        )
+    )
+    call = _candidate_call()
+
+    result = execute_bounded_call(call, transport)
+
+    assert result.parsed_result["decisions"][0]["disposition"] == (
+        "standalone_label"
+    )
 
 
 @pytest.mark.parametrize(

@@ -281,7 +281,7 @@
       "include": [
         "spec*.txt"
       ],
-      "expected_tree_sha256": "dd448389b8d483c852342f8b93e5f70f34ca102932e8235e490f5d67ad39cf82"
+      "expected_tree_sha256": "60160c4361dde615f3a929ebabecb7fa34a987639e88185cb1730ed400fa1ef5"
     },
     {
       "id": "worker-v3-ordinary-schemas",

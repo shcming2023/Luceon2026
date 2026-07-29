@@ -1793,7 +1793,7 @@ class _StageRequestBuilder:
             provider=str(model_policy.get("provider") or ""),
             model=str(model_policy.get("model") or ""),
             request_parameters=request_parameters,
-            allowed_choices={},
+            allowed_choices=_review_allowed_choices(prompt_id, evidence),
             timeout_seconds=budget["timeout_seconds"],
             attempt_number=self.stage.attempt,
         )
@@ -2783,6 +2783,69 @@ def _allowed_choices(value: object) -> dict[str, tuple[str, ...]]:
             )
             if option_ids:
                 result[task_id] = option_ids
+    return result
+
+
+def _review_allowed_choices(
+    prompt_id: str,
+    evidence: object,
+) -> dict[str, tuple[str, ...]]:
+    """Bind candidate-local semantic choices before a model call can succeed."""
+
+    if prompt_id != "worker-v3.spec04b-semantic-review":
+        return _allowed_choices(evidence)
+    if not isinstance(evidence, Mapping):
+        raise ArtifactIntegrityError("Spec 04-B model evidence must be an object")
+    candidates = evidence.get("candidates")
+    semantic_roles = evidence.get("semantic_role_choices")
+    if (
+        not isinstance(candidates, list)
+        or not isinstance(semantic_roles, list)
+        or not semantic_roles
+        or any(not isinstance(role, str) or not role for role in semantic_roles)
+    ):
+        raise ArtifactIntegrityError(
+            "Spec 04-B model evidence lacks bounded candidates or semantic roles"
+        )
+    non_plain_roles = tuple(
+        role for role in semantic_roles if role != "plain_body"
+    )
+    if not non_plain_roles:
+        raise ArtifactIntegrityError(
+            "Spec 04-B model evidence has no bounded non-plain semantic roles"
+        )
+    result: dict[str, tuple[str, ...]] = {}
+    for candidate_index, candidate in enumerate(candidates):
+        if (
+            not isinstance(candidate, Mapping)
+            or candidate.get("candidate_index") != candidate_index
+        ):
+            raise ArtifactIntegrityError(
+                "Spec 04-B candidates must be complete and ordered"
+            )
+        dispositions = candidate.get("allowed_dispositions")
+        if (
+            not isinstance(dispositions, list)
+            or not dispositions
+            or any(
+                disposition
+                not in {"plain_body", "standalone_label", "teaching_group"}
+                for disposition in dispositions
+            )
+            or len(set(dispositions)) != len(dispositions)
+        ):
+            raise ArtifactIntegrityError(
+                f"Spec 04-B candidate {candidate_index} has invalid choices"
+            )
+        options: list[str] = []
+        for disposition in dispositions:
+            if disposition == "plain_body":
+                options.append("plain_body|plain_body")
+                continue
+            options.extend(
+                f"{disposition}|{role}" for role in non_plain_roles
+            )
+        result[f"candidate:{candidate_index}"] = tuple(options)
     return result
 
 

@@ -869,6 +869,9 @@ def _validate_bounded_decisions(result: Any, allowed: Mapping[str, tuple[str, ..
     decisions = result.get("decisions") if isinstance(result, dict) else None
     if not isinstance(decisions, list):
         raise LlmGatewayError("decision_policy_violation", "bounded result must contain a decisions array")
+    if all(str(task_id).startswith("candidate:") for task_id in allowed):
+        _validate_candidate_decisions(decisions, allowed)
+        return
     rows: dict[str, str] = {}
     for decision in decisions:
         if not isinstance(decision, dict):
@@ -882,6 +885,50 @@ def _validate_bounded_decisions(result: Any, allowed: Mapping[str, tuple[str, ..
         rows[task_id] = option_id
     if set(rows) != set(allowed):
         raise LlmGatewayError("decision_policy_violation", "result did not decide every bounded task")
+
+
+def _validate_candidate_decisions(
+    decisions: list[Any],
+    allowed: Mapping[str, tuple[str, ...]],
+) -> None:
+    rows: dict[str, str] = {}
+    for decision in decisions:
+        if not isinstance(decision, dict):
+            raise LlmGatewayError(
+                "decision_policy_violation",
+                "each candidate decision must be an object",
+            )
+        candidate_index = decision.get("candidate_index")
+        if (
+            not isinstance(candidate_index, int)
+            or isinstance(candidate_index, bool)
+            or candidate_index < 0
+        ):
+            raise LlmGatewayError(
+                "decision_policy_violation",
+                "candidate decision index must be a nonnegative integer",
+            )
+        task_id = f"candidate:{candidate_index}"
+        option_id = (
+            f"{str(decision.get('disposition') or '')}|"
+            f"{str(decision.get('semantic_role') or '')}"
+        )
+        if task_id not in allowed or task_id in rows:
+            raise LlmGatewayError(
+                "decision_policy_violation",
+                "result contains an unknown or duplicate candidate",
+            )
+        if option_id not in allowed[task_id]:
+            raise LlmGatewayError(
+                "decision_policy_violation",
+                f"{task_id} selected a disposition or role outside its frozen choices",
+            )
+        rows[task_id] = option_id
+    if set(rows) != set(allowed):
+        raise LlmGatewayError(
+            "decision_policy_violation",
+            "result did not decide every bounded candidate",
+        )
 
 
 def _validate_number_range(value: float, schema: Mapping[str, Any], path: str) -> None:
@@ -937,6 +984,7 @@ def _base_audit(call: ReleaseBoundLlmCall) -> dict[str, Any]:
         "schema_sha256": call.schema_sha256,
         "input_sha256": call.input_sha256,
         "request_parameters_sha256": sha256_json(call.request_parameters),
+        "allowed_choices_sha256": sha256_json(call.allowed_choices),
         "attempt_number": call.attempt_number,
         "timeout_seconds": call.timeout_seconds,
         "retry_count": 0,
