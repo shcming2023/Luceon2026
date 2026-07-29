@@ -688,6 +688,34 @@ def test_outline_review_task_compacts_full_ledger_without_weakening_binding(
         )
     )
     assert alternate_output.read_bytes() == output.read_bytes()
+    alternate_promotion = alternate_root / "spec03-promotion.json"
+    _write_json(
+        alternate_promotion,
+        {
+            "schema_version": "stage-promotion-manifest/1.0",
+            "promotion_id": "promotion-spec03-2",
+            "disposition": "promoted",
+            "evaluated_at": "2030-01-01T00:00:00Z",
+        },
+    )
+    alternate_promotion_output = alternate_root / "outline-review-task-2.json"
+    kernel.prepare_outline_review_task(
+        argparse.Namespace(
+            parent=spec03,
+            source_pdf=alternate_source,
+            source_pdf_ref="inputs/source_pdf/artifact",
+            parent_promotion=alternate_promotion,
+            output=alternate_promotion_output,
+        )
+    )
+    alternate_task = json.loads(
+        alternate_promotion_output.read_text(encoding="utf-8")
+    )
+    assert alternate_task["parent_binding"] != task["parent_binding"]
+    assert alternate_task["task_id"] == task["task_id"]
+    assert kernel.outline_model_evidence(alternate_task) == (
+        kernel.outline_model_evidence(task)
+    )
     assert len(kernel._canonical_bytes(task)) < 1_000_000
     assert (
         0

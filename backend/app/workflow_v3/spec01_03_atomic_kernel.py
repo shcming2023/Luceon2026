@@ -2250,6 +2250,26 @@ def _outline_compact_response_capacity(
     }
 
 
+def outline_model_evidence(task: Mapping[str, Any]) -> dict[str, Any]:
+    """Project a stable LLM view while retaining the full audit binding on disk."""
+
+    if task.get("schema_version") != OUTLINE_REVIEW_TASK_SCHEMA:
+        _fail(
+            "outline_review_task_invalid",
+            "Spec 04-A compact review task is unsupported",
+        )
+    normalized = json.loads(_canonical_bytes(task))
+    parent_binding = normalized.get("parent_binding")
+    if not isinstance(parent_binding, dict):
+        _fail(
+            "outline_review_task_invalid",
+            "Spec 04-A compact review task has no parent binding",
+        )
+    parent_binding.pop("promotion_id", None)
+    parent_binding.pop("promotion_manifest_sha256", None)
+    return normalized
+
+
 def _outline_review_task(
     parent: Path,
     *,
@@ -2423,7 +2443,9 @@ def _outline_review_task(
             "Do not emit teaching roles, template constructs, render nodes, LaTeX, or invented content.",
         ],
     }
-    task["task_id"] = "outline-review-" + _canonical_hash(task)[:24]
+    task["task_id"] = (
+        "outline-review-" + _canonical_hash(outline_model_evidence(task))[:24]
+    )
     task["capacity"] = _outline_compact_response_capacity(
         task["task_id"],
         len(title_candidates),

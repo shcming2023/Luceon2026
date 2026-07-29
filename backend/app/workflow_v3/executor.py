@@ -44,6 +44,7 @@ from app.workflow_v3.release import (
     verify_release_directory,
 )
 from app.workflow_v3.service import runtime_identity_for_manifest
+from app.workflow_v3.spec01_03_atomic_kernel import outline_model_evidence
 from app.workflow_v3.stage_entrypoint import (
     _safe_extract_candidate_bundle,
     run_release_python_kernel,
@@ -1679,6 +1680,7 @@ class _StageRequestBuilder:
                 "worker-v3-deterministic-review-task",
                 task_path,
             )
+            evidence = outline_model_evidence(evidence)
         manifest = self.bound.verification.manifest
         prompts = [
             row
