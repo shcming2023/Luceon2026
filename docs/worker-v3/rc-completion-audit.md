@@ -36,7 +36,7 @@ remains deliberately `incomplete` and is not installable as RC.
 | Requirement | Current state | Authoritative evidence or missing proof |
 |---|---|---|
 | Pure Worker production boundary | passed for source and image | ADR-0003; production-forbidden runtime scan; Compose/API/UI source tests |
-| Worker V2.3 and V3 code/data isolation | passed in contracts and tests; live proof pending | isolated tables, prefixes and services; final cohort must prove zero V2.3 mutation |
+| Worker V2.3 and V3 code/data isolation | passed in contracts and tests; pre-deployment V2 baseline frozen; live proof pending | `evidence/five-sample-v2-isolation-baseline-20260729.json` binds the five current V2 outputs and manifest SHA; isolated tables, prefixes and services exist; final cohort must prove zero V2.3 mutation |
 | Immutable skill release as sole executable baseline | passed for source coverage; RC admission pending | 37 explicit sources, 215 files, 24 formal entrypoints; current recipe has four live qualification gaps |
 | Twelve persisted stages | passed in code and tests | 12 Producer and 12 distinct Evaluator entrypoints; state-machine and API tests |
 | Producer/Evaluator/Promotion/Projector separation | passed in code and tests; live role probe pending | four services and identities; control-plane, operation-attempt and projection tests |
