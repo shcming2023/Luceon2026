@@ -18,7 +18,7 @@
     "requested_status": "incomplete",
     "created_at": "2026-07-26T00:00:00+08:00",
     "source": {
-      "git_sha": "6ff731b412c88da1df92bf19661bffcc621c9052",
+      "git_sha": "67f19f49cd35fa0a0de48f954518e14f79f5ed78",
       "git_tag": null,
       "dirty": false
     },
@@ -182,7 +182,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec01_04_stage_adapters.py",
       "destination": "scripts/worker-v3/spec01_04_stage_adapters.py",
-      "expected_sha256": "9f28ccb82868998b8d58e398f05097679e34d1d830cef4dec98e90a1204fd7a6"
+      "expected_sha256": "32a12bfb66b25557f30d50e0108730850abb682a5ff6f74a4746d4aec60ca6d7"
     },
     {
       "id": "worker-v3-spec05-06-adapters",
@@ -200,7 +200,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/stage_evaluators.py",
       "destination": "scripts/worker-v3/stage_evaluators.py",
-      "expected_sha256": "305fef588a79bf350df018b4b7a7d6d737e14e5e3244de5bca8f4eaec3c396df"
+      "expected_sha256": "3ad201ed1342e9d1f1055afad5b9d30fccbf28ab6b020f5b82b47e95bf8d7e33"
     },
     {
       "id": "worker-v3-page-review-contract-runtime",
@@ -245,7 +245,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec01_03_atomic_kernel.py",
       "destination": "scripts/worker-v3/spec01_03_atomic_kernel.py",
-      "expected_sha256": "7edee21636c09dcb7feb5065851abd05ee2313f2f368f3ea410a7d469a76704f"
+      "expected_sha256": "8c1f4e8459ffc354e0835b4f8a52e480a1d48a23bed0a93d94d76bdc200b2536"
     },
     {
       "id": "worker-v3-stage-producer-entrypoints",
@@ -281,7 +281,7 @@
       "include": [
         "spec*.txt"
       ],
-      "expected_tree_sha256": "3bca64107a022284a3542de25412d7f65c1889fbc43563c87f2b2bc616b4d2c9"
+      "expected_tree_sha256": "dd448389b8d483c852342f8b93e5f70f34ca102932e8235e490f5d67ad39cf82"
     },
     {
       "id": "worker-v3-ordinary-schemas",
@@ -293,7 +293,7 @@
       "include": [
         "spec*.schema.json"
       ],
-      "expected_tree_sha256": "0e7cc852e00190cbefc61ee69827b54ce9c58a8791f71972c8da0a7c6673a275"
+      "expected_tree_sha256": "dd86bd25e40bb5bd8d1bc8ce6c88ce96d705b4752dcd9290142d31432953a0a1"
     },
     {
       "id": "worker-v3-spec04-review-schemas",
@@ -335,7 +335,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-identity.json",
       "destination": "runtime/ordinary-runtime-identity.json",
-      "expected_sha256": "67ae15703a1de74a736c64ba114ba61ec1db1498c65dbb0edc77e0a3349d6580"
+      "expected_sha256": "3f61eaa5ed9c7f3f371bec8064fd4c6bd8e67c6e8bfdc728bc4d3b9b4ace5682"
     },
     {
       "id": "worker-v3-ordinary-runtime-build-proof",
@@ -344,7 +344,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-build-proof.json",
       "destination": "runtime/ordinary-runtime-build-proof.json",
-      "expected_sha256": "8df13e2e71f8a71c0e38bd62972a7a5d88b2842df81e3b9fd9761b036b898da8"
+      "expected_sha256": "4c848b8d9d5ebfcf7a13f7c699653b9a919c9400febcdd6ba515ac25f67b1930"
     },
     {
       "id": "worker-v3-ordinary-runtime-sbom",
@@ -353,7 +353,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-sbom.cdx.json",
       "destination": "runtime/ordinary-runtime-sbom.cdx.json",
-      "expected_sha256": "e8f35822eeea888f4100dbd072d895abe9e68eb2fffebd7fb0cdaaabba773c7f"
+      "expected_sha256": "4c286ece6aa6febb3b25237ee5190bdbddc64383e5f39ab9b2c86f60a9b92a86"
     },
     {
       "id": "worker-v3-overleaf-target-environment",
@@ -530,9 +530,9 @@
         "path": "schemas/spec04a-outline-compact-review-v1.schema.json"
       },
       {
-        "id": "worker-v3.spec04b-semantic-review",
+        "id": "worker-v3.spec04b-semantic-compact-review",
         "version": "1.0.0",
-        "path": "schemas/spec04b-semantic-review-bundle.schema.json"
+        "path": "schemas/spec04b-semantic-compact-review-v1.schema.json"
       },
       {
         "id": "worker-v3.spec04c-construct-review",
@@ -730,9 +730,9 @@
     },
     {
       "id": "worker-v3.spec04b-semantic-review",
-      "version": "1.0.0",
-      "path": "prompts/spec04b-semantic-review-v1.txt",
-      "output_schema": "schemas/spec04b-semantic-review-bundle.schema.json"
+      "version": "2.0.0",
+      "path": "prompts/spec04b-semantic-review-v2.txt",
+      "output_schema": "schemas/spec04b-semantic-compact-review-v1.schema.json"
     },
     {
       "id": "worker-v3.spec04c-construct-review",
@@ -900,7 +900,7 @@
     "python": "CPython 3.12.13",
     "application_dependencies_path": "runtime/requirements-worker-v3.lock",
     "system_tools": {
-      "runtime_id": "worker-v3-runtime-rc-6ff731b",
+      "runtime_id": "worker-v3-runtime-rc-67f19f4",
       "system_lock": "runtime/worker-v3-system-packages.lock",
       "identity": "runtime/ordinary-runtime-identity.json",
       "overleaf_compiler": {
@@ -911,7 +911,7 @@
     "fonts_identity_path": "runtime/ordinary-runtime-identity.json",
     "tex_identity_path": "runtime/ordinary-runtime-identity.json",
     "poppler_identity_path": "runtime/ordinary-runtime-identity.json",
-    "container_image_digest": "sha256:190e9c05a13c467756866671eac858b22b27d7aa364755f5bafb01b7a62a8e33",
+    "container_image_digest": "sha256:fc7937b022ecfe68b8233abe83e38264e5776fab0813c2d094c21c87e71c28f4",
     "sbom_path": "runtime/ordinary-runtime-sbom.cdx.json",
     "attestations": [
       "runtime/ordinary-runtime-identity.json",

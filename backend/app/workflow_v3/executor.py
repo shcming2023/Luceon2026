@@ -44,7 +44,10 @@ from app.workflow_v3.release import (
     verify_release_directory,
 )
 from app.workflow_v3.service import runtime_identity_for_manifest
-from app.workflow_v3.spec01_03_atomic_kernel import outline_model_evidence
+from app.workflow_v3.spec01_03_atomic_kernel import (
+    outline_model_evidence,
+    semantic_model_evidence,
+)
 from app.workflow_v3.stage_entrypoint import (
     _safe_extract_candidate_bundle,
     run_release_python_kernel,
@@ -879,7 +882,7 @@ _BOUNDED_REVIEW = {
         "worker-v3.spec04a-outline-review",
     ),
     "semantic_annotation": (
-        "semantic_review_bundle",
+        "semantic_review_decision",
         "worker-v3.spec04b-semantic-review",
     ),
     "template_construct_binding": (
@@ -1681,6 +1684,31 @@ class _StageRequestBuilder:
                 task_path,
             )
             evidence = outline_model_evidence(evidence)
+        elif prompt_id == "worker-v3.spec04b-semantic-review":
+            task_path = (
+                self.workdir
+                / "control-plane-review-task"
+                / "spec04b-semantic-review-task.json"
+            )
+            if (
+                not task_path.is_file()
+                or sha256_json(
+                    _read_json_object(
+                        task_path,
+                        "Spec 04-B deterministic review task",
+                    )
+                )
+                != sha256_json(evidence)
+            ):
+                raise ArtifactIntegrityError(
+                    "Spec 04-B deterministic review task drifted before projection"
+                )
+            self._add_local_file(
+                "semantic_review_task",
+                "worker-v3-deterministic-review-task",
+                task_path,
+            )
+            evidence = semantic_model_evidence(evidence)
         manifest = self.bound.verification.manifest
         prompts = [
             row
@@ -1873,12 +1901,41 @@ class _StageRequestBuilder:
                     str((self.workdir / parent_promotion.path).resolve()),
                 ),
             )
+        if prompt_id == "worker-v3.spec04b-semantic-review":
+            source_pdf = next(
+                (
+                    artifact
+                    for artifact in self.artifacts
+                    if artifact.role == "source_pdf"
+                ),
+                None,
+            )
+            parent_promotion = next(
+                (
+                    artifact
+                    for artifact in self.artifacts
+                    if artifact.role == "predecessor_promotion_manifest"
+                ),
+                None,
+            )
+            if source_pdf is None or parent_promotion is None:
+                raise ArtifactIntegrityError(
+                    "Spec 04-B compact review task lacks source or promotion evidence"
+                )
+            return self._prepare_atomic_review_task(
+                parent,
+                command="prepare-semantic-review-task",
+                filename="spec04b-semantic-review-task.json",
+                extra_args=(
+                    "--source-pdf",
+                    str((self.workdir / source_pdf.path).resolve()),
+                    "--source-pdf-ref",
+                    source_pdf.path,
+                    "--parent-promotion",
+                    str((self.workdir / parent_promotion.path).resolve()),
+                ),
+            )
         selected = {
-            "worker-v3.spec04b-semantic-review": (
-                "ledgers/canonical_block_ledger.jsonl",
-                "structure/source_outline_ledger.json",
-                "structure/final_toc_plan.json",
-            ),
             "worker-v3.spec04c-construct-review": (
                 "semantic/semantic_span_ledger.json",
                 "semantic/teaching_column_group_ledger.json",

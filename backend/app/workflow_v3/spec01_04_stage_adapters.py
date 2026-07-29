@@ -9,8 +9,12 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Sequence
 
 try:
-    from .spec01_03_atomic_kernel import outline_model_evidence
+    from .spec01_03_atomic_kernel import (
+        outline_model_evidence,
+        semantic_model_evidence,
+    )
     from .stage_entrypoint import (
+        KernelExecution,
         StageEntrypointError,
         StageInputRoot,
         StageProduction,
@@ -20,8 +24,12 @@ try:
         sha256_file,
     )
 except ImportError:  # Release-local scripts are imported outside the backend package.
-    from spec01_03_atomic_kernel import outline_model_evidence  # type: ignore[no-redef]
+    from spec01_03_atomic_kernel import (  # type: ignore[no-redef]
+        outline_model_evidence,
+        semantic_model_evidence,
+    )
     from stage_entrypoint import (  # type: ignore[no-redef]
+        KernelExecution,
         StageEntrypointError,
         StageInputRoot,
         StageProduction,
@@ -511,7 +519,25 @@ def _produce_outline(
         cwd=request.workdir,
         timeout_seconds=86_400,
     )
-    execution = run_release_python_kernel(
+    registry, promotions = _materialize_native_lineage_bridge(
+        request=request,
+        inputs=inputs,
+        bindings={
+            "predecessor_promotion_manifest": (
+                "promoted_predecessor",
+                str(parameters["parent_lineage_key"]),
+                "spec03_media_contract",
+            ),
+        },
+    )
+    _rebind_projected_review_promotion(
+        projected_review,
+        original_promotion=inputs.file("predecessor_promotion_manifest"),
+        native_promotion=promotions["predecessor_promotion_manifest"],
+    )
+    execution = _run_native_kernel_to_candidate(
+        request=request,
+        candidate_root=output,
         release_root=release,
         kernel_relative=f"{KERNEL_ROOT}/spec04a_structure_contract.py",
         args=(
@@ -523,19 +549,15 @@ def _produce_outline(
             "--source-pdf",
             str(inputs.file("source_pdf")),
             "--promotion-registry",
-            str(inputs.file("promotion_registry")),
+            str(registry),
             "--parent-promotion",
-            str(inputs.file("predecessor_promotion_manifest")),
+            str(promotions["predecessor_promotion_manifest"]),
             "--parent-lineage-key",
             str(parameters["parent_lineage_key"]),
             "--review-bundle",
             str(projected_review),
             *_identity_args(parameters),
-            "--output-dir",
-            str(output),
         ),
-        cwd=request.workdir,
-        timeout_seconds=86_400,
     )
     return _completed_production(
         output,
@@ -567,7 +589,8 @@ def _produce_semantic(
             "predecessor_promotion_manifest",
             "promotion_registry",
             "source_pdf",
-            "semantic_review_bundle",
+            "semantic_review_task",
+            "semantic_review_decision",
             "llm_call_audit",
         },
     )
@@ -577,10 +600,67 @@ def _produce_semantic(
         request,
         inputs,
         release,
-        review_role="semantic_review_bundle",
+        review_role="semantic_review_decision",
         expected_prompt_id="worker-v3.spec04b-semantic-review",
+        expected_input_canonical_sha256=_canonical_hash(
+            semantic_model_evidence(
+                _read_json(
+                    inputs.file("semantic_review_task"),
+                    "Spec 04-B deterministic review task",
+                )
+            )
+        ),
     )
-    execution = run_release_python_kernel(
+    registry, promotions = _materialize_native_lineage_bridge(
+        request=request,
+        inputs=inputs,
+        bindings={
+            "predecessor_promotion_manifest": (
+                "promoted_predecessor",
+                str(parameters["parent_lineage_key"]),
+                "spec04a_structure_contract",
+            ),
+        },
+    )
+    compact_projected_review = (
+        request.workdir
+        / "projected-reviews"
+        / "spec04b-control-plane-review-bundle.json"
+    )
+    projected_review = (
+        request.workdir
+        / "projected-reviews"
+        / "spec04b-native-review-bundle.json"
+    )
+    run_release_python_kernel(
+        release_root=release,
+        kernel_relative=ATOMIC_KERNEL,
+        args=(
+            "project-semantic-review",
+            "--task",
+            str(inputs.file("semantic_review_task")),
+            "--compact-review",
+            str(inputs.file("semantic_review_decision")),
+            "--output",
+            str(compact_projected_review),
+        ),
+        cwd=request.workdir,
+        timeout_seconds=86_400,
+    )
+    _project_review_parent_binding(
+        compact_projected_review,
+        output_path=projected_review,
+        parent_root=parent,
+        source_pdf=inputs.file("source_pdf"),
+        native_promotion=promotions["predecessor_promotion_manifest"],
+        promoted_fields={
+            "source_outline_ledger_sha256": "source_outline_ledger",
+            "final_toc_plan_sha256": "final_toc_plan",
+        },
+    )
+    execution = _run_native_kernel_to_candidate(
+        request=request,
+        candidate_root=output,
         release_root=release,
         kernel_relative=f"{KERNEL_ROOT}/spec04b_semantic_span_contract.py",
         args=(
@@ -592,19 +672,15 @@ def _produce_semantic(
             "--source-pdf",
             str(inputs.file("source_pdf")),
             "--promotion-registry",
-            str(inputs.file("promotion_registry")),
+            str(registry),
             "--parent-promotion",
-            str(inputs.file("predecessor_promotion_manifest")),
+            str(promotions["predecessor_promotion_manifest"]),
             "--parent-lineage-key",
             str(parameters["parent_lineage_key"]),
             "--review-bundle",
-            str(inputs.file("semantic_review_bundle")),
+            str(projected_review),
             *_identity_args(parameters),
-            "--output-dir",
-            str(output),
         ),
-        cwd=request.workdir,
-        timeout_seconds=86_400,
     )
     return _completed_production(
         output,
@@ -652,7 +728,38 @@ def _produce_construct(
         expected_prompt_id="worker-v3.spec04c-construct-review",
     )
     _verify_template_archive(request, inputs, release)
-    execution = run_release_python_kernel(
+    registry, promotions = _materialize_native_lineage_bridge(
+        request=request,
+        inputs=inputs,
+        bindings={
+            "predecessor_promotion_manifest": (
+                "promoted_predecessor",
+                str(parameters["parent_lineage_key"]),
+                "spec04b_semantic_span_contract",
+            ),
+        },
+    )
+    projected_review = request.workdir / "projected-reviews/spec04c-construct-review.json"
+    _project_review_parent_binding(
+        inputs.file("construct_review_bundle"),
+        output_path=projected_review,
+        parent_root=parent,
+        source_pdf=inputs.file("source_pdf"),
+        native_promotion=promotions["predecessor_promotion_manifest"],
+        promoted_fields={
+            "semantic_span_ledger_sha256": "semantic_span_ledger",
+            "teaching_column_group_ledger_sha256": (
+                "teaching_column_group_ledger"
+            ),
+        },
+        fixed_fields={
+            "template_intake_sha256": sha256_file(inputs.file("template_intake")),
+            "template_zip_sha256": sha256_file(inputs.file("template_archive")),
+        },
+    )
+    execution = _run_native_kernel_to_candidate(
+        request=request,
+        candidate_root=output,
         release_root=release,
         kernel_relative=f"{KERNEL_ROOT}/spec04c_construct_binding_contract.py",
         args=(
@@ -672,19 +779,15 @@ def _produce_construct(
             "--template-zip",
             str(inputs.file("template_archive")),
             "--promotion-registry",
-            str(inputs.file("promotion_registry")),
+            str(registry),
             "--parent-promotion",
-            str(inputs.file("predecessor_promotion_manifest")),
+            str(promotions["predecessor_promotion_manifest"]),
             "--parent-lineage-key",
             str(parameters["parent_lineage_key"]),
             "--review-bundle",
-            str(inputs.file("construct_review_bundle")),
+            str(projected_review),
             *_identity_args(parameters),
-            "--output-dir",
-            str(output),
         ),
-        cwd=request.workdir,
-        timeout_seconds=86_400,
     )
     return _completed_production(
         output,
@@ -738,7 +841,30 @@ def _produce_render_plan(
         review_role="render_policy",
         expected_prompt_id="worker-v3.spec04d-render-policy",
     )
-    execution = run_release_python_kernel(
+    registry, promotions = _materialize_native_lineage_bridge(
+        request=request,
+        inputs=inputs,
+        bindings={
+            "predecessor_promotion_manifest": (
+                "promoted_predecessor",
+                str(parameters["parent_04c_lineage"]),
+                "spec04c_construct_binding_contract",
+            ),
+            "structure_promotion_manifest": (
+                "structure_candidate",
+                str(parameters["structure_lineage"]),
+                "spec04a_structure_contract",
+            ),
+            "media_promotion_manifest": (
+                "media_candidate",
+                str(parameters["media_lineage"]),
+                "spec03_media_contract",
+            ),
+        },
+    )
+    execution = _run_native_kernel_to_candidate(
+        request=request,
+        candidate_root=output,
         release_root=release,
         kernel_relative=f"{KERNEL_ROOT}/spec04d_render_plan_contract.py",
         args=(
@@ -762,27 +888,23 @@ def _produce_render_plan(
             "--source-pdf",
             str(inputs.file("source_pdf")),
             "--promotion-registry",
-            str(inputs.file("promotion_registry")),
+            str(registry),
             "--parent-04c-promotion",
-            str(inputs.file("predecessor_promotion_manifest")),
+            str(promotions["predecessor_promotion_manifest"]),
             "--parent-04c-lineage",
             str(parameters["parent_04c_lineage"]),
             "--structure-promotion",
-            str(inputs.file("structure_promotion_manifest")),
+            str(promotions["structure_promotion_manifest"]),
             "--structure-lineage",
             str(parameters["structure_lineage"]),
             "--media-promotion",
-            str(inputs.file("media_promotion_manifest")),
+            str(promotions["media_promotion_manifest"]),
             "--media-lineage",
             str(parameters["media_lineage"]),
             "--render-policy",
             str(inputs.file("render_policy")),
             *_identity_args(parameters),
-            "--output-dir",
-            str(output),
         ),
-        cwd=request.workdir,
-        timeout_seconds=86_400,
     )
     return _completed_production(
         output,
@@ -834,6 +956,526 @@ def _stage_parameters(
         )
     _review_binding(values["review_binding"])
     return values
+
+
+def _materialize_native_lineage_bridge(
+    *,
+    request: StageRequest,
+    inputs: StageInputRoot,
+    bindings: Mapping[str, tuple[str, str, str]],
+) -> tuple[Path, Mapping[str, Path]]:
+    """Rebind verified control-plane promotion paths to isolated stage inputs.
+
+    Worker V3 promotion manifests bind paths inside the control-plane
+    extraction directory.  Native Spec 04 kernels intentionally require the
+    supplied registry, promotion manifest, and artifact paths to agree
+    exactly.  The stage entrypoint also intentionally copies every input into
+    a read-only isolation root.  This bridge verifies the original hashes,
+    changes paths only, and recomputes the registry hash without mutating the
+    frozen control-plane evidence.
+    """
+
+    if not bindings:
+        raise StageEntrypointError(
+            "native_lineage_bridge_invalid",
+            "native lineage bridge requires at least one promotion binding",
+            exit_code=3,
+        )
+    bridge_root = request.workdir / "native-lineage-bridge"
+    if bridge_root.exists() or bridge_root.is_symlink():
+        raise StageEntrypointError(
+            "native_lineage_bridge_exists",
+            "native lineage bridge directory must not already exist",
+            exit_code=3,
+        )
+    registry = _read_json(inputs.file("promotion_registry"), "promotion registry")
+    if registry.get("schema_version") != "promotion-registry/1.0":
+        raise StageEntrypointError(
+            "native_lineage_bridge_invalid",
+            "native lineage bridge requires promotion-registry/1.0",
+            exit_code=3,
+        )
+    expected_registry_hash = _canonical_hash(
+        {
+            key: value
+            for key, value in registry.items()
+            if key not in {"generated_at", "payload_hash"}
+        }
+    )
+    if registry.get("payload_hash") != expected_registry_hash:
+        raise StageEntrypointError(
+            "native_lineage_bridge_invalid",
+            "promotion registry payload hash is invalid",
+            exit_code=3,
+        )
+    if registry.get("parent_registry_ref") is not None:
+        raise StageEntrypointError(
+            "native_lineage_bridge_invalid",
+            "isolated native lineage does not accept an external parent registry",
+            exit_code=3,
+        )
+    active = registry.get("active_promotions")
+    entries = registry.get("entries")
+    if not isinstance(active, dict) or not isinstance(entries, list):
+        raise StageEntrypointError(
+            "native_lineage_bridge_invalid",
+            "promotion registry entries and active selections are required",
+            exit_code=3,
+        )
+    expected_lineages = {binding[1] for binding in bindings.values()}
+    if set(active) != expected_lineages:
+        raise StageEntrypointError(
+            "native_lineage_bridge_invalid",
+            "promotion registry active lineages do not match the stage inputs",
+            exit_code=3,
+        )
+
+    bridge_root.mkdir(mode=0o700)
+    manifest_paths: dict[str, Path] = {}
+    selected: dict[str, tuple[dict[str, Any], Path, str]] = {}
+    for manifest_role, (bundle_role, lineage_key, expected_stage) in sorted(
+        bindings.items()
+    ):
+        source_manifest_path = inputs.file(manifest_role)
+        source_manifest_sha = sha256_file(source_manifest_path)
+        source_manifest = _read_json(
+            source_manifest_path,
+            f"{manifest_role} promotion manifest",
+        )
+        if (
+            source_manifest.get("schema_version")
+            != "stage-promotion-manifest/1.0"
+            or source_manifest.get("disposition") != "promoted"
+            or source_manifest.get("producer_execution_provenance")
+            != "control_plane_release_bound"
+            or source_manifest.get("lineage_key") != lineage_key
+            or source_manifest.get("stage_kind") != expected_stage
+        ):
+            raise StageEntrypointError(
+                "native_lineage_bridge_invalid",
+                f"{manifest_role} is not the expected release-bound promoted lineage",
+                exit_code=3,
+            )
+        active_row = active.get(lineage_key)
+        if (
+            not isinstance(active_row, dict)
+            or active_row.get("promotion_id")
+            != source_manifest.get("promotion_id")
+            or active_row.get("manifest_sha256") != source_manifest_sha
+        ):
+            raise StageEntrypointError(
+                "native_lineage_bridge_invalid",
+                f"{manifest_role} is not the registry's active frozen selection",
+                exit_code=3,
+            )
+        matching_entries = [
+            row
+            for row in entries
+            if isinstance(row, dict)
+            and row.get("lineage_key") == lineage_key
+            and row.get("promotion_id") == source_manifest.get("promotion_id")
+        ]
+        if (
+            len(matching_entries) != 1
+            or matching_entries[0].get("manifest_sha256") != source_manifest_sha
+            or matching_entries[0].get("manifest_path")
+            != active_row.get("manifest_path")
+        ):
+            raise StageEntrypointError(
+                "native_lineage_bridge_invalid",
+                f"{manifest_role} registry entry is missing or inconsistent",
+                exit_code=3,
+            )
+        rebased = _rebase_control_plane_promotion(
+            source_manifest,
+            bundle_root=inputs.extracted(bundle_role),
+            label=manifest_role,
+        )
+        target = bridge_root / "promotions" / f"{manifest_role}.json"
+        _write_immutable_json(target, rebased)
+        manifest_paths[manifest_role] = target
+        selected[lineage_key] = (matching_entries[0], target, source_manifest_sha)
+
+    rebased_entries: list[Any] = []
+    for row in entries:
+        if not isinstance(row, dict):
+            raise StageEntrypointError(
+                "native_lineage_bridge_invalid",
+                "promotion registry contains a non-object entry",
+                exit_code=3,
+            )
+        lineage_key = row.get("lineage_key")
+        selection = selected.get(str(lineage_key))
+        if selection is None:
+            rebased_entries.append(dict(row))
+            continue
+        original_entry, manifest_path, _ = selection
+        if row is not original_entry:
+            rebased_entries.append(dict(row))
+            continue
+        manifest = _read_json(manifest_path, "rebased promotion manifest")
+        updated = dict(row)
+        updated["manifest_path"] = str(manifest_path.resolve())
+        updated["manifest_sha256"] = sha256_file(manifest_path)
+        updated["run_dir"] = manifest["run_dir"]
+        updated["stage_manifest_sha256"] = manifest["stage_manifest"]["sha256"]
+        rebased_entries.append(updated)
+    registry["entries"] = rebased_entries
+    rebased_active: dict[str, Any] = {}
+    for lineage_key, row in sorted(active.items()):
+        if not isinstance(row, dict):
+            raise StageEntrypointError(
+                "native_lineage_bridge_invalid",
+                "promotion registry contains an invalid active selection",
+                exit_code=3,
+            )
+        manifest_path = manifest_paths[
+            next(
+                role
+                for role, binding in bindings.items()
+                if binding[1] == lineage_key
+            )
+        ]
+        updated = dict(row)
+        updated["manifest_path"] = str(manifest_path.resolve())
+        updated["manifest_sha256"] = sha256_file(manifest_path)
+        rebased_active[lineage_key] = updated
+    registry["active_promotions"] = rebased_active
+    registry["payload_hash"] = _canonical_hash(
+        {
+            key: value
+            for key, value in registry.items()
+            if key not in {"generated_at", "payload_hash"}
+        }
+    )
+    registry_path = bridge_root / "promotion-registry.json"
+    _write_immutable_json(registry_path, registry)
+    return registry_path, manifest_paths
+
+
+def _rebase_control_plane_promotion(
+    manifest: Mapping[str, Any],
+    *,
+    bundle_root: Path,
+    label: str,
+) -> dict[str, Any]:
+    run_dir_value = manifest.get("run_dir")
+    if not isinstance(run_dir_value, str) or not Path(run_dir_value).is_absolute():
+        raise StageEntrypointError(
+            "native_lineage_bridge_invalid",
+            f"{label} has no absolute control-plane run directory",
+            exit_code=3,
+        )
+    original_root = Path(run_dir_value).resolve(strict=False)
+    staged_root = bundle_root.resolve()
+    rebased = dict(manifest)
+    rebased["run_dir"] = str(staged_root)
+
+    def rebase_artifact(raw: Any, artifact_label: str) -> dict[str, Any]:
+        if not isinstance(raw, dict):
+            raise StageEntrypointError(
+                "native_lineage_bridge_invalid",
+                f"{label} {artifact_label} is not an artifact binding",
+                exit_code=3,
+            )
+        value = dict(raw)
+        path_value = value.get("path")
+        expected_sha = value.get("sha256")
+        if not isinstance(path_value, str) or not isinstance(expected_sha, str):
+            raise StageEntrypointError(
+                "native_lineage_bridge_invalid",
+                f"{label} {artifact_label} has an incomplete path/hash binding",
+                exit_code=3,
+            )
+        try:
+            relative = Path(path_value).resolve(strict=False).relative_to(original_root)
+        except ValueError as exc:
+            raise StageEntrypointError(
+                "native_lineage_bridge_invalid",
+                f"{label} {artifact_label} escapes its promoted run directory",
+                exit_code=3,
+            ) from exc
+        target = (staged_root / relative).resolve()
+        try:
+            target.relative_to(staged_root)
+        except ValueError as exc:
+            raise StageEntrypointError(
+                "native_lineage_bridge_invalid",
+                f"{label} {artifact_label} escapes the isolated bundle",
+                exit_code=3,
+            ) from exc
+        if (
+            not target.is_file()
+            or target.is_symlink()
+            or sha256_file(target) != expected_sha
+        ):
+            raise StageEntrypointError(
+                "native_lineage_bridge_invalid",
+                f"{label} {artifact_label} is missing or hash-drifted",
+                exit_code=3,
+            )
+        value["path"] = str(target)
+        return value
+
+    rebased["stage_manifest"] = rebase_artifact(
+        manifest.get("stage_manifest"),
+        "stage manifest",
+    )
+    promoted = manifest.get("promoted_artifacts")
+    if not isinstance(promoted, dict) or not promoted:
+        raise StageEntrypointError(
+            "native_lineage_bridge_invalid",
+            f"{label} has no promoted artifacts",
+            exit_code=3,
+        )
+    rebased["promoted_artifacts"] = {
+        role: rebase_artifact(value, f"promoted artifact {role}")
+        for role, value in sorted(promoted.items())
+    }
+    return rebased
+
+
+def _rebind_projected_review_promotion(
+    review_path: Path,
+    *,
+    original_promotion: Path,
+    native_promotion: Path,
+) -> None:
+    review = _read_json(review_path, "projected outline review")
+    original = _read_json(original_promotion, "original promotion manifest")
+    native = _read_json(native_promotion, "native promotion manifest")
+    binding = review.get("parent_binding")
+    if not isinstance(binding, dict):
+        raise StageEntrypointError(
+            "native_review_binding_invalid",
+            "projected outline review has no immutable parent binding",
+            exit_code=3,
+        )
+    promotion_id = original.get("promotion_id")
+    if (
+        not isinstance(promotion_id, str)
+        or native.get("promotion_id") != promotion_id
+        or binding.get("promotion_id") != promotion_id
+        or binding.get("promotion_manifest_sha256")
+        != sha256_file(original_promotion)
+    ):
+        raise StageEntrypointError(
+            "native_review_binding_invalid",
+            "projected outline review does not bind the original frozen promotion",
+            exit_code=3,
+        )
+    binding["promotion_manifest_sha256"] = sha256_file(native_promotion)
+    temporary = review_path.with_name(f".{review_path.name}.native-binding")
+    if temporary.exists() or temporary.is_symlink():
+        raise StageEntrypointError(
+            "native_review_binding_invalid",
+            "projected outline review binding output already exists",
+            exit_code=3,
+        )
+    temporary.write_text(
+        json.dumps(
+            review,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    os.replace(temporary, review_path)
+
+
+def _project_review_parent_binding(
+    review_path: Path,
+    *,
+    output_path: Path,
+    parent_root: Path,
+    source_pdf: Path,
+    native_promotion: Path,
+    promoted_fields: Mapping[str, str],
+    fixed_fields: Mapping[str, str] | None = None,
+) -> None:
+    """Project deterministic lineage fields around bounded LLM decisions."""
+
+    review = _read_json(review_path, "bounded semantic review")
+    if not isinstance(review.get("parent_binding"), dict):
+        raise StageEntrypointError(
+            "native_review_binding_invalid",
+            "bounded semantic review has no parent binding envelope",
+            exit_code=3,
+        )
+    ledger_path = _required_file(
+        parent_root,
+        "ledgers/canonical_block_ledger.jsonl",
+    )
+    try:
+        with ledger_path.open("r", encoding="utf-8") as stream:
+            header = next(
+                json.loads(line)
+                for line in stream
+                if line.strip()
+            )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, StopIteration) as exc:
+        raise StageEntrypointError(
+            "native_review_binding_invalid",
+            "parent canonical ledger has no readable header",
+            exit_code=3,
+        ) from exc
+    if not isinstance(header, dict):
+        raise StageEntrypointError(
+            "native_review_binding_invalid",
+            "parent canonical ledger header must be an object",
+            exit_code=3,
+        )
+    source_sha = sha256_file(source_pdf)
+    material_identity = header.get("material_identity")
+    if (
+        not isinstance(material_identity, dict)
+        or material_identity.get("source_pdf_sha256") != source_sha
+    ):
+        raise StageEntrypointError(
+            "native_review_binding_invalid",
+            "source PDF differs from the parent canonical ledger",
+            exit_code=3,
+        )
+    promotion = _read_json(native_promotion, "native promotion manifest")
+    promotion_id = promotion.get("promotion_id")
+    promoted = promotion.get("promoted_artifacts")
+    if not isinstance(promotion_id, str) or not isinstance(promoted, dict):
+        raise StageEntrypointError(
+            "native_review_binding_invalid",
+            "native promotion identity or artifact inventory is incomplete",
+            exit_code=3,
+        )
+    binding: dict[str, str] = {
+        "ledger_snapshot_id": str(header.get("ledger_snapshot_id") or ""),
+        "ledger_payload_hash": str(header.get("current_ledger_hash") or ""),
+        "source_pdf_sha256": source_sha,
+        "promotion_id": promotion_id,
+        "promotion_manifest_sha256": sha256_file(native_promotion),
+    }
+    if not binding["ledger_snapshot_id"] or not re.fullmatch(
+        r"[0-9a-f]{64}",
+        binding["ledger_payload_hash"],
+    ):
+        raise StageEntrypointError(
+            "native_review_binding_invalid",
+            "parent canonical ledger identity is incomplete",
+            exit_code=3,
+        )
+    for field, promoted_role in promoted_fields.items():
+        item = promoted.get(promoted_role)
+        if not isinstance(item, dict) or not isinstance(item.get("sha256"), str):
+            raise StageEntrypointError(
+                "native_review_binding_invalid",
+                f"native promotion does not bind {promoted_role}",
+                exit_code=3,
+            )
+        binding[field] = str(item["sha256"])
+    binding.update(dict(fixed_fields or {}))
+    review["parent_binding"] = binding
+    _write_projected_review(output_path, review)
+
+
+def _write_projected_review(path: Path, value: Mapping[str, Any]) -> None:
+    if path.exists() or path.is_symlink():
+        raise StageEntrypointError(
+            "native_review_binding_invalid",
+            "projected native review output already exists",
+            exit_code=3,
+        )
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    path.write_text(
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o444)
+
+
+def _write_immutable_json(path: Path, value: Mapping[str, Any]) -> None:
+    if path.exists() or path.is_symlink():
+        raise StageEntrypointError(
+            "native_lineage_bridge_exists",
+            f"native lineage bridge output already exists: {path.name}",
+            exit_code=3,
+        )
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    path.write_text(
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o444)
+
+
+def _run_native_kernel_to_candidate(
+    *,
+    request: StageRequest,
+    candidate_root: Path,
+    release_root: Path,
+    kernel_relative: str,
+    args: Sequence[str],
+) -> KernelExecution:
+    """Run a native Spec 04 kernel in its required fresh directory.
+
+    The common Worker entrypoint owns and pre-creates ``candidate_root`` so it
+    can enforce candidate-only storage.  The immutable Spec 04 kernels refuse
+    any pre-existing output directory.  Keep both contracts by giving the
+    kernel a fresh sibling and atomically adopting its children only after the
+    kernel succeeds.
+    """
+
+    if any(candidate_root.iterdir()):
+        raise StageEntrypointError(
+            "candidate_output_not_empty",
+            "native Spec 04 adoption requires an empty candidate directory",
+            exit_code=3,
+        )
+    native_output = request.workdir / "native-candidate-output"
+    if native_output.exists() or native_output.is_symlink():
+        raise StageEntrypointError(
+            "native_output_exists",
+            "native Spec 04 output directory must not already exist",
+            exit_code=3,
+        )
+    execution = run_release_python_kernel(
+        release_root=release_root,
+        kernel_relative=kernel_relative,
+        args=(*args, "--output-dir", str(native_output)),
+        cwd=request.workdir,
+        timeout_seconds=86_400,
+    )
+    if not native_output.is_dir() or native_output.is_symlink():
+        raise StageEntrypointError(
+            "native_output_missing",
+            "native Spec 04 kernel did not create its declared output directory",
+            exit_code=3,
+        )
+    for child in sorted(native_output.iterdir(), key=lambda path: path.name):
+        target = candidate_root / child.name
+        if target.exists() or target.is_symlink():
+            raise StageEntrypointError(
+                "candidate_output_collision",
+                f"native Spec 04 output collides at {child.name!r}",
+                exit_code=3,
+            )
+        os.replace(child, target)
+    native_output.rmdir()
+    return execution
 
 
 def _identity_args(parameters: Mapping[str, Any]) -> tuple[str, ...]:

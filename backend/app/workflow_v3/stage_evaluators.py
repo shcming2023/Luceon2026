@@ -1031,7 +1031,7 @@ def _outline_accuracy_evidence(root: Path) -> dict[str, Any]:
         valid = (
             isinstance(level, int)
             and not isinstance(level, bool)
-            and 0 <= level <= 2
+            and level >= 0
             and isinstance(node.get("title"), str)
             and bool(node.get("title"))
             and isinstance(node_evidence, list)

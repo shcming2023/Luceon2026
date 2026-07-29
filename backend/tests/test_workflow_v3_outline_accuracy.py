@@ -131,3 +131,39 @@ def test_outline_accuracy_is_recomputed_at_exact_99_percent_boundary(
     )
     assert measurement["accuracy_basis_points"] == expected_basis_points
     assert measurement["total_units"] == 100
+
+
+def test_outline_accuracy_accepts_source_evidenced_depth_beyond_subsection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bundle = _bundle(tmp_path, incorrect=0)
+    outline_path = bundle / "structure/source_outline_ledger.json"
+    outline = json.loads(outline_path.read_text(encoding="utf-8"))
+    final_path = bundle / "structure/final_toc_plan.json"
+    final = json.loads(final_path.read_text(encoding="utf-8"))
+    for index in range(3, 100):
+        outline["body_hierarchy"][index]["level"] = 3
+        outline["body_hierarchy"][index]["final_toc"]["level"] = 3
+        final["entries"][index]["level"] = 3
+    _write_json(outline_path, outline)
+    _write_json(final_path, final)
+    monkeypatch.setattr(
+        stage_evaluators,
+        "run_release_python_kernel",
+        lambda **_: SimpleNamespace(returncode=0, stderr=""),
+    )
+
+    result = stage_evaluators.evaluate_stage(
+        _request(tmp_path),
+        EvaluationInput(bundle, {}),
+        tmp_path,
+    )
+
+    assert result.gate_results["outline_accuracy_at_least_99_percent"] is True
+    measurement = next(
+        item
+        for item in result.findings
+        if item["code"] == "outline_accuracy_measurement"
+    )
+    assert measurement["accuracy_basis_points"] == 10_000

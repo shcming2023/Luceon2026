@@ -1,10 +1,10 @@
 {
   "architecture": "arm64",
   "build_status": "clean_build_succeeded",
-  "built_at": "2026-07-29T02:04:05Z",
-  "image_id": "sha256:190e9c05a13c467756866671eac858b22b27d7aa364755f5bafb01b7a62a8e33",
-  "image_size_bytes": 1455150694,
-  "local_manifest_digest": "sha256:190e9c05a13c467756866671eac858b22b27d7aa364755f5bafb01b7a62a8e33",
+  "built_at": "2026-07-29T05:04:44Z",
+  "image_id": "sha256:fc7937b022ecfe68b8233abe83e38264e5776fab0813c2d094c21c87e71c28f4",
+  "image_size_bytes": 1455158358,
+  "local_manifest_digest": "sha256:fc7937b022ecfe68b8233abe83e38264e5776fab0813c2d094c21c87e71c28f4",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
     "pages": 2,
@@ -16,6 +16,30 @@
   "registry_digest": null,
   "registry_status": "pending_until_push",
   "superseded_builds": [
+    {
+      "image_digest": "sha256:f985fad359d639543d7c60a472af54d55ab6f0991b5d6701ac29c7ee8901b7d5",
+      "reason": "real-material qualification proved that the stage adapter still compared the full promotion audit envelope hash with the stable model-evidence hash; the replacement uses the same release-local stable projection at request generation and stage verification while preserving the full task for audit",
+      "source_revision": "aa47e2f28ece26470a4917db2a20e63474e9bd3f",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:63f009d11c986a76695d385b957545d9258052c11acf8a73ba75fa2f2a2b7873",
+      "reason": "fresh-root qualification proved that the Spec 04-A model request inherited volatile promotion audit envelope hashes and therefore changed across semantically identical runs; the replacement retains the full promotion binding for audit while projecting only stable model evidence into the constrained-LLM request identity",
+      "source_revision": "06c2291136425a3735c05eaa4e682a2eddc6cf3b",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:3ab2b3f25a87197e98ecb6a9819dec09043c0c2a9dc96d83e0541054f7ad234b",
+      "reason": "qualification replay evidence proved that a random job UUID and an absolute source PDF path contaminated otherwise identical model requests across fresh run roots; the replacement binds qualification identity to the immutable release and frozen input set and projects a stable release-relative source reference",
+      "source_revision": "03505d49ccd531829621881d6b47901840ae5061",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:190e9c05a13c467756866671eac858b22b27d7aa364755f5bafb01b7a62a8e33",
+      "reason": "release-bound material 1343 proved that the formal Spec 04-A response shape could require the model to repeat hundreds of source-evidence records and exhaust the provider output limit; the replacement keeps the full formal bundle authoritative while using a strict compact decision schema and deterministic release-local expansion",
+      "source_revision": "6ff731b412c88da1df92bf19661bffcc621c9052",
+      "status": "superseded_before_release_admission"
+    },
     {
       "image_digest": "sha256:212e0cefb8ee4d70ba83b6ce6d22018045fff00f268c5932de6aee73d5bf4532",
       "reason": "qualification reached Spec 04-A and failed closed because the generic request materialized the full canonical ledger beyond the release-bound one-million-byte request budget; the replacement keeps the full ledger authoritative while projecting an exhaustive bounded review task",
@@ -52,30 +76,30 @@
       "status": "rejected_before_qualification"
     }
   ],
-  "runtime_id": "worker-v3-runtime-rc-6ff731b",
+  "runtime_id": "worker-v3-runtime-rc-67f19f4",
   "runtime_identity": {
     "effective_uid": 10003,
-    "evidence_sha256": "67ae15703a1de74a736c64ba114ba61ec1db1498c65dbb0edc77e0a3349d6580",
+    "evidence_sha256": "3f61eaa5ed9c7f3f371bec8064fd4c6bd8e67c6e8bfdc728bc4d3b9b4ace5682",
     "status": "passed",
     "system_lock_entries": 19
   },
   "sbom": {
     "component_count": 420,
-    "evidence_sha256": "e8f35822eeea888f4100dbd072d895abe9e68eb2fffebd7fb0cdaaabba773c7f",
+    "evidence_sha256": "4c286ece6aa6febb3b25237ee5190bdbddc64383e5f39ab9b2c86f60a9b92a86",
     "format": "CycloneDX",
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "6ff731b412c88da1df92bf19661bffcc621c9052",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-6ff731b",
+  "source_revision": "67f19f49cd35fa0a0de48f954518e14f79f5ed78",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-67f19f4",
   "tests": {
     "backend/tests/test_workflow_v3_runtime_image.py": "passed as part of the complete repository integration suite",
-    "backend/tests/test_workflow_v3_*.py": "980 passed, 2 skipped with source revision mounted read-only into the exact rebuilt image; the image-contained atomic-kernel and executor suites separately passed 31 tests",
-    "combined_result": "runtime identity passed; 980 passed, 2 skipped; 31 image-contained targeted tests passed; production-forbidden runtime scan passed; locked-template XeLaTeX/qpdf/pdfinfo smoke passed",
+    "backend/tests/test_workflow_v3_*.py": "987 passed, 2 skipped with source revision mounted read-only into the exact rebuilt image, a writable temporary working directory, no network, and UID 10003",
+    "combined_result": "runtime identity passed with digest-pinned reference; 987 passed, 2 skipped; locked-template XeLaTeX/qpdf/pdfinfo smoke passed",
     "spec02_v3_targeted": "compact exhaustive page coverage, deterministic baseline projection, exact override matching and sub-16000-byte 200-page minimum-response regressions passed in the prior qualified image and remain in the regression suite",
     "spec03_v2_targeted": "40 passed in the exact rebuilt image, including deterministic source-region baseline projection, index-to-immutable-ID expansion, baseline drift rejection, evidence-backed exclusion and 255/1000-item capacity bounds",
-    "spec04a_bounded_review_targeted": "10 focused atomic-kernel regressions passed before the clean build; real material 1343 projects all 339 title candidates, 589 adjacent context blocks and 200 source-page evidence records into 538448 canonical bytes while preserving full-ledger Producer validation",
-    "warnings": "8268 existing deprecation warnings in the complete repository suite and 542 in the image-contained targeted suite; zero test failures"
+    "spec04a_bounded_review_targeted": "the exact rebuilt image passed the compact decision schema, deterministic full-bundle projector, order/coverage rejection and provider response-capacity regressions; material 1343 has 339 bounded title candidates and a worst-case schema-complete response of 19389 bytes within the 256000-byte release limit",
+    "warnings": "8955 existing deprecation and read-only pytest-cache warnings in the complete repository suite; zero test failures"
   },
   "user": "10003:10003"
 }

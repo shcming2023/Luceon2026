@@ -436,7 +436,7 @@ def test_pretty_printed_release_schema_uses_raw_file_hash_then_canonical_call_ha
     monkeypatch,
     tmp_path: Path,
 ):
-    prompt_id = "worker-v3.spec04b-semantic-review"
+    prompt_id = "worker-v3.spec04c-construct-review"
     prompt = "Return the release-bound decision as JSON."
     schema = {
         "type": "object",
@@ -567,7 +567,7 @@ def test_pretty_printed_release_schema_uses_raw_file_hash_then_canonical_call_ha
     )
 
     audit = builder._add_bounded_review(
-        role="semantic_review_bundle",
+        role="construct_review_bundle",
         prompt_id=prompt_id,
         primary=primary,
     )

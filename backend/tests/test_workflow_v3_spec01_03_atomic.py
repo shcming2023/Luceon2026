@@ -882,6 +882,166 @@ def test_outline_compact_review_rejects_unordered_or_open_decisions(
             raise AssertionError("invalid compact outline review must fail")
 
 
+def test_semantic_review_task_compacts_full_ledger_and_projects_exact_partition(
+    tmp_path: Path,
+) -> None:
+    _, _, spec03, paths = _run_pipeline(tmp_path)
+    ledger_path = spec03 / "ledgers/canonical_block_ledger.jsonl"
+    rows = [
+        json.loads(line)
+        for line in ledger_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    header, records = rows[0], rows[1:]
+    assert len(records) >= 2
+    records.append(json.loads(json.dumps(records[1])))
+    records[2]["block_id"] = "src-" + hashlib.sha256(
+        b"second-contiguous-source-step"
+    ).hexdigest()[:24]
+    for index, record in enumerate(records):
+        record["source_type"] = "text"
+        record["source_label"] = "text"
+        record["heading_disposition"] = None
+        record["structure_memberships"] = []
+        record["tree_context"] = {"node_path": [1]}
+        record["pdf_physical_page"] = 1 if index < 3 else 2
+        record["candidate_final_order"] = index + 1
+    records[0].update(
+        {
+            "source_type": "title",
+            "source_label": "title",
+            "heading_disposition": "local_heading",
+            "raw_content": "Worked example",
+            "raw_content_sha256": hashlib.sha256(
+                b"Worked example"
+            ).hexdigest(),
+        }
+    )
+    records[1].update(
+        {
+            "raw_content": "A source-supported worked solution.",
+            "raw_content_sha256": hashlib.sha256(
+                b"A source-supported worked solution."
+            ).hexdigest(),
+        }
+    )
+    records[2].update(
+        {
+            "raw_content": "A second contiguous source-supported step.",
+            "raw_content_sha256": hashlib.sha256(
+                b"A second contiguous source-supported step."
+            ).hexdigest(),
+        }
+    )
+    header["current_ledger_hash"] = kernel._canonical_hash(records)
+    header["spec04a_structure"] = {
+        "status": "passed",
+        "full_spec04_status": "not_evaluated",
+        "open_reviews": 0,
+    }
+    ledger_path.write_text(
+        "".join(
+            json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n"
+            for row in [header, *records]
+        ),
+        encoding="utf-8",
+    )
+    outline = spec03 / "structure/source_outline_ledger.json"
+    toc = spec03 / "structure/final_toc_plan.json"
+    _write_json(outline, {"schema_version": "test-outline/1"})
+    _write_json(toc, {"schema_version": "test-toc/1"})
+    promotion = tmp_path / "spec04a-promotion.json"
+    _write_json(
+        promotion,
+        {
+            "schema_version": "stage-promotion-manifest/1.0",
+            "promotion_id": "promotion-spec04a-1",
+            "disposition": "promoted",
+            "stage_kind": "spec04a_structure_contract",
+            "promoted_artifacts": {
+                "ledger_L": {"sha256": _sha(ledger_path)},
+                "source_outline_ledger": {"sha256": _sha(outline)},
+                "final_toc_plan": {"sha256": _sha(toc)},
+            },
+        },
+    )
+    task_path = tmp_path / "semantic-review-task.json"
+    result = kernel.prepare_semantic_review_task(
+        argparse.Namespace(
+            parent=spec03,
+            source_pdf=paths["source_pdf"],
+            source_pdf_ref="inputs/source_pdf/artifact",
+            parent_promotion=promotion,
+            output=task_path,
+        )
+    )
+    task = json.loads(task_path.read_text(encoding="utf-8"))
+    assert result["candidates"] == 1
+    assert task["schema_version"] == kernel.SEMANTIC_REVIEW_TASK_SCHEMA
+    assert task["candidates"][0]["marker"]["block_id"] == records[0]["block_id"]
+    assert [
+        row["block_id"] for row in task["candidates"][0]["body_options"]
+    ] == [records[1]["block_id"], records[2]["block_id"]]
+    assert len(kernel._canonical_bytes(kernel.semantic_model_evidence(task))) < 1_000_000
+    assert (
+        0
+        < task["capacity"]["minimum_response_bytes"]
+        <= task["capacity"]["maximum_response_bytes"]
+        < 256_000
+    )
+
+    compact_path = tmp_path / "semantic-compact-review.json"
+    _write_json(
+        compact_path,
+        {
+            "schema_version": kernel.SEMANTIC_COMPACT_REVIEW_SCHEMA,
+            "task_id": task["task_id"],
+            "review_status": "closed",
+            "decisions": [
+                {
+                    "candidate_index": 0,
+                    "disposition": "teaching_group",
+                    "semantic_role": "worked_example",
+                }
+            ],
+            "open_reviews": [],
+        },
+    )
+    projected_path = tmp_path / "semantic-review-bundle.json"
+    projection = kernel.project_semantic_review(
+        argparse.Namespace(
+            task=task_path,
+            compact_review=compact_path,
+            output=projected_path,
+        )
+    )
+    bundle = json.loads(projected_path.read_text(encoding="utf-8"))
+    assert projection["teaching_groups"] == 1
+    assert projection["standalone_labels"] == 0
+    assert bundle["schema_version"] == "spec04b-semantic-review-bundle/1.0"
+    assert bundle["parent_binding"] == task["parent_binding"]
+    assert bundle["teaching_groups"][0]["marker_block_id"] == records[0]["block_id"]
+    assert bundle["teaching_groups"][0]["body_block_ids"] == [
+        records[1]["block_id"],
+        records[2]["block_id"],
+    ]
+    assert bundle["teaching_groups"][0]["semantic_role"] == "worked_example"
+    assert bundle["source_evidence"] == [
+        {
+            "evidence_id": "source-pdf-page-000001",
+            "path": "inputs/source_pdf/artifact",
+            "sha256": _sha(paths["source_pdf"]),
+            "pdf_physical_page": 1,
+        }
+    ]
+
+    invalid = json.loads(compact_path.read_text(encoding="utf-8"))
+    invalid["decisions"][0]["body_count"] = 0
+    with pytest.raises(kernel.KernelContractError) as exc_info:
+        kernel._project_semantic_review(task, invalid)
+    assert exc_info.value.code == "semantic_compact_review_invalid"
+
+
 def test_candidate_hashes_are_stable_across_workdirs(tmp_path: Path) -> None:
     first = _run_pipeline(tmp_path / "one")
     second = _run_pipeline(tmp_path / "two")

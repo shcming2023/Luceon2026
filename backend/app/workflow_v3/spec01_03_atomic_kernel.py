@@ -32,6 +32,10 @@ OUTLINE_REVIEW_TASK_SCHEMA = "luceon.worker-v3-spec04a-review-task/v1"
 OUTLINE_COMPACT_REVIEW_SCHEMA = (
     "luceon.worker-v3-spec04a-compact-review/v1"
 )
+SEMANTIC_REVIEW_TASK_SCHEMA = "luceon.worker-v3-spec04b-review-task/v1"
+SEMANTIC_COMPACT_REVIEW_SCHEMA = (
+    "luceon.worker-v3-spec04b-compact-review/v1"
+)
 ATOMIC_STAGE_MANIFEST_SCHEMA = "luceon.worker-v3-atomic-stage-manifest/v1"
 RUN_MANIFEST_SCHEMA = "luceon.worker-v3-atomic-run-manifest/v1"
 DECISION_INDEX_SCHEMA = "canonical-decision-index/1.1"
@@ -55,6 +59,29 @@ SCOPE_BASELINE_EXCLUDED_LABELS = frozenset(
 SCOPE_REVIEW_EXCERPT_CHARS = 240
 OUTLINE_CONTEXT_EXCERPT_CHARS = 240
 OUTLINE_CONTEXT_RADIUS = 1
+SEMANTIC_CONTEXT_EXCERPT_CHARS = 240
+SEMANTIC_MARKER_TYPES = frozenset({"title", "text", "aside_text"})
+SEMANTIC_BODY_TYPES = frozenset({"text", "aside_text", "list"})
+SEMANTIC_ROLE_CHOICES = (
+    "activity",
+    "answer",
+    "assessment",
+    "definition",
+    "example",
+    "exercise",
+    "experiment",
+    "investigation",
+    "key_point",
+    "method_note",
+    "note",
+    "practice",
+    "prompt",
+    "source_label",
+    "summary",
+    "tip",
+    "vocabulary",
+    "worked_example",
+)
 
 SPEC01_COMPACT_PARENT_FILES = (
     "contracts/input_contract.json",
@@ -2259,14 +2286,13 @@ def outline_model_evidence(task: Mapping[str, Any]) -> dict[str, Any]:
             "Spec 04-A compact review task is unsupported",
         )
     normalized = json.loads(_canonical_bytes(task))
-    parent_binding = normalized.get("parent_binding")
-    if not isinstance(parent_binding, dict):
+    if not isinstance(normalized.get("parent_binding"), dict):
         _fail(
             "outline_review_task_invalid",
             "Spec 04-A compact review task has no parent binding",
         )
-    parent_binding.pop("promotion_id", None)
-    parent_binding.pop("promotion_manifest_sha256", None)
+    normalized.pop("parent_binding")
+    normalized.pop("allowed_source_outline_evidence", None)
     return normalized
 
 
@@ -2722,6 +2748,633 @@ def prepare_outline_review_task(args: argparse.Namespace) -> dict[str, Any]:
         "context_blocks": len(task["context_blocks"]),
         "pages": task["page_count"],
         "minimum_response_bytes": task["capacity"]["minimum_response_bytes"],
+    }
+
+
+def semantic_model_evidence(task: Mapping[str, Any]) -> dict[str, Any]:
+    """Project the stable Spec 04-B model view from the full audit task."""
+
+    if task.get("schema_version") != SEMANTIC_REVIEW_TASK_SCHEMA:
+        _fail(
+            "semantic_review_task_invalid",
+            "Spec 04-B compact review task is unsupported",
+        )
+    normalized = json.loads(_canonical_bytes(task))
+    if not isinstance(normalized.get("parent_binding"), dict):
+        _fail(
+            "semantic_review_task_invalid",
+            "Spec 04-B compact review task has no parent binding",
+        )
+    normalized.pop("parent_binding")
+    normalized.pop("allowed_source_evidence", None)
+    return normalized
+
+
+def _semantic_content(value: Any) -> str:
+    normalized = " ".join(str(value or "").split())
+    if len(normalized) <= SEMANTIC_CONTEXT_EXCERPT_CHARS:
+        return normalized
+    return normalized[: SEMANTIC_CONTEXT_EXCERPT_CHARS - 1] + "…"
+
+
+def _semantic_tree_path(record: Mapping[str, Any]) -> tuple[int, ...]:
+    tree = record.get("tree_context")
+    raw_path = tree.get("node_path") if isinstance(tree, Mapping) else []
+    if not isinstance(raw_path, list) or any(
+        not isinstance(item, int) or isinstance(item, bool) or item < 0
+        for item in raw_path
+    ):
+        _fail(
+            "semantic_review_parent_invalid",
+            f"source block has an invalid tree path: {record.get('block_id')}",
+        )
+    return tuple(raw_path)
+
+
+def _semantic_compact_review(
+    task_id: str,
+    candidates: Sequence[Mapping[str, Any]],
+    *,
+    maximum: bool,
+) -> dict[str, Any]:
+    longest_role = max(SEMANTIC_ROLE_CHOICES, key=len)
+    decisions: list[dict[str, Any]] = []
+    for candidate_index, candidate in enumerate(candidates):
+        body_options = candidate.get("body_options")
+        if not isinstance(body_options, list):
+            _fail(
+                "semantic_review_task_invalid",
+                f"Spec 04-B candidate {candidate_index} has invalid body options",
+            )
+        if maximum and body_options:
+            decisions.append(
+                {
+                    "candidate_index": candidate_index,
+                    "disposition": "teaching_group",
+                    "semantic_role": longest_role,
+                }
+            )
+        elif maximum:
+            decisions.append(
+                {
+                    "candidate_index": candidate_index,
+                    "disposition": "standalone_label",
+                    "semantic_role": longest_role,
+                }
+            )
+        else:
+            decisions.append(
+                {
+                    "candidate_index": candidate_index,
+                    "disposition": "plain_body",
+                    "semantic_role": "plain_body",
+                }
+            )
+    return {
+        "schema_version": SEMANTIC_COMPACT_REVIEW_SCHEMA,
+        "task_id": task_id,
+        "review_status": "closed",
+        "decisions": decisions,
+        "open_reviews": [],
+    }
+
+
+def _semantic_response_capacity(
+    task_id: str,
+    candidates: Sequence[Mapping[str, Any]],
+) -> dict[str, int]:
+    return {
+        "minimum_response_bytes": len(
+            _canonical_bytes(
+                _semantic_compact_review(task_id, candidates, maximum=False)
+            )
+        ),
+        "maximum_response_bytes": len(
+            _canonical_bytes(
+                _semantic_compact_review(task_id, candidates, maximum=True)
+            )
+        ),
+        "maximum_semantic_decisions": len(candidates),
+    }
+
+
+def _semantic_review_task(
+    parent: Path,
+    *,
+    source_pdf: Path,
+    source_pdf_ref: str,
+    parent_promotion: Path,
+) -> dict[str, Any]:
+    header, records = _outline_ledger(parent)
+    structure = header.get("spec04a_structure")
+    if (
+        not isinstance(structure, Mapping)
+        or structure.get("status") != "passed"
+        or structure.get("full_spec04_status") != "not_evaluated"
+        or structure.get("open_reviews") != 0
+    ):
+        _fail(
+            "semantic_review_parent_invalid",
+            "Spec 04-B requires a closed Spec 04-A parent ledger",
+        )
+    identity = header.get("material_identity")
+    if not isinstance(identity, Mapping):
+        _fail(
+            "semantic_review_parent_invalid",
+            "Spec 04-B parent ledger has no material identity",
+        )
+    source_pdf = source_pdf.resolve()
+    if not source_pdf.is_file() or source_pdf.is_symlink():
+        _fail("source_pdf_missing", "Spec 04-B source PDF is unavailable")
+    source_pdf_sha256 = _sha256(source_pdf)
+    if source_pdf_sha256 != identity.get("source_pdf_sha256"):
+        _fail(
+            "source_pdf_identity_mismatch",
+            "Spec 04-B source PDF differs from the parent ledger",
+        )
+    source_pdf_ref = _safe_relative(
+        source_pdf_ref,
+        "Spec 04-B source PDF reference",
+    )
+    page_count = _require_positive_int(
+        identity.get("page_count"),
+        "material_identity.page_count",
+    )
+
+    promotion_path = parent_promotion.resolve()
+    promotion = _read_json(promotion_path, "Spec 04-A parent promotion manifest")
+    if (
+        promotion.get("disposition") != "promoted"
+        or promotion.get("stage_kind") != "spec04a_structure_contract"
+    ):
+        _fail(
+            "semantic_review_promotion_invalid",
+            "Spec 04-B parent promotion is not a promoted Spec 04-A candidate",
+        )
+    promoted_artifacts = promotion.get("promoted_artifacts")
+    if not isinstance(promoted_artifacts, Mapping):
+        _fail(
+            "semantic_review_promotion_invalid",
+            "Spec 04-B parent promotion has no promoted artifacts",
+        )
+    promoted_files = {
+        "ledger_L": "ledgers/canonical_block_ledger.jsonl",
+        "source_outline_ledger": "structure/source_outline_ledger.json",
+        "final_toc_plan": "structure/final_toc_plan.json",
+    }
+    promoted_hashes: dict[str, str] = {}
+    for role, relative in promoted_files.items():
+        artifact = promoted_artifacts.get(role)
+        path = _contained_file(parent, relative, f"Spec 04-B parent {role}")
+        if (
+            not isinstance(artifact, Mapping)
+            or _require_sha(
+                artifact.get("sha256"),
+                f"Spec 04-B parent promotion {role}.sha256",
+            )
+            != _sha256(path)
+        ):
+            _fail(
+                "semantic_review_promotion_invalid",
+                f"Spec 04-B parent promotion does not bind {role}",
+            )
+        promoted_hashes[role] = _sha256(path)
+
+    included = [
+        record
+        for record in records
+        if record.get("scope_status") == "included"
+    ]
+    included.sort(
+        key=lambda record: (
+            _require_nonnegative_int(
+                record.get("candidate_final_order"),
+                f"{record.get('block_id')}.candidate_final_order",
+            ),
+            _require_text(record.get("block_id"), "included block id"),
+        )
+    )
+    marker_indexes = {
+        index
+        for index, record in enumerate(included)
+        if not record.get("structure_memberships")
+        and record.get("source_type") in SEMANTIC_MARKER_TYPES
+        and (
+            record.get("heading_disposition") == "local_heading"
+            or (
+                record.get("source_type") == "title"
+                and record.get("heading_disposition") is None
+            )
+        )
+    }
+    candidates: list[dict[str, Any]] = []
+    for record_index in sorted(marker_indexes):
+        marker = included[record_index]
+        marker_page = _require_positive_int(
+            marker.get("pdf_physical_page"),
+            f"{marker.get('block_id')}.pdf_physical_page",
+        )
+        if marker_page > page_count:
+            _fail(
+                "semantic_review_parent_invalid",
+                f"source block page exceeds the source PDF: {marker.get('block_id')}",
+            )
+        marker_path = _semantic_tree_path(marker)
+        body_options: list[dict[str, Any]] = []
+        for body_index in range(record_index + 1, len(included)):
+            body = included[body_index]
+            if (
+                body_index in marker_indexes
+                or body.get("structure_memberships")
+                or body.get("pdf_physical_page") != marker_page
+                or _semantic_tree_path(body) != marker_path
+                or body.get("source_type") not in SEMANTIC_BODY_TYPES
+            ):
+                break
+            body_options.append(
+                {
+                    "block_id": body["block_id"],
+                    "source_type": body["source_type"],
+                    "raw_content": _semantic_content(body.get("raw_content")),
+                    "raw_content_sha256": body.get("raw_content_sha256"),
+                    "candidate_final_order": body.get("candidate_final_order"),
+                    "bbox": body.get("bbox"),
+                }
+            )
+        candidate = {
+            "candidate_index": len(candidates),
+            "marker": {
+                "block_id": marker["block_id"],
+                "source_type": marker.get("source_type"),
+                "raw_content": _semantic_content(marker.get("raw_content")),
+                "raw_content_sha256": marker.get("raw_content_sha256"),
+                "pdf_physical_page": marker_page,
+                "candidate_final_order": marker.get("candidate_final_order"),
+                "bbox": marker.get("bbox"),
+                "tree_path": list(marker_path),
+            },
+            "body_options": body_options,
+            "allowed_dispositions": (
+                ["plain_body", "standalone_label", "teaching_group"]
+                if body_options
+                else ["plain_body", "standalone_label"]
+            ),
+        }
+        candidates.append(candidate)
+
+    parent_binding = {
+        "ledger_snapshot_id": _require_text(
+            header.get("ledger_snapshot_id"),
+            "Spec 04-B parent ledger snapshot id",
+        ),
+        "ledger_payload_hash": _require_sha(
+            header.get("current_ledger_hash"),
+            "Spec 04-B parent ledger payload hash",
+        ),
+        "source_pdf_sha256": source_pdf_sha256,
+        "promotion_id": _require_text(
+            promotion.get("promotion_id"),
+            "Spec 04-B parent promotion id",
+        ),
+        "promotion_manifest_sha256": _sha256(promotion_path),
+        "source_outline_ledger_sha256": promoted_hashes[
+            "source_outline_ledger"
+        ],
+        "final_toc_plan_sha256": promoted_hashes["final_toc_plan"],
+    }
+    allowed_evidence = [
+        {
+            "evidence_id": f"source-pdf-page-{page:06d}",
+            "kind": "source_pdf_page",
+            "pdf_physical_page": page,
+            "path": source_pdf_ref,
+            "sha256": source_pdf_sha256,
+        }
+        for page in range(1, page_count + 1)
+    ]
+    task = {
+        "schema_version": SEMANTIC_REVIEW_TASK_SCHEMA,
+        "stage_key": "semantic_annotation",
+        "material_id": identity.get("material_id"),
+        "page_count": page_count,
+        "parent_binding": parent_binding,
+        "required_output_schema": SEMANTIC_COMPACT_REVIEW_SCHEMA,
+        "semantic_role_choices": list(SEMANTIC_ROLE_CHOICES),
+        "candidates": candidates,
+        "allowed_source_evidence": allowed_evidence,
+        "constraints": [
+            "Return exactly one decision for every candidate_index in ascending order; deterministic code disposes every non-candidate source atom.",
+            "plain_body is the conservative default when the source does not unambiguously support a teaching group or standalone label.",
+            "teaching_group deterministically consumes the complete enumerated body_options array; the model does not choose or count source atoms.",
+            "standalone_label preserves only the marker; its following source atoms remain deterministic plain body.",
+            "Use only the enumerated semantic_role choices; no source text, block identity, order, formula, media, or hash may be changed.",
+            "Do not choose template constructs, render policy, LaTeX, boxes, or promotion outcomes.",
+        ],
+    }
+    task["task_id"] = (
+        "semantic-review-" + _canonical_hash(semantic_model_evidence(task))[:24]
+    )
+    task["capacity"] = _semantic_response_capacity(
+        task["task_id"],
+        candidates,
+    )
+    return task
+
+
+def _project_semantic_review(
+    task: Mapping[str, Any],
+    compact_review: Mapping[str, Any],
+) -> dict[str, Any]:
+    if (
+        set(compact_review)
+        != {
+            "schema_version",
+            "task_id",
+            "review_status",
+            "decisions",
+            "open_reviews",
+        }
+        or compact_review.get("schema_version")
+        != SEMANTIC_COMPACT_REVIEW_SCHEMA
+        or compact_review.get("task_id") != task.get("task_id")
+        or compact_review.get("review_status") != "closed"
+        or compact_review.get("open_reviews") != []
+    ):
+        _fail(
+            "semantic_compact_review_invalid",
+            "Spec 04-B compact review is open, drifted, or has unknown fields",
+        )
+    if (
+        task.get("schema_version") != SEMANTIC_REVIEW_TASK_SCHEMA
+        or task.get("required_output_schema")
+        != SEMANTIC_COMPACT_REVIEW_SCHEMA
+    ):
+        _fail(
+            "semantic_review_task_invalid",
+            "Spec 04-B compact review task is unsupported",
+        )
+    candidates = task.get("candidates")
+    decisions = compact_review.get("decisions")
+    if (
+        not isinstance(candidates, list)
+        or not isinstance(decisions, list)
+        or len(decisions) != len(candidates)
+    ):
+        _fail(
+            "semantic_compact_review_invalid",
+            "Spec 04-B compact review must dispose every candidate exactly once",
+        )
+    allowed_roles = set(task.get("semantic_role_choices") or [])
+    if allowed_roles != set(SEMANTIC_ROLE_CHOICES):
+        _fail(
+            "semantic_review_task_invalid",
+            "Spec 04-B semantic role choices drifted",
+        )
+    parent_binding = task.get("parent_binding")
+    if not isinstance(parent_binding, Mapping):
+        _fail(
+            "semantic_review_task_invalid",
+            "Spec 04-B task lacks its immutable parent binding",
+        )
+    source_pdf_sha256 = _require_sha(
+        parent_binding.get("source_pdf_sha256"),
+        "Spec 04-B task source PDF SHA-256",
+    )
+    evidence = task.get("allowed_source_evidence")
+    if not isinstance(evidence, list) or not evidence:
+        _fail(
+            "semantic_review_task_invalid",
+            "Spec 04-B task has no allowed source evidence",
+        )
+    evidence_by_page: dict[int, Mapping[str, Any]] = {}
+    for row in evidence:
+        if not isinstance(row, Mapping):
+            _fail(
+                "semantic_review_task_invalid",
+                "Spec 04-B source evidence is invalid",
+            )
+        page = row.get("pdf_physical_page")
+        expected_id = (
+            f"source-pdf-page-{page:06d}"
+            if isinstance(page, int) and not isinstance(page, bool)
+            else ""
+        )
+        if (
+            not expected_id
+            or page in evidence_by_page
+            or row.get("evidence_id") != expected_id
+            or row.get("kind") != "source_pdf_page"
+            or not isinstance(row.get("path"), str)
+            or not row["path"]
+            or _require_sha(row.get("sha256"), "Spec 04-B evidence SHA-256")
+            != source_pdf_sha256
+        ):
+            _fail(
+                "semantic_review_task_invalid",
+                "Spec 04-B source evidence is drifted or duplicated",
+            )
+        evidence_by_page[int(page)] = row
+
+    teaching_groups: list[dict[str, Any]] = []
+    standalone_labels: list[dict[str, Any]] = []
+    selected_pages: set[int] = set()
+    for candidate_index, (candidate, decision) in enumerate(
+        zip(candidates, decisions, strict=True)
+    ):
+        if (
+            not isinstance(candidate, Mapping)
+            or candidate.get("candidate_index") != candidate_index
+            or not isinstance(decision, Mapping)
+            or set(decision)
+            != {
+                "candidate_index",
+                "disposition",
+                "semantic_role",
+            }
+            or decision.get("candidate_index") != candidate_index
+        ):
+            _fail(
+                "semantic_compact_review_invalid",
+                f"Spec 04-B candidate decision {candidate_index} is missing, reordered, or has unknown fields",
+            )
+        marker = candidate.get("marker")
+        body_options = candidate.get("body_options")
+        allowed_dispositions = candidate.get("allowed_dispositions")
+        if (
+            not isinstance(marker, Mapping)
+            or not isinstance(body_options, list)
+            or not isinstance(allowed_dispositions, list)
+        ):
+            _fail(
+                "semantic_review_task_invalid",
+                f"Spec 04-B candidate {candidate_index} is invalid",
+            )
+        disposition = decision.get("disposition")
+        semantic_role = decision.get("semantic_role")
+        if disposition not in allowed_dispositions:
+            _fail(
+                "semantic_compact_review_invalid",
+                f"Spec 04-B candidate {candidate_index} has an invalid disposition",
+            )
+        if disposition == "plain_body":
+            if semantic_role != "plain_body":
+                _fail(
+                    "semantic_compact_review_invalid",
+                    f"Spec 04-B plain candidate {candidate_index} carries an invented role",
+                )
+            continue
+        if semantic_role not in allowed_roles:
+            _fail(
+                "semantic_compact_review_invalid",
+                f"Spec 04-B candidate {candidate_index} uses an unbound semantic role",
+            )
+        page = _require_positive_int(
+            marker.get("pdf_physical_page"),
+            f"Spec 04-B candidate {candidate_index} page",
+        )
+        evidence_row = evidence_by_page.get(page)
+        if evidence_row is None:
+            _fail(
+                "semantic_review_task_invalid",
+                f"Spec 04-B candidate {candidate_index} lacks source-page evidence",
+            )
+        evidence_id = str(evidence_row["evidence_id"])
+        marker_id = _require_text(
+            marker.get("block_id"),
+            f"Spec 04-B candidate {candidate_index} marker",
+        )
+        selected_pages.add(page)
+        if disposition == "standalone_label":
+            standalone_labels.append(
+                {
+                    "block_id": marker_id,
+                    "semantic_role": semantic_role,
+                    "source_evidence_ids": [evidence_id],
+                    "review_status": "closed",
+                }
+            )
+            continue
+        if disposition != "teaching_group" or not body_options:
+            _fail(
+                "semantic_compact_review_invalid",
+                f"Spec 04-B group candidate {candidate_index} has no deterministic body",
+            )
+        body_ids = [
+            _require_text(
+                row.get("block_id") if isinstance(row, Mapping) else None,
+                f"Spec 04-B candidate {candidate_index} body block",
+            )
+            for row in body_options
+        ]
+        body_types = sorted(
+            {
+                _require_text(
+                    row.get("source_type") if isinstance(row, Mapping) else None,
+                    f"Spec 04-B candidate {candidate_index} body type",
+                )
+                for row in body_options
+            }
+        )
+        if not set(body_types) <= SEMANTIC_BODY_TYPES:
+            _fail(
+                "semantic_review_task_invalid",
+                f"Spec 04-B candidate {candidate_index} contains an unsafe body type",
+            )
+        teaching_groups.append(
+            {
+                "group_id": f"semantic-group-{candidate_index:06d}",
+                "marker_block_id": marker_id,
+                "body_block_ids": body_ids,
+                "semantic_role": semantic_role,
+                "source_evidence_ids": [evidence_id],
+                "relation_rule": {
+                    "same_physical_page": True,
+                    "same_tree_path": True,
+                    "allowed_body_source_types": body_types,
+                    "basis": "same_tree_path_and_spatial_proximity",
+                },
+                "review_status": "closed",
+            }
+        )
+
+    if not selected_pages:
+        selected_pages.add(1)
+    if any(page not in evidence_by_page for page in selected_pages):
+        _fail(
+            "semantic_review_task_invalid",
+            "Spec 04-B projected evidence page is unavailable",
+        )
+    return {
+        "schema_version": "spec04b-semantic-review-bundle/1.0",
+        "review_id": str(task["task_id"]),
+        "parent_binding": dict(parent_binding),
+        "review": {
+            "status": "closed",
+            "open_items": 0,
+            "decision_refs": [
+                "compact-review::" + _canonical_hash(compact_review)
+            ],
+        },
+        "source_evidence": [
+            {
+                "evidence_id": evidence_by_page[page]["evidence_id"],
+                "path": evidence_by_page[page]["path"],
+                "sha256": evidence_by_page[page]["sha256"],
+                "pdf_physical_page": page,
+            }
+            for page in sorted(selected_pages)
+        ],
+        "teaching_groups": teaching_groups,
+        "standalone_labels": standalone_labels,
+    }
+
+
+def prepare_semantic_review_task(args: argparse.Namespace) -> dict[str, Any]:
+    task = _semantic_review_task(
+        args.parent.resolve(),
+        source_pdf=args.source_pdf.resolve(),
+        source_pdf_ref=args.source_pdf_ref,
+        parent_promotion=args.parent_promotion.resolve(),
+    )
+    output = args.output.resolve()
+    if output.exists() or output.is_symlink():
+        _fail(
+            "review_task_output_exists",
+            "semantic review task output already exists",
+        )
+    task_hash = _write_json(output, task)
+    return {
+        "status": "prepared",
+        "task_sha256": task_hash,
+        "task_canonical_sha256": _canonical_hash(task),
+        "candidates": len(task["candidates"]),
+        "pages": task["page_count"],
+        "minimum_response_bytes": task["capacity"]["minimum_response_bytes"],
+        "maximum_response_bytes": task["capacity"]["maximum_response_bytes"],
+    }
+
+
+def project_semantic_review(args: argparse.Namespace) -> dict[str, Any]:
+    task = _read_json(args.task.resolve(), "Spec 04-B compact review task")
+    compact_review = _read_json(
+        args.compact_review.resolve(),
+        "Spec 04-B compact review result",
+    )
+    output = args.output.resolve()
+    if output.exists() or output.is_symlink():
+        _fail(
+            "review_projection_output_exists",
+            "Spec 04-B projected review output already exists",
+        )
+    bundle = _project_semantic_review(task, compact_review)
+    output_hash = _write_json(output, bundle)
+    return {
+        "status": "projected",
+        "output_sha256": output_hash,
+        "output_canonical_sha256": _canonical_hash(bundle),
+        "teaching_groups": len(bundle["teaching_groups"]),
+        "standalone_labels": len(bundle["standalone_labels"]),
+        "source_evidence_pages": len(bundle["source_evidence"]),
     }
 
 
@@ -4447,6 +5100,20 @@ def _parser() -> argparse.ArgumentParser:
     project_outline.add_argument("--compact-review", type=Path, required=True)
     project_outline.add_argument("--output", type=Path, required=True)
     project_outline.set_defaults(producer=project_outline_review)
+
+    prepare_semantic = subparsers.add_parser("prepare-semantic-review-task")
+    prepare_semantic.add_argument("--parent", type=Path, required=True)
+    prepare_semantic.add_argument("--source-pdf", type=Path, required=True)
+    prepare_semantic.add_argument("--source-pdf-ref", required=True)
+    prepare_semantic.add_argument("--parent-promotion", type=Path, required=True)
+    prepare_semantic.add_argument("--output", type=Path, required=True)
+    prepare_semantic.set_defaults(producer=prepare_semantic_review_task)
+
+    project_semantic = subparsers.add_parser("project-semantic-review")
+    project_semantic.add_argument("--task", type=Path, required=True)
+    project_semantic.add_argument("--compact-review", type=Path, required=True)
+    project_semantic.add_argument("--output", type=Path, required=True)
+    project_semantic.set_defaults(producer=project_semantic_review)
     return parser
 
 

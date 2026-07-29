@@ -6,6 +6,7 @@ import json
 import os
 import tarfile
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -18,6 +19,7 @@ from app.workflow_v3.stage_entrypoint import (
     RESULT_PROTOCOL,
     ReleaseBinding,
     StageEntrypointError,
+    StageInputRoot,
     StageProduction,
     StageRequest,
     prepare_input_root,
@@ -868,6 +870,7 @@ def _stage4_case(
             == "skills/luceon-popo-to-refined-elegantbook/scripts/spec04a_structure_contract.py"
         )
         output = Path(args[args.index("--output-dir") + 1])
+        assert not output.exists()
         _json(
             output / "manifests/spec04a_structure_stage_manifest.json",
             {
@@ -890,6 +893,19 @@ def _stage4_case(
         return KernelExecution(argv=("fixed-kernel",), returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(adapters, "run_release_python_kernel", fake_kernel)
+    monkeypatch.setattr(
+        adapters,
+        "_materialize_native_lineage_bridge",
+        lambda *, request, inputs, bindings: (
+            inputs.file("promotion_registry"),
+            {role: inputs.file(role) for role in bindings},
+        ),
+    )
+    monkeypatch.setattr(
+        adapters,
+        "_rebind_projected_review_promotion",
+        lambda *args, **kwargs: None,
+    )
     monkeypatch.chdir(root)
     result_path = root / "result.json"
     status = run_stage_entrypoint(
@@ -990,6 +1006,377 @@ def test_stage4_adapter_rejects_unqualified_llm_model_policy(
     )
     assert status == 2
     assert _failure_code(result) == "llm_model_policy_unqualified"
+
+
+def _native_lineage_case(
+    root: Path,
+    bindings: dict[str, tuple[str, str, str]],
+) -> tuple[SimpleNamespace, StageInputRoot, dict[str, bytes]]:
+    files_by_role: dict[str, Path] = {}
+    extracted_by_role: dict[str, Path] = {}
+    entries: list[dict[str, Any]] = []
+    active: dict[str, dict[str, Any]] = {}
+    original_bytes: dict[str, bytes] = {}
+    for index, (manifest_role, (bundle_role, lineage, stage_kind)) in enumerate(
+        bindings.items(),
+        start=1,
+    ):
+        bundle = root / "materialized" / bundle_role / "bundle"
+        stage_manifest = bundle / "manifests/stage.json"
+        ledger = bundle / "ledgers/canonical_block_ledger.jsonl"
+        decision = bundle / "decisions/canonical_decision_index.json"
+        _json(stage_manifest, {"status": "passed", "stage_kind": stage_kind})
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        ledger.write_text(f'{{"lineage":"{lineage}"}}\n', encoding="utf-8")
+        _json(decision, {"lineage": lineage})
+        original_root = root / "control-plane-original" / bundle_role
+        promotion = {
+            "schema_version": "stage-promotion-manifest/1.0",
+            "promotion_id": f"promotion-{index}",
+            "lineage_key": lineage,
+            "stage_kind": stage_kind,
+            "run_dir": str(original_root.resolve()),
+            "stage_manifest": {
+                "path": str((original_root / "manifests/stage.json").resolve()),
+                "sha256": _sha(stage_manifest),
+            },
+            "disposition": "promoted",
+            "promotion_class": "standard",
+            "producer_execution_provenance": "control_plane_release_bound",
+            "checks": [{"id": "test", "status": "passed"}],
+            "summary": {"spec_passed": True},
+            "promoted_artifacts": {
+                "decision_index_D": {
+                    "path": str(
+                        (
+                            original_root
+                            / "decisions/canonical_decision_index.json"
+                        ).resolve()
+                    ),
+                    "sha256": _sha(decision),
+                },
+                "ledger_L": {
+                    "path": str(
+                        (
+                            original_root
+                            / "ledgers/canonical_block_ledger.jsonl"
+                        ).resolve()
+                    ),
+                    "sha256": _sha(ledger),
+                },
+            },
+            "consumer_rule": "verify exact path and SHA-256",
+        }
+        promotion_path = root / "materialized" / manifest_role / "artifact"
+        _json(promotion_path, promotion)
+        promotion_sha = _sha(promotion_path)
+        files_by_role[manifest_role] = promotion_path
+        extracted_by_role[bundle_role] = bundle
+        original_manifest_path = (
+            root / "control-plane-inputs" / manifest_role / "artifact"
+        ).resolve()
+        entry = {
+            "promotion_id": promotion["promotion_id"],
+            "lineage_key": lineage,
+            "disposition": "promoted",
+            "promotion_class": "standard",
+            "manifest_path": str(original_manifest_path),
+            "manifest_sha256": promotion_sha,
+            "run_dir": promotion["run_dir"],
+            "stage_manifest_sha256": promotion["stage_manifest"]["sha256"],
+        }
+        entries.append(entry)
+        active[lineage] = {
+            "promotion_id": promotion["promotion_id"],
+            "manifest_path": str(original_manifest_path),
+            "manifest_sha256": promotion_sha,
+            "promotion_class": "standard",
+        }
+        original_bytes[manifest_role] = promotion_path.read_bytes()
+    registry = {
+        "schema_version": "promotion-registry/1.0",
+        "registry_id": "registry-test",
+        "snapshot_id": "snapshot-test",
+        "version": len(entries),
+        "generated_at": "2026-07-29T00:00:00Z",
+        "parent_registry_ref": None,
+        "parent_registry_sha256": None,
+        "entries": entries,
+        "active_promotions": active,
+        "selection_rule": "last promoted entry is active",
+        "payload_hash": "",
+    }
+    registry["payload_hash"] = _canonical_sha(
+        {
+            key: value
+            for key, value in registry.items()
+            if key not in {"generated_at", "payload_hash"}
+        }
+    )
+    registry_path = root / "materialized/promotion_registry/artifact"
+    _json(registry_path, registry)
+    files_by_role["promotion_registry"] = registry_path
+    original_bytes["promotion_registry"] = registry_path.read_bytes()
+    return (
+        SimpleNamespace(workdir=root),
+        StageInputRoot(
+            root=root / "materialized",
+            files_by_role=files_by_role,
+            extracted_by_role=extracted_by_role,
+        ),
+        original_bytes,
+    )
+
+
+def test_native_lineage_bridge_rebinds_paths_and_registry_hash_without_mutation(
+    tmp_path: Path,
+) -> None:
+    bindings = {
+        "predecessor_promotion_manifest": (
+            "promoted_predecessor",
+            "material/spec03",
+            "spec03_media_contract",
+        )
+    }
+    request, inputs, originals = _native_lineage_case(tmp_path, bindings)
+
+    registry_path, manifests = adapters._materialize_native_lineage_bridge(
+        request=request,
+        inputs=inputs,
+        bindings=bindings,
+    )
+
+    bridged_manifest = json.loads(
+        manifests["predecessor_promotion_manifest"].read_text(encoding="utf-8")
+    )
+    bundle = inputs.extracted("promoted_predecessor").resolve()
+    assert Path(bridged_manifest["run_dir"]) == bundle
+    assert (
+        Path(bridged_manifest["promoted_artifacts"]["ledger_L"]["path"])
+        == bundle / "ledgers/canonical_block_ledger.jsonl"
+    )
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    assert registry["payload_hash"] == _canonical_sha(
+        {
+            key: value
+            for key, value in registry.items()
+            if key not in {"generated_at", "payload_hash"}
+        }
+    )
+    active = registry["active_promotions"]["material/spec03"]
+    assert Path(active["manifest_path"]) == manifests[
+        "predecessor_promotion_manifest"
+    ]
+    assert active["manifest_sha256"] == _sha(
+        manifests["predecessor_promotion_manifest"]
+    )
+    for role, original in originals.items():
+        assert inputs.file(role).read_bytes() == original
+
+
+def test_native_lineage_bridge_fails_closed_on_promoted_artifact_drift(
+    tmp_path: Path,
+) -> None:
+    bindings = {
+        "predecessor_promotion_manifest": (
+            "promoted_predecessor",
+            "material/spec03",
+            "spec03_media_contract",
+        )
+    }
+    request, inputs, _ = _native_lineage_case(tmp_path, bindings)
+    inputs.extracted(
+        "promoted_predecessor"
+    ).joinpath("ledgers/canonical_block_ledger.jsonl").write_text(
+        '{"tampered":true}\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(StageEntrypointError) as error:
+        adapters._materialize_native_lineage_bridge(
+            request=request,
+            inputs=inputs,
+            bindings=bindings,
+        )
+
+    assert error.value.code == "native_lineage_bridge_invalid"
+    assert "hash-drifted" in str(error.value)
+
+
+def test_native_lineage_bridge_rebinds_all_three_render_plan_parents(
+    tmp_path: Path,
+) -> None:
+    bindings = {
+        "predecessor_promotion_manifest": (
+            "promoted_predecessor",
+            "material/spec04c",
+            "spec04c_construct_binding_contract",
+        ),
+        "structure_promotion_manifest": (
+            "structure_candidate",
+            "material/spec04a",
+            "spec04a_structure_contract",
+        ),
+        "media_promotion_manifest": (
+            "media_candidate",
+            "material/spec03",
+            "spec03_media_contract",
+        ),
+    }
+    request, inputs, _ = _native_lineage_case(tmp_path, bindings)
+
+    registry_path, manifests = adapters._materialize_native_lineage_bridge(
+        request=request,
+        inputs=inputs,
+        bindings=bindings,
+    )
+
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    assert set(registry["active_promotions"]) == {
+        "material/spec04c",
+        "material/spec04a",
+        "material/spec03",
+    }
+    assert len(manifests) == 3
+    for role, (bundle_role, lineage, _) in bindings.items():
+        promotion = json.loads(manifests[role].read_text(encoding="utf-8"))
+        assert Path(promotion["run_dir"]) == inputs.extracted(bundle_role).resolve()
+        assert Path(
+            registry["active_promotions"][lineage]["manifest_path"]
+        ) == manifests[role]
+
+
+def test_projected_outline_review_rebinds_only_verified_promotion_hash(
+    tmp_path: Path,
+) -> None:
+    original = tmp_path / "original-promotion.json"
+    native = tmp_path / "native-promotion.json"
+    _json(original, {"promotion_id": "promotion-1", "run_dir": "/original"})
+    _json(native, {"promotion_id": "promotion-1", "run_dir": "/isolated"})
+    review = tmp_path / "review.json"
+    _json(
+        review,
+        {
+            "schema_version": "spec04a-outline-review-bundle/1.0",
+            "parent_binding": {
+                "promotion_id": "promotion-1",
+                "promotion_manifest_sha256": _sha(original),
+                "ledger_snapshot_id": "ledger-1",
+            },
+            "nodes": [{"node_id": "node-1"}],
+        },
+    )
+
+    adapters._rebind_projected_review_promotion(
+        review,
+        original_promotion=original,
+        native_promotion=native,
+    )
+
+    rebound = json.loads(review.read_text(encoding="utf-8"))
+    assert rebound["parent_binding"]["promotion_manifest_sha256"] == _sha(native)
+    assert rebound["parent_binding"]["ledger_snapshot_id"] == "ledger-1"
+    assert rebound["nodes"] == [{"node_id": "node-1"}]
+
+
+def test_projected_outline_review_rejects_unbound_original_promotion(
+    tmp_path: Path,
+) -> None:
+    original = tmp_path / "original-promotion.json"
+    native = tmp_path / "native-promotion.json"
+    _json(original, {"promotion_id": "promotion-1"})
+    _json(native, {"promotion_id": "promotion-1"})
+    review = tmp_path / "review.json"
+    _json(
+        review,
+        {
+            "parent_binding": {
+                "promotion_id": "promotion-1",
+                "promotion_manifest_sha256": ZERO_SHA,
+            }
+        },
+    )
+
+    with pytest.raises(StageEntrypointError) as error:
+        adapters._rebind_projected_review_promotion(
+            review,
+            original_promotion=original,
+            native_promotion=native,
+        )
+
+    assert error.value.code == "native_review_binding_invalid"
+
+
+def test_semantic_review_projection_owns_only_deterministic_parent_binding(
+    tmp_path: Path,
+) -> None:
+    source_pdf = tmp_path / "source.pdf"
+    source_pdf.write_bytes(b"%PDF-1.4\n")
+    source_sha = _sha(source_pdf)
+    parent = tmp_path / "parent"
+    ledger = parent / "ledgers/canonical_block_ledger.jsonl"
+    ledger.parent.mkdir(parents=True)
+    ledger.write_text(
+        json.dumps(
+            {
+                "ledger_snapshot_id": "ledger-1",
+                "current_ledger_hash": "a" * 64,
+                "material_identity": {"source_pdf_sha256": source_sha},
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    promotion = tmp_path / "promotion.json"
+    _json(
+        promotion,
+        {
+            "promotion_id": "promotion-1",
+            "promoted_artifacts": {
+                "source_outline_ledger": {"sha256": "b" * 64},
+                "final_toc_plan": {"sha256": "c" * 64},
+            },
+        },
+    )
+    review = tmp_path / "review.json"
+    _json(
+        review,
+        {
+            "schema_version": "spec04b-semantic-review-bundle/1.0",
+            "parent_binding": {
+                "promotion_id": "model-cannot-own-this-value",
+            },
+            "teaching_groups": [{"group_id": "group-1"}],
+            "standalone_labels": [],
+        },
+    )
+    output = tmp_path / "projected/review.json"
+
+    adapters._project_review_parent_binding(
+        review,
+        output_path=output,
+        parent_root=parent,
+        source_pdf=source_pdf,
+        native_promotion=promotion,
+        promoted_fields={
+            "source_outline_ledger_sha256": "source_outline_ledger",
+            "final_toc_plan_sha256": "final_toc_plan",
+        },
+    )
+
+    projected = json.loads(output.read_text(encoding="utf-8"))
+    assert projected["teaching_groups"] == [{"group_id": "group-1"}]
+    assert projected["parent_binding"] == {
+        "ledger_snapshot_id": "ledger-1",
+        "ledger_payload_hash": "a" * 64,
+        "source_pdf_sha256": source_sha,
+        "promotion_id": "promotion-1",
+        "promotion_manifest_sha256": _sha(promotion),
+        "source_outline_ledger_sha256": "b" * 64,
+        "final_toc_plan_sha256": "c" * 64,
+    }
 
 
 def test_candidate_symlink_is_never_bundled(
