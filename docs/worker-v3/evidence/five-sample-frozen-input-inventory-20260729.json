@@ -1,0 +1,134 @@
+{
+  "schema_version": "luceon.worker-v3-five-sample-frozen-input-inventory/v1",
+  "observed_at": "2026-07-29T00:36:44Z",
+  "scope": {
+    "material_pk_first": 1339,
+    "material_pk_last": 1343,
+    "material_count": 5,
+    "source_database": "runtime/backend/mineru.db",
+    "read_only_database_audit": true,
+    "minio_read_only_audit": true,
+    "gpu_required": false
+  },
+  "freeze_summary": {
+    "source_pdf_rows": 5,
+    "mineru_manifests_present": 5,
+    "mineru_done_frozen_markers_present": 5,
+    "popo_manifests_present": 5,
+    "popo_done_frozen_markers_present": 5,
+    "active_submitted_running_processing_pulling_freezing_markers": 0
+  },
+  "materials": [
+    {
+      "material_pk": 1339,
+      "material_id": "pdf-de6b27db13aeb80d",
+      "filename": "Cambridge Lower Secondary Science Learners Book 7 (Cambridge University Press)(Second Edition).pdf",
+      "size_bytes": 55442474,
+      "page_count": 344,
+      "source_pdf_sha256": "de6b27db13aeb80dd7a2dfe8da86d52a72b0a52f63281e3bb7ef216f818d5ab2",
+      "review_asset_id": 2433,
+      "mineru": {
+        "run_id": "mineru-20260724024051-staged_mineru_20260724024050-21599e1d--003-staged_de6b27db13aeb80d_003",
+        "manifest": "s3://eduassets-mineru/mineru/pdf-de6b27db13aeb80d/mineru-20260724024051-staged_mineru_20260724024050-21599e1d--003-staged_de6b27db13aeb80d_003/manifest.json",
+        "manifest_sha256": "89897faf85429a885d9773ebc5d0b1334bdaae1b5b094ce2e454a1635664e52d",
+        "marker_status": "mineru_done_frozen"
+      },
+      "popo": {
+        "run_id": "popo-20260724032035-staged_popo_20260724031739-93376d38--003-popo_de6b27db13aeb80d_003",
+        "manifest": "s3://eduassets-minerupopo/minerupopo/pdf-de6b27db13aeb80d/popo-20260724032035-staged_popo_20260724031739-93376d38--003-popo_de6b27db13aeb80d_003/manifest.json",
+        "manifest_sha256": "1a9dee0fb03549efedce978f812dc517f3df603f3b797f01c21996b4de72e472",
+        "marker_status": "popo_done_frozen"
+      }
+    },
+    {
+      "material_pk": 1340,
+      "material_id": "pdf-2e57426befa155be",
+      "filename": "Cambridge Lower Secondary Science Learners Book 8 (Cambridge University Press)(Second Edition).pdf",
+      "size_bytes": 160629790,
+      "page_count": 127,
+      "source_pdf_sha256": "2e57426befa155be22f8015d0c056ad0fad241292b205a3a0f74e263ebb9a0d4",
+      "review_asset_id": 2432,
+      "mineru": {
+        "run_id": "mineru-20260724024051-staged_mineru_20260724024050-21599e1d--004-staged_2e57426befa155be_004",
+        "manifest": "s3://eduassets-mineru/mineru/pdf-2e57426befa155be/mineru-20260724024051-staged_mineru_20260724024050-21599e1d--004-staged_2e57426befa155be_004/manifest.json",
+        "manifest_sha256": "98c79c92846d54944d524fd1cd0eec0fd17ac5c1e5c9ee4c57dcd5ec71ba3323",
+        "marker_status": "mineru_done_frozen"
+      },
+      "popo": {
+        "run_id": "popo-20260724032035-staged_popo_20260724031739-93376d38--004-popo_2e57426befa155be_004",
+        "manifest": "s3://eduassets-minerupopo/minerupopo/pdf-2e57426befa155be/popo-20260724032035-staged_popo_20260724031739-93376d38--004-popo_2e57426befa155be_004/manifest.json",
+        "manifest_sha256": "0abc80219c3c9646213da55f414213108e307c5c6d43ebf8a7ee20aaf729760d",
+        "marker_status": "popo_done_frozen"
+      }
+    },
+    {
+      "material_pk": 1341,
+      "material_id": "pdf-ac357479938bb9b5",
+      "filename": "Cambridge Lower Secondary Science Learners Book 9 (Cambridge University Press)(Second Edition).pdf",
+      "size_bytes": 274696925,
+      "page_count": 351,
+      "source_pdf_sha256": "ac357479938bb9b5851dbc57036ff9631491ca44c0edcb09c74ee11617f29e3a",
+      "review_asset_id": 2431,
+      "mineru": {
+        "run_id": "mineru-20260724024051-staged_mineru_20260724024050-21599e1d--005-staged_ac357479938bb9b5_005",
+        "manifest": "s3://eduassets-mineru/mineru/pdf-ac357479938bb9b5/mineru-20260724024051-staged_mineru_20260724024050-21599e1d--005-staged_ac357479938bb9b5_005/manifest.json",
+        "manifest_sha256": "581b5db160bbc7eef32cba5af362160a1cf1ab9e0423a9581cb358f1702184e5",
+        "marker_status": "mineru_done_frozen"
+      },
+      "popo": {
+        "run_id": "popo-20260724032035-staged_popo_20260724031739-93376d38--005-popo_ac357479938bb9b5_005",
+        "manifest": "s3://eduassets-minerupopo/minerupopo/pdf-ac357479938bb9b5/popo-20260724032035-staged_popo_20260724031739-93376d38--005-popo_ac357479938bb9b5_005/manifest.json",
+        "manifest_sha256": "301c4c5e7874e18bfa8684c79609d1f94c620ac62a3735cd3b9cc596a68519ba",
+        "marker_status": "popo_done_frozen"
+      }
+    },
+    {
+      "material_pk": 1342,
+      "material_id": "pdf-ffaf7e6e6dd3b32d",
+      "filename": "Cambridge Lower Secondary Science Workbook 7 (Cambridge University Press)(Second Edition).pdf",
+      "size_bytes": 50008662,
+      "page_count": 182,
+      "source_pdf_sha256": "ffaf7e6e6dd3b32d4021282c9623a5c02fd68d73798f0cd2d48b093fae889c78",
+      "review_asset_id": 2430,
+      "mineru": {
+        "run_id": "mineru-20260724024051-staged_mineru_20260724024050-21599e1d--002-staged_ffaf7e6e6dd3b32d_002",
+        "manifest": "s3://eduassets-mineru/mineru/pdf-ffaf7e6e6dd3b32d/mineru-20260724024051-staged_mineru_20260724024050-21599e1d--002-staged_ffaf7e6e6dd3b32d_002/manifest.json",
+        "manifest_sha256": "4e0d86e578ae43b87b3cd573e0e6527203030f6e5e9af0a3d6e37307ef3195ac",
+        "marker_status": "mineru_done_frozen"
+      },
+      "popo": {
+        "run_id": "popo-20260724032035-staged_popo_20260724031739-93376d38--002-popo_ffaf7e6e6dd3b32d_002",
+        "manifest": "s3://eduassets-minerupopo/minerupopo/pdf-ffaf7e6e6dd3b32d/popo-20260724032035-staged_popo_20260724031739-93376d38--002-popo_ffaf7e6e6dd3b32d_002/manifest.json",
+        "manifest_sha256": "7a5fae6bafa1a3c95c6077fede60085545fc017b32d4f7356221e82ccfa6ab5e",
+        "marker_status": "popo_done_frozen"
+      }
+    },
+    {
+      "material_pk": 1343,
+      "material_id": "pdf-8e5464971a3e1d6b",
+      "filename": "Cambridge Lower Secondary Science Workbook 9 (Cambridge University Press)(Second Edition).pdf",
+      "size_bytes": 29110746,
+      "page_count": 200,
+      "source_pdf_sha256": "8e5464971a3e1d6b40f5afc996dba67efc9af60e29d73ce10730e91c4fa12fad",
+      "review_asset_id": 2429,
+      "mineru": {
+        "run_id": "mineru-20260724024051-staged_mineru_20260724024050-21599e1d--001-staged_8e5464971a3e1d6b_001",
+        "manifest": "s3://eduassets-mineru/mineru/pdf-8e5464971a3e1d6b/mineru-20260724024051-staged_mineru_20260724024050-21599e1d--001-staged_8e5464971a3e1d6b_001/manifest.json",
+        "manifest_sha256": "9d39052b5cc9bc87781dc7cd27ae042ae83f94d75ccc06632b38b723f0c442b2",
+        "marker_status": "mineru_done_frozen"
+      },
+      "popo": {
+        "run_id": "popo-20260724032035-staged_popo_20260724031739-93376d38--001-popo_8e5464971a3e1d6b_001",
+        "manifest": "s3://eduassets-minerupopo/minerupopo/pdf-8e5464971a3e1d6b/popo-20260724032035-staged_popo_20260724031739-93376d38--001-popo_8e5464971a3e1d6b_001/manifest.json",
+        "manifest_sha256": "c643bc08caa8c9c5e274014568f93cb550aa7c1b4380c526dc6ddd5409f484e4",
+        "marker_status": "popo_done_frozen"
+      }
+    }
+  ],
+  "reuse_decision": {
+    "eligible_for_worker_v3_shadow_input": true,
+    "mineru_rerun_forbidden": true,
+    "popo_rerun_forbidden": true,
+    "reason": "All five source rows, manifests, and frozen markers agree, and no active pipeline markers remain."
+  }
+}
