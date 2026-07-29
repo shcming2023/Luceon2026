@@ -469,18 +469,43 @@ def _produce_outline(
             "predecessor_promotion_manifest",
             "promotion_registry",
             "source_pdf",
-            "outline_review_bundle",
+            "outline_review_task",
+            "outline_review_decision",
             "llm_call_audit",
         },
     )
     _require_predecessor(request, "canonical_block_ledger")
     parent = inputs.extracted("promoted_predecessor")
+    review_task = inputs.file("outline_review_task")
     _verify_bounded_review(
         request,
         inputs,
         release,
-        review_role="outline_review_bundle",
+        review_role="outline_review_decision",
         expected_prompt_id="worker-v3.spec04a-outline-review",
+        expected_input_canonical_sha256=_canonical_hash(
+            _read_json(review_task, "Spec 04-A deterministic review task")
+        ),
+    )
+    projected_review = (
+        request.workdir
+        / "projected-reviews"
+        / "spec04a-outline-review-bundle.json"
+    )
+    run_release_python_kernel(
+        release_root=release,
+        kernel_relative=ATOMIC_KERNEL,
+        args=(
+            "project-outline-review",
+            "--task",
+            str(review_task),
+            "--compact-review",
+            str(inputs.file("outline_review_decision")),
+            "--output",
+            str(projected_review),
+        ),
+        cwd=request.workdir,
+        timeout_seconds=86_400,
     )
     execution = run_release_python_kernel(
         release_root=release,
@@ -500,7 +525,7 @@ def _produce_outline(
             "--parent-lineage-key",
             str(parameters["parent_lineage_key"]),
             "--review-bundle",
-            str(inputs.file("outline_review_bundle")),
+            str(projected_review),
             *_identity_args(parameters),
             "--output-dir",
             str(output),

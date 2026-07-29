@@ -874,7 +874,7 @@ _BOUNDED_REVIEW = {
         "worker-v3.spec03-media-review",
     ),
     "outline_reconstruction": (
-        "outline_review_bundle",
+        "outline_review_decision",
         "worker-v3.spec04a-outline-review",
     ),
     "semantic_annotation": (
@@ -1655,6 +1655,30 @@ class _StageRequestBuilder:
         primary: PreparedInputArtifact,
     ) -> dict[str, str]:
         evidence = self._review_input(prompt_id, primary)
+        if prompt_id == "worker-v3.spec04a-outline-review":
+            task_path = (
+                self.workdir
+                / "control-plane-review-task"
+                / "spec04a-outline-review-task.json"
+            )
+            if (
+                not task_path.is_file()
+                or sha256_json(
+                    _read_json_object(
+                        task_path,
+                        "Spec 04-A deterministic review task",
+                    )
+                )
+                != sha256_json(evidence)
+            ):
+                raise ArtifactIntegrityError(
+                    "Spec 04-A deterministic review task drifted before projection"
+                )
+            self._add_local_file(
+                "outline_review_task",
+                "worker-v3-deterministic-review-task",
+                task_path,
+            )
         manifest = self.bound.verification.manifest
         prompts = [
             row
@@ -2846,6 +2870,47 @@ def _enforce_model_request_budget(
                     budget["max_output_json_bytes_per_token"]
                 ),
                 "error_code": "model_minimum_output_budget_exceeded",
+                "provider_call_started": False,
+            },
+        )
+    declared_maximum_response_bytes = capacity.get(
+        "maximum_response_bytes"
+    )
+    if declared_maximum_response_bytes is None:
+        return
+    if (
+        not isinstance(declared_maximum_response_bytes, int)
+        or isinstance(declared_maximum_response_bytes, bool)
+        or declared_maximum_response_bytes < minimum_response_bytes
+    ):
+        raise LlmGatewayError(
+            "model_capacity_evidence_invalid",
+            "bounded model task maximum response capacity is invalid",
+            audit={
+                "status": "failed",
+                "stage_key": call.stage_key,
+                "request_sha256": sha256_json(request),
+                "error_code": "model_capacity_evidence_invalid",
+                "provider_call_started": False,
+            },
+        )
+    if declared_maximum_response_bytes > maximum_response_bytes:
+        raise LlmGatewayError(
+            "model_maximum_output_budget_exceeded",
+            "worst-case schema-complete response exceeds the release-bound output capacity before transmission",
+            audit={
+                "status": "failed",
+                "stage_key": call.stage_key,
+                "request_sha256": sha256_json(request),
+                "maximum_response_bytes": declared_maximum_response_bytes,
+                "maximum_output_bytes": maximum_response_bytes,
+                "max_output_tokens": int(
+                    call.request_parameters["max_output_tokens"]
+                ),
+                "max_output_json_bytes_per_token": int(
+                    budget["max_output_json_bytes_per_token"]
+                ),
+                "error_code": "model_maximum_output_budget_exceeded",
                 "provider_call_started": False,
             },
         )

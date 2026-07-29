@@ -22,13 +22,16 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping, Sequence
 
 
-KERNEL_VERSION = "luceon-worker-v3-spec01-03-atomic/1.4.0"
+KERNEL_VERSION = "luceon-worker-v3-spec01-03-atomic/1.5.0"
 INTAKE_SCHEMA = "luceon.worker-v3-spec01-intake-contract/v1"
 SCOPE_REVIEW_SCHEMA = "luceon.worker-v3-spec02-scope-order-review/v3"
 MEDIA_REVIEW_SCHEMA = "luceon.worker-v3-spec03-media-review/v2"
 SCOPE_REVIEW_TASK_SCHEMA = "luceon.worker-v3-spec02-review-task/v2"
 MEDIA_REVIEW_TASK_SCHEMA = "luceon.worker-v3-spec03-review-task/v2"
 OUTLINE_REVIEW_TASK_SCHEMA = "luceon.worker-v3-spec04a-review-task/v1"
+OUTLINE_COMPACT_REVIEW_SCHEMA = (
+    "luceon.worker-v3-spec04a-compact-review/v1"
+)
 ATOMIC_STAGE_MANIFEST_SCHEMA = "luceon.worker-v3-atomic-stage-manifest/v1"
 RUN_MANIFEST_SCHEMA = "luceon.worker-v3-atomic-run-manifest/v1"
 DECISION_INDEX_SCHEMA = "canonical-decision-index/1.1"
@@ -2211,55 +2214,40 @@ def _outline_content(value: Any, *, excerpt: bool) -> Any:
     return normalized[: OUTLINE_CONTEXT_EXCERPT_CHARS - 1] + "…"
 
 
-def _minimum_outline_review_bytes(
-    *,
-    parent_binding: Mapping[str, Any],
-    inventory_payload_hash: str,
-    source_pdf_path: str,
-    source_pdf_sha256: str,
-    first_candidate: Mapping[str, Any],
-) -> int:
-    page = int(first_candidate["pdf_physical_page"])
-    block_id = str(first_candidate["block_id"])
-    title = str(first_candidate["raw_content"])
-    evidence_id = f"source-pdf-page-{page:06d}"
-    minimal = {
-        "schema_version": "spec04a-outline-review-bundle/1.0",
-        "review_id": "x",
-        "parent_binding": dict(parent_binding),
-        "source_outline_evidence": [
+def _compact_outline_review(
+    task_id: str,
+    candidate_indexes: Sequence[int],
+) -> dict[str, Any]:
+    return {
+        "schema_version": OUTLINE_COMPACT_REVIEW_SCHEMA,
+        "task_id": task_id,
+        "review_status": "closed",
+        "selected_nodes": [
             {
-                "evidence_id": evidence_id,
-                "kind": "source_pdf_page",
-                "pdf_physical_page": page,
-                "path": source_pdf_path,
-                "sha256": source_pdf_sha256,
-            }
-        ],
-        "source_toc_entries": [],
-        "nodes": [
-            {
-                "node_id": "n1",
-                "title": title,
-                "role": "source_structure",
-                "parent_node_id": None,
+                "candidate_index": candidate_index,
                 "level": 0,
-                "anchor_block_id": block_id,
-                "heading_evidence_block_ids": [block_id],
-                "source_outline_evidence_ids": [evidence_id],
-                "source_toc_entry_ids": [],
-                "final_toc": {"include": True, "level": 0, "title": title},
-                "review_status": "closed",
+                "include_in_toc": candidate_index == candidate_indexes[0],
             }
+            for candidate_index in candidate_indexes
         ],
-        "title_candidate_disposition": {
-            "candidate_inventory_payload_hash": inventory_payload_hash,
-            "all_unassigned": "local_heading",
-            "review_status": "closed",
-        },
-        "review": {"status": "closed", "open_items": 0, "decision_refs": []},
+        "open_reviews": [],
     }
-    return len(_canonical_bytes(minimal))
+
+
+def _outline_compact_response_capacity(
+    task_id: str,
+    candidate_count: int,
+) -> dict[str, int]:
+    indexes = list(range(candidate_count))
+    return {
+        "minimum_response_bytes": len(
+            _canonical_bytes(_compact_outline_review(task_id, indexes[:1]))
+        ),
+        "maximum_response_bytes": len(
+            _canonical_bytes(_compact_outline_review(task_id, indexes))
+        ),
+        "maximum_structural_nodes": candidate_count,
+    }
 
 
 def _outline_review_task(
@@ -2367,6 +2355,7 @@ def _outline_review_task(
 
     compact_records: list[dict[str, Any]] = []
     title_candidates: list[dict[str, Any]] = []
+    next_candidate_index = 0
     for page in sorted(included_by_page):
         for record in included_by_page[page]:
             block_id = str(record["block_id"])
@@ -2394,6 +2383,8 @@ def _outline_review_task(
             }
             compact_records.append(compact)
             if is_title:
+                compact["candidate_index"] = next_candidate_index
+                next_candidate_index += 1
                 title_candidates.append(compact)
 
     allowed_evidence = [
@@ -2412,33 +2403,277 @@ def _outline_review_task(
         "material_id": identity.get("material_id"),
         "page_count": page_count,
         "parent_binding": parent_binding,
-        "required_output_schema": "spec04a-outline-review-bundle/1.0",
+        "required_output_schema": OUTLINE_COMPACT_REVIEW_SCHEMA,
         "title_candidate_inventory_payload_hash": inventory["payload_hash"],
         "title_candidate_count": inventory["candidate_count"],
         "title_candidates": title_candidates,
         "context_blocks": compact_records,
         "allowed_source_outline_evidence": allowed_evidence,
         "constraints": [
-            "Use only enumerated block_id and evidence_id values.",
-            "Preserve exact source titles, physical-page order, and parent hierarchy.",
+            "Return only candidate_index, hierarchy level, and final-TOC inclusion decisions; deterministic code expands all titles, block IDs, evidence IDs, paths, hashes, and parent IDs.",
+            "Use only enumerated candidate_index values in strictly increasing source order.",
+            "The first selected node is level 0; later levels may stay equal, decrease, or increase by at most one.",
             "A title label is only a candidate; repetitive local, exercise, difficulty, and running-page labels remain local headings unless explicit source-outline evidence establishes structure.",
-            "Every accepted node must cite one or more enumerated source PDF page evidence items.",
             "Every title candidate not selected by a node is disposed mechanically as local_heading.",
             "Do not emit teaching roles, template constructs, render nodes, LaTeX, or invented content.",
         ],
     }
-    task["capacity"] = {
-        "minimum_response_bytes": _minimum_outline_review_bytes(
-            parent_binding=parent_binding,
-            inventory_payload_hash=inventory["payload_hash"],
-            source_pdf_path=str(source_pdf),
-            source_pdf_sha256=source_pdf_sha256,
-            first_candidate=title_candidates[0],
-        ),
-        "maximum_structural_nodes": len(title_candidates),
-    }
     task["task_id"] = "outline-review-" + _canonical_hash(task)[:24]
+    task["capacity"] = _outline_compact_response_capacity(
+        task["task_id"],
+        len(title_candidates),
+    )
     return task
+
+
+def _project_outline_review(
+    task: Mapping[str, Any],
+    compact_review: Mapping[str, Any],
+) -> dict[str, Any]:
+    expected_fields = {
+        "schema_version",
+        "task_id",
+        "review_status",
+        "selected_nodes",
+        "open_reviews",
+    }
+    if (
+        set(compact_review) != expected_fields
+        or compact_review.get("schema_version")
+        != OUTLINE_COMPACT_REVIEW_SCHEMA
+        or compact_review.get("task_id") != task.get("task_id")
+        or compact_review.get("review_status") != "closed"
+        or compact_review.get("open_reviews") != []
+    ):
+        _fail(
+            "outline_compact_review_invalid",
+            "Spec 04-A compact review is open, drifted, or has unknown fields",
+        )
+    if (
+        task.get("schema_version") != OUTLINE_REVIEW_TASK_SCHEMA
+        or task.get("required_output_schema")
+        != OUTLINE_COMPACT_REVIEW_SCHEMA
+    ):
+        _fail(
+            "outline_review_task_invalid",
+            "Spec 04-A compact review task is unsupported",
+        )
+    candidates = task.get("title_candidates")
+    if not isinstance(candidates, list) or not candidates:
+        _fail(
+            "outline_review_task_invalid",
+            "Spec 04-A compact review task has no title candidates",
+        )
+    candidates_by_index: dict[int, Mapping[str, Any]] = {}
+    for expected_index, candidate in enumerate(candidates):
+        if (
+            not isinstance(candidate, Mapping)
+            or candidate.get("candidate_index") != expected_index
+            or not isinstance(candidate.get("block_id"), str)
+            or not candidate["block_id"]
+            or not isinstance(candidate.get("raw_content"), str)
+            or not candidate["raw_content"].strip()
+            or not isinstance(candidate.get("pdf_physical_page"), int)
+            or isinstance(candidate.get("pdf_physical_page"), bool)
+            or int(candidate["pdf_physical_page"]) < 1
+        ):
+            _fail(
+                "outline_review_task_invalid",
+                f"Spec 04-A candidate index {expected_index} is invalid",
+            )
+        candidates_by_index[expected_index] = candidate
+
+    allowed_evidence = task.get("allowed_source_outline_evidence")
+    if not isinstance(allowed_evidence, list) or not allowed_evidence:
+        _fail(
+            "outline_review_task_invalid",
+            "Spec 04-A task has no allowed source evidence",
+        )
+    evidence_by_page: dict[int, Mapping[str, Any]] = {}
+    for evidence in allowed_evidence:
+        if not isinstance(evidence, Mapping):
+            _fail(
+                "outline_review_task_invalid",
+                "Spec 04-A allowed source evidence is invalid",
+            )
+        page = evidence.get("pdf_physical_page")
+        expected_id = (
+            f"source-pdf-page-{page:06d}"
+            if isinstance(page, int) and not isinstance(page, bool)
+            else ""
+        )
+        if (
+            not expected_id
+            or page in evidence_by_page
+            or evidence.get("evidence_id") != expected_id
+            or evidence.get("kind") != "source_pdf_page"
+            or not isinstance(evidence.get("path"), str)
+            or not evidence["path"]
+            or not isinstance(evidence.get("sha256"), str)
+            or len(evidence["sha256"]) != 64
+        ):
+            _fail(
+                "outline_review_task_invalid",
+                "Spec 04-A allowed source evidence is drifted or duplicated",
+            )
+        evidence_by_page[int(page)] = evidence
+
+    selected = compact_review.get("selected_nodes")
+    if not isinstance(selected, list) or not selected:
+        _fail(
+            "outline_compact_review_invalid",
+            "Spec 04-A compact review must select at least one structure node",
+        )
+    if len(selected) > len(candidates_by_index):
+        _fail(
+            "outline_compact_review_invalid",
+            "Spec 04-A compact review selects too many structure nodes",
+        )
+    previous_index = -1
+    stack: list[str] = []
+    nodes: list[dict[str, Any]] = []
+    selected_pages: set[int] = set()
+    toc_included = 0
+    for ordinal, raw_node in enumerate(selected, start=1):
+        if not isinstance(raw_node, Mapping) or set(raw_node) != {
+            "candidate_index",
+            "level",
+            "include_in_toc",
+        }:
+            _fail(
+                "outline_compact_review_invalid",
+                "Spec 04-A compact node has missing or unknown fields",
+            )
+        candidate_index = raw_node.get("candidate_index")
+        level = raw_node.get("level")
+        include_in_toc = raw_node.get("include_in_toc")
+        if (
+            not isinstance(candidate_index, int)
+            or isinstance(candidate_index, bool)
+            or candidate_index <= previous_index
+            or candidate_index not in candidates_by_index
+        ):
+            _fail(
+                "outline_compact_review_invalid",
+                "Spec 04-A candidate indexes must be unique and strictly increasing",
+            )
+        if (
+            not isinstance(level, int)
+            or isinstance(level, bool)
+            or level < 0
+            or level > 8
+            or (ordinal == 1 and level != 0)
+            or level > len(stack)
+        ):
+            _fail(
+                "outline_compact_review_invalid",
+                "Spec 04-A hierarchy has an invalid level or a level jump",
+            )
+        if not isinstance(include_in_toc, bool):
+            _fail(
+                "outline_compact_review_invalid",
+                "Spec 04-A final-TOC disposition must be boolean",
+            )
+        while len(stack) > level:
+            stack.pop()
+        parent_node_id = stack[-1] if stack else None
+        node_id = f"structure-node-{ordinal:06d}"
+        stack.append(node_id)
+        candidate = candidates_by_index[candidate_index]
+        page = int(candidate["pdf_physical_page"])
+        evidence = evidence_by_page.get(page)
+        if evidence is None:
+            _fail(
+                "outline_review_task_invalid",
+                f"Spec 04-A candidate page {page} has no allowed source evidence",
+            )
+        block_id = str(candidate["block_id"])
+        title = str(candidate["raw_content"])
+        evidence_id = str(evidence["evidence_id"])
+        nodes.append(
+            {
+                "node_id": node_id,
+                "title": title,
+                "role": "source_structure",
+                "parent_node_id": parent_node_id,
+                "level": level,
+                "anchor_block_id": block_id,
+                "heading_evidence_block_ids": [block_id],
+                "source_outline_evidence_ids": [evidence_id],
+                "source_toc_entry_ids": [],
+                "final_toc": {
+                    "include": include_in_toc,
+                    "level": level,
+                    "title": title,
+                },
+                "review_status": "closed",
+            }
+        )
+        selected_pages.add(page)
+        toc_included += int(include_in_toc)
+        previous_index = candidate_index
+    if toc_included < 1:
+        _fail(
+            "outline_compact_review_invalid",
+            "Spec 04-A compact review must retain at least one final TOC node",
+        )
+
+    parent_binding = task.get("parent_binding")
+    inventory_hash = task.get("title_candidate_inventory_payload_hash")
+    if not isinstance(parent_binding, Mapping) or not isinstance(
+        inventory_hash,
+        str,
+    ):
+        _fail(
+            "outline_review_task_invalid",
+            "Spec 04-A task lacks its immutable parent binding",
+        )
+    return {
+        "schema_version": "spec04a-outline-review-bundle/1.0",
+        "review_id": str(task["task_id"]),
+        "parent_binding": dict(parent_binding),
+        "source_outline_evidence": [
+            dict(evidence_by_page[page])
+            for page in sorted(selected_pages)
+        ],
+        "source_toc_entries": [],
+        "nodes": nodes,
+        "title_candidate_disposition": {
+            "candidate_inventory_payload_hash": inventory_hash,
+            "all_unassigned": "local_heading",
+            "review_status": "closed",
+        },
+        "review": {
+            "status": "closed",
+            "open_items": 0,
+            "decision_refs": [
+                "compact-review::" + _canonical_hash(compact_review)
+            ],
+        },
+    }
+
+
+def project_outline_review(args: argparse.Namespace) -> dict[str, Any]:
+    task = _read_json(args.task.resolve(), "Spec 04-A compact review task")
+    compact_review = _read_json(
+        args.compact_review.resolve(),
+        "Spec 04-A compact review result",
+    )
+    output = args.output.resolve()
+    if output.exists() or output.is_symlink():
+        _fail(
+            "review_projection_output_exists",
+            "Spec 04-A projected review output already exists",
+        )
+    bundle = _project_outline_review(task, compact_review)
+    output_hash = _write_json(output, bundle)
+    return {
+        "status": "projected",
+        "output_sha256": output_hash,
+        "output_canonical_sha256": _canonical_hash(bundle),
+        "selected_nodes": len(bundle["nodes"]),
+        "source_evidence_pages": len(bundle["source_outline_evidence"]),
+    }
 
 
 def prepare_outline_review_task(args: argparse.Namespace) -> dict[str, Any]:
@@ -4177,6 +4412,12 @@ def _parser() -> argparse.ArgumentParser:
     prepare_outline.add_argument("--parent-promotion", type=Path, required=True)
     prepare_outline.add_argument("--output", type=Path, required=True)
     prepare_outline.set_defaults(producer=prepare_outline_review_task)
+
+    project_outline = subparsers.add_parser("project-outline-review")
+    project_outline.add_argument("--task", type=Path, required=True)
+    project_outline.add_argument("--compact-review", type=Path, required=True)
+    project_outline.add_argument("--output", type=Path, required=True)
+    project_outline.set_defaults(producer=project_outline_review)
     return parser
 
 

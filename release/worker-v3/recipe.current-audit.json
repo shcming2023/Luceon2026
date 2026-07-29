@@ -182,7 +182,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec01_04_stage_adapters.py",
       "destination": "scripts/worker-v3/spec01_04_stage_adapters.py",
-      "expected_sha256": "2e72ec35b23b29db73f6a914c63359bdba3910fcfdd85af4418528619d0159ea"
+      "expected_sha256": "9f28ccb82868998b8d58e398f05097679e34d1d830cef4dec98e90a1204fd7a6"
     },
     {
       "id": "worker-v3-spec05-06-adapters",
@@ -245,7 +245,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec01_03_atomic_kernel.py",
       "destination": "scripts/worker-v3/spec01_03_atomic_kernel.py",
-      "expected_sha256": "29cfe88f0f69049ccbb564b55daa71f37dd98c557c562817d1e34a226ca296cb"
+      "expected_sha256": "7edee21636c09dcb7feb5065851abd05ee2313f2f368f3ea410a7d469a76704f"
     },
     {
       "id": "worker-v3-stage-producer-entrypoints",
@@ -281,7 +281,7 @@
       "include": [
         "spec*.txt"
       ],
-      "expected_tree_sha256": "508b909e0e42013bcb4862c0ded983eca7d39691f4fafa7c4e9bd05b03347268"
+      "expected_tree_sha256": "3bca64107a022284a3542de25412d7f65c1889fbc43563c87f2b2bc616b4d2c9"
     },
     {
       "id": "worker-v3-ordinary-schemas",
@@ -293,7 +293,7 @@
       "include": [
         "spec*.schema.json"
       ],
-      "expected_tree_sha256": "6ac609e2c1f836f72970b5f9e50ff5a7fdca8c1773c4a4ba1c4ee5013d1866c3"
+      "expected_tree_sha256": "0e7cc852e00190cbefc61ee69827b54ce9c58a8791f71972c8da0a7c6673a275"
     },
     {
       "id": "worker-v3-spec04-review-schemas",
@@ -525,9 +525,9 @@
         "path": "schemas/spec03-media-review-v2.schema.json"
       },
       {
-        "id": "worker-v3.spec04a-outline-review",
+        "id": "worker-v3.spec04a-outline-compact-review",
         "version": "1.0.0",
-        "path": "schemas/spec04a-outline-review-bundle.schema.json"
+        "path": "schemas/spec04a-outline-compact-review-v1.schema.json"
       },
       {
         "id": "worker-v3.spec04b-semantic-review",
@@ -724,9 +724,9 @@
     },
     {
       "id": "worker-v3.spec04a-outline-review",
-      "version": "1.0.0",
-      "path": "prompts/spec04a-outline-review-v1.txt",
-      "output_schema": "schemas/spec04a-outline-review-bundle.schema.json"
+      "version": "2.0.0",
+      "path": "prompts/spec04a-outline-review-v2.txt",
+      "output_schema": "schemas/spec04a-outline-compact-review-v1.schema.json"
     },
     {
       "id": "worker-v3.spec04b-semantic-review",

@@ -659,17 +659,17 @@ def _stage4_case(
         prompts=[
             {
                 "id": "worker-v3.spec04a-outline-review",
-                "version": "1.0.0",
-                "path": "prompts/spec04a-outline-review-v1.txt",
+                "version": "2.0.0",
+                "path": "prompts/spec04a-outline-review-v2.txt",
                 "sha256": prompt_sha,
-                "output_schema": "schemas/spec04a-outline-review-bundle.schema.json",
+                "output_schema": "schemas/spec04a-outline-compact-review-v1.schema.json",
             }
         ],
         schemas=[
             {
-                "id": "spec04a-outline-review-bundle",
+                "id": "worker-v3.spec04a-outline-compact-review",
                 "version": "1.0.0",
-                "path": "schemas/spec04a-outline-review-bundle.schema.json",
+                "path": "schemas/spec04a-outline-compact-review-v1.schema.json",
                 "sha256": schema_file_sha,
             }
         ],
@@ -682,17 +682,30 @@ def _stage4_case(
             }
         ),
     )
-    release_prompt = release / "prompts/spec04a-outline-review-v1.txt"
+    release_prompt = release / "prompts/spec04a-outline-review-v2.txt"
     release_prompt.parent.mkdir(parents=True)
     release_prompt.write_bytes(prompt_path.read_bytes())
     release_schema = (
-        release / "schemas/spec04a-outline-review-bundle.schema.json"
+        release / "schemas/spec04a-outline-compact-review-v1.schema.json"
     )
     release_schema.parent.mkdir(parents=True)
     release_schema.write_bytes(schema_path.read_bytes())
-    review = {"review": {"status": "closed"}}
+    review_task = {"stage": "outline_reconstruction"}
+    review = {
+        "schema_version": "luceon.worker-v3-spec04a-compact-review/v1",
+        "task_id": "outline-review-test",
+        "review_status": "closed",
+        "selected_nodes": [
+            {
+                "candidate_index": 0,
+                "level": 0,
+                "include_in_toc": True,
+            }
+        ],
+        "open_reviews": [],
+    }
     review_sha = _canonical_sha(review)
-    review_input_sha = _canonical_sha({"stage": "outline_reconstruction"})
+    review_input_sha = _canonical_sha(review_task)
     raw_response = {
         "id": "response-stage4",
         "model": "test-model",
@@ -704,9 +717,9 @@ def _stage4_case(
         "release_id": provisional["release_id"],
         "release_sha256": provisional["manifest_sha256"],
         "prompt_id": "worker-v3.spec04a-outline-review",
-        "prompt_version": "1.0.0",
+        "prompt_version": "2.0.0",
         "prompt_sha256": prompt_sha,
-        "schema_id": "spec04a-outline-review-bundle",
+        "schema_id": "worker-v3.spec04a-outline-compact-review",
         "schema_version": "1.0.0",
         "schema_sha256": schema_sha,
         "input_sha256": review_input_sha,
@@ -758,7 +771,21 @@ def _stage4_case(
         ),
         _artifact(
             root,
-            role="outline_review_bundle",
+            role="outline_review_task",
+            relative="inputs/review-task.json",
+            payload=(
+                json.dumps(
+                    review_task,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                + "\n"
+            ).encode(),
+            kind="worker-v3-deterministic-review-task",
+        ),
+        _artifact(
+            root,
+            role="outline_review_decision",
             relative="inputs/review.json",
             payload=(
                 json.dumps(review, sort_keys=True, separators=(",", ":")) + "\n"
@@ -790,9 +817,9 @@ def _stage4_case(
             "run_id": "run-1",
             "review_binding": {
                 "prompt_id": "worker-v3.spec04a-outline-review",
-                "prompt_version": "1.0.0",
+                "prompt_version": "2.0.0",
                 "prompt_sha256": prompt_sha if released_prompt_hash else ZERO_SHA,
-                "schema_id": "spec04a-outline-review-bundle",
+                "schema_id": "worker-v3.spec04a-outline-compact-review",
                 "schema_version": "1.0.0",
                 "schema_sha256": schema_sha,
                 "input_canonical_sha256": review_input_sha,
@@ -803,6 +830,25 @@ def _stage4_case(
     )
 
     def fake_kernel(*, args, **kwargs):
+        if (
+            kwargs["kernel_relative"]
+            == "scripts/worker-v3/spec01_03_atomic_kernel.py"
+        ):
+            assert args[0] == "project-outline-review"
+            projected = Path(args[args.index("--output") + 1])
+            _json(
+                projected,
+                {
+                    "schema_version": "spec04a-outline-review-bundle/1.0",
+                    "review_id": "outline-review-test",
+                },
+            )
+            return KernelExecution(
+                argv=("fixed-projector",),
+                returncode=0,
+                stdout="",
+                stderr="",
+            )
         assert (
             kwargs["kernel_relative"]
             == "skills/luceon-popo-to-refined-elegantbook/scripts/spec04a_structure_contract.py"

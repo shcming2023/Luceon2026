@@ -179,6 +179,23 @@ def test_ordinary_model_request_budget_fails_before_provider_transmission():
     assert raised.value.code == "model_minimum_output_budget_exceeded"
     assert raised.value.audit["provider_call_started"] is False
 
+    oversized_worst_case = {
+        "task": "one",
+        "capacity": {
+            "minimum_response_bytes": 100,
+            "maximum_response_bytes": 1601,
+        },
+    }
+    call = replace(
+        call,
+        input_evidence=oversized_worst_case,
+        input_sha256=sha256_json(oversized_worst_case),
+    )
+    with pytest.raises(LlmGatewayError) as raised:
+        _enforce_model_request_budget(call, budget)
+    assert raised.value.code == "model_maximum_output_budget_exceeded"
+    assert raised.value.audit["provider_call_started"] is False
+
     byte_limited = dict(budget)
     byte_limited["max_stage_request_bytes"] = 1
     with pytest.raises(LlmGatewayError) as raised:

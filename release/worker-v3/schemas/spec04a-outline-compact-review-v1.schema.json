@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "worker-v3-spec04a-outline-compact-review-v1.schema.json",
+  "title": "Worker V3 Spec 04-A compact outline decisions",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "task_id",
+    "review_status",
+    "selected_nodes",
+    "open_reviews"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "luceon.worker-v3-spec04a-compact-review/v1"
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "review_status": {
+      "const": "closed"
+    },
+    "selected_nodes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": [
+          "candidate_index",
+          "level",
+          "include_in_toc"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "candidate_index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "level": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 8
+          },
+          "include_in_toc": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "open_reviews": {
+      "const": []
+    }
+  }
+}

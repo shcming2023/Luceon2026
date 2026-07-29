@@ -660,6 +660,9 @@ def test_outline_review_task_compacts_full_ledger_without_weakening_binding(
         records[0]["block_id"],
         records[1]["block_id"],
     }
+    assert [
+        item["candidate_index"] for item in task["title_candidates"]
+    ] == [0, 1]
     assert {
         item["pdf_physical_page"]
         for item in task["allowed_source_outline_evidence"]
@@ -669,7 +672,135 @@ def test_outline_review_task_compacts_full_ledger_without_weakening_binding(
         for item in task["allowed_source_outline_evidence"]
     )
     assert len(kernel._canonical_bytes(task)) < 1_000_000
-    assert 0 < task["capacity"]["minimum_response_bytes"] < 256_000
+    assert (
+        0
+        < task["capacity"]["minimum_response_bytes"]
+        <= task["capacity"]["maximum_response_bytes"]
+        < 256_000
+    )
+    compact_review = tmp_path / "outline-compact-review.json"
+    _write_json(
+        compact_review,
+        {
+            "schema_version": kernel.OUTLINE_COMPACT_REVIEW_SCHEMA,
+            "task_id": task["task_id"],
+            "review_status": "closed",
+            "selected_nodes": [
+                {
+                    "candidate_index": 0,
+                    "level": 0,
+                    "include_in_toc": True,
+                },
+                {
+                    "candidate_index": 1,
+                    "level": 1,
+                    "include_in_toc": True,
+                },
+            ],
+            "open_reviews": [],
+        },
+    )
+    projected = tmp_path / "outline-review-bundle.json"
+    projection = kernel.project_outline_review(
+        argparse.Namespace(
+            task=output,
+            compact_review=compact_review,
+            output=projected,
+        )
+    )
+    bundle = json.loads(projected.read_text(encoding="utf-8"))
+    assert projection["selected_nodes"] == 2
+    assert bundle["schema_version"] == "spec04a-outline-review-bundle/1.0"
+    assert bundle["parent_binding"] == task["parent_binding"]
+    assert [node["title"] for node in bundle["nodes"]] == [
+        "Chapter 1",
+        "1.1 Source-supported topic",
+    ]
+    assert bundle["nodes"][0]["parent_node_id"] is None
+    assert (
+        bundle["nodes"][1]["parent_node_id"]
+        == bundle["nodes"][0]["node_id"]
+    )
+    assert {
+        item["pdf_physical_page"]
+        for item in bundle["source_outline_evidence"]
+    } == {1, 2}
+    assert (
+        bundle["title_candidate_disposition"][
+            "candidate_inventory_payload_hash"
+        ]
+        == task["title_candidate_inventory_payload_hash"]
+    )
+
+
+def test_outline_compact_review_rejects_unordered_or_open_decisions(
+    tmp_path: Path,
+) -> None:
+    task = {
+        "schema_version": kernel.OUTLINE_REVIEW_TASK_SCHEMA,
+        "required_output_schema": kernel.OUTLINE_COMPACT_REVIEW_SCHEMA,
+        "task_id": "outline-review-test",
+        "parent_binding": {"ledger_snapshot_id": "ledger"},
+        "title_candidate_inventory_payload_hash": "a" * 64,
+        "title_candidates": [
+            {
+                "candidate_index": index,
+                "block_id": f"block-{index}",
+                "raw_content": f"Title {index}",
+                "pdf_physical_page": 1,
+            }
+            for index in range(2)
+        ],
+        "allowed_source_outline_evidence": [
+            {
+                "evidence_id": "source-pdf-page-000001",
+                "kind": "source_pdf_page",
+                "pdf_physical_page": 1,
+                "path": "/frozen/source.pdf",
+                "sha256": "b" * 64,
+            }
+        ],
+    }
+    for selected_nodes, open_reviews in (
+        (
+            [
+                {
+                    "candidate_index": 1,
+                    "level": 0,
+                    "include_in_toc": True,
+                },
+                {
+                    "candidate_index": 0,
+                    "level": 0,
+                    "include_in_toc": True,
+                },
+            ],
+            [],
+        ),
+        (
+            [
+                {
+                    "candidate_index": 0,
+                    "level": 0,
+                    "include_in_toc": True,
+                }
+            ],
+            ["unresolved"],
+        ),
+    ):
+        compact = {
+            "schema_version": kernel.OUTLINE_COMPACT_REVIEW_SCHEMA,
+            "task_id": task["task_id"],
+            "review_status": "closed",
+            "selected_nodes": selected_nodes,
+            "open_reviews": open_reviews,
+        }
+        try:
+            kernel._project_outline_review(task, compact)  # noqa: SLF001
+        except kernel.KernelContractError as exc:
+            assert exc.code == "outline_compact_review_invalid"
+        else:
+            raise AssertionError("invalid compact outline review must fail")
 
 
 def test_candidate_hashes_are_stable_across_workdirs(tmp_path: Path) -> None:
