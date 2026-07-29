@@ -584,6 +584,94 @@ def test_large_frozen_inputs_are_referenced_not_recursively_materialized(
     assert "path" not in asset
 
 
+def test_outline_review_task_compacts_full_ledger_without_weakening_binding(
+    tmp_path: Path,
+) -> None:
+    _, _, spec03, paths = _run_pipeline(tmp_path)
+    ledger_path = spec03 / "ledgers/canonical_block_ledger.jsonl"
+    rows = [
+        json.loads(line)
+        for line in ledger_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    header, records = rows[0], rows[1:]
+    records[0].update(
+        {
+            "source_type": "title",
+            "source_label": "title",
+            "raw_content": "Chapter 1",
+            "raw_content_sha256": hashlib.sha256(b"Chapter 1").hexdigest(),
+        }
+    )
+    records[1].update(
+        {
+            "source_type": "title",
+            "source_label": "title",
+            "raw_content": "1.1 Source-supported topic",
+            "raw_content_sha256": hashlib.sha256(
+                b"1.1 Source-supported topic"
+            ).hexdigest(),
+        }
+    )
+    header["current_ledger_hash"] = kernel._canonical_hash(records)
+    ledger_path.write_text(
+        "".join(
+            json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n"
+            for row in [header, *records]
+        ),
+        encoding="utf-8",
+    )
+    promotion = tmp_path / "spec03-promotion.json"
+    _write_json(
+        promotion,
+        {
+            "schema_version": "stage-promotion-manifest/1.0",
+            "promotion_id": "promotion-spec03-1",
+            "disposition": "promoted",
+        },
+    )
+    output = tmp_path / "outline-review-task.json"
+
+    result = kernel.prepare_outline_review_task(
+        argparse.Namespace(
+            parent=spec03,
+            source_pdf=paths["source_pdf"],
+            parent_promotion=promotion,
+            output=output,
+        )
+    )
+
+    task = json.loads(output.read_text(encoding="utf-8"))
+    assert result["title_candidates"] == 2
+    assert task["schema_version"] == kernel.OUTLINE_REVIEW_TASK_SCHEMA
+    assert task["title_candidate_inventory_payload_hash"] == (
+        kernel._outline_title_inventory(records)["payload_hash"]
+    )
+    assert task["parent_binding"] == {
+        "ledger_snapshot_id": header["ledger_snapshot_id"],
+        "ledger_payload_hash": header["current_ledger_hash"],
+        "source_pdf_sha256": _sha(paths["source_pdf"]),
+        "promotion_id": "promotion-spec03-1",
+        "promotion_manifest_sha256": _sha(promotion),
+    }
+    assert {
+        item["block_id"] for item in task["title_candidates"]
+    } == {
+        records[0]["block_id"],
+        records[1]["block_id"],
+    }
+    assert {
+        item["pdf_physical_page"]
+        for item in task["allowed_source_outline_evidence"]
+    } == {1, 2}
+    assert all(
+        item["path"] == str(paths["source_pdf"].resolve())
+        for item in task["allowed_source_outline_evidence"]
+    )
+    assert len(kernel._canonical_bytes(task)) < 1_000_000
+    assert 0 < task["capacity"]["minimum_response_bytes"] < 256_000
+
+
 def test_candidate_hashes_are_stable_across_workdirs(tmp_path: Path) -> None:
     first = _run_pipeline(tmp_path / "one")
     second = _run_pipeline(tmp_path / "two")

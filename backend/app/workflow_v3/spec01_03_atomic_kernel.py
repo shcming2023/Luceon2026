@@ -28,6 +28,7 @@ SCOPE_REVIEW_SCHEMA = "luceon.worker-v3-spec02-scope-order-review/v3"
 MEDIA_REVIEW_SCHEMA = "luceon.worker-v3-spec03-media-review/v2"
 SCOPE_REVIEW_TASK_SCHEMA = "luceon.worker-v3-spec02-review-task/v2"
 MEDIA_REVIEW_TASK_SCHEMA = "luceon.worker-v3-spec03-review-task/v2"
+OUTLINE_REVIEW_TASK_SCHEMA = "luceon.worker-v3-spec04a-review-task/v1"
 ATOMIC_STAGE_MANIFEST_SCHEMA = "luceon.worker-v3-atomic-stage-manifest/v1"
 RUN_MANIFEST_SCHEMA = "luceon.worker-v3-atomic-run-manifest/v1"
 DECISION_INDEX_SCHEMA = "canonical-decision-index/1.1"
@@ -49,6 +50,8 @@ SCOPE_BASELINE_EXCLUDED_LABELS = frozenset(
     {"footer", "header", "page_number", "watermark"}
 )
 SCOPE_REVIEW_EXCERPT_CHARS = 240
+OUTLINE_CONTEXT_EXCERPT_CHARS = 240
+OUTLINE_CONTEXT_RADIUS = 1
 
 SPEC01_COMPACT_PARENT_FILES = (
     "contracts/input_contract.json",
@@ -2128,6 +2131,337 @@ def prepare_media_review_task(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def _outline_ledger(parent: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    ledger_path = _contained_file(
+        parent,
+        "ledgers/canonical_block_ledger.jsonl",
+        "Spec 04-A parent canonical ledger",
+    )
+    rows = _read_jsonl(ledger_path, "Spec 04-A parent canonical ledger")
+    if not rows or rows[0].get("record_type") != "ledger_header":
+        _fail(
+            "outline_review_parent_invalid",
+            "Spec 04-A parent canonical ledger has no ledger header",
+        )
+    header = rows[0]
+    records = rows[1:]
+    if any(row.get("record_type") != "source_block" for row in records):
+        _fail(
+            "outline_review_parent_invalid",
+            "Spec 04-A parent ledger is not source-block-only",
+        )
+    if header.get("ledger_checkpoint") != "source_reconciled":
+        _fail(
+            "outline_review_parent_invalid",
+            "Spec 04-A requires a source_reconciled parent ledger",
+        )
+    if header.get("spec_status") != "passed":
+        _fail(
+            "outline_review_parent_invalid",
+            "Spec 04-A parent ledger is not passed",
+        )
+    if header.get("current_ledger_hash") != _canonical_hash(records):
+        _fail(
+            "outline_review_parent_invalid",
+            "Spec 04-A parent ledger payload hash is invalid",
+        )
+    return header, records
+
+
+def _outline_title_inventory(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    candidates = [
+        {
+            "block_id": record["block_id"],
+            "pdf_physical_page": record.get("pdf_physical_page"),
+            "candidate_final_order": record.get("candidate_final_order"),
+            "raw_content_sha256": (
+                record.get("raw_content_sha256")
+                or _canonical_hash(record.get("raw_content"))
+            ),
+        }
+        for record in records
+        if record.get("scope_status") == "included"
+        and (
+            record.get("source_type") == "title"
+            or record.get("source_label") == "title"
+        )
+    ]
+    candidates.sort(
+        key=lambda item: (
+            item.get("pdf_physical_page") or 0,
+            item.get("candidate_final_order") or 0,
+            item["block_id"],
+        )
+    )
+    return {
+        "schema_version": "structure-title-candidate-inventory/1.0",
+        "selection_rule": "all included source blocks labelled or typed as title",
+        "candidates": candidates,
+        "candidate_count": len(candidates),
+        "payload_hash": _canonical_hash(candidates),
+    }
+
+
+def _outline_content(value: Any, *, excerpt: bool) -> Any:
+    if not excerpt or not isinstance(value, str):
+        return value
+    normalized = " ".join(value.split())
+    if len(normalized) <= OUTLINE_CONTEXT_EXCERPT_CHARS:
+        return normalized
+    return normalized[: OUTLINE_CONTEXT_EXCERPT_CHARS - 1] + "…"
+
+
+def _minimum_outline_review_bytes(
+    *,
+    parent_binding: Mapping[str, Any],
+    inventory_payload_hash: str,
+    source_pdf_path: str,
+    source_pdf_sha256: str,
+    first_candidate: Mapping[str, Any],
+) -> int:
+    page = int(first_candidate["pdf_physical_page"])
+    block_id = str(first_candidate["block_id"])
+    title = str(first_candidate["raw_content"])
+    evidence_id = f"source-pdf-page-{page:06d}"
+    minimal = {
+        "schema_version": "spec04a-outline-review-bundle/1.0",
+        "review_id": "x",
+        "parent_binding": dict(parent_binding),
+        "source_outline_evidence": [
+            {
+                "evidence_id": evidence_id,
+                "kind": "source_pdf_page",
+                "pdf_physical_page": page,
+                "path": source_pdf_path,
+                "sha256": source_pdf_sha256,
+            }
+        ],
+        "source_toc_entries": [],
+        "nodes": [
+            {
+                "node_id": "n1",
+                "title": title,
+                "role": "source_structure",
+                "parent_node_id": None,
+                "level": 0,
+                "anchor_block_id": block_id,
+                "heading_evidence_block_ids": [block_id],
+                "source_outline_evidence_ids": [evidence_id],
+                "source_toc_entry_ids": [],
+                "final_toc": {"include": True, "level": 0, "title": title},
+                "review_status": "closed",
+            }
+        ],
+        "title_candidate_disposition": {
+            "candidate_inventory_payload_hash": inventory_payload_hash,
+            "all_unassigned": "local_heading",
+            "review_status": "closed",
+        },
+        "review": {"status": "closed", "open_items": 0, "decision_refs": []},
+    }
+    return len(_canonical_bytes(minimal))
+
+
+def _outline_review_task(
+    parent: Path,
+    *,
+    source_pdf: Path,
+    parent_promotion: Path,
+) -> dict[str, Any]:
+    header, records = _outline_ledger(parent)
+    identity = header.get("material_identity")
+    if not isinstance(identity, Mapping):
+        _fail(
+            "outline_review_parent_invalid",
+            "Spec 04-A parent ledger has no material identity",
+        )
+    source_pdf = source_pdf.resolve()
+    if not source_pdf.is_file() or source_pdf.is_symlink():
+        _fail("source_pdf_missing", "Spec 04-A source PDF is unavailable")
+    source_pdf_sha256 = _sha256(source_pdf)
+    if source_pdf_sha256 != identity.get("source_pdf_sha256"):
+        _fail(
+            "source_pdf_identity_mismatch",
+            "Spec 04-A source PDF differs from the parent ledger",
+        )
+    page_count = _require_positive_int(
+        identity.get("page_count"),
+        "material_identity.page_count",
+    )
+    promotion = _read_json(parent_promotion.resolve(), "parent promotion manifest")
+    if promotion.get("disposition") != "promoted":
+        _fail(
+            "outline_review_promotion_invalid",
+            "Spec 04-A parent promotion is not promoted",
+        )
+    promotion_id = _require_text(
+        promotion.get("promotion_id"),
+        "parent promotion id",
+    )
+    promotion_sha256 = _sha256(parent_promotion.resolve())
+    parent_binding = {
+        "ledger_snapshot_id": _require_text(
+            header.get("ledger_snapshot_id"),
+            "parent ledger snapshot id",
+        ),
+        "ledger_payload_hash": _require_sha(
+            header.get("current_ledger_hash"),
+            "parent ledger payload hash",
+        ),
+        "source_pdf_sha256": source_pdf_sha256,
+        "promotion_id": promotion_id,
+        "promotion_manifest_sha256": promotion_sha256,
+    }
+    inventory = _outline_title_inventory(records)
+    if not inventory["candidates"]:
+        _fail(
+            "outline_review_candidates_empty",
+            "Spec 04-A parent ledger has no included title candidates",
+        )
+
+    included_by_page: dict[int, list[Mapping[str, Any]]] = {}
+    for record in records:
+        if record.get("scope_status") != "included":
+            continue
+        page = record.get("pdf_physical_page")
+        order = record.get("candidate_final_order")
+        if (
+            not isinstance(page, int)
+            or isinstance(page, bool)
+            or page < 1
+            or page > page_count
+            or not isinstance(order, int)
+            or isinstance(order, bool)
+        ):
+            _fail(
+                "outline_review_parent_invalid",
+                f"included source block has invalid page/order: {record.get('block_id')}",
+            )
+        included_by_page.setdefault(page, []).append(record)
+    for page_records in included_by_page.values():
+        page_records.sort(
+            key=lambda record: (
+                int(record["candidate_final_order"]),
+                str(record["block_id"]),
+            )
+        )
+
+    title_ids = {
+        str(item["block_id"])
+        for item in inventory["candidates"]
+    }
+    context_ids: set[str] = set()
+    for page_records in included_by_page.values():
+        title_positions = [
+            index
+            for index, record in enumerate(page_records)
+            if str(record["block_id"]) in title_ids
+        ]
+        for index in title_positions:
+            start = max(0, index - OUTLINE_CONTEXT_RADIUS)
+            end = min(len(page_records), index + OUTLINE_CONTEXT_RADIUS + 1)
+            context_ids.update(
+                str(record["block_id"])
+                for record in page_records[start:end]
+            )
+
+    compact_records: list[dict[str, Any]] = []
+    title_candidates: list[dict[str, Any]] = []
+    for page in sorted(included_by_page):
+        for record in included_by_page[page]:
+            block_id = str(record["block_id"])
+            if block_id not in context_ids:
+                continue
+            is_title = block_id in title_ids
+            compact = {
+                "block_id": block_id,
+                "pdf_physical_page": page,
+                "candidate_final_order": record["candidate_final_order"],
+                "source_type": record.get("source_type"),
+                "source_label": record.get("source_label"),
+                "raw_content": _outline_content(
+                    record.get("raw_content"),
+                    excerpt=not is_title,
+                ),
+                "raw_content_sha256": (
+                    record.get("raw_content_sha256")
+                    or _canonical_hash(record.get("raw_content"))
+                ),
+                "bbox": record.get("bbox"),
+                "bbox_basis": record.get("bbox_basis"),
+                "tree_context": record.get("tree_context"),
+                "title_candidate": is_title,
+            }
+            compact_records.append(compact)
+            if is_title:
+                title_candidates.append(compact)
+
+    allowed_evidence = [
+        {
+            "evidence_id": f"source-pdf-page-{page:06d}",
+            "kind": "source_pdf_page",
+            "pdf_physical_page": page,
+            "path": str(source_pdf),
+            "sha256": source_pdf_sha256,
+        }
+        for page in range(1, page_count + 1)
+    ]
+    task = {
+        "schema_version": OUTLINE_REVIEW_TASK_SCHEMA,
+        "stage_key": "outline_reconstruction",
+        "material_id": identity.get("material_id"),
+        "page_count": page_count,
+        "parent_binding": parent_binding,
+        "required_output_schema": "spec04a-outline-review-bundle/1.0",
+        "title_candidate_inventory_payload_hash": inventory["payload_hash"],
+        "title_candidate_count": inventory["candidate_count"],
+        "title_candidates": title_candidates,
+        "context_blocks": compact_records,
+        "allowed_source_outline_evidence": allowed_evidence,
+        "constraints": [
+            "Use only enumerated block_id and evidence_id values.",
+            "Preserve exact source titles, physical-page order, and parent hierarchy.",
+            "A title label is only a candidate; repetitive local, exercise, difficulty, and running-page labels remain local headings unless explicit source-outline evidence establishes structure.",
+            "Every accepted node must cite one or more enumerated source PDF page evidence items.",
+            "Every title candidate not selected by a node is disposed mechanically as local_heading.",
+            "Do not emit teaching roles, template constructs, render nodes, LaTeX, or invented content.",
+        ],
+    }
+    task["capacity"] = {
+        "minimum_response_bytes": _minimum_outline_review_bytes(
+            parent_binding=parent_binding,
+            inventory_payload_hash=inventory["payload_hash"],
+            source_pdf_path=str(source_pdf),
+            source_pdf_sha256=source_pdf_sha256,
+            first_candidate=title_candidates[0],
+        ),
+        "maximum_structural_nodes": len(title_candidates),
+    }
+    task["task_id"] = "outline-review-" + _canonical_hash(task)[:24]
+    return task
+
+
+def prepare_outline_review_task(args: argparse.Namespace) -> dict[str, Any]:
+    task = _outline_review_task(
+        args.parent.resolve(),
+        source_pdf=args.source_pdf.resolve(),
+        parent_promotion=args.parent_promotion.resolve(),
+    )
+    output = args.output.resolve()
+    if output.exists() or output.is_symlink():
+        _fail("review_task_output_exists", "outline review task output already exists")
+    task_hash = _write_json(output, task)
+    return {
+        "status": "prepared",
+        "task_sha256": task_hash,
+        "task_canonical_sha256": _canonical_hash(task),
+        "title_candidates": task["title_candidate_count"],
+        "context_blocks": len(task["context_blocks"]),
+        "pages": task["page_count"],
+        "minimum_response_bytes": task["capacity"]["minimum_response_bytes"],
+    }
+
+
 def _verify_review_task(path: Path, expected: Mapping[str, Any], label: str) -> str:
     actual = _read_json(path, label)
     if _canonical_hash(actual) != _canonical_hash(expected):
@@ -3836,6 +4170,13 @@ def _parser() -> argparse.ArgumentParser:
     prepare_media.add_argument("--parent", type=Path, required=True)
     prepare_media.add_argument("--output", type=Path, required=True)
     prepare_media.set_defaults(producer=prepare_media_review_task)
+
+    prepare_outline = subparsers.add_parser("prepare-outline-review-task")
+    prepare_outline.add_argument("--parent", type=Path, required=True)
+    prepare_outline.add_argument("--source-pdf", type=Path, required=True)
+    prepare_outline.add_argument("--parent-promotion", type=Path, required=True)
+    prepare_outline.add_argument("--output", type=Path, required=True)
+    prepare_outline.set_defaults(producer=prepare_outline_review_task)
     return parser
 
 

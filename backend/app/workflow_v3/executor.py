@@ -1813,12 +1813,39 @@ class _StageRequestBuilder:
                 command="prepare-media-review-task",
                 filename="spec03-media-review-task.json",
             )
+        if prompt_id == "worker-v3.spec04a-outline-review":
+            source_pdf = next(
+                (
+                    artifact
+                    for artifact in self.artifacts
+                    if artifact.role == "source_pdf"
+                ),
+                None,
+            )
+            parent_promotion = next(
+                (
+                    artifact
+                    for artifact in self.artifacts
+                    if artifact.role == "predecessor_promotion_manifest"
+                ),
+                None,
+            )
+            if source_pdf is None or parent_promotion is None:
+                raise ArtifactIntegrityError(
+                    "Spec 04-A compact review task lacks source or promotion evidence"
+                )
+            return self._prepare_atomic_review_task(
+                parent,
+                command="prepare-outline-review-task",
+                filename="spec04a-outline-review-task.json",
+                extra_args=(
+                    "--source-pdf",
+                    str((self.workdir / source_pdf.path).resolve()),
+                    "--parent-promotion",
+                    str((self.workdir / parent_promotion.path).resolve()),
+                ),
+            )
         selected = {
-            "worker-v3.spec04a-outline-review": (
-                "ledgers/canonical_block_ledger.jsonl",
-                "reports/source_completeness_report.json",
-                "ledgers/source_page_render_ledger.jsonl",
-            ),
             "worker-v3.spec04b-semantic-review": (
                 "ledgers/canonical_block_ledger.jsonl",
                 "structure/source_outline_ledger.json",
@@ -1873,13 +1900,21 @@ class _StageRequestBuilder:
         *,
         command: str,
         filename: str,
+        extra_args: Sequence[str] = (),
     ) -> Mapping[str, object]:
         output = self.workdir / "control-plane-review-task" / filename
         output.parent.mkdir(parents=True, exist_ok=True)
         run_release_python_kernel(
             release_root=self.release_root,
             kernel_relative="scripts/worker-v3/spec01_03_atomic_kernel.py",
-            args=(command, "--parent", str(parent), "--output", str(output)),
+            args=(
+                command,
+                "--parent",
+                str(parent),
+                *extra_args,
+                "--output",
+                str(output),
+            ),
             cwd=self.workdir,
             timeout_seconds=86_400,
         )
