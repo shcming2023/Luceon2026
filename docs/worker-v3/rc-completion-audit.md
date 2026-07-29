@@ -1,7 +1,7 @@
 # Worker V3 RC completion audit
 
 Status: active; technical RC not yet admitted  
-Audit date: 2026-07-28  
+Audit date: 2026-07-29
 Production boundary: pure Worker V3; no Codex runtime fallback
 
 This is a requirement-to-evidence ledger, not an RC verdict. A row is `passed`
@@ -19,10 +19,10 @@ evidence-complete `needs_review`.
 
 The immutable Worker image currently qualified for code execution is:
 
-- source revision: `9447aedb688dd7d0f4c78978a4e5d95892554675`;
-- runtime ID: `worker-v3-runtime-rc-9447aed`;
+- source revision: `3ae7f70bd79ceaaae846b9464d94854d85e8ef06`;
+- runtime ID: `worker-v3-runtime-rc-3ae7f70`;
 - local image digest:
-  `sha256:e35e466e0e7b1f7a82404b577683617d264aba7b23bf8d6fbaea92fe407fa9a9`;
+  `sha256:212e0cefb8ee4d70ba83b6ce6d22018045fff00f268c5932de6aee73d5bf4532`;
 - runtime identity evidence:
   `release/worker-v3/runtime/ordinary-runtime-identity.json`;
 - clean-build and regression evidence:
@@ -41,7 +41,7 @@ remains deliberately `incomplete` and is not installable as RC.
 | Twelve persisted stages | passed in code and tests | 12 Producer and 12 distinct Evaluator entrypoints; state-machine and API tests |
 | Producer/Evaluator/Promotion/Projector separation | passed in code and tests; live role probe pending | four services and identities; control-plane, operation-attempt and projection tests |
 | Frozen-input lineage and fail-closed admission | passed for five input packages and Stage 1 preflight | materials 1339-1343 seven-object sets and isolated qualification reports; full downstream lineage pending |
-| Bounded LLM schema, telemetry and cost accounting | passed for final frozen executable candidate; final archive attestation reassembly pending | v1 exposed an impossible monolithic capacity; v2 made the schema provider-visible but repeated full fields and truncated after page 185/200. v3 retains one disposition per physical page, moves full fields to exact overrides, projects the deterministic baseline locally, and reduces the 200-page minimum complete response from 25,910 to 11,530 bytes. Separately authorized requests `907c4dac...d350` and final-release binding `82de64d1...7f89` were each called exactly once. Final-image no-network replay passed Spec 02 Producer, Evaluator and Promotion, then failed closed before any Spec 03 provider call |
+| Bounded LLM schema, telemetry and cost accounting | Spec 02 qualified; Spec 03 v2 capacity fixed offline and exact-image tested; live requalification pending | Spec 02 v3 passed Producer, Evaluator and Promotion. Spec 03 v1 request `9e679330...8b79` was called once and rejected at the 16,000-token ceiling because 255 rows repeated long identifiers. Spec 03 v2 uses stable indexes, page-deduplicated evidence and local mechanical expansion; the real 255-item minimum response is 14,021 bytes and the rebuilt image passes 338 tests |
 | Full-page visual review | contract and evaluator passed; exact runtime model binding corrected; provider qualification pending | all-page binding tests pass; the current runtime now binds `qwen3.7-plus-2026-05-26`, but no clean-image provider/reviewer request has been authorized or sent |
 | Deterministic ElegantBook on real material | adapter and regression tests passed; final-image qualification pending | locked-template smoke passed; unchanged-image real-book Spec 05 proof is missing |
 | Independent Overleaf/XeLaTeX recompile | adapter image health passed; real ZIP compile pending | adapter digest and non-root health exist; Worker-to-adapter compile requires one temporary internal network |
@@ -62,17 +62,14 @@ remains deliberately `incomplete` and is not installable as RC.
 The currently frozen incomplete archive still reports exactly these
 package-admission gaps:
 
-1. `spec02_bounded_review_capacity_unqualified`;
+1. `spec03_bounded_review_capacity_unqualified`;
 2. `full_page_review_evidence_provider_unqualified`;
 3. `spec05_worker_v3_runtime_qualification_pending`;
 4. `overleaf_adapter_image_qualification_pending`.
 
-The first declaration is now resolved by external final-image qualification
-evidence but has deliberately not been edited inside the already frozen
-archive. It will be removed when the final evidence-bearing RC source is
-reassembled; rewriting it now would create a new release manifest and
-invalidate the continuation request sequence. The other three declarations
-remain unresolved.
+The first declaration remains open until the new release-bound Spec 02 rebind
+and Spec 03 v2 request both pass the unchanged-image qualification chain. The
+other three declarations remain unresolved.
 
 These are package-admission declarations, not the complete project completion list.
 The live database, MinIO, browser, five-material, runtime-health, deployment and
@@ -135,6 +132,32 @@ Spec 03 provider call, wrote no production state and promoted no release. The
 qualification report SHA-256 is `e474a807...aff9`. Evidence is recorded in
 `docs/worker-v3/evidence/deepseek-1343-spec02-v3-live-and-release-rebind-20260729.json`.
 
+Request `9e679330...8b79` was then explicitly authorized and called exactly
+once. DeepSeek returned HTTP 200 with `finish_reason=length`, response ID
+`d8244cf4-f4e7-42d5-80f4-1eefdc66123a`, 354,032 input tokens and exactly
+16,000 output tokens. The strict gateway rejected it as `output_truncated`;
+there was no retry, parsed fixture, candidate, promotion or downstream stage.
+This was a generic Spec 03 v1 capacity defect: every one of 255 media rows had
+to repeat long media, candidate, same-page source and evidence identifiers.
+
+Spec 03 v2 replaces those repeated identifiers with stable integer indexes,
+deduplicates page source units, sends only accepted/overridden for the complete
+partition and carries full fields only for exact overrides. Worker code
+mechanically expands all indexes back to immutable IDs and generated evidence.
+For real material 1343 the exhaustive minimum response is 14,021 bytes; a
+14,043-byte 255-row response passes the release schema and independent kernel
+validation offline. The change is generic and contains no material, filename,
+book or page-specific logic.
+
+Runtime `worker-v3-runtime-rc-3ae7f70` binds source revision `3ae7f70`, image
+digest `sha256:212e0cef...f4532`, the new runtime identity and SBOM. It passes
+338 Worker V3 tests (two skipped), including 40 Spec 03 targeted tests, plus
+the locked-template XeLaTeX/qpdf/pdfinfo smoke. The rebuilt incomplete release
+archive has SHA-256 `7fe749f6...bd92`, tree SHA-256 `f1c46544...c696`, and
+manifest SHA-256 `c563d1cf...34b`; a second independent assembly produced the
+same archive and tree hashes. Detailed evidence is in
+`docs/worker-v3/evidence/deepseek-1343-spec03-v1-capacity-and-v2-remediation-20260729.json`.
+
 The same preflight found a separate future Stage 10 blocker: the current
 development runtime selected the alias `qwen3.7-plus`, while the immutable
 release requires `qwen3.7-plus-2026-05-26`. A 0600 hash-equal backup was made,
@@ -145,25 +168,27 @@ step.
 
 ## Next evidence sequence
 
-1. After a new exact-request authorization, execute Spec 03 request
-   `9e679330...8b79` exactly once and replay only from the smallest failed
-   stage. The consumed authorizations for `907c4dac...d350` and
-   `82de64d1...7f89` must not be reused.
-2. Continue the exact-request/fail-closed qualification sequence until the
+1. Generate the new release-bound Spec 02 request, obtain exact-hash
+   authorization, call it once, and replay through its Producer, Evaluator and
+   Promotion. The consumed authorizations for `907c4dac...d350`,
+   `82de64d1...7f89` and `9e679330...8b79` must not be reused.
+2. Generate and separately authorize the resulting Spec 03 v2 request, call it
+   once, and resume only from `canonical_block_ledger`.
+3. Continue the exact-request/fail-closed qualification sequence until the
    unchanged final image produces a real Worker V3 ZIP.
-3. Produce a real Worker V3 ZIP and complete the approved temporary-network
+4. Produce a real Worker V3 ZIP and complete the approved temporary-network
    Worker-to-Overleaf compile,
    then remove the network.
-4. Produce and qualify the release-scoped all-page provider/reviewer evidence.
-5. Reassemble an immutable RC release with no known admission gaps.
-6. Recheck the already-passed dedicated V3 database recovery and MinIO
+5. Produce and qualify the release-scoped all-page provider/reviewer evidence.
+6. Reassemble an immutable RC release with no known admission gaps.
+7. Recheck the already-passed dedicated V3 database recovery and MinIO
    role-policy/versioning probes after final deployment, and capture their
    final-smoke deltas.
-7. Deploy that exact image/release to the current development environment.
-8. Run materials 1339-1343 without code change, rebuild or redeploy through all
+8. Deploy that exact image/release to the current development environment.
+9. Run materials 1339-1343 without code change, rebuild or redeploy through all
    12 stages; collect page, DB, MinIO, queue, model, runtime, download and
    independent recompile evidence.
-9. Close all Major findings, create the annotated RC tag, push the dedicated
+10. Close all Major findings, create the annotated RC tag, push the dedicated
    branch/tag, publish the GitHub Release Candidate and issue one unambiguous
    verdict.
 

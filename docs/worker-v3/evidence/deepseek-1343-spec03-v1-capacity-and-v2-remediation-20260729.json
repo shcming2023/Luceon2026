@@ -1,0 +1,110 @@
+{
+  "schema_version": "luceon.worker-v3-spec03-capacity-remediation-evidence/v1",
+  "material": {
+    "database_id": 1343,
+    "material_id": "pdf-8e5464971a3e1d6b",
+    "source_pdf_sha256": "8e5464971a3e1d6b40f5afc996dba67efc9af60e29d73ce10730e91c4fa12fad",
+    "page_count": 200,
+    "media_atom_count": 255
+  },
+  "authorization": {
+    "request_sha256": "9e6793307ede5b994a5a7b33c4b62f4237cf0ff111ea159a99244ed952798b79",
+    "scope": "exactly one provider call",
+    "consumed": true,
+    "attempts": 1,
+    "retries": 0,
+    "attempt_started_sha256": "5acc091f3c6673541eb1862ec2ac86647d5b4de4feea47ea06ad8a08aec59057"
+  },
+  "provider_call": {
+    "status": "rejected",
+    "error_code": "output_truncated",
+    "http_status": 200,
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "response_id": "d8244cf4-f4e7-42d5-80f4-1eefdc66123a",
+    "finish_reason": "length",
+    "call_id": "21c1ea2f734b45ae3b9951c68f6050d4c5c9ddf8b29ff99d4d1cee1455e08df3",
+    "latency_ms_wall": 91069,
+    "raw_response_sha256": "45795760b44077aa92212ae916b576c79ba2d54beaabf26dd78985f3851f315b",
+    "live_evidence_sha256": "0f978959e76cc8642b726842a5f894d8b7ce82080943b4bed28f91d290e32eb1",
+    "usage": {
+      "input_tokens": 354032,
+      "output_tokens": 16000,
+      "total_tokens": 370032,
+      "cache_hit_input_tokens": 0,
+      "cache_miss_input_tokens": 354032
+    }
+  },
+  "fail_closed_effect": {
+    "parsed_result_created": false,
+    "fixture_created": false,
+    "candidate_created": false,
+    "promotion_created": false,
+    "retry_started": false,
+    "downstream_stage_started": false
+  },
+  "root_cause": {
+    "classification": "generic_contract_capacity_defect",
+    "provider_or_material_specific": false,
+    "detail": "Spec 03 v1 required all 255 rows to repeat long media, candidate, source and evidence identifiers. The response reached only a small prefix of the exhaustive inventory before the immutable 16000-token output ceiling."
+  },
+  "remediation": {
+    "source_revision": "3ae7f70bd79ceaaae846b9464d94854d85e8ef06",
+    "contract_schema": "luceon.worker-v3-spec03-media-review/v2",
+    "baseline_algorithm": "source-pdf-region-media-baseline/1.0",
+    "properties": [
+      "stable integer index for every media atom and candidate",
+      "page-deduplicated source-unit evidence indexes",
+      "accepted baseline rows contain only media_index and baseline_disposition",
+      "only overrides carry candidate, evidence and reason fields",
+      "Worker mechanically expands every index back to immutable IDs and generated evidence references",
+      "baseline hash, exact partition, candidate binding and exclusion evidence fail closed"
+    ],
+    "sample_specific_logic_added": false
+  },
+  "real_material_offline_capacity": {
+    "network_used": false,
+    "task_file_sha256": "451a38bd41f28bbe6700f25916dd3ed048ec738f073501b56685bdddba5a1a58",
+    "task_canonical_sha256": "35196a243d6a1454a6e704791f40430b173ca5f65d144c05997194a4a4a665e2",
+    "task_bytes": 763947,
+    "baseline_sha256": "84f1f5e2a2a4a2600e8cfb5f86c64cecf89bc41c071e60944d09bc98bcb562e9",
+    "minimum_complete_response_bytes": 14021,
+    "validated_response_bytes": 14043,
+    "page_source_groups": 127,
+    "page_source_units": 1981,
+    "candidate_count": 583,
+    "expanded_media_atoms": 255,
+    "schema_validation": "passed",
+    "kernel_validation": "passed"
+  },
+  "final_runtime": {
+    "runtime_id": "worker-v3-runtime-rc-3ae7f70",
+    "source_revision": "3ae7f70bd79ceaaae846b9464d94854d85e8ef06",
+    "image_tag": "luceonweb2026-worker-v3-runtime:rc-3ae7f70",
+    "image_digest": "sha256:212e0cefb8ee4d70ba83b6ce6d22018045fff00f268c5932de6aee73d5bf4532",
+    "runtime_identity_sha256": "fe3298c60bf60d81728be51d01ae544838505f30bce9e371f758cb329eefaa2a",
+    "sbom_sha256": "cc4a55791eccdba6150b091d029db0b6070f04fb12f15282c373e1b51ff8d538",
+    "tests": {
+      "passed": 338,
+      "skipped": 2,
+      "failed": 0,
+      "spec03_targeted_passed": 40
+    },
+    "locked_template_smoke": {
+      "compiler": "latexmk -xelatex",
+      "pages": 2,
+      "pdf_sha256": "5ad6f5885f7b274f16a88bc98faaf4da7587af83b209c2f99f1e70b88e59ec90",
+      "qpdf_check": "passed",
+      "pdfinfo": "passed"
+    }
+  },
+  "final_incomplete_release": {
+    "archive_sha256": "7fe749f6418ff10111d229a4c127c1a68ca046f3bf289bd4f198c0d9c3a9bd92",
+    "tree_sha256": "f1c46544a0168422733838d7d83bae0e41fc379aa5e3c5b9c4243d5beac9c696",
+    "manifest_sha256": "c563d1cf3bb1334a48335315bc8d0ac71521d1eab1fe07475e16fd742c39d34b",
+    "deterministic_second_build_equal": true,
+    "status": "incomplete",
+    "known_gap_count": 4
+  },
+  "verdict": "The authorized v1 request was consumed exactly once and failed closed without retry or downstream mutation. Spec 03 v2 removes the generic capacity defect and passes exact-image regression plus real-material offline capacity proof. A fresh release-bound qualification request is still required; no further provider call is authorized by this evidence."
+}

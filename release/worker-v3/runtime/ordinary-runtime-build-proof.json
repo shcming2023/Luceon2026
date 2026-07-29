@@ -1,10 +1,10 @@
 {
   "architecture": "arm64",
   "build_status": "clean_build_succeeded",
-  "built_at": "2026-07-28T23:03:21.123631509Z",
-  "image_id": "sha256:e35e466e0e7b1f7a82404b577683617d264aba7b23bf8d6fbaea92fe407fa9a9",
-  "image_size_bytes": 1455130416,
-  "local_manifest_digest": "sha256:e35e466e0e7b1f7a82404b577683617d264aba7b23bf8d6fbaea92fe407fa9a9",
+  "built_at": "2026-07-29T00:17:28Z",
+  "image_id": "sha256:212e0cefb8ee4d70ba83b6ce6d22018045fff00f268c5932de6aee73d5bf4532",
+  "image_size_bytes": 1455152539,
+  "local_manifest_digest": "sha256:212e0cefb8ee4d70ba83b6ce6d22018045fff00f268c5932de6aee73d5bf4532",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
     "pages": 2,
@@ -16,6 +16,12 @@
   "registry_digest": null,
   "registry_status": "pending_until_push",
   "superseded_builds": [
+    {
+      "image_digest": "sha256:e35e466e0e7b1f7a82404b577683617d264aba7b23bf8d6fbaea92fe407fa9a9",
+      "reason": "the release-bound real-material Spec 03 v1 call failed closed at the 16000-token output ceiling because the contract repeated long media, candidate, source and evidence identifiers for all 255 atoms",
+      "source_revision": "9447aedb688dd7d0f4c78978a4e5d95892554675",
+      "status": "superseded_before_release_admission"
+    },
     {
       "image_digest": "sha256:dbb0f435e5b921047b6e745c1e15782ae3703c39777592f3d710fb84cf844031",
       "reason": "qualification exposed that the first schema-hash separation changed non-LLM stage manifest bindings from release file hashes to canonical JSON hashes",
@@ -40,28 +46,29 @@
       "status": "rejected_before_qualification"
     }
   ],
-  "runtime_id": "worker-v3-runtime-rc-9447aed",
+  "runtime_id": "worker-v3-runtime-rc-3ae7f70",
   "runtime_identity": {
     "effective_uid": 10003,
-    "evidence_sha256": "ef729dc22ed232a68acc1efc0f39eff54eca51033dd1f28894dac6e10877ff46",
+    "evidence_sha256": "fe3298c60bf60d81728be51d01ae544838505f30bce9e371f758cb329eefaa2a",
     "status": "passed",
     "system_lock_entries": 19
   },
   "sbom": {
     "component_count": 420,
-    "evidence_sha256": "c8835ee14f245b7d80838972c4aa02de0b05a14d4fd6fa037694dbc29c24e2e3",
+    "evidence_sha256": "cc4a55791eccdba6150b091d029db0b6070f04fb12f15282c373e1b51ff8d538",
     "format": "CycloneDX",
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "9447aedb688dd7d0f4c78978a4e5d95892554675",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-9447aed",
+  "source_revision": "3ae7f70bd79ceaaae846b9464d94854d85e8ef06",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-3ae7f70",
   "tests": {
     "backend/tests/test_workflow_v3_runtime_image.py": "passed as part of the complete repository integration suite",
-    "backend/tests/test_workflow_v3_*.py": "335 passed, 2 skipped with source revision mounted read-only into the exact rebuilt image",
-    "combined_result": "runtime identity passed; 335 passed, 2 skipped; production-forbidden runtime scan passed; locked-template XeLaTeX/qpdf/pdfinfo smoke passed",
-    "spec02_v3_targeted": "compact exhaustive page coverage, deterministic baseline projection, exact override matching and sub-16000-byte 200-page minimum-response regressions passed inside the complete suite",
-    "warnings": "7334 existing deprecation and read-only cache warnings; zero test failures"
+    "backend/tests/test_workflow_v3_*.py": "338 passed, 2 skipped with source revision mounted read-only into the exact rebuilt image",
+    "combined_result": "runtime identity passed; 338 passed, 2 skipped; production-forbidden runtime scan passed; locked-template XeLaTeX/qpdf/pdfinfo smoke passed",
+    "spec02_v3_targeted": "compact exhaustive page coverage, deterministic baseline projection, exact override matching and sub-16000-byte 200-page minimum-response regressions passed in the prior qualified image and remain in the regression suite",
+    "spec03_v2_targeted": "40 passed in the exact rebuilt image, including deterministic source-region baseline projection, index-to-immutable-ID expansion, baseline drift rejection, evidence-backed exclusion and 255/1000-item capacity bounds",
+    "warnings": "7274 existing deprecation warnings; zero test failures"
   },
   "user": "10003:10003"
 }

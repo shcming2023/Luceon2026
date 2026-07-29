@@ -18,7 +18,7 @@
     "requested_status": "incomplete",
     "created_at": "2026-07-26T00:00:00+08:00",
     "source": {
-      "git_sha": "9447aedb688dd7d0f4c78978a4e5d95892554675",
+      "git_sha": "3ae7f70bd79ceaaae846b9464d94854d85e8ef06",
       "git_tag": null,
       "dirty": false
     },
@@ -182,7 +182,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec01_04_stage_adapters.py",
       "destination": "scripts/worker-v3/spec01_04_stage_adapters.py",
-      "expected_sha256": "cc39f774b84ca562e7774747ce406023975c42cedeb890fb69154b7bfb62d0fa"
+      "expected_sha256": "2e72ec35b23b29db73f6a914c63359bdba3910fcfdd85af4418528619d0159ea"
     },
     {
       "id": "worker-v3-spec05-06-adapters",
@@ -245,7 +245,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec01_03_atomic_kernel.py",
       "destination": "scripts/worker-v3/spec01_03_atomic_kernel.py",
-      "expected_sha256": "7cdcb6b90d523deb490d42dc1954e9a6f9d045997d4249254b2a02de1aa0e8a2"
+      "expected_sha256": "0c859596437378941317e0b955a5d765b9334b974deed5616aed42bca2e5218d"
     },
     {
       "id": "worker-v3-stage-producer-entrypoints",
@@ -281,7 +281,7 @@
       "include": [
         "spec*.txt"
       ],
-      "expected_tree_sha256": "c331033ce0daafc37d89eb02796d39ee4d12dbe0f64903807b449c52e34f1f65"
+      "expected_tree_sha256": "1bd8a3baa1c8b4839474a77f5e9b6097a417fbdca3bdecb05e6dd01730e70186"
     },
     {
       "id": "worker-v3-ordinary-schemas",
@@ -293,7 +293,7 @@
       "include": [
         "spec*.schema.json"
       ],
-      "expected_tree_sha256": "63cf1efdf758767eabd8b215a1e19ead33d78eb2f3ca89da482d1167cb64eab0"
+      "expected_tree_sha256": "6ac609e2c1f836f72970b5f9e50ff5a7fdca8c1773c4a4ba1c4ee5013d1866c3"
     },
     {
       "id": "worker-v3-spec04-review-schemas",
@@ -335,7 +335,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-identity.json",
       "destination": "runtime/ordinary-runtime-identity.json",
-      "expected_sha256": "ef729dc22ed232a68acc1efc0f39eff54eca51033dd1f28894dac6e10877ff46"
+      "expected_sha256": "fe3298c60bf60d81728be51d01ae544838505f30bce9e371f758cb329eefaa2a"
     },
     {
       "id": "worker-v3-ordinary-runtime-build-proof",
@@ -344,7 +344,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-build-proof.json",
       "destination": "runtime/ordinary-runtime-build-proof.json",
-      "expected_sha256": "d0bc6e1a86eb425ca542397550568b92d0273a2a860103e9fbefb730ae7daa66"
+      "expected_sha256": "be129daa21dc32a831e65662043e7cabdf08feb39b2a0e7268003a89c861345a"
     },
     {
       "id": "worker-v3-ordinary-runtime-sbom",
@@ -353,7 +353,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-sbom.cdx.json",
       "destination": "runtime/ordinary-runtime-sbom.cdx.json",
-      "expected_sha256": "c8835ee14f245b7d80838972c4aa02de0b05a14d4fd6fa037694dbc29c24e2e3"
+      "expected_sha256": "cc4a55791eccdba6150b091d029db0b6070f04fb12f15282c373e1b51ff8d538"
     },
     {
       "id": "worker-v3-overleaf-target-environment",
@@ -900,7 +900,7 @@
     "python": "CPython 3.12.13",
     "application_dependencies_path": "runtime/requirements-worker-v3.lock",
     "system_tools": {
-      "runtime_id": "worker-v3-runtime-rc-9447aed",
+      "runtime_id": "worker-v3-runtime-rc-3ae7f70",
       "system_lock": "runtime/worker-v3-system-packages.lock",
       "identity": "runtime/ordinary-runtime-identity.json",
       "overleaf_compiler": {
@@ -911,7 +911,7 @@
     "fonts_identity_path": "runtime/ordinary-runtime-identity.json",
     "tex_identity_path": "runtime/ordinary-runtime-identity.json",
     "poppler_identity_path": "runtime/ordinary-runtime-identity.json",
-    "container_image_digest": "sha256:e35e466e0e7b1f7a82404b577683617d264aba7b23bf8d6fbaea92fe407fa9a9",
+    "container_image_digest": "sha256:212e0cefb8ee4d70ba83b6ce6d22018045fff00f268c5932de6aee73d5bf4532",
     "sbom_path": "runtime/ordinary-runtime-sbom.cdx.json",
     "attestations": [
       "runtime/ordinary-runtime-identity.json",
@@ -936,9 +936,9 @@
   },
   "known_gaps": [
     {
-      "code": "spec02_bounded_review_capacity_unqualified",
-      "stage": "source_scope_and_order",
-      "detail": "the Spec 02 v3 contract preserves an exact one-row disposition for every physical page while emitting full page fields only for baseline overrides; one previously authorized release-bound request was called exactly once and its response passes the production gateway offline, but qualification exposed and fixed two generic schema-identity defects; the final frozen release request requires separate exact-hash authorization because response rebinding across release identities is forbidden"
+      "code": "spec03_bounded_review_capacity_unqualified",
+      "stage": "canonical_block_ledger",
+      "detail": "the release-bound Spec 03 v1 real-material call was consumed exactly once and failed closed at the 16000-token output ceiling; v2 replaces repeated long identifiers with stable indexes and mechanical expansion, its 255-item offline capacity and contract regressions pass, but the new release identity requires fresh Spec 02 rebinding and a separately authorized exact-hash Spec 03 call before the gap can close"
     },
     {
       "code": "overleaf_adapter_image_qualification_pending",
