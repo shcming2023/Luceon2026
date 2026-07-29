@@ -41,7 +41,7 @@ remains deliberately `incomplete` and is not installable as RC.
 | Twelve persisted stages | passed in code and tests | 12 Producer and 12 distinct Evaluator entrypoints; state-machine and API tests |
 | Producer/Evaluator/Promotion/Projector separation | passed in code and tests; live role probe pending | four services and identities; control-plane, operation-attempt and projection tests |
 | Frozen-input lineage and fail-closed admission | passed for five input packages and Stage 1 preflight | `evidence/five-sample-frozen-input-inventory-20260729.json` binds materials 1339-1343 to source SHA, exact MinerU/Popo runs and manifest SHA; all 10 frozen markers exist and active marker count is zero; full downstream lineage pending |
-| Bounded LLM schema, telemetry and cost accounting | Spec 02 qualified; Spec 03 v2 capacity fixed offline and exact-image tested; live requalification pending | Spec 02 v3 passed Producer, Evaluator and Promotion. Spec 03 v1 request `9e679330...8b79` was called once and rejected at the 16,000-token ceiling because 255 rows repeated long identifiers. Spec 03 v2 uses stable indexes, page-deduplicated evidence and local mechanical expansion; the real 255-item minimum response is 14,021 bytes and the rebuilt image passes 338 tests |
+| Bounded LLM schema, telemetry and cost accounting | final-release Spec 02 qualified; Spec 03 v2 capacity fixed, frozen and awaiting exact authorization | Request `24947820...18b2` was called once and passed Producer, Evaluator and Promotion in the exact image; `evidence/deepseek-1343-spec02-final-rebind-and-spec03-v2-request-20260729.json` binds call, cost and replay evidence. Spec 03 v1 request `9e679330...8b79` was called once and rejected at the 16,000-token ceiling because 255 rows repeated long identifiers. Spec 03 v2 request `fe6febe7...48b3` uses stable indexes, page-deduplicated evidence and local mechanical expansion; its real 255-item minimum response is 14,021 bytes and offline preflight passes |
 | Full-page visual review | contract and evaluator passed; exact runtime model binding corrected; provider qualification pending | all-page binding tests pass; the current runtime now binds `qwen3.7-plus-2026-05-26`, but no clean-image provider/reviewer request has been authorized or sent |
 | Deterministic ElegantBook on real material | adapter and regression tests passed; final-image qualification pending | locked-template smoke passed; unchanged-image real-book Spec 05 proof is missing |
 | Independent Overleaf/XeLaTeX recompile | adapter image health passed; real ZIP compile pending | adapter digest and non-root health exist; Worker-to-adapter compile requires one temporary internal network |
@@ -168,12 +168,13 @@ step.
 
 ## Next evidence sequence
 
-1. Generate the new release-bound Spec 02 request, obtain exact-hash
-   authorization, call it once, and replay through its Producer, Evaluator and
+1. The final-release Spec 02 request `24947820...18b2` is complete: it was
+   separately authorized, called once, and passed Producer, Evaluator and
    Promotion. The consumed authorizations for `907c4dac...d350`,
-   `82de64d1...7f89` and `9e679330...8b79` must not be reused.
-2. Generate and separately authorize the resulting Spec 03 v2 request, call it
-   once, and resume only from `canonical_block_ledger`.
+   `82de64d1...7f89`, `9e679330...8b79` and `24947820...18b2` must not be reused.
+2. Separately authorize the resulting Spec 03 v2 request
+   `fe6febe7...48b3`, call it once, and resume only from
+   `canonical_block_ledger`.
 3. Continue the exact-request/fail-closed qualification sequence until the
    unchanged final image produces a real Worker V3 ZIP.
 4. Produce a real Worker V3 ZIP and complete the approved temporary-network
