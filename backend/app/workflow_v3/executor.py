@@ -1865,6 +1865,8 @@ class _StageRequestBuilder:
                 extra_args=(
                     "--source-pdf",
                     str((self.workdir / source_pdf.path).resolve()),
+                    "--source-pdf-ref",
+                    source_pdf.path,
                     "--parent-promotion",
                     str((self.workdir / parent_promotion.path).resolve()),
                 ),

@@ -65,6 +65,78 @@ def test_directory_backend_is_explicit_and_test_only(monkeypatch, tmp_path: Path
     assert artifact_backend_mode() == "directory"
 
 
+def test_outline_review_preparation_uses_stable_source_pdf_reference(
+    tmp_path: Path,
+):
+    builder = _StageRequestBuilder(
+        db=object(),
+        session_factory=lambda: None,
+        artifact_store=object(),
+        job=SimpleNamespace(
+            public_id="job-1",
+            material_id="pdf-1",
+        ),
+        stage=SimpleNamespace(
+            stage_key="outline_reconstruction",
+            attempt=1,
+        ),
+        release=SimpleNamespace(),
+        release_root=tmp_path / "release",
+        bound=SimpleNamespace(),
+        workdir=tmp_path / "work",
+        heartbeat=lambda: None,
+    )
+    builder.extracted["promoted_predecessor"] = tmp_path / "parent"
+    builder.artifacts.extend(
+        (
+            PreparedInputArtifact(
+                role="source_pdf",
+                kind="source-pdf",
+                ref=ArtifactRef("source", "book.pdf", "a" * 64, 1),
+                path="inputs/source_pdf/artifact",
+            ),
+            PreparedInputArtifact(
+                role="predecessor_promotion_manifest",
+                kind="promotion-manifest",
+                ref=ArtifactRef(
+                    "candidate",
+                    "promotion.json",
+                    "b" * 64,
+                    1,
+                ),
+                path="inputs/predecessor_promotion_manifest/artifact",
+            ),
+        )
+    )
+    captured = {}
+
+    def prepare(parent, **kwargs):
+        captured["parent"] = parent
+        captured.update(kwargs)
+        return {"task": "prepared"}
+
+    builder._prepare_atomic_review_task = prepare
+    result = builder._review_input(
+        "worker-v3.spec04a-outline-review",
+        builder.artifacts[0],
+    )
+
+    assert result == {"task": "prepared"}
+    assert captured["extra_args"] == (
+        "--source-pdf",
+        str((builder.workdir / "inputs/source_pdf/artifact").resolve()),
+        "--source-pdf-ref",
+        "inputs/source_pdf/artifact",
+        "--parent-promotion",
+        str(
+            (
+                builder.workdir
+                / "inputs/predecessor_promotion_manifest/artifact"
+            ).resolve()
+        ),
+    )
+
+
 def test_minio_roles_receive_only_their_required_capabilities(monkeypatch):
     client = object()
     monkeypatch.setenv("WORKFLOW_V3_ARTIFACT_BACKEND", "minio")

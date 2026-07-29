@@ -438,6 +438,32 @@ def test_isolated_qualification_runs_normal_three_role_chain_and_hash_report(
         engine.dispose()
 
 
+def test_qualification_identity_is_replayable_across_run_roots(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("LUCEON_ENVIRONMENT", "qualification")
+    monkeypatch.delenv("WORKFLOW_V3_DATABASE_URL", raising=False)
+    release_root, package_root, source_json, _ = _qualification_inputs(
+        tmp_path
+    )
+    results = []
+    for suffix in ("first", "second"):
+        result = run_qualification(
+            QualificationConfig(
+                release_root=release_root,
+                source_package_root=package_root,
+                source_evidence_json=source_json,
+                run_root=tmp_path / f"run-{suffix}",
+                stop_after="deterministic_elegantbook",
+            ),
+            command_transport=QualificationCommandFixture(),
+        )
+        results.append(result)
+
+    assert results[0].job_id == results[1].job_id
+
+
 def test_qualification_preflight_rejects_wrong_environment_inherited_db_and_writable_input(
     tmp_path,
     monkeypatch,

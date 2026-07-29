@@ -2254,6 +2254,7 @@ def _outline_review_task(
     parent: Path,
     *,
     source_pdf: Path,
+    source_pdf_ref: str,
     parent_promotion: Path,
 ) -> dict[str, Any]:
     header, records = _outline_ledger(parent)
@@ -2272,6 +2273,10 @@ def _outline_review_task(
             "source_pdf_identity_mismatch",
             "Spec 04-A source PDF differs from the parent ledger",
         )
+    source_pdf_ref = _safe_relative(
+        source_pdf_ref,
+        "Spec 04-A source PDF reference",
+    )
     page_count = _require_positive_int(
         identity.get("page_count"),
         "material_identity.page_count",
@@ -2392,7 +2397,7 @@ def _outline_review_task(
             "evidence_id": f"source-pdf-page-{page:06d}",
             "kind": "source_pdf_page",
             "pdf_physical_page": page,
-            "path": str(source_pdf),
+            "path": source_pdf_ref,
             "sha256": source_pdf_sha256,
         }
         for page in range(1, page_count + 1)
@@ -2680,6 +2685,7 @@ def prepare_outline_review_task(args: argparse.Namespace) -> dict[str, Any]:
     task = _outline_review_task(
         args.parent.resolve(),
         source_pdf=args.source_pdf.resolve(),
+        source_pdf_ref=args.source_pdf_ref,
         parent_promotion=args.parent_promotion.resolve(),
     )
     output = args.output.resolve()
@@ -4409,6 +4415,7 @@ def _parser() -> argparse.ArgumentParser:
     prepare_outline = subparsers.add_parser("prepare-outline-review-task")
     prepare_outline.add_argument("--parent", type=Path, required=True)
     prepare_outline.add_argument("--source-pdf", type=Path, required=True)
+    prepare_outline.add_argument("--source-pdf-ref", required=True)
     prepare_outline.add_argument("--parent-promotion", type=Path, required=True)
     prepare_outline.add_argument("--output", type=Path, required=True)
     prepare_outline.set_defaults(producer=prepare_outline_review_task)

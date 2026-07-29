@@ -8,6 +8,7 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+import pytest
 from pypdf import PdfWriter
 
 from app.workflow_v3 import spec01_03_atomic_kernel as kernel, stage_evaluators
@@ -636,6 +637,7 @@ def test_outline_review_task_compacts_full_ledger_without_weakening_binding(
         argparse.Namespace(
             parent=spec03,
             source_pdf=paths["source_pdf"],
+            source_pdf_ref="inputs/source_pdf/artifact",
             parent_promotion=promotion,
             output=output,
         )
@@ -668,9 +670,24 @@ def test_outline_review_task_compacts_full_ledger_without_weakening_binding(
         for item in task["allowed_source_outline_evidence"]
     } == {1, 2}
     assert all(
-        item["path"] == str(paths["source_pdf"].resolve())
+        item["path"] == "inputs/source_pdf/artifact"
         for item in task["allowed_source_outline_evidence"]
     )
+    alternate_root = tmp_path / "alternate-run"
+    alternate_root.mkdir()
+    alternate_source = alternate_root / "source.pdf"
+    alternate_source.write_bytes(paths["source_pdf"].read_bytes())
+    alternate_output = alternate_root / "outline-review-task.json"
+    kernel.prepare_outline_review_task(
+        argparse.Namespace(
+            parent=spec03,
+            source_pdf=alternate_source,
+            source_pdf_ref="inputs/source_pdf/artifact",
+            parent_promotion=promotion,
+            output=alternate_output,
+        )
+    )
+    assert alternate_output.read_bytes() == output.read_bytes()
     assert len(kernel._canonical_bytes(task)) < 1_000_000
     assert (
         0
@@ -731,6 +748,40 @@ def test_outline_review_task_compacts_full_ledger_without_weakening_binding(
         ]
         == task["title_candidate_inventory_payload_hash"]
     )
+
+
+@pytest.mark.parametrize(
+    "source_pdf_ref",
+    (
+        "/tmp/source.pdf",
+        "../source.pdf",
+        "inputs\\source.pdf",
+    ),
+)
+def test_outline_review_task_rejects_unsafe_source_pdf_reference(
+    tmp_path: Path,
+    source_pdf_ref: str,
+) -> None:
+    _, _, spec03, paths = _run_pipeline(tmp_path)
+    promotion = tmp_path / "spec03-promotion.json"
+    _write_json(
+        promotion,
+        {
+            "schema_version": "stage-promotion-manifest/1.0",
+            "promotion_id": "promotion-spec03-1",
+            "disposition": "promoted",
+        },
+    )
+
+    with pytest.raises(kernel.KernelContractError) as exc_info:
+        kernel._outline_review_task(
+            spec03,
+            source_pdf=paths["source_pdf"],
+            source_pdf_ref=source_pdf_ref,
+            parent_promotion=promotion,
+        )
+
+    assert exc_info.value.code == "path_invalid"
 
 
 def test_outline_compact_review_rejects_unordered_or_open_decisions(

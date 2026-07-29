@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import stat
+import uuid
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
@@ -82,6 +83,9 @@ _SOURCE_BINDINGS = {
     "popo_frozen_marker": "popo_frozen_marker",
 }
 _SHA256_CHARS = frozenset("0123456789abcdef")
+_QUALIFICATION_JOB_NAMESPACE = uuid.UUID(
+    "435bd0a5-70ee-57c6-90c4-01e4f3f071f4"
+)
 
 
 class QualificationError(RuntimeError):
@@ -385,6 +389,12 @@ def run_qualification(
                     },
                 },
                 qualification=True,
+            )
+            job.public_id = _qualification_job_public_id(
+                manifest_sha256=manifest_sha,
+                source_input_set_sha256=str(
+                    source_evidence["input_set_sha256"]
+                ),
             )
             db.commit()
             job_id = job.public_id
@@ -1158,6 +1168,31 @@ def _sha256(value: Any, label: str) -> str:
     ):
         raise QualificationError(f"{label} must be lowercase SHA-256")
     return value
+
+
+def _qualification_job_public_id(
+    *,
+    manifest_sha256: str,
+    source_input_set_sha256: str,
+) -> str:
+    """Derive the isolated qualification identity from immutable inputs."""
+
+    manifest_sha256 = _sha256(
+        manifest_sha256,
+        "qualification release manifest SHA-256",
+    )
+    source_input_set_sha256 = _sha256(
+        source_input_set_sha256,
+        "qualification source input-set SHA-256",
+    )
+    identity = "\n".join(
+        (
+            WORKFLOW_VERSION,
+            manifest_sha256,
+            source_input_set_sha256,
+        )
+    )
+    return str(uuid.uuid5(_QUALIFICATION_JOB_NAMESPACE, identity))
 
 
 def _sha256_file(path: Path) -> str:
