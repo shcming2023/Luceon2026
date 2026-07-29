@@ -1,4 +1,31 @@
+# syntax=docker/dockerfile:1.7
+
 FROM python:3.12.13-slim@sha256:64695412729fbe8cf054511723820c82bbe5a077d4a6b4070cd4a7225d3422ce
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    TZ=UTC \
+    SOURCE_DATE_EPOCH=0 \
+    FORCE_SOURCE_DATE=1 \
+    WORKER_V3_APP_ROOT=/app \
+    HOME=/worker-v3/home \
+    XDG_CACHE_HOME=/worker-v3/cache \
+    WORKER_V3_BASE_IMAGE=python:3.12.13-slim@sha256:64695412729fbe8cf054511723820c82bbe5a077d4a6b4070cd4a7225d3422ce \
+    WORKER_V3_PYTHON_LOCK_SHA256=be52a2e7be1cf8e4ad27d93606f9970bc9420b7a449df208bca3d0a4f4643cba
+
+WORKDIR /app
+
+COPY worker-v3-system-packages.lock /app/worker-v3-system-packages.lock
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean \
+    && sed -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' /app/worker-v3-system-packages.lock > /tmp/worker-v3-system-packages.install \
+    && apt-get -o Acquire::Retries=5 update \
+    && DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y --no-install-recommends $(cat /tmp/worker-v3-system-packages.install) \
+    && rm -f /tmp/worker-v3-system-packages.install
+
+COPY requirements-worker-v3.lock /app/requirements-worker-v3.lock
+RUN python -m pip install --no-cache-dir --require-hashes -r /app/requirements-worker-v3.lock
 
 ARG WORKER_V3_RUNTIME_ID=worker-v3-runtime-unbound
 ARG VCS_REF=unknown
@@ -10,28 +37,7 @@ LABEL org.opencontainers.image.title="LuceonWeb2026 ordinary Worker V3 runtime" 
       org.opencontainers.image.revision="${VCS_REF}" \
       io.luceon.worker-v3.runtime-id="${WORKER_V3_RUNTIME_ID}"
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    TZ=UTC \
-    SOURCE_DATE_EPOCH=0 \
-    FORCE_SOURCE_DATE=1 \
-    WORKER_V3_APP_ROOT=/app \
-    HOME=/worker-v3/home \
-    XDG_CACHE_HOME=/worker-v3/cache \
-    WORKER_V3_RUNTIME_ID=${WORKER_V3_RUNTIME_ID} \
-    WORKER_V3_BASE_IMAGE=python:3.12.13-slim@sha256:64695412729fbe8cf054511723820c82bbe5a077d4a6b4070cd4a7225d3422ce \
-    WORKER_V3_PYTHON_LOCK_SHA256=be52a2e7be1cf8e4ad27d93606f9970bc9420b7a449df208bca3d0a4f4643cba
-
-WORKDIR /app
-
-COPY worker-v3-system-packages.lock /app/worker-v3-system-packages.lock
-RUN sed -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' /app/worker-v3-system-packages.lock > /tmp/worker-v3-system-packages.install \
-    && apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $(cat /tmp/worker-v3-system-packages.install) \
-    && rm -rf /var/lib/apt/lists/* /tmp/worker-v3-system-packages.install
-
-COPY requirements-worker-v3.lock /app/requirements-worker-v3.lock
-RUN python -m pip install --no-cache-dir --require-hashes -r /app/requirements-worker-v3.lock
+ENV WORKER_V3_RUNTIME_ID=${WORKER_V3_RUNTIME_ID}
 
 COPY . /app
 
