@@ -9,6 +9,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Sequence
 
 try:
+    from .spec01_03_atomic_kernel import outline_model_evidence
     from .stage_entrypoint import (
         StageEntrypointError,
         StageInputRoot,
@@ -19,6 +20,7 @@ try:
         sha256_file,
     )
 except ImportError:  # Release-local scripts are imported outside the backend package.
+    from spec01_03_atomic_kernel import outline_model_evidence  # type: ignore[no-redef]
     from stage_entrypoint import (  # type: ignore[no-redef]
         StageEntrypointError,
         StageInputRoot,
@@ -484,7 +486,9 @@ def _produce_outline(
         review_role="outline_review_decision",
         expected_prompt_id="worker-v3.spec04a-outline-review",
         expected_input_canonical_sha256=_canonical_hash(
-            _read_json(review_task, "Spec 04-A deterministic review task")
+            outline_model_evidence(
+                _read_json(review_task, "Spec 04-A deterministic review task")
+            )
         ),
     )
     projected_review = (

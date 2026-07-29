@@ -690,7 +690,18 @@ def _stage4_case(
     )
     release_schema.parent.mkdir(parents=True)
     release_schema.write_bytes(schema_path.read_bytes())
-    review_task = {"stage": "outline_reconstruction"}
+    review_task = {
+        "schema_version": "luceon.worker-v3-spec04a-review-task/v1",
+        "stage_key": "outline_reconstruction",
+        "task_id": "outline-review-test",
+        "parent_binding": {
+            "ledger_snapshot_id": "ledger-1",
+            "ledger_payload_hash": ZERO_SHA,
+            "source_pdf_sha256": ZERO_SHA,
+            "promotion_id": "promotion-volatile-1",
+            "promotion_manifest_sha256": "1" * 64,
+        },
+    }
     review = {
         "schema_version": "luceon.worker-v3-spec04a-compact-review/v1",
         "task_id": "outline-review-test",
@@ -705,7 +716,10 @@ def _stage4_case(
         "open_reviews": [],
     }
     review_sha = _canonical_sha(review)
-    review_input_sha = _canonical_sha(review_task)
+    review_input_sha = _canonical_sha(
+        adapters.outline_model_evidence(review_task)
+    )
+    assert review_input_sha != _canonical_sha(review_task)
     raw_response = {
         "id": "response-stage4",
         "model": "test-model",
@@ -896,6 +910,13 @@ def test_stage4_adapter_accepts_only_hash_bound_bounded_review_and_fixed_kernel(
     result = json.loads((tmp_path / "result.json").read_text(encoding="utf-8"))
     assert result["status"] == "candidate_ready"
     assert result["metrics"]["promotion_status"] == "not_evaluated"
+
+
+def test_stage4_adapter_binds_stable_model_projection_not_volatile_audit_envelope(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert _stage4_case(tmp_path, monkeypatch)[0] == 0
 
 
 def test_stage4_adapter_separates_release_file_hash_from_canonical_schema_hash(
