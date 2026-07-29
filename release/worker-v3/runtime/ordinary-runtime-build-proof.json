@@ -1,10 +1,10 @@
 {
   "architecture": "arm64",
   "build_status": "clean_build_succeeded",
-  "built_at": "2026-07-29T00:17:28Z",
-  "image_id": "sha256:212e0cefb8ee4d70ba83b6ce6d22018045fff00f268c5932de6aee73d5bf4532",
-  "image_size_bytes": 1455152539,
-  "local_manifest_digest": "sha256:212e0cefb8ee4d70ba83b6ce6d22018045fff00f268c5932de6aee73d5bf4532",
+  "built_at": "2026-07-29T02:04:05Z",
+  "image_id": "sha256:190e9c05a13c467756866671eac858b22b27d7aa364755f5bafb01b7a62a8e33",
+  "image_size_bytes": 1455150694,
+  "local_manifest_digest": "sha256:190e9c05a13c467756866671eac858b22b27d7aa364755f5bafb01b7a62a8e33",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
     "pages": 2,
@@ -16,6 +16,12 @@
   "registry_digest": null,
   "registry_status": "pending_until_push",
   "superseded_builds": [
+    {
+      "image_digest": "sha256:212e0cefb8ee4d70ba83b6ce6d22018045fff00f268c5932de6aee73d5bf4532",
+      "reason": "qualification reached Spec 04-A and failed closed because the generic request materialized the full canonical ledger beyond the release-bound one-million-byte request budget; the replacement keeps the full ledger authoritative while projecting an exhaustive bounded review task",
+      "source_revision": "3ae7f70bd79ceaaae846b9464d94854d85e8ef06",
+      "status": "superseded_before_release_admission"
+    },
     {
       "image_digest": "sha256:e35e466e0e7b1f7a82404b577683617d264aba7b23bf8d6fbaea92fe407fa9a9",
       "reason": "the release-bound real-material Spec 03 v1 call failed closed at the 16000-token output ceiling because the contract repeated long media, candidate, source and evidence identifiers for all 255 atoms",
@@ -46,29 +52,30 @@
       "status": "rejected_before_qualification"
     }
   ],
-  "runtime_id": "worker-v3-runtime-rc-3ae7f70",
+  "runtime_id": "worker-v3-runtime-rc-6ff731b",
   "runtime_identity": {
     "effective_uid": 10003,
-    "evidence_sha256": "fe3298c60bf60d81728be51d01ae544838505f30bce9e371f758cb329eefaa2a",
+    "evidence_sha256": "67ae15703a1de74a736c64ba114ba61ec1db1498c65dbb0edc77e0a3349d6580",
     "status": "passed",
     "system_lock_entries": 19
   },
   "sbom": {
     "component_count": 420,
-    "evidence_sha256": "cc4a55791eccdba6150b091d029db0b6070f04fb12f15282c373e1b51ff8d538",
+    "evidence_sha256": "e8f35822eeea888f4100dbd072d895abe9e68eb2fffebd7fb0cdaaabba773c7f",
     "format": "CycloneDX",
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "3ae7f70bd79ceaaae846b9464d94854d85e8ef06",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-3ae7f70",
+  "source_revision": "6ff731b412c88da1df92bf19661bffcc621c9052",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-6ff731b",
   "tests": {
     "backend/tests/test_workflow_v3_runtime_image.py": "passed as part of the complete repository integration suite",
-    "backend/tests/test_workflow_v3_*.py": "338 passed, 2 skipped with source revision mounted read-only into the exact rebuilt image",
-    "combined_result": "runtime identity passed; 338 passed, 2 skipped; production-forbidden runtime scan passed; locked-template XeLaTeX/qpdf/pdfinfo smoke passed",
+    "backend/tests/test_workflow_v3_*.py": "980 passed, 2 skipped with source revision mounted read-only into the exact rebuilt image; the image-contained atomic-kernel and executor suites separately passed 31 tests",
+    "combined_result": "runtime identity passed; 980 passed, 2 skipped; 31 image-contained targeted tests passed; production-forbidden runtime scan passed; locked-template XeLaTeX/qpdf/pdfinfo smoke passed",
     "spec02_v3_targeted": "compact exhaustive page coverage, deterministic baseline projection, exact override matching and sub-16000-byte 200-page minimum-response regressions passed in the prior qualified image and remain in the regression suite",
     "spec03_v2_targeted": "40 passed in the exact rebuilt image, including deterministic source-region baseline projection, index-to-immutable-ID expansion, baseline drift rejection, evidence-backed exclusion and 255/1000-item capacity bounds",
-    "warnings": "7274 existing deprecation warnings; zero test failures"
+    "spec04a_bounded_review_targeted": "10 focused atomic-kernel regressions passed before the clean build; real material 1343 projects all 339 title candidates, 589 adjacent context blocks and 200 source-page evidence records into 538448 canonical bytes while preserving full-ledger Producer validation",
+    "warnings": "8268 existing deprecation warnings in the complete repository suite and 542 in the image-contained targeted suite; zero test failures"
   },
   "user": "10003:10003"
 }
