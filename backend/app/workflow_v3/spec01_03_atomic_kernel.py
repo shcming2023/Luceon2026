@@ -22,12 +22,12 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping, Sequence
 
 
-KERNEL_VERSION = "luceon-worker-v3-spec01-03-atomic/1.3.0"
+KERNEL_VERSION = "luceon-worker-v3-spec01-03-atomic/1.4.0"
 INTAKE_SCHEMA = "luceon.worker-v3-spec01-intake-contract/v1"
 SCOPE_REVIEW_SCHEMA = "luceon.worker-v3-spec02-scope-order-review/v3"
-MEDIA_REVIEW_SCHEMA = "luceon.worker-v3-spec03-media-review/v1"
+MEDIA_REVIEW_SCHEMA = "luceon.worker-v3-spec03-media-review/v2"
 SCOPE_REVIEW_TASK_SCHEMA = "luceon.worker-v3-spec02-review-task/v2"
-MEDIA_REVIEW_TASK_SCHEMA = "luceon.worker-v3-spec03-review-task/v1"
+MEDIA_REVIEW_TASK_SCHEMA = "luceon.worker-v3-spec03-review-task/v2"
 ATOMIC_STAGE_MANIFEST_SCHEMA = "luceon.worker-v3-atomic-stage-manifest/v1"
 RUN_MANIFEST_SCHEMA = "luceon.worker-v3-atomic-run-manifest/v1"
 DECISION_INDEX_SCHEMA = "canonical-decision-index/1.1"
@@ -44,6 +44,7 @@ MAX_ARCHIVE_MEMBERS = 40_000
 MAX_ARCHIVE_BYTES = 4_000_000_000
 MAX_JSON_BYTES = 300_000_000
 SCOPE_BASELINE_ALGORITHM = "popo-evidence-scope-order-baseline/1.0"
+MEDIA_BASELINE_ALGORITHM = "source-pdf-region-media-baseline/1.0"
 SCOPE_BASELINE_EXCLUDED_LABELS = frozenset(
     {"footer", "header", "page_number", "watermark"}
 )
@@ -197,6 +198,12 @@ def _require_sha(value: Any, label: str) -> str:
 def _require_positive_int(value: Any, label: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
         _fail("field_invalid", f"{label} must be a positive integer")
+    return value
+
+
+def _require_nonnegative_int(value: Any, label: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        _fail("field_invalid", f"{label} must be a non-negative integer")
     return value
 
 
@@ -1903,6 +1910,33 @@ def prepare_scope_review_task(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def _minimum_media_review_bytes(
+    *,
+    material_id: str,
+    source_pdf_sha256: str,
+    baseline_sha256: str,
+    media_count: int,
+) -> int:
+    minimal = {
+        "schema_version": MEDIA_REVIEW_SCHEMA,
+        "review_id": "x",
+        "material_id": material_id,
+        "source_pdf_sha256": source_pdf_sha256,
+        "baseline_sha256": baseline_sha256,
+        "review_status": "closed",
+        "media": [
+            {
+                "media_index": media_index,
+                "baseline_disposition": "accepted",
+            }
+            for media_index in range(1, media_count + 1)
+        ],
+        "media_overrides": [],
+        "open_reviews": [],
+    }
+    return len(_canonical_bytes(minimal))
+
+
 def _media_review_task(parent: Path) -> dict[str, Any]:
     contract = _verify_materialized_parent(parent)
     identity = contract["material_identity"]
@@ -1924,33 +1958,128 @@ def _media_review_task(parent: Path) -> dict[str, Any]:
                 "candidate_final_order": unit["candidate_final_order"],
             }
         )
-    task_atoms = []
-    for atom in sorted(media_atoms, key=lambda item: item["media_id"]):
+    media_pages = {int(atom["physical_page"]) for atom in media_atoms}
+    page_source_units: list[dict[str, Any]] = []
+    indexed_source_by_page: dict[int, list[dict[str, Any]]] = {}
+    for page in sorted(media_pages):
+        rows = sorted(
+            source_by_page.get(page, []),
+            key=lambda item: (
+                item["candidate_final_order"] is None,
+                item["candidate_final_order"] or 0,
+                item["source_id"],
+            ),
+        )
+        indexed = [
+            {"source_unit_index": index, **row}
+            for index, row in enumerate(rows, 1)
+        ]
+        indexed_source_by_page[page] = indexed
+        page_source_units.append(
+            {
+                "physical_page": page,
+                "source_units": indexed,
+            }
+        )
+
+    task_atoms: list[dict[str, Any]] = []
+    baseline_rows: list[dict[str, Any]] = []
+    for media_index, atom in enumerate(
+        sorted(media_atoms, key=lambda item: item["media_id"]),
+        1,
+    ):
+        candidates = sorted(
+            (
+                item
+                for item in atom.get("candidates") or []
+                if isinstance(item, Mapping) and item.get("candidate_id")
+            ),
+            key=lambda item: (
+                {
+                    "source_region_image": 0,
+                    "source_asset_image": 1,
+                    "structured_table": 2,
+                    "structured_chart": 2,
+                    "structured_formula": 2,
+                }.get(str(item.get("representation_type")), 9),
+                str(item["candidate_id"]),
+            ),
+        )
+        if not candidates:
+            _fail(
+                "review_task_media_invalid",
+                f"media atom {atom['media_id']!r} has no representation candidate",
+            )
+        compact_candidates: list[dict[str, Any]] = []
+        for candidate_index, candidate in enumerate(candidates, 1):
+            compact: dict[str, Any] = {
+                "candidate_index": candidate_index,
+                "candidate_id": candidate["candidate_id"],
+                "representation_type": candidate["representation_type"],
+            }
+            for key in (
+                "sha256",
+                "size_bytes",
+                "source_page",
+                "bbox",
+                "bbox_coordinate_space",
+                "payload_sha256",
+                "payload",
+            ):
+                if key in candidate:
+                    compact[key] = candidate[key]
+            compact_candidates.append(compact)
+        baseline_candidate = compact_candidates[0]
+        baseline_disposition = {
+            "source_region_image": "source_region",
+            "source_asset_image": "source_asset",
+            "structured_table": "structured_transcription",
+            "structured_chart": "structured_transcription",
+            "structured_formula": "structured_transcription",
+        }.get(str(baseline_candidate["representation_type"]))
+        if baseline_disposition is None:
+            _fail(
+                "review_task_media_invalid",
+                f"media atom {atom['media_id']!r} candidate type is unsupported",
+            )
+        baseline_row = {
+            "media_index": media_index,
+            "media_id": atom["media_id"],
+            "disposition": baseline_disposition,
+            "selected_candidate_index": baseline_candidate["candidate_index"],
+            "source_unit_indexes": [],
+        }
+        baseline_rows.append(baseline_row)
         task_atoms.append(
             {
+                "media_index": media_index,
                 "media_id": atom["media_id"],
-                "source_atom_id": atom["source_atom_id"],
                 "physical_page": atom["physical_page"],
                 "bbox": atom["bbox"],
                 "bbox_basis": atom["bbox_basis"],
                 "media_kind": atom["media_kind"],
                 "raw_content_sha256": atom["raw_content_sha256"],
-                "source_units_on_page": sorted(
-                    source_by_page.get(int(atom["physical_page"]), []),
-                    key=lambda item: (
-                        item["candidate_final_order"] is None,
-                        item["candidate_final_order"] or 0,
-                        item["source_id"],
-                    ),
-                ),
-                "candidates": atom.get("candidates") or [],
+                "baseline_disposition": baseline_disposition,
+                "baseline_candidate_index": baseline_candidate[
+                    "candidate_index"
+                ],
+                "candidates": compact_candidates,
             }
         )
+    baseline = {
+        "schema_version": "luceon.worker-v3-spec03-deterministic-baseline/v1",
+        "algorithm": MEDIA_BASELINE_ALGORITHM,
+        "media": baseline_rows,
+    }
+    baseline["sha256"] = _canonical_hash(baseline)
     task = {
         "schema_version": MEDIA_REVIEW_TASK_SCHEMA,
         "stage_key": "canonical_block_ledger",
         "material_id": identity["material_id"],
         "source_pdf_sha256": identity["source_pdf_sha256"],
+        "media_atom_count": len(task_atoms),
+        "baseline_algorithm": MEDIA_BASELINE_ALGORITHM,
+        "baseline_sha256": baseline["sha256"],
         "required_output_schema": MEDIA_REVIEW_SCHEMA,
         "allowed_choices": {
             "disposition": [
@@ -1961,13 +2090,23 @@ def _media_review_task(parent: Path) -> dict[str, Any]:
             ]
         },
         "constraints": [
-            "Disposition every enumerated media_id exactly once.",
-            "Select only one candidate_id enumerated for that media atom.",
-            "Bind zero or more exact source_ids enumerated on the same source page.",
+            "Classify every media_index exactly once.",
+            "Accept the deterministic source-region baseline compactly and return full fields only for overrides.",
+            "Select only one candidate_index enumerated for that media atom.",
+            "Bind zero or more source_unit_indexes enumerated on the same source page.",
             "An exclusion requires source evidence and cannot discard instructional content.",
             "Do not invent replacement teaching content or an unenumerated asset.",
         ],
+        "page_source_units": page_source_units,
         "media_atoms": task_atoms,
+    }
+    task["capacity"] = {
+        "minimum_response_bytes": _minimum_media_review_bytes(
+            material_id=identity["material_id"],
+            source_pdf_sha256=identity["source_pdf_sha256"],
+            baseline_sha256=baseline["sha256"],
+            media_count=len(baseline_rows),
+        ),
     }
     task["task_id"] = "media-review-" + _canonical_hash(task)[:24]
     return task
@@ -1984,6 +2123,8 @@ def prepare_media_review_task(args: argparse.Namespace) -> dict[str, Any]:
         "task_sha256": task_hash,
         "task_canonical_sha256": _canonical_hash(task),
         "media_atoms": len(task["media_atoms"]),
+        "baseline_sha256": task["baseline_sha256"],
+        "minimum_response_bytes": task["capacity"]["minimum_response_bytes"],
     }
 
 
@@ -2875,46 +3016,167 @@ def _validate_media_review(
     source_sha256: str,
     media_atoms: Sequence[Mapping[str, Any]],
     source_ids: set[str],
+    review_task: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
     expected_fields = {
         "schema_version",
         "review_id",
         "material_id",
         "source_pdf_sha256",
+        "baseline_sha256",
         "review_status",
         "media",
+        "media_overrides",
         "open_reviews",
     }
     if set(review) != expected_fields or review.get("schema_version") != MEDIA_REVIEW_SCHEMA:
         _fail("media_review_shape_invalid", "media review has missing or unknown fields")
     if review.get("material_id") != material_id or review.get("source_pdf_sha256") != source_sha256:
         _fail("media_review_identity_mismatch", "media review names another source")
+    if review.get("baseline_sha256") != review_task.get("baseline_sha256"):
+        _fail(
+            "media_review_baseline_mismatch",
+            "media review names another deterministic baseline",
+        )
     if review.get("review_status") != "closed" or review.get("open_reviews") != []:
         _fail("media_review_open", "media review is not closed")
     rows = review.get("media")
     if not isinstance(rows, list):
         _fail("media_review_shape_invalid", "media must be an array")
+    task_atoms = review_task.get("media_atoms")
+    if not isinstance(task_atoms, list) or len(task_atoms) != len(media_atoms):
+        _fail("media_review_task_invalid", "media review task partition is invalid")
     atoms = {str(item["media_id"]): item for item in media_atoms}
-    seen: set[str] = set()
-    normalized: list[dict[str, Any]] = []
+    task_by_index = {
+        int(item["media_index"]): item
+        for item in task_atoms
+        if isinstance(item, Mapping)
+        and isinstance(item.get("media_index"), int)
+        and not isinstance(item.get("media_index"), bool)
+    }
+    if set(task_by_index) != set(range(1, len(media_atoms) + 1)):
+        _fail("media_review_task_invalid", "media review task indexes are not exact")
+    page_source_units = review_task.get("page_source_units")
+    if not isinstance(page_source_units, list):
+        _fail("media_review_task_invalid", "media review task source units are invalid")
+    source_indexes_by_page: dict[int, dict[int, str]] = {}
+    for page in page_source_units:
+        if not isinstance(page, Mapping) or not isinstance(
+            page.get("source_units"), list
+        ):
+            _fail("media_review_task_invalid", "page source unit group is invalid")
+        page_number = int(page["physical_page"])
+        indexed: dict[int, str] = {}
+        for unit in page["source_units"]:
+            if not isinstance(unit, Mapping):
+                _fail("media_review_task_invalid", "page source unit is invalid")
+            index = int(unit["source_unit_index"])
+            source_id = str(unit["source_id"])
+            if index in indexed or source_id not in source_ids:
+                _fail("media_review_task_invalid", "page source unit index is invalid")
+            indexed[index] = source_id
+        source_indexes_by_page[page_number] = indexed
+
+    seen: set[int] = set()
+    dispositions: dict[int, str] = {}
     for raw in rows:
         if not isinstance(raw, Mapping):
             _fail("media_review_shape_invalid", "media disposition must be an object")
-        fields = {
-            "media_id",
-            "disposition",
-            "selected_candidate_id",
-            "source_ids",
-            "evidence_refs",
-            "review_status",
-        }
+        fields = {"media_index", "baseline_disposition"}
         if set(raw) != fields:
             _fail("media_review_shape_invalid", "media disposition has missing or unknown fields")
-        media_id = _require_text(raw.get("media_id"), "media_id")
-        if media_id in seen or media_id not in atoms:
-            _fail("media_partition_invalid", f"media_id {media_id!r} is unknown or duplicated")
-        seen.add(media_id)
-        disposition = raw.get("disposition")
+        media_index = _require_positive_int(raw.get("media_index"), "media_index")
+        if media_index in seen or media_index not in task_by_index:
+            _fail("media_partition_invalid", f"media_index {media_index} is unknown or duplicated")
+        seen.add(media_index)
+        baseline_disposition = raw.get("baseline_disposition")
+        if baseline_disposition not in {"accepted", "overridden"}:
+            _fail(
+                "media_disposition_invalid",
+                f"media_index {media_index} baseline disposition is invalid",
+            )
+        dispositions[media_index] = str(baseline_disposition)
+    if seen != set(task_by_index):
+        missing = sorted(set(task_by_index) - seen)
+        _fail("media_partition_invalid", f"media review omits indexes {missing[:10]}")
+
+    raw_overrides = review.get("media_overrides")
+    if not isinstance(raw_overrides, list):
+        _fail("media_review_shape_invalid", "media_overrides must be an array")
+    overrides: dict[int, Mapping[str, Any]] = {}
+    for raw in raw_overrides:
+        fields = {
+            "media_index",
+            "disposition",
+            "selected_candidate_index",
+            "source_unit_indexes",
+            "reason",
+            "review_status",
+        }
+        if not isinstance(raw, Mapping) or set(raw) != fields:
+            _fail("media_review_shape_invalid", "media override shape is invalid")
+        media_index = _require_positive_int(
+            raw.get("media_index"),
+            "media override index",
+        )
+        if (
+            media_index in overrides
+            or dispositions.get(media_index) != "overridden"
+        ):
+            _fail(
+                "media_override_invalid",
+                f"media override {media_index} is unknown, duplicated, or not declared",
+            )
+        if raw.get("review_status") != "closed":
+            _fail("media_review_open", f"media index {media_index} is not closed")
+        _require_text(raw.get("reason"), f"media index {media_index} reason")
+        overrides[media_index] = raw
+    expected_overrides = {
+        index for index, value in dispositions.items() if value == "overridden"
+    }
+    if set(overrides) != expected_overrides:
+        _fail(
+            "media_override_invalid",
+            "media overrides do not exactly match overridden dispositions",
+        )
+
+    normalized: list[dict[str, Any]] = []
+    for media_index in range(1, len(media_atoms) + 1):
+        task_atom = task_by_index[media_index]
+        media_id = str(task_atom["media_id"])
+        atom = atoms.get(media_id)
+        if atom is None:
+            _fail("media_review_task_invalid", f"task media {media_id!r} is unknown")
+        candidates_by_index = {
+            int(item["candidate_index"]): item
+            for item in task_atom.get("candidates") or []
+            if isinstance(item, Mapping)
+            and isinstance(item.get("candidate_index"), int)
+            and not isinstance(item.get("candidate_index"), bool)
+        }
+        full_candidates = {
+            str(item["candidate_id"]): item
+            for item in atom.get("candidates") or []
+            if isinstance(item, Mapping) and item.get("candidate_id")
+        }
+        override = overrides.get(media_index)
+        if override is None:
+            disposition = str(task_atom["baseline_disposition"])
+            selected_index = int(task_atom["baseline_candidate_index"])
+            linked_indexes: list[int] = []
+        else:
+            disposition = str(override["disposition"])
+            selected_index = _require_nonnegative_int(
+                override.get("selected_candidate_index"),
+                f"{media_id} selected_candidate_index",
+            )
+            raw_linked_indexes = override.get("source_unit_indexes")
+            if not isinstance(raw_linked_indexes, list):
+                _fail(
+                    "media_source_binding_invalid",
+                    f"{media_id} source indexes must be an array",
+                )
+            linked_indexes = list(raw_linked_indexes)
         if disposition not in {
             "source_asset",
             "source_region",
@@ -2922,33 +3184,35 @@ def _validate_media_review(
             "excluded_noninstructional",
         }:
             _fail("media_disposition_invalid", f"{media_id} disposition is invalid")
-        if raw.get("review_status") != "closed":
-            _fail("media_review_open", f"{media_id} is not closed")
-        evidence = raw.get("evidence_refs")
-        if not isinstance(evidence, list) or not evidence:
-            _fail("media_evidence_missing", f"{media_id} lacks review evidence")
-        linked_source_ids = raw.get("source_ids")
         if (
-            not isinstance(linked_source_ids, list)
-            or len(linked_source_ids) != len(set(linked_source_ids))
-            or any(item not in source_ids for item in linked_source_ids)
+            len(linked_indexes) != len(set(linked_indexes))
+            or any(
+                not isinstance(index, int) or isinstance(index, bool)
+                for index in linked_indexes
+            )
         ):
-            _fail("media_source_binding_invalid", f"{media_id} source bindings are invalid")
-        selected = raw.get("selected_candidate_id")
-        candidates = {
-            str(item["candidate_id"]): item
-            for item in atoms[media_id].get("candidates") or []
-            if isinstance(item, Mapping) and item.get("candidate_id")
-        }
+            _fail("media_source_binding_invalid", f"{media_id} source indexes are invalid")
+        page_number = int(task_atom["physical_page"])
+        page_indexes = source_indexes_by_page.get(page_number, {})
+        if any(index not in page_indexes for index in linked_indexes):
+            _fail("media_source_binding_invalid", f"{media_id} source indexes are unknown")
+        linked_source_ids = [page_indexes[index] for index in linked_indexes]
         if disposition == "excluded_noninstructional":
-            if selected != "":
+            if selected_index != 0 or not linked_source_ids:
                 _fail("media_disposition_invalid", f"{media_id} excluded media selects a candidate")
             selected_candidate = None
             selected = None
+            evidence = [f"media:{media_id}"] + [
+                f"source:{source_id}" for source_id in linked_source_ids
+            ]
         else:
-            if not isinstance(selected, str) or selected not in candidates:
+            compact_candidate = candidates_by_index.get(selected_index)
+            if compact_candidate is None:
                 _fail("media_candidate_invalid", f"{media_id} selects an unknown candidate")
-            selected_candidate = candidates[selected]
+            selected = str(compact_candidate["candidate_id"])
+            selected_candidate = full_candidates.get(selected)
+            if selected_candidate is None:
+                _fail("media_candidate_invalid", f"{media_id} candidate binding drifted")
             expected_type = {
                 "source_asset": "source_asset_image",
                 "source_region": "source_region_image",
@@ -2965,6 +3229,7 @@ def _validate_media_review(
                 valid_type = actual_type == expected_type
             if not valid_type:
                 _fail("media_candidate_invalid", f"{media_id} candidate type differs")
+            evidence = [f"media:{media_id}", f"candidate:{selected}"]
         normalized.append(
             {
                 "media_id": media_id,
@@ -2976,9 +3241,6 @@ def _validate_media_review(
                 "review_status": "closed",
             }
         )
-    if seen != set(atoms):
-        missing = sorted(set(atoms) - seen)
-        _fail("media_partition_invalid", f"media review omits {missing[:10]}")
     return normalized
 
 
@@ -3044,6 +3306,7 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
         source_sha256=source_sha,
         media_atoms=media_atoms,
         source_ids=set(source_by_id),
+        review_task=_read_json(args.review_task.resolve(), "media review task"),
     )
     _copy_file(args.review.resolve(), output / "reviews/spec03_media_review.json")
     _copy_file(args.review_task.resolve(), output / "reviews/spec03_media_review_task.json")

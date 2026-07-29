@@ -381,7 +381,7 @@ def _produce_canonical_ledger(
     schema_path, schema_file_sha, schema_canonical_sha = _release_schema_binding(
         release,
         schema_id="worker-v3.spec03-media-review",
-        schema_version="1.0.0",
+        schema_version="2.0.0",
     )
     if binding.schema_sha256 != schema_canonical_sha:
         raise StageEntrypointError(

@@ -414,27 +414,13 @@ def _run_pipeline(root: Path, *, padding_bytes: int = 0) -> tuple[Path, Path, Pa
     )
     task = json.loads(media_task.read_text(encoding="utf-8"))
     media_review = root / "media-review.json"
-    media = []
-    for atom in task["media_atoms"]:
-        source_asset = next(
-            candidate
-            for candidate in atom["candidates"]
-            if candidate["representation_type"] == "source_asset_image"
-        )
-        media.append(
-            {
-                "media_id": atom["media_id"],
-                "disposition": "source_asset",
-                "selected_candidate_id": source_asset["candidate_id"],
-                "source_ids": [
-                    unit["source_id"]
-                    for unit in atom["source_units_on_page"]
-                    if unit["scope_status"] == "included"
-                ][:1],
-                "evidence_refs": [f"archive:{source_asset['archive_member']}"],
-                "review_status": "closed",
-            }
-        )
+    media = [
+        {
+            "media_index": atom["media_index"],
+            "baseline_disposition": "accepted",
+        }
+        for atom in task["media_atoms"]
+    ]
     _write_json(
         media_review,
         {
@@ -442,8 +428,10 @@ def _run_pipeline(root: Path, *, padding_bytes: int = 0) -> tuple[Path, Path, Pa
             "review_id": "media-review-1",
             "material_id": task["material_id"],
             "source_pdf_sha256": task["source_pdf_sha256"],
+            "baseline_sha256": task["baseline_sha256"],
             "review_status": "closed",
             "media": media,
+            "media_overrides": [],
             "open_reviews": [],
         },
     )
@@ -559,7 +547,16 @@ def test_large_frozen_inputs_are_referenced_not_recursively_materialized(
         if path not in risk_thumbnails
     ]
     selected = list(spec03.glob("media/selected/*.png"))
-    assert len(selected) == 1
+    assert selected == []
+    representation_plan = json.loads(
+        (spec03 / "media/media_representation_plan.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert {
+        item["disposition"]
+        for item in representation_plan["representations"]
+    } == {"source_region"}
     contract = json.loads(
         (spec01 / "contracts/input_contract.json").read_text(encoding="utf-8")
     )
@@ -1021,7 +1018,7 @@ def test_scope_review_rejects_nonempty_roles_for_semantic_group() -> None:
 
 
 def test_media_review_rejects_unknown_candidate(tmp_path: Path) -> None:
-    spec01, _, _, _ = _run_pipeline(tmp_path)
+    spec01, spec02, _, _ = _run_pipeline(tmp_path)
     contract = json.loads(
         (spec01 / "contracts/input_contract.json").read_text(encoding="utf-8")
     )
@@ -1029,20 +1026,30 @@ def test_media_review_rejects_unknown_candidate(tmp_path: Path) -> None:
         spec01 / "source/mineru_media_atoms.jsonl",
         "test media atoms",
     )
-    atom = media_atoms[0]
+    review_task = kernel._media_review_task(spec02)  # noqa: SLF001
     review = {
         "schema_version": kernel.MEDIA_REVIEW_SCHEMA,
         "review_id": "unknown-candidate",
         "material_id": contract["material_identity"]["material_id"],
         "source_pdf_sha256": contract["material_identity"]["source_pdf_sha256"],
+        "baseline_sha256": review_task["baseline_sha256"],
         "review_status": "closed",
         "media": [
             {
-                "media_id": atom["media_id"],
+                "media_index": atom["media_index"],
+                "baseline_disposition": (
+                    "overridden" if atom["media_index"] == 1 else "accepted"
+                ),
+            }
+            for atom in review_task["media_atoms"]
+        ],
+        "media_overrides": [
+            {
+                "media_index": 1,
                 "disposition": "source_asset",
-                "selected_candidate_id": "not-enumerated",
-                "source_ids": ["unit-p1"],
-                "evidence_refs": ["source:unit-p1"],
+                "selected_candidate_index": 999,
+                "source_unit_indexes": [],
+                "reason": "exercise unknown candidate rejection",
                 "review_status": "closed",
             }
         ],
@@ -1055,8 +1062,138 @@ def test_media_review_rejects_unknown_candidate(tmp_path: Path) -> None:
             source_sha256=contract["material_identity"]["source_pdf_sha256"],
             media_atoms=media_atoms,
             source_ids={"unit-p1", "unit-p2"},
+            review_task=review_task,
         )
     except kernel.KernelContractError as exc:
         assert exc.code == "media_candidate_invalid"
     else:
         raise AssertionError("unknown media candidate must fail")
+
+
+def test_media_review_rejects_baseline_drift(tmp_path: Path) -> None:
+    spec01, spec02, _, _ = _run_pipeline(tmp_path)
+    contract = json.loads(
+        (spec01 / "contracts/input_contract.json").read_text(encoding="utf-8")
+    )
+    media_atoms = kernel._read_jsonl(  # noqa: SLF001
+        spec01 / "source/mineru_media_atoms.jsonl",
+        "test media atoms",
+    )
+    review_task = kernel._media_review_task(spec02)  # noqa: SLF001
+    review = {
+        "schema_version": kernel.MEDIA_REVIEW_SCHEMA,
+        "review_id": "drifted-baseline",
+        "material_id": contract["material_identity"]["material_id"],
+        "source_pdf_sha256": contract["material_identity"]["source_pdf_sha256"],
+        "baseline_sha256": "0" * 64,
+        "review_status": "closed",
+        "media": [
+            {
+                "media_index": atom["media_index"],
+                "baseline_disposition": "accepted",
+            }
+            for atom in review_task["media_atoms"]
+        ],
+        "media_overrides": [],
+        "open_reviews": [],
+    }
+    try:
+        kernel._validate_media_review(  # noqa: SLF001
+            review,
+            material_id=contract["material_identity"]["material_id"],
+            source_sha256=contract["material_identity"]["source_pdf_sha256"],
+            media_atoms=media_atoms,
+            source_ids={"unit-p1", "unit-p2"},
+            review_task=review_task,
+        )
+    except kernel.KernelContractError as exc:
+        assert exc.code == "media_review_baseline_mismatch"
+    else:
+        raise AssertionError("media baseline drift must fail")
+
+
+def test_media_review_expands_evidence_backed_exclusion(tmp_path: Path) -> None:
+    spec01, spec02, _, _ = _run_pipeline(tmp_path)
+    contract = json.loads(
+        (spec01 / "contracts/input_contract.json").read_text(encoding="utf-8")
+    )
+    media_atoms = kernel._read_jsonl(  # noqa: SLF001
+        spec01 / "source/mineru_media_atoms.jsonl",
+        "test media atoms",
+    )
+    review_task = kernel._media_review_task(spec02)  # noqa: SLF001
+    first = review_task["media_atoms"][0]
+    page_group = next(
+        group
+        for group in review_task["page_source_units"]
+        if group["physical_page"] == first["physical_page"]
+    )
+    source_unit = page_group["source_units"][0]
+    review = {
+        "schema_version": kernel.MEDIA_REVIEW_SCHEMA,
+        "review_id": "evidence-backed-exclusion",
+        "material_id": contract["material_identity"]["material_id"],
+        "source_pdf_sha256": contract["material_identity"]["source_pdf_sha256"],
+        "baseline_sha256": review_task["baseline_sha256"],
+        "review_status": "closed",
+        "media": [
+            {
+                "media_index": atom["media_index"],
+                "baseline_disposition": (
+                    "overridden"
+                    if atom["media_index"] == first["media_index"]
+                    else "accepted"
+                ),
+            }
+            for atom in review_task["media_atoms"]
+        ],
+        "media_overrides": [
+            {
+                "media_index": first["media_index"],
+                "disposition": "excluded_noninstructional",
+                "selected_candidate_index": 0,
+                "source_unit_indexes": [source_unit["source_unit_index"]],
+                "reason": "page decoration confirmed by the enumerated source unit",
+                "review_status": "closed",
+            }
+        ],
+        "open_reviews": [],
+    }
+    normalized = kernel._validate_media_review(  # noqa: SLF001
+        review,
+        material_id=contract["material_identity"]["material_id"],
+        source_sha256=contract["material_identity"]["source_pdf_sha256"],
+        media_atoms=media_atoms,
+        source_ids={"unit-p1", "unit-p2"},
+        review_task=review_task,
+    )
+    excluded = next(
+        item for item in normalized if item["media_id"] == first["media_id"]
+    )
+    assert excluded["selected_candidate"] is None
+    assert excluded["source_ids"] == [source_unit["source_id"]]
+    assert excluded["evidence_refs"] == [
+        f"media:{first['media_id']}",
+        f"source:{source_unit['source_id']}",
+    ]
+
+
+def test_compact_media_review_capacity_scales_to_large_inventory() -> None:
+    assert (
+        kernel._minimum_media_review_bytes(  # noqa: SLF001
+            material_id="pdf-" + "a" * 16,
+            source_pdf_sha256="b" * 64,
+            baseline_sha256="c" * 64,
+            media_count=255,
+        )
+        < 16_000
+    )
+    assert (
+        kernel._minimum_media_review_bytes(  # noqa: SLF001
+            material_id="pdf-" + "a" * 16,
+            source_pdf_sha256="b" * 64,
+            baseline_sha256="c" * 64,
+            media_count=1_000,
+        )
+        < 60_000
+    )

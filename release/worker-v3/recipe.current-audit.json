@@ -521,8 +521,8 @@
       },
       {
         "id": "worker-v3.spec03-media-review",
-        "version": "1.0.0",
-        "path": "schemas/spec03-media-review-v1.schema.json"
+        "version": "2.0.0",
+        "path": "schemas/spec03-media-review-v2.schema.json"
       },
       {
         "id": "worker-v3.spec04a-outline-review",
@@ -718,9 +718,9 @@
     },
     {
       "id": "worker-v3.spec03-media-review",
-      "version": "1.0.0",
-      "path": "prompts/spec03-media-review-v1.txt",
-      "output_schema": "schemas/spec03-media-review-v1.schema.json"
+      "version": "2.0.0",
+      "path": "prompts/spec03-media-review-v2.txt",
+      "output_schema": "schemas/spec03-media-review-v2.schema.json"
     },
     {
       "id": "worker-v3.spec04a-outline-review",
