@@ -120,14 +120,14 @@ def _produce_spec05(
             "template_archive",
             "template_intake",
             "metadata_config",
+            "metadata_page_render",
             "presentation_config",
             "build_policy",
-            "source_page_bundle",
+            "source_scope_ledger",
             "source_asset_bundle",
         },
         bundle_roles={
             "promoted_predecessor",
-            "source_page_bundle",
             "source_asset_bundle",
         },
     )
@@ -142,7 +142,6 @@ def _produce_spec05(
                 f"parameter {name!r} must be non-empty text",
             )
     parent = inputs.extracted("promoted_predecessor")
-    pages = inputs.extracted("source_page_bundle")
     assets = inputs.extracted("source_asset_bundle")
     run = output / "spec05"
     args = [
@@ -178,8 +177,6 @@ def _produce_spec05(
         str(assets),
         "--source-pdf",
         str(inputs.file("source_pdf")),
-        "--source-page-dir",
-        str(pages),
         "--build-policy",
         str(inputs.file("build_policy")),
         "--stage-gate",

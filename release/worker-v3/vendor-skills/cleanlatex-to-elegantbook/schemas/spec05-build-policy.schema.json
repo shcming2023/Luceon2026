@@ -25,7 +25,7 @@
       "additionalProperties": false,
       "required": ["executor", "container", "entry", "engine", "minimum_tex", "command", "max_runs", "timeout_seconds"],
       "properties": {
-        "executor": {"const": "docker_copy_exec"},
+        "executor": {"enum": ["direct_exec", "docker_copy_exec"]},
         "container": {"type": "string", "minLength": 1},
         "entry": {"const": "main.tex"},
         "engine": {"type": "string", "minLength": 1},

@@ -27,7 +27,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-VERSION = "native-spec05-execution/2.0.0"
+VERSION = "native-spec05-execution/2.1.0"
 STAGE_SCHEMA = "spec05-native-stage-manifest/1.6"
 BUILD_POLICY_SCHEMA = "spec05-build-policy/1.0"
 MAX_DELIVERY_ZIP_BYTES = 50_000_000
@@ -79,8 +79,14 @@ def load_module(path: Path, name: str):
     return module
 
 
-def run_command(command: list[str], *, cwd: Path | None = None, timeout: int = 1800, check: bool = True) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(command, cwd=cwd, text=True, capture_output=True, timeout=timeout)
+def run_command(
+    command: list[str], *, cwd: Path | None = None, timeout: int = 1800,
+    check: bool = True, env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    result = subprocess.run(
+        command, cwd=cwd, text=True, capture_output=True, timeout=timeout,
+        env=env,
+    )
     if check and result.returncode != 0:
         raise RuntimeError(
             f"command failed ({result.returncode}): {' '.join(command)}\n"
@@ -150,8 +156,8 @@ def validate_policy(path: Path) -> dict[str, Any]:
     if policy.get("schema_version") != BUILD_POLICY_SCHEMA or policy.get("status") != "approved":
         raise ValueError(f"build policy must be approved {BUILD_POLICY_SCHEMA}")
     compile_cfg = policy.get("compile", {})
-    if compile_cfg.get("executor") != "docker_copy_exec" or not compile_cfg.get("container"):
-        raise ValueError("only an explicit docker_copy_exec compile policy is currently supported")
+    if compile_cfg.get("executor") not in {"direct_exec", "docker_copy_exec"} or not compile_cfg.get("container"):
+        raise ValueError("compile policy must select a supported explicit executor")
     command = compile_cfg.get("command")
     if not isinstance(command, list) or not command or any(not isinstance(item, str) or not item for item in command):
         raise ValueError("compile command must be a non-empty argv list")
@@ -235,9 +241,10 @@ def capability_manifest(args: argparse.Namespace, execution_core: Any, run: Path
         "--media-evidence-ledger", str(args.media_evidence_ledger.resolve()),
         "--media-representation-plan", str(args.media_representation_plan.resolve()),
         "--source-pdf", str(args.source_pdf.resolve()),
-        "--source-page-dir", str(args.source_page_dir.resolve()),
         "--build-policy", str(args.build_policy.resolve()),
     ]
+    if args.source_page_dir:
+        invocation.extend(["--source-page-dir", str(args.source_page_dir.resolve())])
     for root in args.asset_root:
         invocation.extend(["--asset-root", str(root.resolve())])
     if args.warning_review:
@@ -268,50 +275,96 @@ def compile_exact_zip(run: Path, zip_path: Path, policy: dict[str, Any]) -> tupl
     cfg = policy["compile"]
     container = cfg["container"]
     timeout = int(cfg.get("timeout_seconds", 1800))
-    token = f"spec05-{hashlib.sha256((str(run) + sha256_file(zip_path)).encode()).hexdigest()[:20]}"
-    remote = f"/tmp/{token}"
-    run_command(["docker", "exec", container, "mkdir", "-p", remote], timeout=60)
-    try:
-        run_command(["docker", "cp", f"{clean_source}/.", f"{container}:{remote}/"], timeout=timeout)
+    executor = cfg["executor"]
+    final = run / "build/final"
+    final.mkdir(parents=True)
+    if executor == "direct_exec":
         environment = cfg.get("environment", {})
-        env_prefix = ["env"] + [f"{key}={value}" for key, value in sorted(environment.items())]
-        shell_command = shlex.join(env_prefix + cfg["command"])
+        home = run / "build/home"
+        home.mkdir()
+        process_env = {
+            **os.environ,
+            **{str(key): str(value) for key, value in environment.items()},
+            "HOME": str(home),
+            "TEXMFVAR": str(home / "texmf-var"),
+            "TEXMFCONFIG": str(home / "texmf-config"),
+            "TEXMFHOME": str(home / "texmf-home"),
+        }
         result = run_command(
-            ["docker", "exec", "-w", remote, container, "sh", "-lc", shell_command],
-            timeout=timeout, check=False,
+            cfg["command"], cwd=clean_source, timeout=timeout, check=False,
+            env=process_env,
         )
         raw = run / "build/compile-process.json"
         write_json(raw, {
             "schema_version": "compile-process/1.0", "generated_at": now(),
-            "container": container, "remote_workdir": remote, "command": cfg["command"],
+            "executor": executor, "runtime": container,
+            "workdir": str(clean_source), "command": cfg["command"],
             "environment_keys": sorted(environment), "exit_code": result.returncode,
             "stdout": result.stdout, "stderr": result.stderr,
         })
-        final = run / "build/final"
-        final.mkdir(parents=True)
-        missing_outputs: list[str] = []
+        missing_outputs = []
         for name in ("main.log", "main.fls", "main.pdf"):
-            copied = run_command(["docker", "cp", f"{container}:{remote}/{name}", str(final / name)], timeout=timeout, check=False)
-            if copied.returncode != 0:
+            source = clean_source / name
+            if source.is_file():
+                shutil.copy2(source, final / name)
+            else:
                 missing_outputs.append(name)
         if result.returncode != 0:
             raise RuntimeError(f"COMPILE_NONZERO_EXIT: {result.returncode}; see {raw}")
         if missing_outputs:
             raise RuntimeError(f"compiled artifacts are missing despite exit zero: {missing_outputs}")
-    finally:
-        run_command(["docker", "exec", container, "rm", "-rf", remote], timeout=60, check=False)
+    else:
+        token = f"spec05-{hashlib.sha256((str(run) + sha256_file(zip_path)).encode()).hexdigest()[:20]}"
+        remote = f"/tmp/{token}"
+        run_command(["docker", "exec", container, "mkdir", "-p", remote], timeout=60)
+        try:
+            run_command(["docker", "cp", f"{clean_source}/.", f"{container}:{remote}/"], timeout=timeout)
+            environment = cfg.get("environment", {})
+            env_prefix = ["env"] + [f"{key}={value}" for key, value in sorted(environment.items())]
+            shell_command = shlex.join(env_prefix + cfg["command"])
+            result = run_command(
+                ["docker", "exec", "-w", remote, container, "sh", "-lc", shell_command],
+                timeout=timeout, check=False,
+            )
+            raw = run / "build/compile-process.json"
+            write_json(raw, {
+                "schema_version": "compile-process/1.0", "generated_at": now(),
+                "executor": executor, "container": container,
+                "remote_workdir": remote, "command": cfg["command"],
+                "environment_keys": sorted(environment), "exit_code": result.returncode,
+                "stdout": result.stdout, "stderr": result.stderr,
+            })
+            missing_outputs = []
+            for name in ("main.log", "main.fls", "main.pdf"):
+                copied = run_command(["docker", "cp", f"{container}:{remote}/{name}", str(final / name)], timeout=timeout, check=False)
+                if copied.returncode != 0:
+                    missing_outputs.append(name)
+            if result.returncode != 0:
+                raise RuntimeError(f"COMPILE_NONZERO_EXIT: {result.returncode}; see {raw}")
+            if missing_outputs:
+                raise RuntimeError(f"compiled artifacts are missing despite exit zero: {missing_outputs}")
+        finally:
+            run_command(["docker", "exec", container, "rm", "-rf", remote], timeout=60, check=False)
 
     outputs = {name: run / f"build/final/{name}" for name in ("main.pdf", "main.log", "main.fls")}
     if not all(path.is_file() for path in outputs.values()):
         raise ValueError("compile did not produce PDF, LOG, and FLS")
-    environment = {
-        "schema_version": "build-environment/2.0", "generated_at": now(), "host": socket.gethostname(),
-        "executor": "docker_copy_exec", "container": container,
-        "container_image": run_command(["docker", "inspect", "--format", "{{.Image}}", container], timeout=60).stdout.strip(),
-        "versions": {
+    if executor == "direct_exec":
+        versions = {
+            "xelatex": run_command(["xelatex", "--version"], timeout=60).stdout.splitlines()[:2],
+            "latexmk": run_command(["latexmk", "-v"], timeout=60).stdout.splitlines()[:2],
+        }
+        image_identity = os.environ.get("WORKFLOW_V3_RUNTIME_ID", container)
+    else:
+        versions = {
             "xelatex": run_command(["docker", "exec", container, "sh", "-lc", "xelatex --version | head -2"], timeout=60).stdout.strip(),
             "latexmk": run_command(["docker", "exec", container, "sh", "-lc", "latexmk -v | head -2"], timeout=60).stdout.strip(),
-        },
+        }
+        image_identity = run_command(["docker", "inspect", "--format", "{{.Image}}", container], timeout=60).stdout.strip()
+    environment = {
+        "schema_version": "build-environment/2.0", "generated_at": now(), "host": socket.gethostname(),
+        "executor": executor, "container": container,
+        "container_image": image_identity, "versions": versions,
         "command": cfg["command"], "clean_build": True, "input_zip_sha256": sha256_file(zip_path),
         "clean_source_tree_hash": canonical_hash(clean_hashes),
     }
@@ -1148,7 +1201,8 @@ def produce(args: argparse.Namespace) -> dict[str, Any]:
     render_args = argparse.Namespace(
         template_dir=template_dir, template_contract=contract_path, ledger=ledger, decision_index=parent_index,
         render_plan=render_plan, capability_manifest=args.capability_manifest.resolve(), asset_root=args.asset_root,
-        source_pdf=args.source_pdf.resolve(), source_page_dir=args.source_page_dir.resolve(),
+        source_pdf=args.source_pdf.resolve(),
+        source_page_dir=(args.source_page_dir.resolve() if args.source_page_dir else None),
         contract_validator=args.contract_validator.resolve(), media_evidence_ledger=args.media_evidence_ledger.resolve(),
         media_representation_plan=args.media_representation_plan.resolve(), media_validator=args.media_validator.resolve(),
         out_dir=mechanical,
@@ -1466,7 +1520,7 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--media-representation-plan", type=Path, required=True)
     value.add_argument("--asset-root", type=Path, action="append", default=[], required=True)
     value.add_argument("--source-pdf", type=Path, required=True)
-    value.add_argument("--source-page-dir", type=Path, required=True)
+    value.add_argument("--source-page-dir", type=Path)
     value.add_argument("--build-policy", type=Path, required=True)
     value.add_argument("--warning-review", type=Path)
     default_orchestrator = (

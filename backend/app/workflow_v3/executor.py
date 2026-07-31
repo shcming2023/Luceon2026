@@ -3,11 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
 import threading
 import time
+import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
@@ -2135,25 +2137,160 @@ class _StageRequestBuilder:
         parameters: Mapping[str, object],
     ) -> dict[str, object]:
         self._add_promotion_registry()
-        self._add_template_archive()
+        template_archive = self._add_template_archive()
         self._add_prior_candidate_file(
             "intake_snapshot",
             "template_intake",
             "contracts/template_intake.json",
             "worker-v3-template-intake",
         )
-        for role in (
+        self._add_stage_candidate(
+            "canonical_block_ledger",
+            role="source_asset_bundle",
+            manifest_role="source_asset_promotion_manifest",
+        )
+        source_asset_manifest = next(
+            item
+            for item in self.artifacts
+            if item.role == "source_asset_promotion_manifest"
+        )
+        self.artifacts.remove(source_asset_manifest)
+        source_scope = self.extracted["source_asset_bundle"] / (
+            "ledgers/source_scope_ledger.json"
+        )
+        source_scope_input = self._add_local_file(
+            "source_scope_ledger",
+            "worker-v3-source-scope-ledger",
+            source_scope,
+        )
+        source_pdf = next(item for item in self.artifacts if item.role == "source_pdf")
+        page_render = self._render_metadata_evidence_page(source_pdf)
+        metadata_page = self._add_local_file(
+            "metadata_page_render",
+            "worker-v3-source-page-render",
+            page_render,
+        )
+        self._add_json(
             "metadata_config",
+            "spec05-source-grounded-metadata",
+            self._spec05_metadata_config(source_pdf, metadata_page),
+        )
+        self._add_json(
             "presentation_config",
-            "build_policy",
-            "source_page_bundle",
-            "source_asset_bundle",
-        ):
-            self._add_release_profile_input(role)
+            "spec05-presentation-config",
+            self._spec05_presentation_config(
+                template_archive,
+                source_scope_input,
+            ),
+        )
+        self._add_release_profile_input("build_policy")
         return {
             "parent_lineage_key": self._lineage_for("frozen_render_plan"),
             "run_id": str(self._source_evidence().get("run_id") or self.job.public_id),
             "body_marker": "LUCEON_GENERATED_BODY",
+        }
+
+    def _render_metadata_evidence_page(
+        self,
+        source_pdf: PreparedInputArtifact,
+    ) -> Path:
+        import fitz
+
+        path = (self.workdir / source_pdf.path).resolve()
+        output = self.workdir / "generated-inputs/metadata-source-page-001.png"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        with fitz.open(path) as document:
+            if document.page_count < 1:
+                raise ArtifactIntegrityError("source PDF has no page for metadata evidence")
+            pixmap = document[0].get_pixmap(dpi=110, alpha=False)
+            pixmap.save(output)
+        return output
+
+    def _spec05_metadata_config(
+        self,
+        source_pdf: PreparedInputArtifact,
+        page_render: PreparedInputArtifact,
+    ) -> dict[str, object]:
+        source = self._source_evidence()
+        filename = str(source.get("filename") or "")
+        title = Path(filename).stem.strip()
+        if not title or any(character in title for character in "\\{}"):
+            raise ArtifactIntegrityError(
+                "source filename cannot provide a safe source-grounded title"
+            )
+        return {
+            "schema_version": "spec05-metadata/1.0",
+            "status": "approved_source_grounded",
+            "values": {"title": title},
+            "evidence": [
+                {
+                    "source_ref": f"../../{source_pdf.role}/artifact",
+                    "source_sha256": source_pdf.ref.sha256,
+                    "pdf_physical_page": 1,
+                    "page_render_ref": f"../../{page_render.role}/artifact",
+                    "page_render_sha256": page_render.ref.sha256,
+                    "supports": ["title"],
+                }
+            ],
+        }
+
+    def _spec05_presentation_config(
+        self,
+        template_archive: PreparedInputArtifact,
+        source_scope: PreparedInputArtifact,
+    ) -> dict[str, object]:
+        archive = (self.workdir / template_archive.path).resolve()
+        manifest = self.bound.verification.manifest
+        template = manifest.get("template")
+        if not isinstance(template, dict):
+            raise ReleaseBindingError("release template binding is missing")
+        main_member = str(template.get("main_member") or "")
+        fixed_members = template.get("fixed_asset_members")
+        if (
+            not main_member
+            or not isinstance(fixed_members, list)
+            or set(fixed_members) != {"figure/cover.jpg", "figure/logo.jpg"}
+        ):
+            raise ReleaseBindingError("release template presentation assets are incomplete")
+        with zipfile.ZipFile(archive) as frozen:
+            main_text = frozen.read(main_member).decode("utf-8")
+            rows: dict[str, dict[str, object]] = {}
+            for macro in ("cover", "logo"):
+                matches = re.findall(
+                    rf"\\{macro}\{{([^{{}}]+)\}}",
+                    main_text,
+                )
+                member = f"figure/{macro}.jpg"
+                if len(matches) != 1 or matches[0] != Path(member).name:
+                    raise ReleaseBindingError(
+                        f"frozen template {macro} macro is not uniquely bound"
+                    )
+                payload = frozen.read(member)
+                rows[macro] = {
+                    "mode": "template_default",
+                    "macro_value": matches[0],
+                    "template_member": member,
+                    "asset_sha256": hashlib.sha256(payload).hexdigest(),
+                    "decision": {
+                        "decision_id": f"template-default-{macro}",
+                        "status": "closed",
+                        "rationale": "Preserve the exact frozen template default asset.",
+                        "evidence_refs": [template_archive.path],
+                    },
+                    "compatibility": {
+                        "status": "approved",
+                        "assertion": "output_brand",
+                    },
+                }
+        return {
+            "schema_version": "spec05-presentation-config/1.0",
+            "status": "approved",
+            "template_zip_sha256": template_archive.ref.sha256,
+            "source_scope_binding": {
+                "ledger_ref": f"../../{source_scope.role}/artifact",
+                "ledger_sha256": source_scope.ref.sha256,
+            },
+            "assets": rows,
         }
 
     def _prepare_visual_review_inputs(
@@ -2307,6 +2444,24 @@ class _StageRequestBuilder:
                     "path": compiler.get("profile_path"),
                     "sha256": compiler.get("profile_sha256"),
                     "kind": "overleaf-target-environment",
+                }
+        elif role == "build_policy":
+            runtime = manifest.get("runtime")
+            tools = (
+                runtime.get("system_tools")
+                if isinstance(runtime, dict)
+                else None
+            )
+            compiler = (
+                tools.get("spec05_build")
+                if isinstance(tools, dict)
+                else None
+            )
+            if isinstance(compiler, dict):
+                profile = {
+                    "path": compiler.get("profile_path"),
+                    "sha256": compiler.get("profile_sha256"),
+                    "kind": "spec05-build-policy",
                 }
         if not isinstance(profile, dict):
             raise ReleaseBindingError(

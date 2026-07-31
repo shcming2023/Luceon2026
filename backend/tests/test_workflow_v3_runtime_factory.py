@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import hashlib
 import json
+import zipfile
 from types import SimpleNamespace
 
 import pytest
@@ -134,6 +135,78 @@ def test_construct_review_choices_are_bound_per_release_task():
         "construct:0000": ("option-0000", "option-0001"),
         "construct:0001": ("option-0000",),
     }
+
+
+def test_spec05_metadata_and_presentation_are_source_and_template_bound(
+    tmp_path: Path,
+):
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+    archive = workdir / "inputs/template_archive/artifact"
+    archive.parent.mkdir(parents=True)
+    with zipfile.ZipFile(archive, "w") as output:
+        output.writestr(
+            "main.tex",
+            "\\cover{cover.jpg}\n\\logo{logo.jpg}\n",
+        )
+        output.writestr("figure/cover.jpg", b"cover")
+        output.writestr("figure/logo.jpg", b"logo")
+    builder = _StageRequestBuilder(
+        db=object(),
+        session_factory=lambda: None,
+        artifact_store=object(),
+        job=SimpleNamespace(
+            public_id="job-1",
+            payload_json=json.dumps({
+                "source_evidence": {
+                    "filename": "Source Grounded Book.pdf",
+                    "artifacts": [{}] * 7,
+                }
+            }),
+            load=lambda raw, default: json.loads(raw) if raw else default,
+        ),
+        stage=SimpleNamespace(stage_key="deterministic_elegantbook", attempt=1),
+        release=SimpleNamespace(),
+        release_root=tmp_path / "release",
+        bound=SimpleNamespace(verification=SimpleNamespace(manifest={
+            "template": {
+                "main_member": "main.tex",
+                "fixed_asset_members": ["figure/cover.jpg", "figure/logo.jpg"],
+            }
+        })),
+        workdir=workdir,
+        heartbeat=lambda: None,
+    )
+    template = PreparedInputArtifact(
+        "template_archive", "approved-template-archive",
+        ArtifactRef("local", "template", hashlib.sha256(archive.read_bytes()).hexdigest(), archive.stat().st_size),
+        "inputs/template_archive/artifact",
+    )
+    source_pdf = PreparedInputArtifact(
+        "source_pdf", "source-pdf",
+        ArtifactRef("source", "source.pdf", "a" * 64, 10),
+        "inputs/source_pdf/artifact",
+    )
+    page = PreparedInputArtifact(
+        "metadata_page_render", "worker-v3-source-page-render",
+        ArtifactRef("local", "page.png", "b" * 64, 20),
+        "inputs/metadata_page_render/artifact",
+    )
+    scope = PreparedInputArtifact(
+        "source_scope_ledger", "worker-v3-source-scope-ledger",
+        ArtifactRef("local", "scope.json", "c" * 64, 30),
+        "inputs/source_scope_ledger/artifact",
+    )
+
+    metadata = builder._spec05_metadata_config(source_pdf, page)
+    presentation = builder._spec05_presentation_config(template, scope)
+
+    assert metadata["values"] == {"title": "Source Grounded Book"}
+    assert metadata["evidence"][0]["source_sha256"] == "a" * 64
+    assert presentation["template_zip_sha256"] == template.ref.sha256
+    assert presentation["source_scope_binding"]["ledger_sha256"] == "c" * 64
+    assert presentation["assets"]["cover"]["asset_sha256"] == hashlib.sha256(b"cover").hexdigest()
+    assert presentation["assets"]["logo"]["asset_sha256"] == hashlib.sha256(b"logo").hexdigest()
 
 
 def test_outline_review_preparation_uses_stable_source_pdf_reference(

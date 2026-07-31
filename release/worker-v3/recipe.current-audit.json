@@ -92,7 +92,7 @@
       "root": "skills",
       "path": "luceon-popo-to-refined-elegantbook",
       "destination": "skills/luceon-popo-to-refined-elegantbook",
-      "expected_tree_sha256": "5444e7c3cdbd634ff28e07b853db1e29ee922b5e2db04e5aa459c2bde33d5d8c"
+      "expected_tree_sha256": "cd35678ae34c2887517100dbca5ba279b01e6e939ff86df9a888f637263da2b8"
     },
     {
       "id": "skill-pdf-clean-markdown-rebuild",
@@ -119,7 +119,7 @@
       "root": "skills",
       "path": "cleanlatex-to-elegantbook",
       "destination": "skills/cleanlatex-to-elegantbook",
-      "expected_tree_sha256": "d24792cbcf0bae9d1a22c26298bfb033ddf6c3b5665f1ffa2ca5ef1b1d726a93"
+      "expected_tree_sha256": "982eca9e6c16b68eadcd5e3040e5db5e282b5352bfec380bcff17a5387f286ca"
     },
     {
       "id": "skill-refine-elegantbook-latex",
@@ -191,7 +191,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec05_06_stage_adapters.py",
       "destination": "scripts/worker-v3/spec05_06_stage_adapters.py",
-      "expected_sha256": "06f3eb08f40e6f7d78061f16f8162fc541eaabff58fb931c99c9edc12f444c57"
+      "expected_sha256": "fe71cbf9176d7a39afdd020fdd2b56ae659d0e41cee181e3ac7b7cd0078098a7"
     },
     {
       "id": "worker-v3-stage-evaluators-runtime",
@@ -363,6 +363,15 @@
       "path": "release/worker-v3/runtime/overleaf-target-environment.json",
       "destination": "runtime/overleaf-target-environment.json",
       "expected_sha256": "684c334f7cf9c90c22d4a9a73a6c026284e2c900759d22962e5c089bf723297d"
+    },
+    {
+      "id": "worker-v3-spec05-build-policy",
+      "kind": "file",
+      "source_role": "runtime_evidence",
+      "root": "worker_v3",
+      "path": "release/worker-v3/runtime/spec05-build-policy.json",
+      "destination": "runtime/spec05-build-policy.json",
+      "expected_sha256": "62980ba379f9103b3a85174ff92354afaf5449c99db9d54b2882648e3378525a"
     },
     {
       "id": "worker-v3-template-capabilities",
@@ -906,6 +915,10 @@
       "overleaf_compiler": {
         "profile_path": "runtime/overleaf-target-environment.json",
         "profile_sha256": "684c334f7cf9c90c22d4a9a73a6c026284e2c900759d22962e5c089bf723297d"
+      },
+      "spec05_build": {
+        "profile_path": "runtime/spec05-build-policy.json",
+        "profile_sha256": "62980ba379f9103b3a85174ff92354afaf5449c99db9d54b2882648e3378525a"
       }
     },
     "fonts_identity_path": "runtime/ordinary-runtime-identity.json",
@@ -917,7 +930,8 @@
       "runtime/ordinary-runtime-identity.json",
       "runtime/ordinary-runtime-build-proof.json",
       "runtime/worker-v3-system-packages.lock",
-      "runtime/overleaf-target-environment.json"
+      "runtime/overleaf-target-environment.json",
+      "runtime/spec05-build-policy.json"
     ]
   },
   "dynamic_closure": {

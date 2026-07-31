@@ -367,9 +367,17 @@ class Spec04DRenderPlanTests(unittest.TestCase):
             self.assertEqual(len(covered), len(set(covered)))
             media = next(node for node in nodes if node["node_kind"] == "media")
             self.assertEqual(media["source_block_ids"], ["i1", "i2"])
+            self.assertNotIn("source_path", media["payload"])
+            self.assertEqual(media["payload"]["asset_ref"], asset.name)
+            self.assertEqual(media["payload"]["asset_size_bytes"], asset.stat().st_size)
             box = next(node for node in nodes if node["target_construct"] == "tcolorbox")
             self.assertEqual(box["payload"]["title"], "NOTE")
             self.assertEqual(box["payload"]["body"][0]["raw_content"], "Body")
+
+            partition = MODULE.build_volume_partition_plan(nodes, self.policy())
+            budget = partition["volumes"][0]["budget_estimate"]
+            self.assertEqual(budget["unique_media_assets"], 1)
+            self.assertEqual(budget["source_media_bytes"], asset.stat().st_size)
 
     def test_structure_media_collision_uses_virtual_structure_and_one_media_output(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -99,13 +99,13 @@ def test_warning_report_never_allows_missing_glyph_review_override(tmp_path: Pat
     assert report["summary"]["C1_BLOCKING"] == 1
 
 
-def test_build_policy_accepts_both_supported_poppler_renderers(tmp_path: Path) -> None:
+def test_build_policy_accepts_direct_runtime_and_both_supported_poppler_renderers(tmp_path: Path) -> None:
     base = {
         "schema_version": "spec05-build-policy/1.0",
         "status": "approved",
         "template_metadata_constraints": {"required_nonempty": ["title"]},
         "compile": {
-            "executor": "docker_copy_exec", "container": "tex", "entry": "main.tex",
+            "executor": "direct_exec", "container": "worker-v3-runtime", "entry": "main.tex",
             "command": ["latexmk", "main.tex"],
         },
         "render": {"renderer": "pdftoppm", "format": "png", "dpi": 110},
@@ -115,6 +115,23 @@ def test_build_policy_accepts_both_supported_poppler_renderers(tmp_path: Path) -
         base["render"]["renderer"] = renderer
         policy.write_text(json.dumps(base), encoding="utf-8")
         assert MODULE.validate_policy(policy)["render"]["renderer"] == renderer
+
+
+def test_build_policy_rejects_unknown_compile_executor(tmp_path: Path) -> None:
+    policy = tmp_path / "policy.json"
+    policy.write_text(json.dumps({
+        "schema_version": "spec05-build-policy/1.0",
+        "status": "approved",
+        "template_metadata_constraints": {"required_nonempty": ["title"]},
+        "compile": {"executor": "shell_eval", "container": "runtime", "entry": "main.tex", "command": ["latexmk"]},
+        "render": {"renderer": "pdftoppm", "format": "png", "dpi": 110},
+    }), encoding="utf-8")
+    try:
+        MODULE.validate_policy(policy)
+    except ValueError as exc:
+        assert "supported explicit executor" in str(exc)
+    else:
+        raise AssertionError("unknown compile executor must be rejected")
 
 
 def test_build_policy_rejects_unknown_renderer(tmp_path: Path) -> None:

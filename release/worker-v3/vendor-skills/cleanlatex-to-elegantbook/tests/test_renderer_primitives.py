@@ -56,6 +56,48 @@ class RendererPrimitiveTests(unittest.TestCase):
         )
         self.assertEqual(r"\(\angle  A \perp  B \therefore  C\)", MODULE.sanitize_math(r"\(∠ A ⊥ B ∴ C\)"))
 
+    def test_portable_region_asset_is_resolved_from_bound_asset_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            assets = root / "assets/media/selected"
+            assets.mkdir(parents=True)
+            source = assets / "frozen-crop.png"
+            Image.new("RGB", (20, 10), "white").save(source)
+            digest = MODULE.sha256_file(source)
+            payload = {
+                "asset_ref": source.name,
+                "asset_size_bytes": source.stat().st_size,
+                "artifact_sha256": digest,
+                "media_binding": {
+                    "representation_type": "source_region_image",
+                    "artifact_sha256": digest,
+                },
+            }
+            plan = {"nodes": [{
+                "render_node_id": "render::portable-region",
+                "node_kind": "media",
+                "source_block_ids": ["s1"],
+                "target_construct": "source_region_image",
+                "construct_parameters": {
+                    "width_fraction": 0.5,
+                    "max_height_fraction": 0.5,
+                    "alignment": "center",
+                },
+                "payload": payload,
+                "payload_hash": MODULE.canonical_hash(payload),
+            }]}
+            project = root / "project"
+            project.mkdir()
+
+            rendered, emissions, copied, crops = MODULE.serialize(
+                plan, project, [root / "assets"], None, None, root,
+            )
+
+            self.assertIn(b"frozen-crop.png", rendered)
+            self.assertEqual(emissions[0]["render_node_id"], "render::portable-region")
+            self.assertEqual(copied["frozen-crop.png"]["sha256"], digest)
+            self.assertEqual(crops, {})
+
     def test_ambiguous_ocr_symbol_fails(self):
         with self.assertRaises(ValueError):
             MODULE.escape_text("ⓞ")

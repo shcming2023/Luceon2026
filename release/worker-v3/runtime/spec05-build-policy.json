@@ -1,0 +1,38 @@
+{
+  "schema_version": "spec05-build-policy/1.0",
+  "status": "approved",
+  "template_metadata_constraints": {
+    "required_nonempty": [
+      "title"
+    ]
+  },
+  "compile": {
+    "executor": "direct_exec",
+    "container": "worker-v3-runtime",
+    "entry": "main.tex",
+    "engine": "xelatex",
+    "minimum_tex": "TeX Live 2025",
+    "command": [
+      "latexmk",
+      "-xelatex",
+      "-interaction=nonstopmode",
+      "-halt-on-error",
+      "-file-line-error",
+      "-no-shell-escape",
+      "main.tex"
+    ],
+    "environment": {
+      "LC_ALL": "C.UTF-8",
+      "TZ": "UTC"
+    },
+    "max_runs": 5,
+    "timeout_seconds": 1800
+  },
+  "render": {
+    "renderer": "pdftoppm",
+    "format": "png",
+    "dpi": 110,
+    "color_space": "RGB",
+    "timeout_seconds": 1800
+  }
+}

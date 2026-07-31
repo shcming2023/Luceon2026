@@ -477,10 +477,10 @@ def serialize(
                     source = Path(frozen_source).resolve()
                     matches = [source] if source.is_file() else []
                     name = safe_media_name(node, source)
-                elif construct == "source_asset_image":
+                elif payload.get("asset_ref"):
                     asset_ref = payload.get("asset_ref")
                     if not isinstance(asset_ref, str) or not asset_ref:
-                        raise ValueError(f"source_asset_image lacks frozen asset_ref: {node['render_node_id']}")
+                        raise ValueError(f"media node lacks frozen asset_ref: {node['render_node_id']}")
                     name = Path(asset_ref).name
                     matches = asset_index.get(name, [])
                 else:
@@ -489,7 +489,7 @@ def serialize(
                     # materializes the image from the bound source PDF.
                     name = ""
                     matches = []
-                if frozen_source or construct == "source_asset_image":
+                if frozen_source or payload.get("asset_ref"):
                     if not matches:
                         raise ValueError(f"missing planned asset: {name}")
                     hashes = {sha256_file(path) for path in matches}
@@ -523,6 +523,7 @@ def serialize(
                         if destination.exists() and sha256_file(destination) not in hashes:
                             raise ValueError(f"planned asset collides with template member: {name}")
                         if not destination.exists():
+                            destination.parent.mkdir(parents=True, exist_ok=True)
                             shutil.copy2(matches[0], destination)
                         image_path = f"images/{name}"
                         materialized_asset_by_hash[live_hash] = image_path

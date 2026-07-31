@@ -880,17 +880,22 @@ def build_volume_partition_plan(nodes: list[dict[str, Any]], policy: dict[str, A
     for definition, (start, end) in zip(definitions, ranges):
         selected = nodes[start - 1:end]
         source_ids = [block_id for item in selected for block_id in item.get("source_block_ids", [])]
-        media_paths: dict[str, Path] = {}
+        media_assets: dict[str, tuple[int, str]] = {}
         for item in selected:
             binding = item.get("media_binding") or item.get("payload", {}).get("media_binding")
-            source_path = item.get("payload", {}).get("source_path")
-            if binding and source_path:
-                media_paths.setdefault(binding["artifact_sha256"], Path(source_path))
-        media_bytes = sum(path.stat().st_size for path in media_paths.values() if path.is_file())
+            payload = item.get("payload", {})
+            asset_size = payload.get("asset_size_bytes")
+            asset_ref = payload.get("asset_ref")
+            if binding and isinstance(asset_size, int) and asset_size >= 0 and isinstance(asset_ref, str):
+                media_assets.setdefault(
+                    binding["artifact_sha256"],
+                    (asset_size, Path(asset_ref).suffix.lower()),
+                )
+        media_bytes = sum(size for size, _ in media_assets.values())
         largest_raster_image_bytes = max(
             (
-                path.stat().st_size for path in media_paths.values()
-                if path.is_file() and path.suffix.lower() in {".jpg", ".jpeg", ".png"}
+                size for size, suffix in media_assets.values()
+                if suffix in {".jpg", ".jpeg", ".png"}
             ),
             default=0,
         )
@@ -925,7 +930,7 @@ def build_volume_partition_plan(nodes: list[dict[str, Any]], policy: dict[str, A
             "render_node_ids": [item["render_node_id"] for item in selected], "source_block_ids": source_ids,
             "body_units": body_units_for_range(start, end),
             "budget_estimate": {
-                "unique_media_assets": len(media_paths), "source_media_bytes": media_bytes,
+                "unique_media_assets": len(media_assets), "source_media_bytes": media_bytes,
                 "non_media_file_entity_allowance": allowance_entities,
                 "non_media_zip_bytes_allowance": allowance_bytes,
                 "estimated_body_transport_file_entities": transport_entities,
@@ -937,7 +942,7 @@ def build_volume_partition_plan(nodes: list[dict[str, Any]], policy: dict[str, A
                 "largest_raster_image_bytes": largest_raster_image_bytes,
                 "capacity_preflight_status": capacity_status,
                 "capacity_evidence_refs": evidence_refs,
-                "estimated_file_entities": len(media_paths) + allowance_entities + (transport_entities or 0),
+                    "estimated_file_entities": len(media_assets) + allowance_entities + (transport_entities or 0),
                 "estimated_zip_bytes_upper_bound": media_bytes + allowance_bytes + (editable_bytes or 0),
                 "file_entity_limit_exclusive": MAX_FILE_ENTITIES_EXCLUSIVE,
                 "zip_byte_limit_exclusive": MAX_DELIVERY_ZIP_BYTES,
@@ -1442,6 +1447,7 @@ def build_render_nodes(
         params: dict[str, Any] = {}
         if representation_type in {"source_asset_image", "source_region_image"}:
             source_path = candidate.get("resolved_path") or candidate.get("crop_path")
+            source_file = Path(str(source_path))
             bboxes = [included[value].get("bbox") for value in source_ids if included[value].get("bbox")]
             width = max((bbox[2] - bbox[0] for bbox in bboxes), default=policy["source_image_layout"]["maximum_width_fraction"])
             layout = policy["source_image_layout"]
@@ -1449,7 +1455,12 @@ def build_render_nodes(
                 "width_fraction": round(max(layout["minimum_width_fraction"], min(layout["maximum_width_fraction"], width)), 4),
                 "max_height_fraction": layout["max_height_fraction"], "alignment": layout["alignment"],
             }
-            payload = {"source_path": source_path, "artifact_sha256": rep["artifact_sha256"], "media_binding": binding}
+            payload = {
+                "asset_ref": source_file.name,
+                "asset_size_bytes": source_file.stat().st_size,
+                "artifact_sha256": rep["artifact_sha256"],
+                "media_binding": binding,
+            }
         else:
             math = candidate.get("payload", {}).get("math") or candidate.get("math")
             if not isinstance(math, str) or not math.strip():
