@@ -2,14 +2,14 @@
   "architecture": "aarch64",
   "base_image": "python:3.12.13-slim@sha256:64695412729fbe8cf054511723820c82bbe5a077d4a6b4070cd4a7225d3422ce",
   "control_plane": {
-    "actual_tree_sha256": "b64fb656035cfe73f3e1c38bd5bb86ddd856537c1372bebc9cf890af9c13c93c",
-    "expected_tree_sha256": "b64fb656035cfe73f3e1c38bd5bb86ddd856537c1372bebc9cf890af9c13c93c",
+    "actual_tree_sha256": "92d7f53499326730d9519d839ffbf882791dc08aef188ced7568561468a60e33",
+    "expected_tree_sha256": "92d7f53499326730d9519d839ffbf882791dc08aef188ced7568561468a60e33",
     "manifest_path": "/opt/worker-v3/control-plane-baseline.json",
-    "manifest_sha256": "920ddb678f054ed1643fce658aa94d9f14b85443356a63a7ba5a5ad32bdc7a21",
+    "manifest_sha256": "281ceb31fa8537bf78aba03f2f21b0e6db574016eedd7e049f2ee70c40fb4ba7",
     "matches": true
   },
   "effective_uid": 10003,
-  "image_digest": "sha256:d8415bc04c645bd94979ed228f9ded1a38bedafc12c4143ecae8e0176711986a",
+  "image_digest": "sha256:d2dabd7dc425cbf3b7bf2203eb0c6c88fa18f7d3028d3b2b49de10989b0bdb12",
   "image_reference_pinned": true,
   "locks": {
     "python": {
@@ -25,7 +25,7 @@
   },
   "non_root": true,
   "python": "3.12.13",
-  "runtime_id": "worker-v3-runtime-rc-ee8a652",
+  "runtime_id": "worker-v3-runtime-rc-1f336cd",
   "schema": "luceon.worker-v3-runtime-identity/v1",
   "system_packages": {
     "biber": {

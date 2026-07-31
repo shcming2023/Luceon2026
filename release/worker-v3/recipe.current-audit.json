@@ -18,7 +18,7 @@
     "requested_status": "incomplete",
     "created_at": "2026-07-26T00:00:00+08:00",
     "source": {
-      "git_sha": "ee8a65264ff1297c2bda6a1a245162ab6a3aba55",
+      "git_sha": "1f336cdb687c9db4d71c3536afc6200abe7ff217",
       "git_tag": null,
       "dirty": false
     },
@@ -335,7 +335,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-identity.json",
       "destination": "runtime/ordinary-runtime-identity.json",
-      "expected_sha256": "6b5c83d616e3e02537ff68353f136adafb4ec1d7731737a4be7fb71a0c700b63"
+      "expected_sha256": "deb1e6520905c9e7c4dea32c78ecae96bac002a271f78944040cd292504db210"
     },
     {
       "id": "worker-v3-ordinary-runtime-build-proof",
@@ -344,7 +344,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-build-proof.json",
       "destination": "runtime/ordinary-runtime-build-proof.json",
-      "expected_sha256": "f07188cc69e59f08fa8603e4400a8193d4025f77c14f2f9fc34cfc95ebb5b4d2"
+      "expected_sha256": "01be54dfdc47062a1bf6f50c48ceba67fa1ff80c76c443927c2ccfc838c781bb"
     },
     {
       "id": "worker-v3-ordinary-runtime-sbom",
@@ -353,7 +353,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-sbom.cdx.json",
       "destination": "runtime/ordinary-runtime-sbom.cdx.json",
-      "expected_sha256": "f31981e0c8aa3132edc22a15adbe04e848552af85e886f2acc61e1cb2324493d"
+      "expected_sha256": "318a5a6b9613dcf78ef4bd5b5acd8949ae972f1094fb34fb0f3d472d9b3a26cb"
     },
     {
       "id": "worker-v3-overleaf-target-environment",
@@ -900,7 +900,7 @@
     "python": "CPython 3.12.13",
     "application_dependencies_path": "runtime/requirements-worker-v3.lock",
     "system_tools": {
-      "runtime_id": "worker-v3-runtime-rc-ee8a652",
+      "runtime_id": "worker-v3-runtime-rc-1f336cd",
       "system_lock": "runtime/worker-v3-system-packages.lock",
       "identity": "runtime/ordinary-runtime-identity.json",
       "overleaf_compiler": {
@@ -911,7 +911,7 @@
     "fonts_identity_path": "runtime/ordinary-runtime-identity.json",
     "tex_identity_path": "runtime/ordinary-runtime-identity.json",
     "poppler_identity_path": "runtime/ordinary-runtime-identity.json",
-    "container_image_digest": "sha256:d8415bc04c645bd94979ed228f9ded1a38bedafc12c4143ecae8e0176711986a",
+    "container_image_digest": "sha256:d2dabd7dc425cbf3b7bf2203eb0c6c88fa18f7d3028d3b2b49de10989b0bdb12",
     "sbom_path": "runtime/ordinary-runtime-sbom.cdx.json",
     "attestations": [
       "runtime/ordinary-runtime-identity.json",
@@ -938,7 +938,7 @@
     {
       "code": "spec03_bounded_review_capacity_unqualified",
       "stage": "canonical_block_ledger",
-      "detail": "the release-bound Spec 03 v1 real-material call was consumed exactly once and failed closed at the 16000-token output ceiling; v3 uses stable indexes and exact media-to-source ownership, forbids empty ownership, verifies source-asset hashes and requires evaluator-recomputed closure, but the new release identity still requires one exact release-bound real-material call and no-network replay before the gap can close"
+      "detail": "the release-bound Spec 03 full audit task remains frozen and authoritative while the exact exhaustive model-evidence projection is 577170 bytes under the unchanged one-million-byte request gate; this new release identity still requires one exact release-bound real-material call and no-network replay before the gap can close"
     },
     {
       "code": "overleaf_adapter_image_qualification_pending",

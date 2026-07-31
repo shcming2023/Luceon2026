@@ -1569,9 +1569,9 @@
           "value": "debian"
         }
       ],
-      "purl": "pkg:deb/debian/libexpat1%3Aarm64@2.7.1-2?distro=trixie",
+      "purl": "pkg:deb/debian/libexpat1%3Aarm64@2.8.2-1~deb13u1?distro=trixie",
       "type": "library",
-      "version": "2.7.1-2"
+      "version": "2.8.2-1~deb13u1"
     },
     {
       "name": "libexporter-tiny-perl",
@@ -2637,9 +2637,9 @@
           "value": "debian"
         }
       ],
-      "purl": "pkg:deb/debian/libnss3%3Aarm64@2%3A3.110-1%2Bdeb13u3?distro=trixie",
+      "purl": "pkg:deb/debian/libnss3%3Aarm64@2%3A3.110-1%2Bdeb13u4?distro=trixie",
       "type": "library",
-      "version": "2:3.110-1+deb13u3"
+      "version": "2:3.110-1+deb13u4"
     },
     {
       "name": "libnumber-compare-perl",
@@ -5056,10 +5056,10 @@
         }
       ],
       "type": "container",
-      "version": "worker-v3-runtime-rc-ee8a652"
+      "version": "worker-v3-runtime-rc-1f336cd"
     }
   },
-  "serialNumber": "urn:uuid:69e38faa-1098-59e5-aeec-59798fe52ab2",
+  "serialNumber": "urn:uuid:b6a047b9-16bc-5be0-8b9e-a2e1f0abc254",
   "specVersion": "1.5",
   "version": 1
 }

@@ -1,10 +1,10 @@
 {
   "architecture": "arm64",
   "build_status": "clean_build_succeeded",
-  "built_at": "2026-07-31T09:47:52Z",
-  "image_id": "sha256:d8415bc04c645bd94979ed228f9ded1a38bedafc12c4143ecae8e0176711986a",
-  "image_size_bytes": 1455213552,
-  "local_manifest_digest": "sha256:d8415bc04c645bd94979ed228f9ded1a38bedafc12c4143ecae8e0176711986a",
+  "built_at": "2026-07-31T10:40:07.641652418Z",
+  "image_id": "sha256:d2dabd7dc425cbf3b7bf2203eb0c6c88fa18f7d3028d3b2b49de10989b0bdb12",
+  "image_size_bytes": 1455128513,
+  "local_manifest_digest": "sha256:d2dabd7dc425cbf3b7bf2203eb0c6c88fa18f7d3028d3b2b49de10989b0bdb12",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
     "pages": 2,
@@ -87,6 +87,12 @@
       "reason": "qualification exposed that the first schema-hash separation changed non-LLM stage manifest bindings from release file hashes to canonical JSON hashes",
       "source_revision": "38e8a602895d5e6c710d567f7cf14b63998bd589",
       "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:d8415bc04c645bd94979ed228f9ded1a38bedafc12c4143ecae8e0176711986a",
+      "reason": "real-material Spec 03 qualification proved that the complete frozen audit task exceeded the unchanged one-million-byte model request gate before transport; the replacement preserves the full audit task while projecting exhaustive stable model evidence to 577170 bytes",
+      "source_revision": "ee8a65264ff1297c2bda6a1a245162ab6a3aba55",
+      "status": "superseded_before_release_admission"
     }
   ],
   "rejected_build_attempts": [
@@ -116,32 +122,30 @@
       "status": "rejected_before_qualification"
     }
   ],
-  "runtime_id": "worker-v3-runtime-rc-ee8a652",
+  "runtime_id": "worker-v3-runtime-rc-1f336cd",
   "runtime_identity": {
     "effective_uid": 10003,
-    "evidence_sha256": "6b5c83d616e3e02537ff68353f136adafb4ec1d7731737a4be7fb71a0c700b63",
+    "evidence_sha256": "deb1e6520905c9e7c4dea32c78ecae96bac002a271f78944040cd292504db210",
     "status": "passed",
-    "system_lock_entries": 19
+    "system_lock_entries": 19,
+    "control_plane_tree_sha256": "92d7f53499326730d9519d839ffbf882791dc08aef188ced7568561468a60e33"
   },
   "sbom": {
     "component_count": 420,
-    "evidence_sha256": "f31981e0c8aa3132edc22a15adbe04e848552af85e886f2acc61e1cb2324493d",
+    "evidence_sha256": "318a5a6b9613dcf78ef4bd5b5acd8949ae972f1094fb34fb0f3d472d9b3a26cb",
     "format": "CycloneDX",
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "ee8a65264ff1297c2bda6a1a245162ab6a3aba55",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-ee8a652",
+  "source_revision": "1f336cdb687c9db4d71c3536afc6200abe7ff217",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-1f336cd",
   "tests": {
-    "backend/tests/test_workflow_v3_runtime_image.py": "passed as part of the complete repository integration suite",
-    "backend/tests/test_workflow_v3_*.py": "369 passed, 2 skipped in the exact rebuilt image; repository-level Compose, release and Overleaf Adapter evidence was mounted read-only without replacing image execution code",
-    "backend/tests": "957 passed, 2 skipped from the production-runtime test set in the exact rebuilt image, with repository-level deployment evidence mounted read-only, an isolated writable SQLite database, no network, and UID 10003; Codex Expert architecture-trial tests are intentionally excluded from the production image",
-    "combined_result": "runtime identity passed with digest-pinned reference; Worker V3 suite 369 passed, 2 skipped in the exact rebuilt image; locked-template XeLaTeX/qpdf/pdfinfo smoke passed",
-    "spec02_v3_targeted": "compact exhaustive page coverage, deterministic baseline projection, exact override matching and sub-16000-byte 200-page minimum-response regressions passed in the prior qualified image and remain in the regression suite",
-    "spec03_v3_targeted": "123 cross-stage tests passed before the clean build; the exact rebuilt image also passed the complete Worker V3 suite with exact media-to-source ownership, no empty ownership, hash-verified source assets, formal representation contracts, evaluator-recomputed closure and Spec 04-D relative frozen-artifact consumption",
-    "spec04a_bounded_review_targeted": "the exact rebuilt image passed the compact decision schema, deterministic full-bundle projector, order/coverage rejection and provider response-capacity regressions; material 1343 has 339 bounded title candidates and a worst-case schema-complete response of 19389 bytes within the 256000-byte release limit",
-    "spec04b_candidate_choice_targeted": "fixed total option-index protocol maps every one of 37 choices to a candidate-valid deterministic disposition and role; 93 related release, qualification, kernel, transport and runtime tests passed, plus exhaustive two-candidate totality regression",
-    "warnings": "8025 existing deprecation warnings in the Worker V3 image suite and 9984 in the full backend suite; zero test failures"
+    "backend/tests": "958 passed, 2 skipped, 0 failed in the exact rebuilt image with no network, read-only root filesystem, isolated SQLite and only repository-level evidence mounted read-only",
+    "backend/tests/test_workflow_v3_*.py": "370 passed, 2 skipped, 0 failed in the exact rebuilt image",
+    "source_worktree_backend_tests": "1011 passed, 2 skipped, 0 failed before the clean image build",
+    "locked_template_smoke": "passed: 2 pages, qpdf and pdfinfo passed, PDF SHA-256 5ad6f5885f7b274f16a88bc98faaf4da7587af83b209c2f99f1e70b88e59ec90",
+    "production_boundary": "Expert Broker, Codex App Server, Codex SDK adapter, cross-UID runner and Codex expert runtime entrypoints absent",
+    "warnings": "8020 existing deprecation warnings in the Worker V3 image suite and 9989 in the full production-runtime suite; zero test failures"
   },
   "user": "10003:10003"
 }
