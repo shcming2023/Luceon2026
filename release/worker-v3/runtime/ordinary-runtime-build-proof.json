@@ -1,10 +1,10 @@
 {
   "architecture": "arm64",
   "build_status": "clean_build_succeeded",
-  "built_at": "2026-07-29T11:10:40Z",
-  "image_id": "sha256:34ee2a0f57f51c257700599ad0f651fd3864e415ab8138a5b219907a403e787e",
-  "image_size_bytes": 1455162393,
-  "local_manifest_digest": "sha256:34ee2a0f57f51c257700599ad0f651fd3864e415ab8138a5b219907a403e787e",
+  "built_at": "2026-07-31T01:18:47Z",
+  "image_id": "sha256:1ca895e7fdf149dce963883171275e1e1a57a65b1d7aac609b6a6c791b4fb2cb",
+  "image_size_bytes": 1455204877,
+  "local_manifest_digest": "sha256:1ca895e7fdf149dce963883171275e1e1a57a65b1d7aac609b6a6c791b4fb2cb",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
     "pages": 2,
@@ -16,6 +16,12 @@
   "registry_digest": null,
   "registry_status": "pending_until_push",
   "superseded_builds": [
+    {
+      "image_digest": "sha256:34ee2a0f57f51c257700599ad0f651fd3864e415ab8138a5b219907a403e787e",
+      "reason": "the Spec 04-B prompt content declared version 2.1.0 while the release recipe and recorded request binding still declared 2.0.0; the replacement validates prompt identity headers against the release recipe and binds the corrected prompt version before qualification",
+      "source_revision": "8b1d2c0001b19cd9c570c59647ec246771579b17",
+      "status": "superseded_before_release_admission"
+    },
     {
       "image_digest": "sha256:e5a3b87e82331c9273d4caa7cf86c08969ed164d43926bd7103337008f4ebdf8",
       "reason": "real-material Spec 04-B qualification returned a schema-valid teaching_group choice for a candidate whose frozen allowed_dispositions excluded teaching_group; the replacement binds candidate-local disposition and semantic-role choices before a model call can be recorded as succeeded",
@@ -93,27 +99,27 @@
       "status": "rejected_before_qualification"
     }
   ],
-  "runtime_id": "worker-v3-runtime-rc-8b1d2c0",
+  "runtime_id": "worker-v3-runtime-rc-57792aa",
   "runtime_identity": {
     "effective_uid": 10003,
-    "evidence_sha256": "bb5ba337ff1dc04a7d7bc4d1db2a53c4e93d1f9fb27f0e362395ee556fdefb8b",
+    "evidence_sha256": "aa531be130240d2e5fcbd31939643dbb21335a933b6149151eff35fe0a808b7b",
     "status": "passed",
     "system_lock_entries": 19
   },
   "sbom": {
     "component_count": 420,
-    "evidence_sha256": "3d0dc018e08511a2e837aa46b15f47d70eafd5686ef49777aa55b8b934f8dd3b",
+    "evidence_sha256": "328d1e5e674c0abc9d5b5d9044c5a07e9b02e0cb121a9ba9e0888bd4b5080dfe",
     "format": "CycloneDX",
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "8b1d2c0001b19cd9c570c59647ec246771579b17",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-8b1d2c0",
+  "source_revision": "57792aa83f5325cb8a91567dec0df78c0528126d",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-57792aa",
   "tests": {
     "backend/tests/test_workflow_v3_runtime_image.py": "passed as part of the complete repository integration suite",
-    "backend/tests/test_workflow_v3_*.py": "357 passed, 2 skipped in the exact rebuilt image",
-    "backend/tests": "998 passed, 2 skipped with source revision mounted read-only into the exact rebuilt image, a writable tmpfs working directory, no network, and UID 10003",
-    "combined_result": "runtime identity passed with digest-pinned reference; 998 passed, 2 skipped; locked-template XeLaTeX/qpdf/pdfinfo smoke passed",
+    "backend/tests/test_workflow_v3_*.py": "359 passed, 2 skipped in the exact rebuilt image; repository-level Compose, release and Overleaf Adapter evidence was mounted read-only without replacing image execution code",
+    "backend/tests": "947 passed, 2 skipped from the production-runtime test set in the exact rebuilt image, with repository-level deployment evidence mounted read-only, an isolated writable SQLite database, no network, and UID 10003; Codex Expert architecture-trial tests are intentionally excluded from the production image",
+    "combined_result": "runtime identity passed with digest-pinned reference; production-runtime test set 947 passed, 2 skipped; Worker V3 suite 359 passed, 2 skipped; locked-template XeLaTeX/qpdf/pdfinfo smoke passed",
     "spec02_v3_targeted": "compact exhaustive page coverage, deterministic baseline projection, exact override matching and sub-16000-byte 200-page minimum-response regressions passed in the prior qualified image and remain in the regression suite",
     "spec03_v2_targeted": "40 passed in the exact rebuilt image, including deterministic source-region baseline projection, index-to-immutable-ID expansion, baseline drift rejection, evidence-backed exclusion and 255/1000-item capacity bounds",
     "spec04a_bounded_review_targeted": "the exact rebuilt image passed the compact decision schema, deterministic full-bundle projector, order/coverage rejection and provider response-capacity regressions; material 1343 has 339 bounded title candidates and a worst-case schema-complete response of 19389 bytes within the 256000-byte release limit",
