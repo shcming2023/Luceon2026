@@ -159,7 +159,9 @@ def test_spec05_metadata_and_presentation_are_source_and_template_bound(
             public_id="job-1",
             payload_json=json.dumps({
                 "source_evidence": {
-                    "filename": "Source Grounded Book.pdf",
+                    "source_pdf": {
+                        "object": "incoming/Source Grounded Book.pdf",
+                    },
                     "artifacts": [{}] * 7,
                 }
             }),

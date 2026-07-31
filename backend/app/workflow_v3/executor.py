@@ -2212,8 +2212,14 @@ class _StageRequestBuilder:
         page_render: PreparedInputArtifact,
     ) -> dict[str, object]:
         source = self._source_evidence()
-        filename = str(source.get("filename") or "")
-        title = Path(filename).stem.strip()
+        source_pdf_evidence = source.get("source_pdf")
+        if not isinstance(source_pdf_evidence, Mapping):
+            raise ArtifactIntegrityError(
+                "source evidence has no source PDF identity for metadata"
+            )
+        object_name = str(source_pdf_evidence.get("object") or "")
+        filename = PurePosixPath(object_name).name
+        title = filename[:-4].strip() if filename.lower().endswith(".pdf") else ""
         if not title or any(character in title for character in "\\{}"):
             raise ArtifactIntegrityError(
                 "source filename cannot provide a safe source-grounded title"
