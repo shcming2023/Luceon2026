@@ -555,7 +555,7 @@ def _walk_release(root: Path) -> tuple[set[str], set[str]]:
             directories.add(path.relative_to(root).as_posix())
         for name in filenames:
             path = current_path / name
-            if not stat.S_ISREG(path.stat(follow_symlinks=False).st_mode):
+            if not stat.S_ISREG(os.lstat(path).st_mode):
                 _fail(f"non-regular file found: {path.relative_to(root)}")
             files.add(path.relative_to(root).as_posix())
     return files, directories

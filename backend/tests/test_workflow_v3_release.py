@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 import tarfile
 from pathlib import Path
 
@@ -284,6 +285,22 @@ def test_deterministic_build_has_identical_archive_hash(tmp_path):
 
     assert first == second
     assert (tmp_path / "first.tar.gz").read_bytes() == (tmp_path / "second.tar.gz").read_bytes()
+
+
+def test_release_file_type_gate_uses_lstat_without_following_links(tmp_path, monkeypatch):
+    source = _release_source(tmp_path)
+    real_lstat = os.lstat
+    checked: list[str] = []
+
+    def recording_lstat(path):
+        checked.append(str(path))
+        return real_lstat(path)
+
+    monkeypatch.setattr(os, "lstat", recording_lstat)
+    built = build_release_archive(source, tmp_path / "portable.tar.gz")
+
+    assert built["archive_sha256"]
+    assert any(path.endswith("release-manifest.json") for path in checked)
 
 
 def test_installed_release_detects_payload_tamper(tmp_path):
