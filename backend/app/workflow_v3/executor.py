@@ -2144,6 +2144,12 @@ class _StageRequestBuilder:
             "contracts/template_intake.json",
             "worker-v3-template-intake",
         )
+        self._add_prior_candidate_file(
+            "template_construct_binding",
+            "template_capability_manifest",
+            "template/template_capability_manifest.json",
+            "worker-v3-template-capability-manifest",
+        )
         self._add_stage_candidate(
             "canonical_block_ledger",
             role="source_asset_bundle",

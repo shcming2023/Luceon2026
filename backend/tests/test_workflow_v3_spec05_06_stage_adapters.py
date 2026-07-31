@@ -3,11 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
-from app.workflow_v3 import stage_evaluators
+from app.workflow_v3 import spec05_06_stage_adapters as adapters, stage_evaluators
 from app.workflow_v3.overleaf_compiler import (
     ADAPTER_PROTOCOL,
     COMPILE_COMMAND,
@@ -58,6 +59,102 @@ def _request(stage: str, root: Path) -> StageEvaluationRequest:
         output_manifest="evaluation-manifest.json",
         workdir=root,
     )
+
+
+def test_spec05_consumes_explicit_promoted_template_capability_input(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parent = tmp_path / "parent"
+    assets = tmp_path / "assets"
+    output = tmp_path / "output"
+    source_pdf = tmp_path / "source.pdf"
+    capability = tmp_path / "template-capability.json"
+    for path, payload in (
+        (parent / "render/volume_partition_plan.json", b"{}\n"),
+        (parent / "media/media_evidence_ledger.json", b"{}\n"),
+        (parent / "media/media_representation_plan.json", b"{}\n"),
+        (source_pdf, b"source"),
+        (capability, b"{}\n"),
+    ):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(payload)
+
+    paths = {
+        role: tmp_path / f"{role}.json"
+        for role in (
+            "promotion_registry",
+            "predecessor_promotion_manifest",
+            "template_archive",
+            "template_intake",
+            "metadata_config",
+            "presentation_config",
+            "build_policy",
+        )
+    }
+    paths.update(
+        source_pdf=source_pdf,
+        template_capability_manifest=capability,
+    )
+    for path in paths.values():
+        if not path.exists():
+            path.write_bytes(b"{}\n")
+
+    class Inputs:
+        def extracted(self, role: str) -> Path:
+            return parent if role == "promoted_predecessor" else assets
+
+        def file(self, role: str) -> Path:
+            return paths[role]
+
+    monkeypatch.setattr(adapters, "_require_roles", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        adapters,
+        "require_parameter_keys",
+        lambda *_args, **_kwargs: {
+            "parent_lineage_key": "job:frozen_render_plan",
+            "run_id": "run-1",
+            "body_marker": "LUCEON_GENERATED_BODY",
+        },
+    )
+
+    def run_kernel(*, args: list[str], **_kwargs: Any) -> SimpleNamespace:
+        index = args.index("--capability-manifest")
+        assert Path(args[index + 1]) == capability
+        run = output / "spec05/manifests"
+        _json(
+            run / "spec05_native_stage_manifest.json",
+            {
+                "status": "passed",
+                "spec_status": "passed",
+                "promotion_class": "formal_native",
+            },
+        )
+        _json(
+            run / "delivery_set_manifest.json",
+            {
+                "schema_version": "spec05-delivery-set-manifest/1.2",
+                "spec_status": "passed",
+                "volume_count": 1,
+            },
+        )
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(adapters, "run_release_python_kernel", run_kernel)
+    request = SimpleNamespace(
+        stage_key="deterministic_elegantbook",
+        predecessor_promotion=SimpleNamespace(stage_key="frozen_render_plan"),
+        workdir=tmp_path,
+    )
+    produced = adapters._produce_spec05(
+        request,
+        Inputs(),
+        output,
+        tmp_path,
+    )
+
+    assert produced.metrics["native_kernel_returncode"] == 0
+    assert not (parent / "template/template_capability_manifest.json").exists()
 
 
 def _readiness_fixture(
