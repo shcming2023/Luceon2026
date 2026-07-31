@@ -45,6 +45,7 @@ from app.workflow_v3.release import (
 )
 from app.workflow_v3.service import runtime_identity_for_manifest
 from app.workflow_v3.spec01_03_atomic_kernel import (
+    media_model_evidence,
     outline_model_evidence,
     semantic_model_evidence,
 )
@@ -1659,7 +1660,9 @@ class _StageRequestBuilder:
         primary: PreparedInputArtifact,
     ) -> dict[str, str]:
         evidence = self._review_input(prompt_id, primary)
-        if prompt_id == "worker-v3.spec04a-outline-review":
+        if prompt_id == "worker-v3.spec03-media-review":
+            evidence = media_model_evidence(evidence)
+        elif prompt_id == "worker-v3.spec04a-outline-review":
             task_path = (
                 self.workdir
                 / "control-plane-review-task"

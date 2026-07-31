@@ -182,7 +182,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec01_04_stage_adapters.py",
       "destination": "scripts/worker-v3/spec01_04_stage_adapters.py",
-      "expected_sha256": "ac16290484f112ef3575a1cc0218dd35d3d371bb7965c9066a72c90e0926f455"
+      "expected_sha256": "49ef90bdb6e5c449cad78a4a8c32954f17cd4b8982092689892d5b7828589061"
     },
     {
       "id": "worker-v3-spec05-06-adapters",
@@ -245,7 +245,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec01_03_atomic_kernel.py",
       "destination": "scripts/worker-v3/spec01_03_atomic_kernel.py",
-      "expected_sha256": "b47f779191cc98af05064b72a1edbf2dc97cd91fe0012ab809448a3b64606868"
+      "expected_sha256": "a152b04b2636304ce463e50b2e169539d00dc992a24152203567d04586278f42"
     },
     {
       "id": "worker-v3-stage-producer-entrypoints",

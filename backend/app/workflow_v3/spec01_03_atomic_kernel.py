@@ -2497,6 +2497,74 @@ def _media_review_task(parent: Path) -> dict[str, Any]:
     return task
 
 
+def media_model_evidence(task: Mapping[str, Any]) -> dict[str, Any]:
+    """Project the frozen Spec 03 task into its bounded model view.
+
+    The full task remains the audit and index-expansion authority.  Long source
+    and candidate identities are deliberately excluded from the model request:
+    the compact response can select only the stable indexes retained here, and
+    the deterministic kernel expands those indexes against the frozen task.
+    """
+
+    if task.get("schema_version") != MEDIA_REVIEW_TASK_SCHEMA:
+        _fail(
+            "media_review_task_invalid",
+            "Spec 03 media review task is unsupported",
+        )
+    normalized = json.loads(_canonical_bytes(task))
+    page_groups = normalized.get("page_source_units")
+    media_atoms = normalized.get("media_atoms")
+    if not isinstance(page_groups, list) or not isinstance(media_atoms, list):
+        _fail(
+            "media_review_task_invalid",
+            "Spec 03 media review task has no complete evidence inventories",
+        )
+    normalized["page_source_units"] = [
+        {
+            "physical_page": group["physical_page"],
+            "source_units": [
+                {
+                    key: unit[key]
+                    for key in (
+                        "source_unit_index",
+                        "scope_status",
+                        "bbox",
+                        "source_type",
+                        "source_label",
+                        "content_excerpt",
+                    )
+                }
+                for unit in group["source_units"]
+            ],
+        }
+        for group in page_groups
+    ]
+    compact_atoms: list[dict[str, Any]] = []
+    for atom in media_atoms:
+        compact = {
+            key: value
+            for key, value in atom.items()
+            if key not in {"media_id", "raw_content_sha256", "candidates"}
+        }
+        compact["candidates"] = [
+            {
+                key: value
+                for key, value in candidate.items()
+                if key
+                not in {
+                    "candidate_id",
+                    "sha256",
+                    "size_bytes",
+                    "payload_sha256",
+                }
+            }
+            for candidate in atom["candidates"]
+        ]
+        compact_atoms.append(compact)
+    normalized["media_atoms"] = compact_atoms
+    return normalized
+
+
 def prepare_media_review_task(args: argparse.Namespace) -> dict[str, Any]:
     task = _media_review_task(args.parent.resolve())
     output = args.output.resolve()

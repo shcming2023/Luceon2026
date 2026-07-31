@@ -10,6 +10,7 @@ from typing import Any, Mapping, Sequence
 
 try:
     from .spec01_03_atomic_kernel import (
+        media_model_evidence,
         outline_model_evidence,
         semantic_model_evidence,
     )
@@ -25,6 +26,7 @@ try:
     )
 except ImportError:  # Release-local scripts are imported outside the backend package.
     from spec01_03_atomic_kernel import (  # type: ignore[no-redef]
+        media_model_evidence,
         outline_model_evidence,
         semantic_model_evidence,
     )
@@ -378,14 +380,17 @@ def _produce_canonical_ledger(
         command="prepare-media-review-task",
         filename="spec03-media-review-task.json",
     )
-    task_hash = _canonical_hash(_read_json(task_path, "media review task"))
     _verify_bounded_review(
         request,
         inputs,
         release,
         review_role="media_review_bundle",
         expected_prompt_id="worker-v3.spec03-media-review",
-        expected_input_canonical_sha256=task_hash,
+        expected_input_canonical_sha256=_canonical_hash(
+            media_model_evidence(
+                _read_json(task_path, "media review task")
+            )
+        ),
     )
     binding = _review_binding(parameters["review_binding"])
     schema_path, schema_file_sha, schema_canonical_sha = _release_schema_binding(

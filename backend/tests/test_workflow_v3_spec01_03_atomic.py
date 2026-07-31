@@ -1864,3 +1864,34 @@ def test_compact_media_review_capacity_scales_to_large_inventory() -> None:
         )
         < 60_000
     )
+
+
+def test_media_model_evidence_uses_indexes_without_audit_identity_duplication(
+    tmp_path: Path,
+) -> None:
+    _, spec02, _, _ = _run_pipeline(tmp_path)
+    task = kernel._media_review_task(spec02)  # noqa: SLF001
+    frozen = json.loads(kernel._canonical_bytes(task))  # noqa: SLF001
+
+    projected = kernel.media_model_evidence(task)
+
+    assert task == frozen
+    assert projected["task_id"] == task["task_id"]
+    assert projected["baseline_sha256"] == task["baseline_sha256"]
+    assert [row["media_index"] for row in projected["media_atoms"]] == [
+        row["media_index"] for row in task["media_atoms"]
+    ]
+    assert all("media_id" not in row for row in projected["media_atoms"])
+    assert all(
+        "candidate_id" not in candidate
+        for row in projected["media_atoms"]
+        for candidate in row["candidates"]
+    )
+    assert all(
+        "source_id" not in unit and "raw_content_sha256" not in unit
+        for group in projected["page_source_units"]
+        for unit in group["source_units"]
+    )
+    assert len(kernel._canonical_bytes(projected)) < len(  # noqa: SLF001
+        kernel._canonical_bytes(task)  # noqa: SLF001
+    )
