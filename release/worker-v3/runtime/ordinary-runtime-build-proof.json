@@ -1,10 +1,10 @@
 {
   "architecture": "arm64",
   "build_status": "clean_build_succeeded",
-  "built_at": "2026-07-31T02:17:23Z",
-  "image_id": "sha256:28b9f3f37cc73637301ce10a305b07b40215e28e2005099a2ef4bed3e01b507f",
-  "image_size_bytes": 1455206026,
-  "local_manifest_digest": "sha256:28b9f3f37cc73637301ce10a305b07b40215e28e2005099a2ef4bed3e01b507f",
+  "built_at": "2026-07-31T09:47:52Z",
+  "image_id": "sha256:d8415bc04c645bd94979ed228f9ded1a38bedafc12c4143ecae8e0176711986a",
+  "image_size_bytes": 1455213552,
+  "local_manifest_digest": "sha256:d8415bc04c645bd94979ed228f9ded1a38bedafc12c4143ecae8e0176711986a",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
     "pages": 2,
@@ -16,6 +16,12 @@
   "registry_digest": null,
   "registry_status": "pending_until_push",
   "superseded_builds": [
+    {
+      "image_digest": "sha256:28b9f3f37cc73637301ce10a305b07b40215e28e2005099a2ef4bed3e01b507f",
+      "reason": "real-material Spec 03 qualification exposed an empty media ownership false-success path and incomplete evidence closure; the replacement requires exact source ownership, hash-verified source assets, a formal representation contract and an independent evaluator that recomputes closure",
+      "source_revision": "7a4f627a2db9214d104cbe5882487460fdcabecc",
+      "status": "superseded_before_release_admission"
+    },
     {
       "image_digest": "sha256:1ca895e7fdf149dce963883171275e1e1a57a65b1d7aac609b6a6c791b4fb2cb",
       "reason": "real-material Spec 04-B qualification on material 1343 returned all 277 decisions but invented semantic role challenge for 41 candidates and selected an unavailable local disposition for candidate 226; the replacement removes free-form disposition and role strings and binds a total integer option protocol",
@@ -110,32 +116,32 @@
       "status": "rejected_before_qualification"
     }
   ],
-  "runtime_id": "worker-v3-runtime-rc-7a4f627",
+  "runtime_id": "worker-v3-runtime-rc-ee8a652",
   "runtime_identity": {
     "effective_uid": 10003,
-    "evidence_sha256": "22a469757893d476838ff759d25e9a77a19a91415ffde7872789071745ddb935",
+    "evidence_sha256": "6b5c83d616e3e02537ff68353f136adafb4ec1d7731737a4be7fb71a0c700b63",
     "status": "passed",
     "system_lock_entries": 19
   },
   "sbom": {
     "component_count": 420,
-    "evidence_sha256": "eebeacfabd34fe833708dec2e20c98fb57737c92fafdaf02f1ac76dc68655e67",
+    "evidence_sha256": "f31981e0c8aa3132edc22a15adbe04e848552af85e886f2acc61e1cb2324493d",
     "format": "CycloneDX",
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "7a4f627a2db9214d104cbe5882487460fdcabecc",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-7a4f627",
+  "source_revision": "ee8a65264ff1297c2bda6a1a245162ab6a3aba55",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-ee8a652",
   "tests": {
     "backend/tests/test_workflow_v3_runtime_image.py": "passed as part of the complete repository integration suite",
-    "backend/tests/test_workflow_v3_*.py": "361 passed, 2 skipped in the exact rebuilt image; repository-level Compose, release and Overleaf Adapter evidence was mounted read-only without replacing image execution code",
-    "backend/tests": "947 passed, 2 skipped from the production-runtime test set in the exact rebuilt image, with repository-level deployment evidence mounted read-only, an isolated writable SQLite database, no network, and UID 10003; Codex Expert architecture-trial tests are intentionally excluded from the production image",
-    "combined_result": "runtime identity passed with digest-pinned reference; Worker V3 suite 361 passed, 2 skipped in the exact rebuilt image; locked-template XeLaTeX/qpdf/pdfinfo smoke passed",
+    "backend/tests/test_workflow_v3_*.py": "369 passed, 2 skipped in the exact rebuilt image; repository-level Compose, release and Overleaf Adapter evidence was mounted read-only without replacing image execution code",
+    "backend/tests": "957 passed, 2 skipped from the production-runtime test set in the exact rebuilt image, with repository-level deployment evidence mounted read-only, an isolated writable SQLite database, no network, and UID 10003; Codex Expert architecture-trial tests are intentionally excluded from the production image",
+    "combined_result": "runtime identity passed with digest-pinned reference; Worker V3 suite 369 passed, 2 skipped in the exact rebuilt image; locked-template XeLaTeX/qpdf/pdfinfo smoke passed",
     "spec02_v3_targeted": "compact exhaustive page coverage, deterministic baseline projection, exact override matching and sub-16000-byte 200-page minimum-response regressions passed in the prior qualified image and remain in the regression suite",
-    "spec03_v2_targeted": "40 passed in the exact rebuilt image, including deterministic source-region baseline projection, index-to-immutable-ID expansion, baseline drift rejection, evidence-backed exclusion and 255/1000-item capacity bounds",
+    "spec03_v3_targeted": "123 cross-stage tests passed before the clean build; the exact rebuilt image also passed the complete Worker V3 suite with exact media-to-source ownership, no empty ownership, hash-verified source assets, formal representation contracts, evaluator-recomputed closure and Spec 04-D relative frozen-artifact consumption",
     "spec04a_bounded_review_targeted": "the exact rebuilt image passed the compact decision schema, deterministic full-bundle projector, order/coverage rejection and provider response-capacity regressions; material 1343 has 339 bounded title candidates and a worst-case schema-complete response of 19389 bytes within the 256000-byte release limit",
     "spec04b_candidate_choice_targeted": "fixed total option-index protocol maps every one of 37 choices to a candidate-valid deterministic disposition and role; 93 related release, qualification, kernel, transport and runtime tests passed, plus exhaustive two-candidate totality regression",
-    "warnings": "8023 existing deprecation warnings in the exact Worker V3 image suite; zero test failures"
+    "warnings": "8025 existing deprecation warnings in the Worker V3 image suite and 9984 in the full backend suite; zero test failures"
   },
   "user": "10003:10003"
 }
