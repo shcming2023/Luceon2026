@@ -2150,6 +2150,18 @@ class _StageRequestBuilder:
             "template/template_capability_manifest.json",
             "worker-v3-template-capability-manifest",
         )
+        self._add_prior_candidate_file(
+            "canonical_block_ledger",
+            "media_evidence_ledger",
+            "media/media_evidence_ledger.json",
+            "worker-v3-media-evidence-ledger",
+        )
+        self._add_prior_candidate_file(
+            "canonical_block_ledger",
+            "media_representation_plan",
+            "media/media_representation_plan.json",
+            "worker-v3-media-representation-plan",
+        )
         self._add_stage_candidate(
             "canonical_block_ledger",
             role="source_asset_bundle",

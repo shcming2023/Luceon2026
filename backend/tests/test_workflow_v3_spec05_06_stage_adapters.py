@@ -70,12 +70,14 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
     output = tmp_path / "output"
     source_pdf = tmp_path / "source.pdf"
     capability = tmp_path / "template-capability.json"
+    media_evidence = tmp_path / "media-evidence.json"
+    media_plan = tmp_path / "media-plan.json"
     for path, payload in (
         (parent / "render/volume_partition_plan.json", b"{}\n"),
-        (parent / "media/media_evidence_ledger.json", b"{}\n"),
-        (parent / "media/media_representation_plan.json", b"{}\n"),
         (source_pdf, b"source"),
         (capability, b"{}\n"),
+        (media_evidence, b"{}\n"),
+        (media_plan, b"{}\n"),
     ):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(payload)
@@ -95,6 +97,8 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
     paths.update(
         source_pdf=source_pdf,
         template_capability_manifest=capability,
+        media_evidence_ledger=media_evidence,
+        media_representation_plan=media_plan,
     )
     for path in paths.values():
         if not path.exists():
@@ -121,6 +125,10 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
     def run_kernel(*, args: list[str], **_kwargs: Any) -> SimpleNamespace:
         index = args.index("--capability-manifest")
         assert Path(args[index + 1]) == capability
+        index = args.index("--media-evidence-ledger")
+        assert Path(args[index + 1]) == media_evidence
+        index = args.index("--media-representation-plan")
+        assert Path(args[index + 1]) == media_plan
         run = output / "spec05/manifests"
         _json(
             run / "spec05_native_stage_manifest.json",
@@ -155,6 +163,8 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
 
     assert produced.metrics["native_kernel_returncode"] == 0
     assert not (parent / "template/template_capability_manifest.json").exists()
+    assert not (parent / "media/media_evidence_ledger.json").exists()
+    assert not (parent / "media/media_representation_plan.json").exists()
 
 
 def _readiness_fixture(
