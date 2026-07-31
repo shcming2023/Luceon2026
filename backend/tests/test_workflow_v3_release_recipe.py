@@ -147,7 +147,15 @@ def _fixture_recipe(tmp_path: Path) -> tuple[dict, Path]:
     attestation_path = root / "release-inputs/attestation.json"
     provenance_path = root / "release-inputs/historical-dependency-lock.json"
     for path, payload in (
-        (prompt_path, b"Return schema-bounded JSON only.\n"),
+        (
+            prompt_path,
+            (
+                b"PROMPT_ID: semantic\n"
+                b"PROMPT_VERSION: 1\n"
+                b"OUTPUT_SCHEMA_ID: prompt-output\n\n"
+                b"Return schema-bounded JSON only.\n"
+            ),
+        ),
         (capability_path, b'{"schema_version":"template-capabilities/1"}\n'),
         (requirements_path, b"pypdf==6.10.0\n"),
         (sbom_path, b'{"bomFormat":"CycloneDX","components":[]}\n'),
@@ -551,6 +559,21 @@ def test_hash_bound_recipe_assembles_standard_release_source_and_builds(tmp_path
 
     built = build_release_archive(output, tmp_path / "worker-v3.tar.gz")
     assert built["release_id"] == "worker-v3-fixture-rc1"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("id", "semantic-drift"),
+        ("version", "2"),
+    ],
+)
+def test_prompt_identity_headers_must_match_recipe(tmp_path, field, value):
+    recipe, _ = _fixture_recipe(tmp_path)
+    recipe["prompts"][0][field] = value
+
+    with pytest.raises(ReleaseRecipeError, match="identity headers do not match"):
+        audit_release_recipe(recipe)
 
 
 def test_deleting_known_gaps_cannot_promote_missing_required_qualification(tmp_path):

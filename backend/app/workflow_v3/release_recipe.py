@@ -1009,6 +1009,28 @@ def _prompt_rows(recipe: Mapping[str, Any], planned: Mapping[str, PlannedFile]) 
         )
         if path not in planned or output_schema not in planned:
             _fail(f"prompts[{index}] references an unplanned prompt or schema")
+        try:
+            prompt_text = planned[path].payload.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            _fail(f"prompts[{index}] must be valid UTF-8: {exc}")
+        headers: dict[str, str] = {}
+        for line in prompt_text.splitlines()[:10]:
+            for header in ("PROMPT_ID", "PROMPT_VERSION"):
+                prefix = f"{header}:"
+                if line.startswith(prefix):
+                    value = line[len(prefix) :].strip()
+                    if not value or header in headers:
+                        _fail(f"prompts[{index}] has an invalid {header} header")
+                    headers[header] = value
+        expected_headers = {
+            "PROMPT_ID": row.get("id"),
+            "PROMPT_VERSION": row.get("version"),
+        }
+        if headers and headers != expected_headers:
+            _fail(
+                f"prompts[{index}] identity headers do not match the recipe: "
+                f"expected {expected_headers}, got {headers}"
+            )
         result.append(
             {
                 "id": row["id"],
