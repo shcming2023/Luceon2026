@@ -58,6 +58,176 @@ class Spec04DRenderPlanTests(unittest.TestCase):
             },
         }
 
+    def compact_inputs(self, *, source_type="title", raw="Unit One"):
+        record = self.record(
+            "s1",
+            1,
+            source_type=source_type,
+            disposition="book_structure",
+            raw=raw,
+        )
+        hierarchy = [{
+            "node_id": "unit-1",
+            "anchor_block_id": "s1",
+            "heading_evidence_block_ids": ["s1"],
+            "level": 0,
+            "parent_node_id": None,
+            "role": "unit",
+            "source_order_start": 1,
+            "source_order_end": 1,
+            "pdf_physical_page_start": 1,
+            "source_outline_evidence_ids": ["page-1"],
+            "source_toc_entry_ids": [],
+            "final_toc": {
+                "title": "Unit One",
+                "include": True,
+                "level": 0,
+            },
+        }]
+        outline = {
+            "schema_version": "spec04a-structure-contract/1.0",
+            "slice_status": "passed",
+            "summary": {"open_reviews": 0},
+            "body_hierarchy": hierarchy,
+        }
+        final_toc = {
+            "schema_version": "final-toc-plan/1.0",
+            "status": "passed",
+            "open_reviews": 0,
+            "entries": [{
+                "level": 0,
+                "node_id": "unit-1",
+                "source_order": 1,
+                "source_toc_entry_ids": [],
+                "title": "Unit One",
+                "toc_entry_id": "toc::unit-1",
+            }],
+        }
+        template = {
+            "capability_payload_hash": "a" * 64,
+            "constructs": {
+                "sectioning": [
+                    "chapter*",
+                    "section*",
+                    "subsection*",
+                    "subsubsection*",
+                ],
+                "standard_serialization": {
+                    "paragraph": {},
+                    "source_asset_image": {},
+                    "source_region_image": {},
+                    "display_math": {},
+                },
+            },
+            "toc_capability": self.toc_capability(),
+        }
+        construct_binding = {
+            "schema_version": "spec04c-construct-binding-contract/1.0",
+            "slice_status": "passed",
+            "bindings": [],
+            "summary": {"open_reviews": 0},
+            "template_capability_payload_hash": "a" * 64,
+            "prohibitions": [],
+        }
+        media_plan = {
+            "schema_version": "media-representation-plan/1.0",
+            "spec_status": "passed",
+            "summary": {"open": 0},
+            "representations": [],
+        }
+        return {
+            "records": [record],
+            "ledger_payload_hash": "b" * 64,
+            "outline": outline,
+            "final_toc": final_toc,
+            "construct_binding": construct_binding,
+            "template": template,
+            "media_plan": media_plan,
+        }
+
+    def test_compact_task_omits_full_ledger_and_is_runtime_path_independent(self):
+        inputs = self.compact_inputs(
+            source_type="text",
+            raw="Question body " + ("x" * 100_000),
+        )
+        inputs["outline"]["generated_at"] = "2026-01-01T00:00:00Z"
+        inputs["outline"]["parent"] = {"manifest_path": "/run/one/manifest.json"}
+        first = MODULE.render_policy_review_task(**inputs)
+        inputs["outline"]["generated_at"] = "2026-02-02T00:00:00Z"
+        inputs["outline"]["parent"] = {"manifest_path": "/run/two/manifest.json"}
+        second = MODULE.render_policy_review_task(**inputs)
+
+        self.assertEqual(first, second)
+        self.assertEqual(first["candidate_count"], 1)
+        self.assertLess(len(MODULE.canonical_bytes(first)), 50_000)
+        self.assertNotIn("x" * 10_000, MODULE.canonical_bytes(first).decode())
+
+    def test_zero_candidate_review_projects_complete_deterministic_policy(self):
+        task = MODULE.render_policy_review_task(**self.compact_inputs())
+        review = {
+            "schema_version": MODULE.COMPACT_REVIEW_SCHEMA,
+            "task_id": task["task_id"],
+            "review_status": "closed",
+            "decisions": [],
+            "open_reviews": [],
+        }
+
+        policy = MODULE.project_policy_review(task, review)
+
+        self.assertEqual(policy["structure_level_constructs"], {"0": "chapter*"})
+        self.assertEqual(
+            policy["toc_representation"]["semantic_level_to_entry_type"],
+            {"0": "chapter"},
+        )
+        self.assertEqual(policy["structure_source_role_overrides"], [])
+        MODULE.validate_policy(policy)
+
+    def test_non_title_candidate_projects_only_selected_source_role(self):
+        task = MODULE.render_policy_review_task(
+            **self.compact_inputs(
+                source_type="text",
+                raw="1. What is the value?",
+            )
+        )
+        review = {
+            "schema_version": MODULE.COMPACT_REVIEW_SCHEMA,
+            "task_id": task["task_id"],
+            "review_status": "closed",
+            "decisions": [{
+                "task_id": task["review_tasks"][0]["task_id"],
+                "selected_option_id": "option-0001",
+            }],
+            "open_reviews": [],
+        }
+
+        policy = MODULE.project_policy_review(task, review)
+
+        self.assertEqual(
+            policy["structure_source_role_overrides"][0]["role"],
+            "post_heading_body",
+        )
+        self.assertEqual(policy["plain_body_construct"], "paragraph")
+
+    def test_compact_projection_rejects_out_of_set_or_missing_decision(self):
+        task = MODULE.render_policy_review_task(
+            **self.compact_inputs(source_type="text")
+        )
+        review = {
+            "schema_version": MODULE.COMPACT_REVIEW_SCHEMA,
+            "task_id": task["task_id"],
+            "review_status": "closed",
+            "decisions": [{
+                "task_id": task["review_tasks"][0]["task_id"],
+                "selected_option_id": "option-9999",
+            }],
+            "open_reviews": [],
+        }
+        with self.assertRaisesRegex(ValueError, "in-set"):
+            MODULE.project_policy_review(task, review)
+        review["decisions"] = []
+        with self.assertRaisesRegex(ValueError, "complete"):
+            MODULE.project_policy_review(task, review)
+
     def test_preflight_rejects_unrepresented_fragile_atom(self):
         records = [self.record("e1", 1, "equation", "fragile_or_media")]
         report = MODULE.preflight_data(records, {"representations": []}, self.policy())

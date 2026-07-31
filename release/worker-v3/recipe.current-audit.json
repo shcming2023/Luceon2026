@@ -92,7 +92,7 @@
       "root": "skills",
       "path": "luceon-popo-to-refined-elegantbook",
       "destination": "skills/luceon-popo-to-refined-elegantbook",
-      "expected_tree_sha256": "001ec2ada6214a3dde6a9c9d7968a1484fa509bfcdc23b6baea328a0bc56535b"
+      "expected_tree_sha256": "1e4237587a372f77b1b3fa14c5fdffd293a028816fadd68d59c1589570cc7541"
     },
     {
       "id": "skill-pdf-clean-markdown-rebuild",
@@ -182,7 +182,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec01_04_stage_adapters.py",
       "destination": "scripts/worker-v3/spec01_04_stage_adapters.py",
-      "expected_sha256": "1e5ef017a8f69130bf8b0a099a756d305c58e9ea02b8bd1389f92c38f72a47df"
+      "expected_sha256": "ac16290484f112ef3575a1cc0218dd35d3d371bb7965c9066a72c90e0926f455"
     },
     {
       "id": "worker-v3-spec05-06-adapters",
@@ -281,7 +281,7 @@
       "include": [
         "spec*.txt"
       ],
-      "expected_tree_sha256": "c0f68ba37250dd0f250089d1e5759ac16ae6b458230b4b22a36033cb33406d79"
+      "expected_tree_sha256": "3a6ed198573c3fda6b0fdd108892f044673e48e932af97796ddf6086266832b0"
     },
     {
       "id": "worker-v3-ordinary-schemas",
@@ -293,7 +293,7 @@
       "include": [
         "spec*.schema.json"
       ],
-      "expected_tree_sha256": "fdacc0b91c03d6587c006201d14bdac0e812486dcb41c700517fdb29b07805c7"
+      "expected_tree_sha256": "44019603bf9f05eac60973110d84f8b191cc1e7c0e01d44089914cee1c48cfeb"
     },
     {
       "id": "worker-v3-spec04-review-schemas",
@@ -540,9 +540,9 @@
         "path": "schemas/spec04c-construct-compact-review-v1.schema.json"
       },
       {
-        "id": "worker-v3.spec04d-render-policy",
+        "id": "worker-v3.spec04d-render-compact-review",
         "version": "1.0.0",
-        "path": "schemas/spec04d-render-policy.schema.json"
+        "path": "schemas/spec04d-render-compact-review-v1.schema.json"
       },
       {
         "id": "worker-v3.spec06-full-page-source-fidelity-review",
@@ -742,9 +742,9 @@
     },
     {
       "id": "worker-v3.spec04d-render-policy",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "path": "prompts/spec04d-render-policy-v1.txt",
-      "output_schema": "schemas/spec04d-render-policy.schema.json"
+      "output_schema": "schemas/spec04d-render-compact-review-v1.schema.json"
     },
     {
       "id": "worker-v3.spec06-full-page-source-fidelity-review",

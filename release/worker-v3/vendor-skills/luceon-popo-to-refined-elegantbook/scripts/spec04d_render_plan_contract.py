@@ -22,8 +22,10 @@ from pathlib import Path
 from typing import Any
 
 
-VERSION = "spec04d-render-plan-contract/1.6.1"
+VERSION = "spec04d-render-plan-contract/1.7.0"
 STAGE_SCHEMA = "spec04d-render-plan-stage-manifest/1.0"
+COMPACT_TASK_SCHEMA = "luceon.worker-v3-spec04d-compact-task/v1"
+COMPACT_REVIEW_SCHEMA = "luceon.worker-v3-spec04d-compact-review/v1"
 MEDIA_TYPES = {"chart", "equation", "image", "table"}
 MAX_DELIVERY_ZIP_BYTES = 50_000_000
 MAX_FILE_ENTITIES_EXCLUSIVE = 2_000
@@ -225,6 +227,411 @@ def validate_policy(policy: dict[str, Any]) -> None:
                     raise ValueError("two-volume definition lacks delivery-capacity preflight evidence")
                 if not capacity.get("evidence_refs"):
                     raise ValueError("two-volume delivery-capacity preflight lacks evidence refs")
+
+
+def _stable_construct_binding_hash(contract: dict[str, Any]) -> str:
+    return canonical_hash(
+        {
+            "schema_version": contract.get("schema_version"),
+            "slice_status": contract.get("slice_status"),
+            "bindings": contract.get("bindings"),
+            "summary": contract.get("summary"),
+            "template_capability_payload_hash": contract.get(
+                "template_capability_payload_hash"
+            ),
+            "prohibitions": contract.get("prohibitions"),
+        }
+    )
+
+
+def _deterministic_render_policy(
+    *,
+    outline: dict[str, Any],
+    template: dict[str, Any],
+) -> dict[str, Any]:
+    hierarchy = outline.get("body_hierarchy")
+    sectioning = template.get("constructs", {}).get("sectioning")
+    standard = template.get("constructs", {}).get("standard_serialization")
+    toc = template.get("toc_capability")
+    if (
+        not isinstance(hierarchy, list)
+        or not hierarchy
+        or not isinstance(sectioning, list)
+        or not isinstance(standard, dict)
+        or not isinstance(toc, dict)
+    ):
+        raise ValueError("Spec 04-D compact task lacks closed structure/template capability")
+    levels = sorted({item.get("level") for item in hierarchy})
+    if (
+        any(not isinstance(level, int) or level < 0 for level in levels)
+        or len(levels) > 4
+    ):
+        raise ValueError("Spec 04-D structure levels are unsupported")
+    entry_depths = toc.get("entry_type_depths")
+    if not isinstance(entry_depths, dict):
+        raise ValueError("template lacks deterministic TOC entry depths")
+    entry_by_depth: dict[int, str] = {}
+    for entry_type, depth in entry_depths.items():
+        if not isinstance(entry_type, str) or not isinstance(depth, int):
+            raise ValueError("template TOC entry depth inventory is invalid")
+        if depth in entry_by_depth:
+            raise ValueError("template exposes ambiguous TOC entry types for one depth")
+        entry_by_depth[depth] = entry_type
+    level_constructs: dict[str, str] = {}
+    toc_mapping: dict[str, str] = {}
+    for level in levels:
+        entry_type = entry_by_depth.get(level)
+        construct = f"{entry_type}*" if entry_type else None
+        if not entry_type or construct not in sectioning:
+            raise ValueError(
+                f"template cannot preserve semantic structure level {level}"
+            )
+        level_constructs[str(level)] = construct
+        toc_mapping[str(level)] = entry_type
+    ranked_starred = sorted(
+        (
+            (entry_depths.get(item[:-1], -1), item)
+            for item in sectioning
+            if isinstance(item, str) and item.endswith("*")
+        ),
+        reverse=True,
+    )
+    local_heading = ranked_starred[0][1] if ranked_starred else "paragraph"
+    if "paragraph" not in standard:
+        raise ValueError("template lacks the deterministic paragraph construct")
+    media_constructs: dict[str, str] = {}
+    for representation, construct in (
+        ("source_asset_image", "source_asset_image"),
+        ("source_region_image", "source_region_image"),
+        ("structured_formula", "display_math"),
+    ):
+        if construct in standard:
+            media_constructs[representation] = construct
+    if not {"source_asset_image", "source_region_image"} <= set(media_constructs):
+        raise ValueError("template lacks required source-image serialization")
+    return {
+        "schema_version": "spec04d-render-policy/1.1",
+        "ownership_layer": "profile",
+        "structure_level_constructs": level_constructs,
+        "toc_representation": {
+            "ownership_layer": "core",
+            "semantic_level_to_entry_type": toc_mapping,
+            "overflow_strategy": "localized_depth_override",
+        },
+        "local_heading_construct": local_heading,
+        "plain_body_construct": "paragraph",
+        "safe_textual_fragile_types": [
+            "image_caption",
+            "image_footnote",
+            "page_footnote",
+            "table_caption",
+        ],
+        "fragile_types_requiring_media_representation": sorted(MEDIA_TYPES),
+        "media_constructs": media_constructs,
+        "source_image_layout": {
+            "minimum_width_fraction": 0.25,
+            "maximum_width_fraction": 0.9,
+            "max_height_fraction": 0.72,
+            "alignment": "center",
+        },
+        "unsupported_representation_types": [
+            "structured_chart",
+            "structured_table",
+            "structured_vector",
+        ],
+        "structure_media_collision_rule": (
+            "virtual_source_supported_structure_node_and_single_media_atom_output"
+        ),
+        "prohibitions": [
+            "semantic_reclassification",
+            "construct_reselection",
+            "content_rewriting",
+            "formula_reconstruction",
+            "table_reconstruction",
+            "latex_generation",
+        ],
+    }
+
+
+def _compact_review_result(
+    task_id: str,
+    review_tasks: list[dict[str, Any]],
+    *,
+    use_last_option: bool,
+) -> dict[str, Any]:
+    return {
+        "schema_version": COMPACT_REVIEW_SCHEMA,
+        "task_id": task_id,
+        "review_status": "closed",
+        "decisions": [
+            {
+                "task_id": item["task_id"],
+                "selected_option_id": (
+                    item["options"][-1 if use_last_option else 0]["option_id"]
+                ),
+            }
+            for item in review_tasks
+        ],
+        "open_reviews": [],
+    }
+
+
+def render_policy_review_task(
+    *,
+    records: list[dict[str, Any]],
+    ledger_payload_hash: str,
+    outline: dict[str, Any],
+    final_toc: dict[str, Any],
+    construct_binding: dict[str, Any],
+    template: dict[str, Any],
+    media_plan: dict[str, Any],
+) -> dict[str, Any]:
+    if not re.fullmatch(r"[0-9a-f]{64}", ledger_payload_hash):
+        raise ValueError("Spec 04-D ledger payload hash is invalid")
+    if (
+        outline.get("slice_status") != "passed"
+        or outline.get("summary", {}).get("open_reviews") != 0
+        or final_toc.get("status") != "passed"
+        or final_toc.get("open_reviews") != 0
+        or construct_binding.get("slice_status") != "passed"
+        or construct_binding.get("summary", {}).get("open_reviews") != 0
+        or media_plan.get("spec_status") != "passed"
+        or media_plan.get("summary", {}).get("open") != 0
+    ):
+        raise ValueError("Spec 04-D compact inputs are not closed and passed")
+    hierarchy = outline.get("body_hierarchy")
+    toc_entries = final_toc.get("entries")
+    if not isinstance(hierarchy, list) or not isinstance(toc_entries, list):
+        raise ValueError("Spec 04-D compact inputs lack structure evidence")
+    expected_toc = [
+        {
+            "level": item.get("level"),
+            "node_id": item.get("node_id"),
+            "source_order": item.get("source_order_start"),
+            "source_toc_entry_ids": item.get("source_toc_entry_ids", []),
+            "title": item.get("final_toc", {}).get("title"),
+            "toc_entry_id": f"toc::{item.get('node_id')}",
+        }
+        for item in hierarchy
+        if item.get("final_toc", {}).get("include") is True
+    ]
+    if expected_toc != toc_entries:
+        raise ValueError("Spec 04-D final TOC differs from the frozen hierarchy")
+    template_payload_hash = template.get("capability_payload_hash")
+    if not isinstance(template_payload_hash, str) or not re.fullmatch(
+        r"[0-9a-f]{64}", template_payload_hash
+    ):
+        raise ValueError("Spec 04-D template capability payload hash is invalid")
+    if (
+        construct_binding.get("template_capability_payload_hash")
+        != template_payload_hash
+    ):
+        raise ValueError("Spec 04-D construct binding/template capability drift")
+    included = {
+        item["block_id"]: item
+        for item in records
+        if item.get("scope_status") == "included"
+    }
+    review_tasks: list[dict[str, Any]] = []
+    for structure in hierarchy:
+        node_id = structure.get("node_id")
+        heading_ids = structure.get("heading_evidence_block_ids") or [
+            structure.get("anchor_block_id")
+        ]
+        for block_id in heading_ids:
+            record = included.get(block_id)
+            if record is None or record.get("source_type") in MEDIA_TYPES:
+                continue
+            if (
+                record.get("source_type") == "title"
+                or record.get("source_label") == "title"
+            ):
+                continue
+            candidate_index = len(review_tasks)
+            raw_content = str(record.get("raw_content") or "")
+            review_tasks.append(
+                {
+                    "candidate_index": candidate_index,
+                    "task_id": f"structure-source-role:{candidate_index:04d}",
+                    "structure_node_id": node_id,
+                    "block_id": block_id,
+                    "outline_title": structure.get("final_toc", {}).get("title"),
+                    "source_type": record.get("source_type"),
+                    "source_label": record.get("source_label"),
+                    "source_excerpt": raw_content[:2_000],
+                    "source_excerpt_truncated": len(raw_content) > 2_000,
+                    "raw_content_sha256": record.get("raw_content_sha256"),
+                    "options": [
+                        {
+                            "option_id": "option-0000",
+                            "role": "title_fragment",
+                            "reason": (
+                                "The source atom is visible title text supporting "
+                                "the frozen outline title."
+                            ),
+                        },
+                        {
+                            "option_id": "option-0001",
+                            "role": "post_heading_body",
+                            "reason": (
+                                "The source atom is body content following the "
+                                "frozen outline heading."
+                            ),
+                        },
+                    ],
+                }
+            )
+    if len(review_tasks) > 256:
+        raise ValueError("Spec 04-D compact review exceeds 256 bounded decisions")
+    baseline = _deterministic_render_policy(outline=outline, template=template)
+    bindings = {
+        "ledger_payload_hash": ledger_payload_hash,
+        "outline_hierarchy_payload_hash": canonical_hash(hierarchy),
+        "final_toc_payload_hash": canonical_hash(toc_entries),
+        "construct_binding_payload_hash": _stable_construct_binding_hash(
+            construct_binding
+        ),
+        "template_capability_payload_hash": template_payload_hash,
+        "media_representation_payload_hash": canonical_hash(
+            media_plan.get("representations", [])
+        ),
+    }
+    identity = {
+        "bindings": bindings,
+        "deterministic_policy": baseline,
+        "review_tasks": review_tasks,
+    }
+    task_id = "spec04d-compact-" + canonical_hash(identity)[:24]
+    minimum = len(
+        canonical_bytes(
+            _compact_review_result(
+                task_id, review_tasks, use_last_option=False
+            )
+        )
+    )
+    maximum = len(
+        canonical_bytes(
+            _compact_review_result(
+                task_id, review_tasks, use_last_option=True
+            )
+        )
+    )
+    return {
+        "schema_version": COMPACT_TASK_SCHEMA,
+        "task_id": task_id,
+        "bindings": bindings,
+        "deterministic_policy": baseline,
+        "candidate_count": len(review_tasks),
+        "review_tasks": review_tasks,
+        "capacity": {
+            "minimum_response_bytes": min(minimum, maximum),
+            "maximum_response_bytes": max(minimum, maximum),
+        },
+        "instructions": [
+            "Return exactly one selected_option_id for every task_id in supplied order.",
+            "Select only an option_id declared on the same review task.",
+            "Do not emit render policy, LaTeX, template edits, or source rewrites.",
+        ],
+    }
+
+
+def project_policy_review(
+    task: dict[str, Any],
+    compact_review: dict[str, Any],
+) -> dict[str, Any]:
+    expected_task_fields = {
+        "schema_version",
+        "task_id",
+        "bindings",
+        "deterministic_policy",
+        "candidate_count",
+        "review_tasks",
+        "capacity",
+        "instructions",
+    }
+    if (
+        set(task) != expected_task_fields
+        or task.get("schema_version") != COMPACT_TASK_SCHEMA
+    ):
+        raise ValueError("Spec 04-D compact task is unsupported or drifted")
+    if (
+        set(compact_review)
+        != {
+            "schema_version",
+            "task_id",
+            "review_status",
+            "decisions",
+            "open_reviews",
+        }
+        or compact_review.get("schema_version") != COMPACT_REVIEW_SCHEMA
+        or compact_review.get("task_id") != task.get("task_id")
+        or compact_review.get("review_status") != "closed"
+        or compact_review.get("open_reviews") != []
+    ):
+        raise ValueError("Spec 04-D compact review is open, unsupported, or drifted")
+    review_tasks = task.get("review_tasks")
+    decisions = compact_review.get("decisions")
+    if (
+        not isinstance(review_tasks, list)
+        or not isinstance(decisions, list)
+        or len(review_tasks) != task.get("candidate_count")
+        or len(decisions) != len(review_tasks)
+    ):
+        raise ValueError("Spec 04-D decisions must be complete, ordered, and total")
+    overrides: list[dict[str, Any]] = []
+    for candidate_index, (review_task, decision) in enumerate(
+        zip(review_tasks, decisions)
+    ):
+        if (
+            not isinstance(review_task, dict)
+            or review_task.get("candidate_index") != candidate_index
+            or not isinstance(decision, dict)
+            or set(decision) != {"task_id", "selected_option_id"}
+            or decision.get("task_id") != review_task.get("task_id")
+        ):
+            raise ValueError("Spec 04-D decisions must be complete, ordered, and total")
+        selected = [
+            option
+            for option in review_task.get("options", [])
+            if isinstance(option, dict)
+            and option.get("option_id") == decision.get("selected_option_id")
+        ]
+        if len(selected) != 1:
+            raise ValueError("Spec 04-D decisions must be complete, ordered, and in-set")
+        option = selected[0]
+        overrides.append(
+            {
+                "structure_node_id": review_task["structure_node_id"],
+                "block_id": review_task["block_id"],
+                "role": option["role"],
+                "decision_refs": [
+                    f"{review_task['task_id']}::{option['option_id']}"
+                ],
+                "reason": option["reason"],
+            }
+        )
+    compact_hash = canonical_hash(compact_review)
+    policy = copy.deepcopy(task.get("deterministic_policy"))
+    if not isinstance(policy, dict):
+        raise ValueError("Spec 04-D compact task lacks deterministic policy")
+    decision_ref = f"compact-review::{compact_hash}"
+    policy.update(
+        {
+            "policy_id": str(task["task_id"]),
+            "review": {
+                "status": "closed",
+                "decision_refs": [decision_ref],
+                "basis": (
+                    "Release kernel projected a total bounded review over the "
+                    "frozen source-role candidates."
+                ),
+            },
+            "structure_source_role_overrides": overrides,
+        }
+    )
+    policy["toc_representation"]["decision_refs"] = [decision_ref]
+    validate_policy(policy)
+    return policy
 
 
 def validate_pedagogical_layout_binding(
@@ -1138,6 +1545,60 @@ def capability_resources(skill_root: Path, policy: Path) -> list[tuple[str, Path
     return [("machine_schema", skill_root / "schemas" / name) for name in names] + [("render_policy", policy)]
 
 
+def prepare_policy_review_task(args: argparse.Namespace) -> dict[str, Any]:
+    parent = args.parent.resolve()
+    structure = args.structure.resolve()
+    media = args.media.resolve()
+    header, records = read_ledger(
+        parent / "ledgers/canonical_block_ledger.jsonl"
+    )
+    task = render_policy_review_task(
+        records=records,
+        ledger_payload_hash=header["current_ledger_hash"],
+        outline=read_json(structure / "structure/source_outline_ledger.json"),
+        final_toc=read_json(structure / "structure/final_toc_plan.json"),
+        construct_binding=read_json(
+            parent / "semantic/construct_binding_ledger.json"
+        ),
+        template=read_json(
+            parent / "template/template_capability_manifest.json"
+        ),
+        media_plan=read_json(
+            media / "media/media_representation_plan.json"
+        ),
+    )
+    output = args.output.resolve()
+    if output.exists() or output.is_symlink():
+        raise FileExistsError(f"refusing to overwrite review task: {output}")
+    write_json(output, task)
+    return {
+        "status": "prepared",
+        "task_sha256": sha256_file(output),
+        "task_canonical_sha256": canonical_hash(task),
+        "candidates": task["candidate_count"],
+        "minimum_response_bytes": task["capacity"]["minimum_response_bytes"],
+        "maximum_response_bytes": task["capacity"]["maximum_response_bytes"],
+    }
+
+
+def project_policy_review_command(args: argparse.Namespace) -> dict[str, Any]:
+    task = read_json(args.task.resolve())
+    compact_review = read_json(args.compact_review.resolve())
+    output = args.output.resolve()
+    if output.exists() or output.is_symlink():
+        raise FileExistsError(f"refusing to overwrite projected review: {output}")
+    policy = project_policy_review(task, compact_review)
+    write_json(output, policy)
+    return {
+        "status": "projected",
+        "output_sha256": sha256_file(output),
+        "output_canonical_sha256": canonical_hash(policy),
+        "structure_source_role_overrides": len(
+            policy["structure_source_role_overrides"]
+        ),
+    }
+
+
 def capability_invocation(args: argparse.Namespace) -> list[str]:
     result = ["spec04d_render_plan_contract.py", "produce"]
     path_names = (
@@ -1651,14 +2112,27 @@ def main() -> int:
     preflight.add_argument("--media-representation-plan", type=Path, required=True)
     preflight.add_argument("--render-policy", type=Path, required=True)
     preflight.add_argument("--report", type=Path, required=True)
+    prepare = sub.add_parser("prepare-policy-review-task")
+    prepare.add_argument("--parent", type=Path, required=True)
+    prepare.add_argument("--structure", type=Path, required=True)
+    prepare.add_argument("--media", type=Path, required=True)
+    prepare.add_argument("--output", type=Path, required=True)
+    project = sub.add_parser("project-policy-review")
+    project.add_argument("--task", type=Path, required=True)
+    project.add_argument("--compact-review", type=Path, required=True)
+    project.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:
         if args.command == "produce":
             result, code = produce(args)
         elif args.command == "validate-run":
             result, code = validate_run(args.run_dir), 0
-        else:
+        elif args.command == "preflight":
             result, code = preflight_command(args)
+        elif args.command == "prepare-policy-review-task":
+            result, code = prepare_policy_review_task(args), 0
+        else:
+            result, code = project_policy_review_command(args), 0
         print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         return code
     except Exception as exc:

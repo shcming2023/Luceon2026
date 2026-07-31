@@ -320,6 +320,92 @@ def test_construct_review_preparation_uses_compact_release_kernel(
     )
 
 
+def test_render_policy_review_preparation_uses_compact_release_kernel(
+    monkeypatch,
+    tmp_path: Path,
+):
+    workdir = tmp_path / "work"
+    builder = _StageRequestBuilder(
+        db=object(),
+        session_factory=lambda: None,
+        artifact_store=object(),
+        job=SimpleNamespace(
+            public_id="job-1",
+            material_id="pdf-1",
+        ),
+        stage=SimpleNamespace(
+            stage_key="frozen_render_plan",
+            attempt=1,
+        ),
+        release=SimpleNamespace(),
+        release_root=tmp_path / "release",
+        bound=SimpleNamespace(),
+        workdir=workdir,
+        heartbeat=lambda: None,
+    )
+    parent = workdir / "control-plane-bundles/promoted_predecessor"
+    structure = workdir / "control-plane-bundles/structure_candidate"
+    media = workdir / "control-plane-bundles/media_candidate"
+    for path in (parent, structure, media):
+        path.mkdir(parents=True)
+    builder.extracted.update(
+        {
+            "promoted_predecessor": parent,
+            "structure_candidate": structure,
+            "media_candidate": media,
+        }
+    )
+    primary = PreparedInputArtifact(
+        role="promoted_predecessor",
+        kind="candidate",
+        ref=ArtifactRef("candidate", "artifact", "b" * 64, 1),
+        path="inputs/promoted_predecessor/artifact",
+    )
+    builder.artifacts.append(primary)
+    captured = {}
+    task = {
+        "schema_version": "luceon.worker-v3-spec04d-compact-task/v1",
+        "task_id": "spec04d-compact-test",
+        "review_tasks": [],
+    }
+
+    def run_kernel(**kwargs):
+        captured.update(kwargs)
+        args = kwargs["args"]
+        output = Path(args[args.index("--output") + 1])
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(task), encoding="utf-8")
+
+    monkeypatch.setattr(
+        "app.workflow_v3.executor.run_release_python_kernel",
+        run_kernel,
+    )
+
+    result = builder._review_input(
+        "worker-v3.spec04d-render-policy",
+        primary,
+    )
+
+    assert result == task
+    assert captured["kernel_relative"].endswith(
+        "scripts/spec04d_render_plan_contract.py"
+    )
+    assert captured["args"] == (
+        "prepare-policy-review-task",
+        "--parent",
+        str(parent),
+        "--structure",
+        str(structure),
+        "--media",
+        str(media),
+        "--output",
+        str(
+            workdir
+            / "control-plane-review-task/spec04d-render-policy-review-task.json"
+        ),
+    )
+
+
 def test_minio_roles_receive_only_their_required_capabilities(monkeypatch):
     client = object()
     monkeypatch.setenv("WORKFLOW_V3_ARTIFACT_BACKEND", "minio")

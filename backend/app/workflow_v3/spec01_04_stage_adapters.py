@@ -853,7 +853,8 @@ def _produce_render_plan(
             "predecessor_promotion_manifest",
             "promotion_registry",
             "source_pdf",
-            "render_policy",
+            "render_policy_task",
+            "render_policy_decision",
             "llm_call_audit",
             "structure_candidate",
             "structure_promotion_manifest",
@@ -869,8 +870,14 @@ def _produce_render_plan(
         request,
         inputs,
         release,
-        review_role="render_policy",
+        review_role="render_policy_decision",
         expected_prompt_id="worker-v3.spec04d-render-policy",
+        expected_input_canonical_sha256=_canonical_hash(
+            _read_json(
+                inputs.file("render_policy_task"),
+                "Spec 04-D deterministic review task",
+            )
+        ),
     )
     registry, promotions = _materialize_native_lineage_bridge(
         request=request,
@@ -892,6 +899,26 @@ def _produce_render_plan(
                 "spec03_media_contract",
             ),
         },
+    )
+    projected_policy = (
+        request.workdir
+        / "projected-reviews"
+        / "spec04d-render-policy.json"
+    )
+    run_release_python_kernel(
+        release_root=release,
+        kernel_relative=f"{KERNEL_ROOT}/spec04d_render_plan_contract.py",
+        args=(
+            "project-policy-review",
+            "--task",
+            str(inputs.file("render_policy_task")),
+            "--compact-review",
+            str(inputs.file("render_policy_decision")),
+            "--output",
+            str(projected_policy),
+        ),
+        cwd=request.workdir,
+        timeout_seconds=86_400,
     )
     execution = _run_native_kernel_to_candidate(
         request=request,
@@ -933,7 +960,7 @@ def _produce_render_plan(
             "--media-lineage",
             str(parameters["media_lineage"]),
             "--render-policy",
-            str(inputs.file("render_policy")),
+            str(projected_policy),
             *_identity_args(parameters),
         ),
     )

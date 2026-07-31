@@ -25,6 +25,11 @@ SPEC04D_SCHEMA_PATH = (
     / "schemas"
     / "spec04d-render-policy.schema.json"
 )
+SPEC04D_COMPACT_SCHEMA_PATH = (
+    RELEASE_ROOT
+    / "schemas"
+    / "spec04d-render-compact-review-v1.schema.json"
+)
 
 
 def _json(path: Path):
@@ -130,6 +135,24 @@ def test_every_formal_prompt_output_schema_uses_the_supported_fail_closed_subset
 
 def test_spec04d_schema_accepts_valid_output_with_local_defs_refs():
     validate_json_schema(_valid_spec04d_output(), _json(SPEC04D_SCHEMA_PATH))
+
+
+def test_spec04d_compact_schema_accepts_total_closed_review():
+    validate_json_schema(
+        {
+            "schema_version": "luceon.worker-v3-spec04d-compact-review/v1",
+            "task_id": "spec04d-compact-test",
+            "review_status": "closed",
+            "decisions": [
+                {
+                    "task_id": "structure-source-role:0000",
+                    "selected_option_id": "option-0001",
+                }
+            ],
+            "open_reviews": [],
+        },
+        _json(SPEC04D_COMPACT_SCHEMA_PATH),
+    )
 
 
 def test_spec04d_schema_rejects_empty_semantic_level_mapping():

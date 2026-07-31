@@ -890,7 +890,7 @@ _BOUNDED_REVIEW = {
         "worker-v3.spec04c-construct-review",
     ),
     "frozen_render_plan": (
-        "render_policy",
+        "render_policy_decision",
         "worker-v3.spec04d-render-policy",
     ),
 }
@@ -1733,6 +1733,30 @@ class _StageRequestBuilder:
                 "worker-v3-deterministic-review-task",
                 task_path,
             )
+        elif prompt_id == "worker-v3.spec04d-render-policy":
+            task_path = (
+                self.workdir
+                / "control-plane-review-task"
+                / "spec04d-render-policy-review-task.json"
+            )
+            if (
+                not task_path.is_file()
+                or sha256_json(
+                    _read_json_object(
+                        task_path,
+                        "Spec 04-D deterministic review task",
+                    )
+                )
+                != sha256_json(evidence)
+            ):
+                raise ArtifactIntegrityError(
+                    "Spec 04-D deterministic review task drifted before projection"
+                )
+            self._add_local_file(
+                "render_policy_task",
+                "worker-v3-deterministic-review-task",
+                task_path,
+            )
         manifest = self.bound.verification.manifest
         prompts = [
             row
@@ -2025,44 +2049,44 @@ class _StageRequestBuilder:
                 output,
                 "Spec 04-C deterministic review task",
             )
-        selected = {
-            "worker-v3.spec04d-render-policy": (
-                "semantic/construct_binding_ledger.json",
-                "template/template_capability_manifest.json",
-                "ledgers/canonical_block_ledger.jsonl",
-            ),
-        }.get(prompt_id)
-        if selected is None:
-            raise EntrypointProtocolError(f"unknown bounded review prompt {prompt_id!r}")
-        evidence: dict[str, object] = {
-            "schema_version": "luceon.worker-v3-bounded-review-input/v1",
-            "job_id": self.job.public_id,
-            "stage_key": self.stage.stage_key,
-            "material_id": self.job.material_id,
-            "predecessor_sha256": primary.ref.sha256,
-            "documents": [],
-        }
-        total = 0
-        documents: list[dict[str, object]] = []
-        for relative in selected:
-            path = parent / relative
-            if not path.is_file() or path.is_symlink():
-                continue
-            raw = path.read_bytes()
-            total += len(raw)
-            if total > 8_000_000:
-                raise ArtifactIntegrityError("bounded review evidence exceeds 8 MB")
-            documents.append(
-                {
-                    "path": relative,
-                    "sha256": hashlib.sha256(raw).hexdigest(),
-                    "content": raw.decode("utf-8"),
-                }
+        if prompt_id == "worker-v3.spec04d-render-policy":
+            structure = self.extracted.get("structure_candidate")
+            media = self.extracted.get("media_candidate")
+            if structure is None or media is None:
+                raise ArtifactIntegrityError(
+                    "Spec 04-D compact review task lacks promoted structure/media evidence"
+                )
+            output = (
+                self.workdir
+                / "control-plane-review-task"
+                / "spec04d-render-policy-review-task.json"
             )
-        if not documents:
-            raise ArtifactIntegrityError("bounded review has no release-selected evidence")
-        evidence["documents"] = documents
-        return evidence
+            output.parent.mkdir(parents=True, exist_ok=True)
+            run_release_python_kernel(
+                release_root=self.release_root,
+                kernel_relative=(
+                    "skills/luceon-popo-to-refined-elegantbook/scripts/"
+                    "spec04d_render_plan_contract.py"
+                ),
+                args=(
+                    "prepare-policy-review-task",
+                    "--parent",
+                    str(parent),
+                    "--structure",
+                    str(structure),
+                    "--media",
+                    str(media),
+                    "--output",
+                    str(output),
+                ),
+                cwd=self.workdir,
+                timeout_seconds=86_400,
+            )
+            return _read_json_object(
+                output,
+                "Spec 04-D deterministic review task",
+            )
+        raise EntrypointProtocolError(f"unknown bounded review prompt {prompt_id!r}")
 
     def _prepare_atomic_review_task(
         self,
