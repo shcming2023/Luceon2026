@@ -33,6 +33,7 @@ try:
         _pdf_page_raster_sha256,
         _pdf_page_review_jpeg_sha256,
     )
+    from .spec01_04_stage_adapters import _materialize_native_lineage_bridge
 except ImportError:  # Release-local scripts import this module directly.
     from page_review_contract import (  # type: ignore[no-redef]
         PageReviewContractError,
@@ -59,6 +60,9 @@ except ImportError:  # Release-local scripts import this module directly.
         _pdf_page_raster_sha256,
         _pdf_page_review_jpeg_sha256,
         PDF_RASTER_PROFILE,
+    )
+    from spec01_04_stage_adapters import (  # type: ignore[no-redef]
+        _materialize_native_lineage_bridge,
     )
 
 
@@ -144,6 +148,17 @@ def _produce_spec05(
                 "stage_parameters_invalid",
                 f"parameter {name!r} must be non-empty text",
             )
+    registry, promotions = _materialize_native_lineage_bridge(
+        request=request,
+        inputs=inputs,
+        bindings={
+            "predecessor_promotion_manifest": (
+                "promoted_predecessor",
+                str(parameters["parent_lineage_key"]),
+                "spec04d_render_plan_contract",
+            ),
+        },
+    )
     parent = inputs.extracted("promoted_predecessor")
     assets = inputs.extracted("source_asset_bundle")
     run = output / "spec05"
@@ -153,9 +168,9 @@ def _produce_spec05(
         "--run-id",
         parameters["run_id"],
         "--promotion-registry",
-        str(inputs.file("promotion_registry")),
+        str(registry),
         "--parent-promotion",
-        str(inputs.file("predecessor_promotion_manifest")),
+        str(promotions["predecessor_promotion_manifest"]),
         "--parent-lineage-key",
         parameters["parent_lineage_key"],
         "--template-zip",

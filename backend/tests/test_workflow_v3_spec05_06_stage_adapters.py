@@ -112,6 +112,18 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
             return paths[role]
 
     monkeypatch.setattr(adapters, "_require_roles", lambda *_args, **_kwargs: None)
+    native_registry = tmp_path / "native-registry.json"
+    native_promotion = tmp_path / "native-promotion.json"
+    native_registry.write_bytes(b"{}\n")
+    native_promotion.write_bytes(b"{}\n")
+    monkeypatch.setattr(
+        adapters,
+        "_materialize_native_lineage_bridge",
+        lambda **_kwargs: (
+            native_registry,
+            {"predecessor_promotion_manifest": native_promotion},
+        ),
+    )
     monkeypatch.setattr(
         adapters,
         "require_parameter_keys",
@@ -123,6 +135,10 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
     )
 
     def run_kernel(*, args: list[str], **_kwargs: Any) -> SimpleNamespace:
+        index = args.index("--promotion-registry")
+        assert Path(args[index + 1]) == native_registry
+        index = args.index("--parent-promotion")
+        assert Path(args[index + 1]) == native_promotion
         index = args.index("--capability-manifest")
         assert Path(args[index + 1]) == capability
         index = args.index("--media-evidence-ledger")
