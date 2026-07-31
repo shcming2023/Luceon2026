@@ -398,6 +398,30 @@
       "version": "2.11-16"
     },
     {
+      "name": "fonts-dejavu-core",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/fonts-dejavu-core@2.37-8?distro=trixie",
+      "type": "library",
+      "version": "2.37-8"
+    },
+    {
+      "name": "fonts-dejavu-mono",
+      "properties": [
+        {
+          "name": "luceon.component.ecosystem",
+          "value": "debian"
+        }
+      ],
+      "purl": "pkg:deb/debian/fonts-dejavu-mono@2.37-8?distro=trixie",
+      "type": "library",
+      "version": "2.37-8"
+    },
+    {
       "name": "fonts-gfs-baskerville",
       "properties": [
         {
@@ -5056,10 +5080,10 @@
         }
       ],
       "type": "container",
-      "version": "worker-v3-runtime-rc-916d7ba"
+      "version": "worker-v3-runtime-rc-a2ae258"
     }
   },
-  "serialNumber": "urn:uuid:24f25029-4e13-5c8f-853a-95f930bc88f1",
+  "serialNumber": "urn:uuid:d68b07d2-bd44-5417-9ac1-c47fbf6fcaff",
   "specVersion": "1.5",
   "version": 1
 }
