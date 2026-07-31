@@ -14,11 +14,24 @@ from app.workflow_v3.contracts import STAGE_CONTRACTS, WORKFLOW_VERSION
 from app.workflow_v3.evaluator import WorkflowV3Evaluator, WorkflowV3PromotionController
 from app.workflow_v3.executor import (
     _bounded_model_call_id,
+    _control_plane_promotion_class,
     DirectoryArtifactStore,
     DirectoryReleaseResolver,
     SubprocessTransport,
     WorkflowV3Executor,
 )
+
+
+def test_native_spec03_04_promotions_preserve_formal_native_lineage() -> None:
+    assert _control_plane_promotion_class("source_scope_and_order") == "standard"
+    for stage_key in (
+        "canonical_block_ledger",
+        "outline_reconstruction",
+        "semantic_annotation",
+        "template_construct_binding",
+        "frozen_render_plan",
+    ):
+        assert _control_plane_promotion_class(stage_key) == "formal_native"
 from app.workflow_v3.models import (
     WorkflowV3Base,
     WorkflowV3Candidate,

@@ -857,6 +857,12 @@ _STAGE_PROMOTION_KIND = {
     "template_construct_binding": "spec04c_construct_binding_contract",
     "frozen_render_plan": "spec04d_render_plan_contract",
 }
+
+
+def _control_plane_promotion_class(stage_key: str) -> str:
+    return "formal_native" if stage_key in _STAGE_PROMOTION_KIND else "standard"
+
+
 _PROMOTED_ROLE_ALIASES = {
     "canonical_ledger": "ledger_L",
     "decision_index": "decision_index_D",
@@ -1442,11 +1448,7 @@ class _StageRequestBuilder:
                 "sha256": str(stage_row["sha256"]),
             },
             "disposition": "promoted",
-            "promotion_class": (
-                "formal_native"
-                if stage.stage_key == "frozen_render_plan"
-                else "standard"
-            ),
+            "promotion_class": _control_plane_promotion_class(stage.stage_key),
             "producer_execution_provenance": "control_plane_release_bound",
             "checks": [
                 {
