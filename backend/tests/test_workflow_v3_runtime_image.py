@@ -46,7 +46,7 @@ def test_worker_v3_system_lock_is_installed_in_bounded_batches() -> None:
     dockerfile = DOCKERFILE.read_text(encoding="utf-8")
 
     assert "while IFS= read -r package; do" in dockerfile
-    assert 'install -y --no-install-recommends "$package"' in dockerfile
+    assert 'install -y --no-install-recommends "$package" || exit 1' in dockerfile
     assert "$(cat /tmp/worker-v3-system-packages.install)" not in dockerfile
 
 
