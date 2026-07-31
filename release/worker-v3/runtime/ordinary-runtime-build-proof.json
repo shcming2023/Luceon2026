@@ -1,10 +1,10 @@
 {
   "architecture": "arm64",
   "build_status": "clean_build_succeeded",
-  "built_at": "2026-07-31T10:40:07.641652418Z",
-  "image_id": "sha256:d2dabd7dc425cbf3b7bf2203eb0c6c88fa18f7d3028d3b2b49de10989b0bdb12",
-  "image_size_bytes": 1455128513,
-  "local_manifest_digest": "sha256:d2dabd7dc425cbf3b7bf2203eb0c6c88fa18f7d3028d3b2b49de10989b0bdb12",
+  "built_at": "2026-07-31T12:17:53.513477172Z",
+  "image_id": "sha256:6ab5704f8b18599c85720aa288521189079fa0eac442d4b39b90b774287eade2",
+  "image_size_bytes": 1455108456,
+  "local_manifest_digest": "sha256:6ab5704f8b18599c85720aa288521189079fa0eac442d4b39b90b774287eade2",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
     "pages": 2,
@@ -93,6 +93,12 @@
       "reason": "real-material Spec 03 qualification proved that the complete frozen audit task exceeded the unchanged one-million-byte model request gate before transport; the replacement preserves the full audit task while projecting exhaustive stable model evidence to 577170 bytes",
       "source_revision": "ee8a65264ff1297c2bda6a1a245162ab6a3aba55",
       "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:d2dabd7dc425cbf3b7bf2203eb0c6c88fa18f7d3028d3b2b49de10989b0bdb12",
+      "reason": "real-material qualification reached Spec 04-D and failed closed because the render-plan compact-input gate read an obsolete media_plan.summary.open field instead of the frozen Spec 03 top-level open_reviews contract; the replacement uses the production media-review contract and adds a regression fixture with the real frozen shape",
+      "source_revision": "1f336cdb687c9db4d71c3536afc6200abe7ff217",
+      "status": "superseded_before_release_admission"
     }
   ],
   "rejected_build_attempts": [
@@ -122,30 +128,30 @@
       "status": "rejected_before_qualification"
     }
   ],
-  "runtime_id": "worker-v3-runtime-rc-1f336cd",
+  "runtime_id": "worker-v3-runtime-rc-916d7ba",
   "runtime_identity": {
     "effective_uid": 10003,
-    "evidence_sha256": "deb1e6520905c9e7c4dea32c78ecae96bac002a271f78944040cd292504db210",
+    "evidence_sha256": "1933bc3d4dc9fe83ee5fe457d22d0e8904968b5cfbf4a0cc108f1b3de5337915",
     "status": "passed",
     "system_lock_entries": 19,
     "control_plane_tree_sha256": "92d7f53499326730d9519d839ffbf882791dc08aef188ced7568561468a60e33"
   },
   "sbom": {
     "component_count": 420,
-    "evidence_sha256": "318a5a6b9613dcf78ef4bd5b5acd8949ae972f1094fb34fb0f3d472d9b3a26cb",
+    "evidence_sha256": "d5d78557259bcd4904b98c9921e3cf537004223194075b274a51770047338c62",
     "format": "CycloneDX",
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "1f336cdb687c9db4d71c3536afc6200abe7ff217",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-1f336cd",
+  "source_revision": "916d7bab881ed8dd09f0c4b8529e66984b52bf42",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-916d7ba",
   "tests": {
     "backend/tests": "958 passed, 2 skipped, 0 failed in the exact rebuilt image with no network, read-only root filesystem, isolated SQLite and only repository-level evidence mounted read-only",
     "backend/tests/test_workflow_v3_*.py": "370 passed, 2 skipped, 0 failed in the exact rebuilt image",
     "source_worktree_backend_tests": "1011 passed, 2 skipped, 0 failed before the clean image build",
     "locked_template_smoke": "passed: 2 pages, qpdf and pdfinfo passed, PDF SHA-256 5ad6f5885f7b274f16a88bc98faaf4da7587af83b209c2f99f1e70b88e59ec90",
     "production_boundary": "Expert Broker, Codex App Server, Codex SDK adapter, cross-UID runner and Codex expert runtime entrypoints absent",
-    "warnings": "8020 existing deprecation warnings in the Worker V3 image suite and 9989 in the full production-runtime suite; zero test failures"
+    "warnings": "8022 existing deprecation warnings in the Worker V3 image suite and 9990 in the full production-runtime suite; zero test failures"
   },
   "user": "10003:10003"
 }

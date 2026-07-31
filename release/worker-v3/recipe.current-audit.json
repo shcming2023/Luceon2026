@@ -18,7 +18,7 @@
     "requested_status": "incomplete",
     "created_at": "2026-07-26T00:00:00+08:00",
     "source": {
-      "git_sha": "1f336cdb687c9db4d71c3536afc6200abe7ff217",
+      "git_sha": "916d7bab881ed8dd09f0c4b8529e66984b52bf42",
       "git_tag": null,
       "dirty": false
     },
@@ -92,7 +92,7 @@
       "root": "skills",
       "path": "luceon-popo-to-refined-elegantbook",
       "destination": "skills/luceon-popo-to-refined-elegantbook",
-      "expected_tree_sha256": "27d0231b6af7becb073e9ad40828ff0f3b658b9f33deefbc0b9750f96584a47a"
+      "expected_tree_sha256": "a823d4b68a67df80741270a4848fe7b00135065879ee369c5d5ff4193b86bdd1"
     },
     {
       "id": "skill-pdf-clean-markdown-rebuild",
@@ -335,7 +335,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-identity.json",
       "destination": "runtime/ordinary-runtime-identity.json",
-      "expected_sha256": "deb1e6520905c9e7c4dea32c78ecae96bac002a271f78944040cd292504db210"
+      "expected_sha256": "1933bc3d4dc9fe83ee5fe457d22d0e8904968b5cfbf4a0cc108f1b3de5337915"
     },
     {
       "id": "worker-v3-ordinary-runtime-build-proof",
@@ -344,7 +344,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-build-proof.json",
       "destination": "runtime/ordinary-runtime-build-proof.json",
-      "expected_sha256": "01be54dfdc47062a1bf6f50c48ceba67fa1ff80c76c443927c2ccfc838c781bb"
+      "expected_sha256": "d66db6a95997a56f3b6ebf164a4c8c3a3f9fe943abd2b4420436eea1e067fe2c"
     },
     {
       "id": "worker-v3-ordinary-runtime-sbom",
@@ -353,7 +353,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-sbom.cdx.json",
       "destination": "runtime/ordinary-runtime-sbom.cdx.json",
-      "expected_sha256": "318a5a6b9613dcf78ef4bd5b5acd8949ae972f1094fb34fb0f3d472d9b3a26cb"
+      "expected_sha256": "d5d78557259bcd4904b98c9921e3cf537004223194075b274a51770047338c62"
     },
     {
       "id": "worker-v3-overleaf-target-environment",
@@ -900,7 +900,7 @@
     "python": "CPython 3.12.13",
     "application_dependencies_path": "runtime/requirements-worker-v3.lock",
     "system_tools": {
-      "runtime_id": "worker-v3-runtime-rc-1f336cd",
+      "runtime_id": "worker-v3-runtime-rc-916d7ba",
       "system_lock": "runtime/worker-v3-system-packages.lock",
       "identity": "runtime/ordinary-runtime-identity.json",
       "overleaf_compiler": {
@@ -911,7 +911,7 @@
     "fonts_identity_path": "runtime/ordinary-runtime-identity.json",
     "tex_identity_path": "runtime/ordinary-runtime-identity.json",
     "poppler_identity_path": "runtime/ordinary-runtime-identity.json",
-    "container_image_digest": "sha256:d2dabd7dc425cbf3b7bf2203eb0c6c88fa18f7d3028d3b2b49de10989b0bdb12",
+    "container_image_digest": "sha256:6ab5704f8b18599c85720aa288521189079fa0eac442d4b39b90b774287eade2",
     "sbom_path": "runtime/ordinary-runtime-sbom.cdx.json",
     "attestations": [
       "runtime/ordinary-runtime-identity.json",
