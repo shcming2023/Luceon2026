@@ -22,12 +22,12 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping, Sequence
 
 
-KERNEL_VERSION = "luceon-worker-v3-spec01-03-atomic/1.6.0"
+KERNEL_VERSION = "luceon-worker-v3-spec01-03-atomic/1.7.0"
 INTAKE_SCHEMA = "luceon.worker-v3-spec01-intake-contract/v1"
 SCOPE_REVIEW_SCHEMA = "luceon.worker-v3-spec02-scope-order-review/v3"
 MEDIA_REVIEW_SCHEMA = "luceon.worker-v3-spec03-media-review/v2"
 SCOPE_REVIEW_TASK_SCHEMA = "luceon.worker-v3-spec02-review-task/v2"
-MEDIA_REVIEW_TASK_SCHEMA = "luceon.worker-v3-spec03-review-task/v2"
+MEDIA_REVIEW_TASK_SCHEMA = "luceon.worker-v3-spec03-review-task/v3"
 OUTLINE_REVIEW_TASK_SCHEMA = "luceon.worker-v3-spec04a-review-task/v1"
 OUTLINE_COMPACT_REVIEW_SCHEMA = (
     "luceon.worker-v3-spec04a-compact-review/v1"
@@ -55,7 +55,10 @@ MAX_ARCHIVE_MEMBERS = 40_000
 MAX_ARCHIVE_BYTES = 4_000_000_000
 MAX_JSON_BYTES = 300_000_000
 SCOPE_BASELINE_ALGORITHM = "popo-evidence-scope-order-baseline/1.0"
-MEDIA_BASELINE_ALGORITHM = "source-pdf-region-media-baseline/1.0"
+MEDIA_BASELINE_ALGORITHM = "spatial-source-media-ownership-baseline/2.0"
+FRAGILE_SOURCE_TYPES = frozenset({"chart", "equation", "image", "table"})
+FRAGILE_MEDIA_CONTAINMENT_MIN = 0.75
+FALLBACK_MEDIA_CONTAINMENT_MIN = 0.90
 SCOPE_BASELINE_EXCLUDED_LABELS = frozenset(
     {"footer", "header", "page_number", "watermark"}
 )
@@ -136,6 +139,16 @@ def _canonical_bytes(value: Any) -> bytes:
 
 def _canonical_hash(value: Any) -> str:
     return hashlib.sha256(_canonical_bytes(value)).hexdigest()
+
+
+def _contract_payload_hash(value: Mapping[str, Any]) -> str:
+    return _canonical_hash(
+        {
+            key: item
+            for key, item in value.items()
+            if key not in {"generated_at", "payload_hash"}
+        }
+    )
 
 
 def _sha256(path: Path) -> str:
@@ -590,6 +603,69 @@ def _materialize_selected_members(
     if missing:
         _fail("media_asset_unresolved", f"selected archive members are absent: {missing[:10]}")
     return materialized
+
+
+def _verified_selected_media_candidate(
+    candidate: Mapping[str, Any],
+    *,
+    output: Path,
+) -> dict[str, Any]:
+    representation_type = str(candidate.get("representation_type") or "")
+    if representation_type != "source_asset_image":
+        _fail(
+            "media_candidate_not_formally_executable",
+            "the current atomic Spec 03 path only freezes hash-verified source assets",
+        )
+    evidence = candidate.get("materialized_evidence")
+    if not isinstance(evidence, Mapping):
+        _fail(
+            "media_asset_unresolved",
+            "selected source asset was not materialized",
+        )
+    relative = _safe_relative(
+        evidence.get("path"),
+        "selected media materialized path",
+    )
+    path = _contained_file(output, relative, "selected media asset")
+    expected_sha = _require_sha(
+        evidence.get("sha256"),
+        "selected media artifact sha256",
+    )
+    expected_size = _require_positive_int(
+        evidence.get("size_bytes"),
+        "selected media artifact size",
+    )
+    if _sha256(path) != expected_sha or path.stat().st_size != expected_size:
+        _fail("media_asset_drift", "selected media artifact differs after materialization")
+    try:
+        from PIL import Image
+
+        with Image.open(path) as image:
+            image.verify()
+        with Image.open(path) as image:
+            width, height = image.size
+            image_format = image.format
+    except Exception as exc:
+        _fail("media_asset_invalid", f"selected media asset is not decodable: {exc}")
+    if width < 2 or height < 2:
+        _fail("media_asset_invalid", "selected media asset is too small")
+    return {
+        **{
+            key: item
+            for key, item in candidate.items()
+            if key != "materialized_evidence"
+        },
+        "status": "usable",
+        "resolved_path": relative,
+        "artifact_sha256": expected_sha,
+        "size_bytes": expected_size,
+        "metrics": {
+            "format": image_format,
+            "width_px": width,
+            "height_px": height,
+        },
+        "anomaly_flags": [],
+    }
 
 
 def _verify_marker(
@@ -1973,27 +2049,289 @@ def _minimum_media_review_bytes(
     return len(_canonical_bytes(minimal))
 
 
+def _bbox_overlap_metrics(
+    left: object,
+    right: object,
+    *,
+    label: str,
+) -> tuple[float, float]:
+    left_box = _normalized_bbox(left, scale=1.0, label=f"{label}.left")
+    right_box = _normalized_bbox(right, scale=1.0, label=f"{label}.right")
+    if left_box is None or right_box is None:
+        _fail("media_source_ownership_invalid", f"{label} has no bounding box")
+    x0 = max(left_box[0], right_box[0])
+    y0 = max(left_box[1], right_box[1])
+    x1 = min(left_box[2], right_box[2])
+    y1 = min(left_box[3], right_box[3])
+    intersection = max(0.0, x1 - x0) * max(0.0, y1 - y0)
+    left_area = max(0.0, left_box[2] - left_box[0]) * max(
+        0.0,
+        left_box[3] - left_box[1],
+    )
+    right_area = max(0.0, right_box[2] - right_box[0]) * max(
+        0.0,
+        right_box[3] - right_box[1],
+    )
+    if left_area == 0 or right_area == 0:
+        _fail("media_source_ownership_invalid", f"{label} has an empty bounding box")
+    return (
+        intersection / max(left_area, right_area),
+        intersection / min(left_area, right_area),
+    )
+
+
+def _deterministic_media_source_ownership(
+    source_units: Sequence[Mapping[str, Any]],
+    media_atoms: Sequence[Mapping[str, Any]],
+) -> dict[str, list[str]]:
+    """Bind each media atom to unique, same-page source evidence.
+
+    The balanced-overlap score avoids assigning a large Popo image to a small
+    nested MinerU atom merely because that atom is fully contained.  The
+    containment score permits a larger media atom to own several smaller
+    fragile source fragments.  Fragile blocks are assigned first; otherwise
+    unused media atoms may bind one strongly overlapping non-fragile block.
+    """
+
+    source_by_id: dict[str, Mapping[str, Any]] = {}
+    source_by_page: dict[int, list[Mapping[str, Any]]] = {}
+    for raw in source_units:
+        source_id = _require_text(raw.get("source_id"), "media source_id")
+        if source_id in source_by_id:
+            _fail(
+                "media_source_ownership_invalid",
+                f"source unit {source_id!r} is duplicated",
+            )
+        page = _require_positive_int(
+            raw.get("physical_page"),
+            f"{source_id}.physical_page",
+        )
+        _bbox_overlap_metrics(
+            raw.get("bbox"),
+            raw.get("bbox"),
+            label=f"source:{source_id}",
+        )
+        source_by_id[source_id] = raw
+        source_by_page.setdefault(page, []).append(raw)
+
+    media_by_id: dict[str, Mapping[str, Any]] = {}
+    media_by_page: dict[int, list[Mapping[str, Any]]] = {}
+    for raw in media_atoms:
+        media_id = _require_text(raw.get("media_id"), "media_id")
+        if media_id in media_by_id:
+            _fail(
+                "media_source_ownership_invalid",
+                f"media atom {media_id!r} is duplicated",
+            )
+        page = _require_positive_int(
+            raw.get("physical_page"),
+            f"{media_id}.physical_page",
+        )
+        _bbox_overlap_metrics(
+            raw.get("bbox"),
+            raw.get("bbox"),
+            label=f"media:{media_id}",
+        )
+        media_by_id[media_id] = raw
+        media_by_page.setdefault(page, []).append(raw)
+
+    ownership: dict[str, list[str]] = {}
+    assigned_sources: set[str] = set()
+
+    def ranked_matches(
+        source: Mapping[str, Any],
+        candidates: Sequence[Mapping[str, Any]],
+        *,
+        minimum_containment: float,
+    ) -> list[tuple[float, float, str]]:
+        source_id = str(source["source_id"])
+        matches: list[tuple[float, float, str]] = []
+        for media in candidates:
+            media_id = str(media["media_id"])
+            balanced, containment = _bbox_overlap_metrics(
+                source.get("bbox"),
+                media.get("bbox"),
+                label=f"{source_id}:{media_id}",
+            )
+            if containment >= minimum_containment:
+                matches.append((balanced, containment, media_id))
+        matches.sort(key=lambda row: (-row[0], -row[1], row[2]))
+        if (
+            len(matches) > 1
+            and round(matches[0][0], 12) == round(matches[1][0], 12)
+            and round(matches[0][1], 12) == round(matches[1][1], 12)
+        ):
+            _fail(
+                "media_source_ownership_ambiguous",
+                f"source unit {source_id!r} has indistinguishable media matches",
+            )
+        return matches
+
+    included = [
+        row
+        for row in source_units
+        if row.get("scope_status") == "included"
+    ]
+    fragile = sorted(
+        (
+            row
+            for row in included
+            if str(row.get("source_type") or "").strip().lower()
+            in FRAGILE_SOURCE_TYPES
+        ),
+        key=lambda row: (
+            row.get("candidate_final_order") is None,
+            row.get("candidate_final_order") or 0,
+            str(row["source_id"]),
+        ),
+    )
+    for source in fragile:
+        source_id = str(source["source_id"])
+        page = int(source["physical_page"])
+        matches = ranked_matches(
+            source,
+            media_by_page.get(page, ()),
+            minimum_containment=FRAGILE_MEDIA_CONTAINMENT_MIN,
+        )
+        if not matches:
+            _fail(
+                "media_source_ownership_unresolved",
+                f"fragile source unit {source_id!r} has no strong same-page media match",
+            )
+        media_id = matches[0][2]
+        ownership.setdefault(media_id, []).append(source_id)
+        assigned_sources.add(source_id)
+
+    for media_id in sorted(set(media_by_id) - set(ownership)):
+        media = media_by_id[media_id]
+        page = int(media["physical_page"])
+        matches: list[tuple[float, float, str]] = []
+        for source in source_by_page.get(page, ()):
+            source_id = str(source["source_id"])
+            if (
+                source.get("scope_status") != "included"
+                or source_id in assigned_sources
+                or str(source.get("source_type") or "").strip().lower()
+                in FRAGILE_SOURCE_TYPES
+            ):
+                continue
+            balanced, containment = _bbox_overlap_metrics(
+                source.get("bbox"),
+                media.get("bbox"),
+                label=f"{source_id}:{media_id}",
+            )
+            if containment >= FALLBACK_MEDIA_CONTAINMENT_MIN:
+                matches.append((balanced, containment, source_id))
+        matches.sort(key=lambda row: (-row[0], -row[1], row[2]))
+        if (
+            len(matches) > 1
+            and round(matches[0][0], 12) == round(matches[1][0], 12)
+            and round(matches[0][1], 12) == round(matches[1][1], 12)
+        ):
+            _fail(
+                "media_source_ownership_ambiguous",
+                f"media atom {media_id!r} has indistinguishable source matches",
+            )
+        if not matches:
+            _fail(
+                "media_source_ownership_unresolved",
+                f"media atom {media_id!r} has no unique strong source owner",
+            )
+        source_id = matches[0][2]
+        ownership[media_id] = [source_id]
+        assigned_sources.add(source_id)
+
+    if set(ownership) != set(media_by_id):
+        _fail(
+            "media_source_ownership_unresolved",
+            "not every media atom has source ownership",
+        )
+    flattened = [
+        source_id
+        for media_id in sorted(ownership)
+        for source_id in ownership[media_id]
+    ]
+    if len(flattened) != len(set(flattened)):
+        _fail(
+            "media_source_ownership_duplicate",
+            "one source unit is owned by multiple media atoms",
+        )
+    fragile_ids = {str(row["source_id"]) for row in fragile}
+    if not fragile_ids.issubset(flattened):
+        _fail(
+            "media_source_ownership_unresolved",
+            "not every included fragile source unit has media ownership",
+        )
+    source_order = {
+        str(row["source_id"]): (
+            row.get("candidate_final_order") is None,
+            row.get("candidate_final_order") or 0,
+            str(row["source_id"]),
+        )
+        for row in source_units
+    }
+    return {
+        media_id: sorted(source_ids, key=source_order.__getitem__)
+        for media_id, source_ids in sorted(ownership.items())
+    }
+
+
 def _media_review_task(parent: Path) -> dict[str, Any]:
     contract = _verify_materialized_parent(parent)
     identity = contract["material_identity"]
     media_atoms = _read_jsonl(parent / "source/mineru_media_atoms.jsonl", "MinerU media atoms")
+    source_evidence = _read_jsonl(
+        parent / "source/popo_source_units.jsonl",
+        "Popo source units",
+    )
     scope = _read_json(parent / "ledgers/source_scope_ledger.json", "source scope ledger")
     if scope.get("spec_status") != "passed":
         _fail("review_task_scope_invalid", "Spec 02 scope ledger is not closed")
     source_units = scope.get("source_units")
     if not isinstance(source_units, list):
         _fail("review_task_scope_invalid", "Spec 02 scope ledger has no source units")
+    source_evidence_by_id = {
+        str(unit["source_id"]): unit
+        for unit in source_evidence
+        if isinstance(unit, Mapping) and unit.get("source_id")
+    }
+    if (
+        len(source_evidence_by_id) != len(source_evidence)
+        or {
+            str(unit.get("source_id"))
+            for unit in source_units
+            if isinstance(unit, Mapping)
+        }
+        != set(source_evidence_by_id)
+    ):
+        _fail(
+            "review_task_scope_invalid",
+            "Spec 02 scope and Popo source evidence partitions differ",
+        )
     source_by_page: dict[int, list[dict[str, Any]]] = {}
+    enriched_source_units: list[dict[str, Any]] = []
     for unit in source_units:
         if not isinstance(unit, Mapping):
             _fail("review_task_scope_invalid", "scope source unit must be an object")
-        source_by_page.setdefault(int(unit["physical_page"]), []).append(
-            {
-                "source_id": unit["source_id"],
-                "scope_status": unit["scope_status"],
-                "candidate_final_order": unit["candidate_final_order"],
-            }
-        )
+        evidence = source_evidence_by_id[str(unit["source_id"])]
+        enriched = {
+            "source_id": unit["source_id"],
+            "scope_status": unit["scope_status"],
+            "candidate_final_order": unit["candidate_final_order"],
+            "physical_page": unit["physical_page"],
+            "bbox": evidence["bbox"],
+            "bbox_basis": evidence["bbox_basis"],
+            "source_type": evidence["source_type"],
+            "source_label": evidence["source_label"],
+            "raw_content_sha256": evidence["raw_content_sha256"],
+            "content_excerpt": _scope_content_excerpt(evidence.get("raw_content")),
+        }
+        enriched_source_units.append(enriched)
+        source_by_page.setdefault(int(unit["physical_page"]), []).append(enriched)
+    ownership = _deterministic_media_source_ownership(
+        enriched_source_units,
+        media_atoms,
+    )
     media_pages = {int(atom["physical_page"]) for atom in media_atoms}
     page_source_units: list[dict[str, Any]] = []
     indexed_source_by_page: dict[int, list[dict[str, Any]]] = {}
@@ -2032,8 +2370,8 @@ def _media_review_task(parent: Path) -> dict[str, Any]:
             ),
             key=lambda item: (
                 {
-                    "source_region_image": 0,
-                    "source_asset_image": 1,
+                    "source_asset_image": 0,
+                    "source_region_image": 1,
                     "structured_table": 2,
                     "structured_chart": 2,
                     "structured_formula": 2,
@@ -2083,7 +2421,14 @@ def _media_review_task(parent: Path) -> dict[str, Any]:
             "media_id": atom["media_id"],
             "disposition": baseline_disposition,
             "selected_candidate_index": baseline_candidate["candidate_index"],
-            "source_unit_indexes": [],
+            "source_unit_indexes": [
+                next(
+                    row["source_unit_index"]
+                    for row in indexed_source_by_page[int(atom["physical_page"])]
+                    if row["source_id"] == source_id
+                )
+                for source_id in ownership[str(atom["media_id"])]
+            ],
         }
         baseline_rows.append(baseline_row)
         task_atoms.append(
@@ -2098,6 +2443,9 @@ def _media_review_task(parent: Path) -> dict[str, Any]:
                 "baseline_disposition": baseline_disposition,
                 "baseline_candidate_index": baseline_candidate[
                     "candidate_index"
+                ],
+                "baseline_source_unit_indexes": baseline_row[
+                    "source_unit_indexes"
                 ],
                 "candidates": compact_candidates,
             }
@@ -2129,7 +2477,8 @@ def _media_review_task(parent: Path) -> dict[str, Any]:
             "Classify every media_index exactly once.",
             "Accept the deterministic source-region baseline compactly and return full fields only for overrides.",
             "Select only one candidate_index enumerated for that media atom.",
-            "Bind zero or more source_unit_indexes enumerated on the same source page.",
+            "Preserve at least one exact same-page source_unit_index for every nonexcluded media atom.",
+            "Every included image, table, chart, or equation source unit must be owned exactly once.",
             "An exclusion requires source evidence and cannot discard instructional content.",
             "Do not invent replacement teaching content or an unenumerated asset.",
         ],
@@ -4376,6 +4725,7 @@ def _validate_media_review(
     if not isinstance(page_source_units, list):
         _fail("media_review_task_invalid", "media review task source units are invalid")
     source_indexes_by_page: dict[int, dict[int, str]] = {}
+    source_metadata_by_id: dict[str, Mapping[str, Any]] = {}
     for page in page_source_units:
         if not isinstance(page, Mapping) or not isinstance(
             page.get("source_units"), list
@@ -4391,6 +4741,12 @@ def _validate_media_review(
             if index in indexed or source_id not in source_ids:
                 _fail("media_review_task_invalid", "page source unit index is invalid")
             indexed[index] = source_id
+            if source_id in source_metadata_by_id:
+                _fail(
+                    "media_review_task_invalid",
+                    "page source unit is repeated across pages",
+                )
+            source_metadata_by_id[source_id] = unit
         source_indexes_by_page[page_number] = indexed
 
     seen: set[int] = set()
@@ -4479,7 +4835,15 @@ def _validate_media_review(
         if override is None:
             disposition = str(task_atom["baseline_disposition"])
             selected_index = int(task_atom["baseline_candidate_index"])
-            linked_indexes: list[int] = []
+            raw_baseline_indexes = task_atom.get(
+                "baseline_source_unit_indexes"
+            )
+            if not isinstance(raw_baseline_indexes, list):
+                _fail(
+                    "media_review_task_invalid",
+                    f"{media_id} has no deterministic source ownership",
+                )
+            linked_indexes = list(raw_baseline_indexes)
         else:
             disposition = str(override["disposition"])
             selected_index = _require_nonnegative_int(
@@ -4556,6 +4920,43 @@ def _validate_media_review(
                 "evidence_refs": list(evidence),
                 "review_status": "closed",
             }
+        )
+    ownership_counts = Counter(
+        source_id
+        for row in normalized
+        if row["disposition"] != "excluded_noninstructional"
+        for source_id in row["source_ids"]
+    )
+    if any(
+        row["disposition"] != "excluded_noninstructional"
+        and not row["source_ids"]
+        for row in normalized
+    ):
+        _fail(
+            "media_source_ownership_unresolved",
+            "a nonexcluded media atom has no source ownership",
+        )
+    if any(count > 1 for count in ownership_counts.values()):
+        _fail(
+            "media_source_ownership_duplicate",
+            "one source unit is owned by multiple media atoms",
+        )
+    fragile_ids = {
+        source_id
+        for source_id, metadata in source_metadata_by_id.items()
+        if metadata.get("scope_status") == "included"
+        and str(metadata.get("source_type") or "").strip().lower()
+        in FRAGILE_SOURCE_TYPES
+    }
+    missing_fragile = sorted(
+        source_id
+        for source_id in fragile_ids
+        if ownership_counts[source_id] != 1
+    )
+    if missing_fragile:
+        _fail(
+            "media_source_ownership_unresolved",
+            f"included fragile source ownership is not exact: {missing_fragile[:10]}",
         )
     return normalized
 
@@ -4763,33 +5164,177 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
         child_index,
     )
 
-    media_by_source: dict[str, list[dict[str, Any]]] = {}
+    block_ids_by_source = {
+        source_id: _block_id(material_id, source_id)
+        for source_id in source_by_id
+    }
+    base_media_atoms: list[dict[str, Any]] = []
     representation_rows: list[dict[str, Any]] = []
     for disposition in media_dispositions:
-        atom = next(item for item in media_atoms if item["media_id"] == disposition["media_id"])
+        atom = next(
+            item
+            for item in media_atoms
+            if item["media_id"] == disposition["media_id"]
+        )
+        selected = disposition["selected_candidate"]
+        if not isinstance(selected, Mapping):
+            _fail(
+                "media_candidate_not_formally_executable",
+                f"{disposition['media_id']} has no selected executable candidate",
+            )
+        verified_candidate = _verified_selected_media_candidate(
+            selected,
+            output=output,
+        )
+        source_block_ids = [
+            block_ids_by_source[source_id]
+            for source_id in disposition["source_ids"]
+        ]
+        if not source_block_ids:
+            _fail(
+                "media_source_ownership_unresolved",
+                f"{disposition['media_id']} has no canonical source blocks",
+            )
+        representation_id = f"representation::{disposition['media_id']}"
         representation = {
+            "representation_id": representation_id,
             "media_id": disposition["media_id"],
-            "source_atom_id": atom["source_atom_id"],
-            "physical_page": atom["physical_page"],
-            "bbox": atom["bbox"],
-            "media_kind": atom["media_kind"],
-            "disposition": disposition["disposition"],
+            "source_block_ids": source_block_ids,
+            "status": "closed",
             "selected_candidate_id": disposition["selected_candidate_id"],
-            "selected_candidate": disposition["selected_candidate"],
-            "source_ids": disposition["source_ids"],
-            "evidence_refs": disposition["evidence_refs"],
-            "review_status": "closed",
+            "representation_type": verified_candidate[
+                "representation_type"
+            ],
+            "artifact_sha256": verified_candidate["artifact_sha256"],
+            "rule_id": "MEDIA-EXPLICIT-REVIEW-SELECTION",
+            "reason": "the compact Spec 03 review selected exact hash-verified source evidence",
+            "decision_refs": [args.stage_decision_id],
+            "disposition": disposition["disposition"],
         }
         representation_rows.append(representation)
-        for source_id in disposition["source_ids"]:
-            media_by_source.setdefault(source_id, []).append(representation)
+        base_media_atoms.append(
+            {
+                "media_id": disposition["media_id"],
+                "source_atom_id": atom["source_atom_id"],
+                "source_block_ids": source_block_ids,
+                "source_page": atom["physical_page"],
+                "bbox": atom["bbox"],
+                "bbox_coordinate_space": atom["bbox_basis"],
+                "media_kind": atom["media_kind"],
+                "inclusion_status": "included",
+                "candidates": [verified_candidate],
+                "review_status": "closed",
+                "source_ids": list(disposition["source_ids"]),
+                "evidence_refs": list(disposition["evidence_refs"]),
+            }
+        )
+
+    precommit_evidence = {
+        "schema_version": "media-evidence-ledger/1.0",
+        "ledger_id": f"media::{args.ledger_id}",
+        "source_pdf": {
+            "path": "external/source.pdf",
+            "sha256": source_sha,
+            "page_count": identity["page_count"],
+        },
+        "atoms": base_media_atoms,
+        "summary": {
+            "atoms": len(base_media_atoms),
+            "included": len(base_media_atoms),
+            "excluded": 0,
+            "needs_review": 0,
+        },
+    }
+    precommit_evidence["payload_hash"] = _contract_payload_hash(
+        precommit_evidence
+    )
+    precommit_evidence_path = (
+        output / "media/precommit/media_evidence_ledger.json"
+    )
+    precommit_evidence_hash = _write_json(
+        precommit_evidence_path,
+        precommit_evidence,
+    )
+    precommit_plan = {
+        "schema_version": "media-representation-plan/1.0",
+        "media_evidence_ledger_sha256": precommit_evidence_hash,
+        "spec_status": "passed",
+        "open_reviews": 0,
+        "representations": representation_rows,
+        "summary": {
+            "representations": len(representation_rows),
+            "closed": len(representation_rows),
+            "excluded": 0,
+            "needs_review": 0,
+        },
+    }
+    precommit_plan["payload_hash"] = _contract_payload_hash(precommit_plan)
+    precommit_plan_path = (
+        output / "media/precommit/media_representation_plan.json"
+    )
+    precommit_plan_hash = _write_json(
+        precommit_plan_path,
+        precommit_plan,
+    )
+    precommit_validation = {
+        "schema_version": "media-representation-validation/1.0",
+        "status": "passed",
+        "inputs": {
+            "media_evidence_ledger": {
+                "path": "media/precommit/media_evidence_ledger.json",
+                "sha256": precommit_evidence_hash,
+            },
+            "media_representation_plan": {
+                "path": "media/precommit/media_representation_plan.json",
+                "sha256": precommit_plan_hash,
+            },
+        },
+        "checks": [
+            {
+                "check_id": "MSR-H01-ledger-identities",
+                "status": "passed",
+            },
+            {
+                "check_id": "MSR-H03-candidate-evidence-live",
+                "status": "passed",
+            },
+            {
+                "check_id": "MSR-H04-representation-coverage-and-closure",
+                "status": "passed",
+            },
+        ],
+    }
+    precommit_validation_hash = _write_json(
+        output / "reports/precommit_media_validation.json",
+        precommit_validation,
+    )
+    canonical_media_atoms: list[dict[str, Any]] = []
+    media_by_source: dict[str, list[dict[str, Any]]] = {}
+    reps_by_media = {
+        row["media_id"]: row for row in representation_rows
+    }
+    for atom in base_media_atoms:
+        canonical_atom = {
+            **atom,
+            "media_contract_schema_version": "canonical-media-atom/1.1",
+            "frozen_representation": reps_by_media[atom["media_id"]],
+            "contract_decision_refs": [args.stage_decision_id],
+            "precommit_evidence": {
+                "media_evidence_ledger_sha256": precommit_evidence_hash,
+                "media_representation_plan_sha256": precommit_plan_hash,
+                "media_validation_sha256": precommit_validation_hash,
+            },
+        }
+        canonical_media_atoms.append(canonical_atom)
+        for source_id in atom["source_ids"]:
+            media_by_source.setdefault(source_id, []).append(canonical_atom)
 
     blocks: list[dict[str, Any]] = []
     coverage_rows: list[dict[str, Any]] = []
     for source_id, source_unit in source_by_id.items():
         scope_unit = scope_by_id[source_id]
         status = scope_unit["scope_status"]
-        block_id = _block_id(material_id, source_id)
+        block_id = block_ids_by_source[source_id]
         block_media = media_by_source.get(source_id, [])
         block = {
             "record_type": "source_block",
@@ -4915,33 +5460,56 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
             "spec_status": "passed",
         },
     )
+    media_evidence = {
+        "schema_version": "media-evidence-ledger/1.1",
+        "ledger_id": f"media::{args.ledger_id}",
+        "canonical_ledger": {
+            "path": "ledgers/canonical_block_ledger.jsonl",
+            "sha256": ledger_hash,
+            "snapshot_id": args.ledger_snapshot_id,
+            "payload_hash": current_ledger_hash,
+        },
+        "decision_index": {
+            "path": "decisions/canonical_decision_index.json",
+            "sha256": decision_index_hash,
+        },
+        "source_pdf": {
+            "path": "external/source.pdf",
+            "sha256": source_sha,
+            "page_count": identity["page_count"],
+        },
+        "atoms": canonical_media_atoms,
+        "summary": {
+            "atoms": len(canonical_media_atoms),
+            "included": len(canonical_media_atoms),
+            "excluded": 0,
+            "needs_review": 0,
+        },
+    }
+    media_evidence["payload_hash"] = _contract_payload_hash(media_evidence)
     media_evidence_hash = _write_json(
         output / "media/media_evidence_ledger.json",
-        {
-            "schema_version": "media-evidence-ledger/1.0",
-            "source_pdf_sha256": source_sha,
-            "media_atoms": representation_rows,
-            "summary": {
-                "media_atoms": len(representation_rows),
-                "open_reviews": 0,
-            },
-            "spec_status": "passed",
-        },
+        media_evidence,
     )
+    media_plan = {
+        "schema_version": "media-representation-plan/1.1",
+        "canonical_ledger_sha256": ledger_hash,
+        "decision_index_sha256": decision_index_hash,
+        "media_evidence_ledger_sha256": media_evidence_hash,
+        "spec_status": "passed",
+        "open_reviews": 0,
+        "representations": representation_rows,
+        "summary": {
+            "representations": len(representation_rows),
+            "closed": len(representation_rows),
+            "excluded": 0,
+            "needs_review": 0,
+        },
+    }
+    media_plan["payload_hash"] = _contract_payload_hash(media_plan)
     media_plan_hash = _write_json(
         output / "media/media_representation_plan.json",
-        {
-            "schema_version": "media-representation-plan/1.0",
-            "media_evidence_ledger_ref": "media/media_evidence_ledger.json",
-            "media_evidence_ledger_hash": media_evidence_hash,
-            "representations": representation_rows,
-            "summary": {
-                "media_atoms": len(representation_rows),
-                "resolved": len(representation_rows),
-                "open": 0,
-            },
-            "spec_status": "passed",
-        },
+        media_plan,
     )
     media_ledger_hash = _write_json(
         output / "ledgers/media_ledger.json",
@@ -4956,7 +5524,7 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
             "asset_inventory_ref": "source/media_asset_inventory.json",
             "asset_inventory_hash": _sha256(output / "source/media_asset_inventory.json"),
             "summary": {
-                "media_atoms": len(representation_rows),
+                "media_atoms": len(canonical_media_atoms),
                 "closed": len(representation_rows),
                 "open": 0,
             },

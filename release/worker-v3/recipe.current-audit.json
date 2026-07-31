@@ -92,7 +92,7 @@
       "root": "skills",
       "path": "luceon-popo-to-refined-elegantbook",
       "destination": "skills/luceon-popo-to-refined-elegantbook",
-      "expected_tree_sha256": "1e4237587a372f77b1b3fa14c5fdffd293a028816fadd68d59c1589570cc7541"
+      "expected_tree_sha256": "27d0231b6af7becb073e9ad40828ff0f3b658b9f33deefbc0b9750f96584a47a"
     },
     {
       "id": "skill-pdf-clean-markdown-rebuild",
@@ -200,7 +200,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/stage_evaluators.py",
       "destination": "scripts/worker-v3/stage_evaluators.py",
-      "expected_sha256": "3ad201ed1342e9d1f1055afad5b9d30fccbf28ab6b020f5b82b47e95bf8d7e33"
+      "expected_sha256": "3c0261538495a3663ef449f1a37d63bb9502a62b2ef5d3541397f5b3dfae3878"
     },
     {
       "id": "worker-v3-page-review-contract-runtime",
@@ -245,7 +245,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec01_03_atomic_kernel.py",
       "destination": "scripts/worker-v3/spec01_03_atomic_kernel.py",
-      "expected_sha256": "fa929b505a568a899de6d8dd325e13463e2a928f85aeefc2e2f57a838522e07c"
+      "expected_sha256": "b47f779191cc98af05064b72a1edbf2dc97cd91fe0012ab809448a3b64606868"
     },
     {
       "id": "worker-v3-stage-producer-entrypoints",
@@ -281,7 +281,7 @@
       "include": [
         "spec*.txt"
       ],
-      "expected_tree_sha256": "3a6ed198573c3fda6b0fdd108892f044673e48e932af97796ddf6086266832b0"
+      "expected_tree_sha256": "299dd9f9d13fa24437c8af3b8436b586ace1d4ed8f4c8acfd15a159de3b29557"
     },
     {
       "id": "worker-v3-ordinary-schemas",
@@ -718,7 +718,7 @@
     },
     {
       "id": "worker-v3.spec03-media-review",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "path": "prompts/spec03-media-review-v2.txt",
       "output_schema": "schemas/spec03-media-review-v2.schema.json"
     },

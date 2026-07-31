@@ -80,14 +80,9 @@ def _fixture(root: Path, *, padding_bytes: int = 0) -> dict[str, Path]:
     with source_pdf.open("wb") as handle:
         writer.write(handle)
 
-    image_payload = (
-        b"\x89PNG\r\n\x1a\n"
-        b"\x00\x00\x00\rIHDR"
-        b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00"
-        b"\x90wS\xde"
-        b"\x00\x00\x00\x0cIDAT\x08\xd7c\xf8\xcf\xc0\x00\x00\x03\x01\x01\x00"
-        b"\x18\xdd\x8d\xb4"
-        b"\x00\x00\x00\x00IEND\xaeB`\x82"
+    image_payload = __import__("base64").b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP8"
+        "zwACTGCSAQANHQEDgslx/wAAAABJRU5ErkJggg=="
     )
     content = [
         [
@@ -118,8 +113,8 @@ def _fixture(root: Path, *, padding_bytes: int = 0) -> dict[str, Path]:
             "id": "p1",
             "source_id": "unit-p1",
             "page": 1,
-            "bbox": [0.1, 0.1, 0.9, 0.3],
-            "type": "paragraph",
+            "bbox": [0.1, 0.1, 0.4, 0.4],
+            "type": "image",
             "content": "First source unit.",
         },
         {
@@ -516,6 +511,29 @@ def test_ledger_evaluator_rejects_duplicate_source_coverage(tmp_path: Path) -> N
     assert result.gate_results["content_conservation_passed"] is False
 
 
+def test_ledger_evaluator_rejects_media_resolved_without_source_ownership(
+    tmp_path: Path,
+) -> None:
+    _, _, spec03, paths = _run_pipeline(tmp_path)
+    plan_path = spec03 / "media/media_representation_plan.json"
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    plan["representations"][0]["source_block_ids"] = []
+    plan["payload_hash"] = kernel._contract_payload_hash(plan)  # noqa: SLF001
+    _write_json(plan_path, plan)
+    media_path = spec03 / "ledgers/media_ledger.json"
+    media = json.loads(media_path.read_text(encoding="utf-8"))
+    media["media_representation_plan_hash"] = _sha(plan_path)
+    _write_json(media_path, media)
+
+    result = _evaluate(
+        "canonical_block_ledger",
+        spec03,
+        paths["release_manifest"].parent,
+    )
+
+    assert result.gate_results["media_relations_closed"] is False
+
+
 def test_large_frozen_inputs_are_referenced_not_recursively_materialized(
     tmp_path: Path,
 ) -> None:
@@ -548,7 +566,8 @@ def test_large_frozen_inputs_are_referenced_not_recursively_materialized(
         if path not in risk_thumbnails
     ]
     selected = list(spec03.glob("media/selected/*.png"))
-    assert selected == []
+    assert len(selected) == 1
+    assert selected[0].stat().st_size < frozen_bytes // 100
     representation_plan = json.loads(
         (spec03 / "media/media_representation_plan.json").read_text(
             encoding="utf-8"
@@ -557,7 +576,7 @@ def test_large_frozen_inputs_are_referenced_not_recursively_materialized(
     assert {
         item["disposition"]
         for item in representation_plan["representations"]
-    } == {"source_region"}
+    } == {"source_asset"}
     contract = json.loads(
         (spec01 / "contracts/input_contract.json").read_text(encoding="utf-8")
     )
@@ -583,6 +602,50 @@ def test_large_frozen_inputs_are_referenced_not_recursively_materialized(
     )
     assert asset["archive_member"] == "mineru/images/diagram.png"
     assert "path" not in asset
+
+
+def test_spec03_media_contract_is_directly_consumable_by_spec04d(
+    tmp_path: Path,
+) -> None:
+    _, _, spec03, paths = _run_pipeline(tmp_path)
+    evidence_path = spec03 / "media/media_evidence_ledger.json"
+    plan_path = spec03 / "media/media_representation_plan.json"
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+
+    assert evidence["schema_version"] == "media-evidence-ledger/1.1"
+    assert evidence["source_pdf"]["sha256"] == _sha(paths["source_pdf"])
+    assert evidence["payload_hash"] == kernel._contract_payload_hash(  # noqa: SLF001
+        evidence
+    )
+    assert len(evidence["atoms"]) == 1
+    atom = evidence["atoms"][0]
+    assert atom["source_block_ids"] == [
+        kernel._block_id("pdf-test-atomic", "unit-p1")  # noqa: SLF001
+    ]
+    assert atom["inclusion_status"] == "included"
+    assert atom["review_status"] == "closed"
+    assert len(atom["candidates"]) == 1
+    candidate = atom["candidates"][0]
+    selected_path = spec03 / candidate["resolved_path"]
+    assert selected_path.is_file()
+    assert candidate["status"] == "usable"
+    assert candidate["artifact_sha256"] == _sha(selected_path)
+
+    assert plan["schema_version"] == "media-representation-plan/1.1"
+    assert plan["media_evidence_ledger_sha256"] == _sha(evidence_path)
+    assert plan["payload_hash"] == kernel._contract_payload_hash(  # noqa: SLF001
+        plan
+    )
+    assert plan["spec_status"] == "passed"
+    assert plan["open_reviews"] == 0
+    representation = plan["representations"][0]
+    assert representation["status"] == "closed"
+    assert representation["source_block_ids"] == atom["source_block_ids"]
+    assert representation["representation_type"] == "source_asset_image"
+    assert representation["selected_candidate_id"] == candidate["candidate_id"]
+    assert representation["artifact_sha256"] == candidate["artifact_sha256"]
+    assert representation["decision_refs"] == ["stage-decision-run-3"]
 
 
 def test_outline_review_task_compacts_full_ledger_without_weakening_binding(
@@ -1628,7 +1691,102 @@ def test_media_review_rejects_baseline_drift(tmp_path: Path) -> None:
         raise AssertionError("media baseline drift must fail")
 
 
-def test_media_review_expands_evidence_backed_exclusion(tmp_path: Path) -> None:
+def test_media_ownership_prefers_balanced_geometry_and_is_total() -> None:
+    source_units = [
+        {
+            "source_id": "large-image",
+            "physical_page": 1,
+            "bbox": [0.0, 0.48, 1.0, 1.0],
+            "source_type": "image",
+            "source_label": "image",
+            "scope_status": "included",
+            "candidate_final_order": 1,
+        },
+        {
+            "source_id": "small-image",
+            "physical_page": 1,
+            "bbox": [0.75, 0.90, 0.79, 0.94],
+            "source_type": "image",
+            "source_label": "image",
+            "scope_status": "included",
+            "candidate_final_order": 2,
+        },
+        {
+            "source_id": "chart-text",
+            "physical_page": 1,
+            "bbox": [0.1, 0.1, 0.3, 0.2],
+            "source_type": "text",
+            "source_label": "text",
+            "scope_status": "included",
+            "candidate_final_order": 3,
+        },
+    ]
+    media_atoms = [
+        {
+            "media_id": "large-media",
+            "physical_page": 1,
+            "bbox": [0.0, 0.48, 0.998, 0.998],
+        },
+        {
+            "media_id": "small-media",
+            "physical_page": 1,
+            "bbox": [0.752, 0.902, 0.788, 0.938],
+        },
+        {
+            "media_id": "chart-media",
+            "physical_page": 1,
+            "bbox": [0.1, 0.1, 0.3, 0.2],
+        },
+    ]
+
+    ownership = kernel._deterministic_media_source_ownership(  # noqa: SLF001
+        source_units,
+        media_atoms,
+    )
+
+    assert ownership == {
+        "chart-media": ["chart-text"],
+        "large-media": ["large-image"],
+        "small-media": ["small-image"],
+    }
+    assert len(
+        {
+            source_id
+            for source_ids in ownership.values()
+            for source_id in source_ids
+        }
+    ) == 3
+
+
+def test_media_ownership_fails_closed_when_fragile_source_is_unmatched() -> None:
+    with pytest.raises(kernel.KernelContractError) as exc_info:
+        kernel._deterministic_media_source_ownership(  # noqa: SLF001
+            [
+                {
+                    "source_id": "unmatched-image",
+                    "physical_page": 1,
+                    "bbox": [0.0, 0.0, 0.1, 0.1],
+                    "source_type": "image",
+                    "source_label": "image",
+                    "scope_status": "included",
+                    "candidate_final_order": 1,
+                }
+            ],
+            [
+                {
+                    "media_id": "distant-media",
+                    "physical_page": 1,
+                    "bbox": [0.8, 0.8, 0.9, 0.9],
+                }
+            ],
+        )
+
+    assert exc_info.value.code == "media_source_ownership_unresolved"
+
+
+def test_media_review_rejects_excluding_instructional_fragile_source(
+    tmp_path: Path,
+) -> None:
     spec01, spec02, _, _ = _run_pipeline(tmp_path)
     contract = json.loads(
         (spec01 / "contracts/input_contract.json").read_text(encoding="utf-8")
@@ -1675,23 +1833,16 @@ def test_media_review_expands_evidence_backed_exclusion(tmp_path: Path) -> None:
         ],
         "open_reviews": [],
     }
-    normalized = kernel._validate_media_review(  # noqa: SLF001
-        review,
-        material_id=contract["material_identity"]["material_id"],
-        source_sha256=contract["material_identity"]["source_pdf_sha256"],
-        media_atoms=media_atoms,
-        source_ids={"unit-p1", "unit-p2"},
-        review_task=review_task,
-    )
-    excluded = next(
-        item for item in normalized if item["media_id"] == first["media_id"]
-    )
-    assert excluded["selected_candidate"] is None
-    assert excluded["source_ids"] == [source_unit["source_id"]]
-    assert excluded["evidence_refs"] == [
-        f"media:{first['media_id']}",
-        f"source:{source_unit['source_id']}",
-    ]
+    with pytest.raises(kernel.KernelContractError) as exc_info:
+        kernel._validate_media_review(  # noqa: SLF001
+            review,
+            material_id=contract["material_identity"]["material_id"],
+            source_sha256=contract["material_identity"]["source_pdf_sha256"],
+            media_atoms=media_atoms,
+            source_ids={"unit-p1", "unit-p2"},
+            review_task=review_task,
+        )
+    assert exc_info.value.code == "media_source_ownership_unresolved"
 
 
 def test_compact_media_review_capacity_scales_to_large_inventory() -> None:

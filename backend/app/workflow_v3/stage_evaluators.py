@@ -10,6 +10,7 @@ import shutil
 import stat
 import subprocess
 import zipfile
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
@@ -723,40 +724,200 @@ def _evaluate_atomic_ledger(root: Path) -> dict[str, bool]:
         and completeness.get("open_reviews") == []
         and completeness.get("spec_status") == "passed"
     )
-    media_rows = evidence.get("media_atoms")
+    media_rows = evidence.get("atoms")
     plan_rows = plan.get("representations")
     media_summary = media.get("summary")
     evidence_summary = evidence.get("summary")
     plan_summary = plan.get("summary")
-    media_closed = (
-        isinstance(media_rows, list)
-        and isinstance(plan_rows, list)
-        and media_rows == plan_rows
-        and media.get("canonical_ledger_hash") == sha256_file(ledger_path)
-        and media.get("media_evidence_ledger_hash")
-        == sha256_file(_required(root, "media/media_evidence_ledger.json"))
-        and media.get("media_representation_plan_hash")
-        == sha256_file(_required(root, "media/media_representation_plan.json"))
-        and all(
-            isinstance(row, dict)
-            and row.get("review_status") == "closed"
-            and isinstance(row.get("source_ids"), list)
-            and all(source_id in source_by_id for source_id in row["source_ids"])
-            for row in media_rows
+
+    def formal_media_contract_closed() -> bool:
+        if (
+            evidence.get("schema_version") != "media-evidence-ledger/1.1"
+            or plan.get("schema_version") != "media-representation-plan/1.1"
+            or not isinstance(media_rows, list)
+            or not media_rows
+            or not isinstance(plan_rows, list)
+            or len(plan_rows) != len(media_rows)
+            or evidence.get("payload_hash")
+            != _contract_payload_hash(evidence)
+            or plan.get("payload_hash") != _contract_payload_hash(plan)
+        ):
+            return False
+        evidence_path = _required(root, "media/media_evidence_ledger.json")
+        plan_path = _required(root, "media/media_representation_plan.json")
+        decision_path = _required(
+            root,
+            "decisions/canonical_decision_index.json",
         )
-        and isinstance(media_summary, dict)
-        and media_summary.get("open") == 0
-        and media_summary.get("closed") == len(media_rows)
-        and isinstance(evidence_summary, dict)
-        and evidence_summary.get("open_reviews") == 0
-        and isinstance(plan_summary, dict)
-        and plan_summary.get("open") == 0
-        and plan_summary.get("resolved") == len(media_rows)
-        and media.get("spec_status") == "passed"
-        and evidence.get("spec_status") == "passed"
-        and plan.get("spec_status") == "passed"
-        and _decision_index_closed(root)
-    )
+        if (
+            plan.get("media_evidence_ledger_sha256")
+            != sha256_file(evidence_path)
+            or plan.get("canonical_ledger_sha256")
+            != sha256_file(ledger_path)
+            or plan.get("decision_index_sha256")
+            != sha256_file(decision_path)
+            or (evidence.get("canonical_ledger") or {}).get("sha256")
+            != sha256_file(ledger_path)
+            or (evidence.get("decision_index") or {}).get("sha256")
+            != sha256_file(decision_path)
+            or media.get("canonical_ledger_hash") != sha256_file(ledger_path)
+            or media.get("media_evidence_ledger_hash")
+            != sha256_file(evidence_path)
+            or media.get("media_representation_plan_hash")
+            != sha256_file(plan_path)
+        ):
+            return False
+        atoms = {
+            row.get("media_id"): row
+            for row in media_rows
+            if isinstance(row, dict) and isinstance(row.get("media_id"), str)
+        }
+        reps = {
+            row.get("media_id"): row
+            for row in plan_rows
+            if isinstance(row, dict) and isinstance(row.get("media_id"), str)
+        }
+        if len(atoms) != len(media_rows) or set(atoms) != set(reps):
+            return False
+        decision_index = _read_json(decision_path, "Spec 03 decision index")
+        decisions = {
+            row.get("decision_id"): row
+            for row in decision_index.get("decisions", [])
+            if isinstance(row, dict)
+        }
+        block_by_id = {
+            row.get("block_id"): row
+            for row in blocks
+            if isinstance(row.get("block_id"), str)
+        }
+        owner_counts: Counter[str] = Counter()
+        for media_id, atom in atoms.items():
+            rep = reps[media_id]
+            source_block_ids = atom.get("source_block_ids")
+            candidates = atom.get("candidates")
+            if (
+                atom.get("review_status") != "closed"
+                or atom.get("inclusion_status") != "included"
+                or not isinstance(source_block_ids, list)
+                or not source_block_ids
+                or len(source_block_ids) != len(set(source_block_ids))
+                or any(block_id not in block_by_id for block_id in source_block_ids)
+                or not isinstance(candidates, list)
+                or not candidates
+                or rep.get("status") != "closed"
+                or rep.get("source_block_ids") != source_block_ids
+                or not isinstance(rep.get("representation_id"), str)
+                or not rep.get("representation_id")
+                or rep.get("representation_type")
+                not in {
+                    "source_asset_image",
+                    "source_region_image",
+                    "structured_formula",
+                    "structured_table",
+                    "structured_chart",
+                    "vector_reconstruction",
+                }
+            ):
+                return False
+            selected = [
+                candidate
+                for candidate in candidates
+                if isinstance(candidate, dict)
+                and candidate.get("candidate_id")
+                == rep.get("selected_candidate_id")
+            ]
+            if len(selected) != 1:
+                return False
+            candidate = selected[0]
+            if (
+                candidate.get("status") != "usable"
+                or candidate.get("representation_type")
+                != rep.get("representation_type")
+                or candidate.get("artifact_sha256")
+                != rep.get("artifact_sha256")
+                or not _is_sha256(rep.get("artifact_sha256"))
+            ):
+                return False
+            if rep.get("representation_type") in {
+                "source_asset_image",
+                "source_region_image",
+            }:
+                path_value = candidate.get("resolved_path") or candidate.get(
+                    "crop_path"
+                )
+                path = Path(str(path_value))
+                if not path.is_absolute():
+                    path = root / path
+                if (
+                    not path.is_file()
+                    or sha256_file(path) != rep.get("artifact_sha256")
+                ):
+                    return False
+            refs = rep.get("decision_refs")
+            if (
+                not isinstance(refs, list)
+                or not refs
+                or any(
+                    ref not in decisions
+                    or decisions[ref].get("status")
+                    not in {"closed", "superseded"}
+                    for ref in refs
+                )
+            ):
+                return False
+            owner_counts.update(source_block_ids)
+        if any(count != 1 for count in owner_counts.values()):
+            return False
+        fragile = {
+            row["block_id"]
+            for row in blocks
+            if row.get("scope_status") == "included"
+            and str(row.get("source_type") or "").lower()
+            in {"chart", "equation", "image", "table"}
+        }
+        if any(owner_counts[block_id] != 1 for block_id in fragile):
+            return False
+        canonical_contracts: dict[str, dict[str, Any]] = {}
+        for block in blocks:
+            for contract in block.get("media_contracts", []):
+                if not isinstance(contract, dict):
+                    return False
+                media_id = contract.get("media_id")
+                if (
+                    media_id not in atoms
+                    or block.get("block_id")
+                    not in contract.get("source_block_ids", [])
+                    or _canonical_hash(contract) != _canonical_hash(atoms[media_id])
+                ):
+                    return False
+                previous = canonical_contracts.get(media_id)
+                if (
+                    previous is not None
+                    and _canonical_hash(previous) != _canonical_hash(contract)
+                ):
+                    return False
+                canonical_contracts[media_id] = contract
+        if set(canonical_contracts) != set(atoms):
+            return False
+        return (
+            isinstance(media_summary, dict)
+            and media_summary.get("open") == 0
+            and media_summary.get("closed") == len(media_rows)
+            and isinstance(evidence_summary, dict)
+            and evidence_summary.get("needs_review") == 0
+            and isinstance(plan_summary, dict)
+            and plan_summary.get("needs_review") == 0
+            and plan_summary.get("closed") == len(media_rows)
+            and media.get("spec_status") == "passed"
+            and plan.get("spec_status") == "passed"
+            and plan.get("open_reviews") == 0
+            and _decision_index_closed(root)
+        )
+
+    try:
+        media_closed = formal_media_contract_closed()
+    except (OSError, TypeError, ValueError, StageEntrypointError):
+        media_closed = False
     return {
         "canonical_ids_unique": ids_unique,
         "source_lineage_complete": lineage,
@@ -860,6 +1021,16 @@ def _canonical_hash(value: Any) -> str:
         separators=(",", ":"),
     ).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
+
+
+def _contract_payload_hash(value: Mapping[str, Any]) -> str:
+    return _canonical_hash(
+        {
+            key: item
+            for key, item in value.items()
+            if key not in {"generated_at", "payload_hash"}
+        }
+    )
 
 
 def _is_sha256(value: Any) -> bool:

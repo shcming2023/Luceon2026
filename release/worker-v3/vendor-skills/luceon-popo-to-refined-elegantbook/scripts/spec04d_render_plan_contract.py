@@ -1221,7 +1221,11 @@ def require_promoted(parent: dict[str, Any], role: str, supplied: Path) -> None:
         raise ValueError(f"active promotion does not promote supplied {role}")
 
 
-def selected_candidate(atom: dict[str, Any], representation: dict[str, Any]) -> dict[str, Any]:
+def selected_candidate(
+    atom: dict[str, Any],
+    representation: dict[str, Any],
+    artifact_root: Path,
+) -> dict[str, Any]:
     matches = [item for item in atom.get("candidates", []) if item.get("candidate_id") == representation.get("selected_candidate_id")]
     if len(matches) != 1:
         raise ValueError(f"selected media candidate is absent or ambiguous: {representation.get('representation_id')}")
@@ -1232,8 +1236,15 @@ def selected_candidate(atom: dict[str, Any], representation: dict[str, Any]) -> 
     path_value = candidate.get("resolved_path") or candidate.get("crop_path")
     if representation.get("representation_type") in {"source_asset_image", "source_region_image"}:
         path = Path(str(path_value))
+        if not path.is_absolute():
+            path = artifact_root / path
         if not path.is_file() or sha256_file(path) != artifact_hash:
             raise ValueError(f"selected media artifact is absent or drifted: {path}")
+        candidate = dict(candidate)
+        if candidate.get("resolved_path"):
+            candidate["resolved_path"] = str(path.resolve())
+        else:
+            candidate["crop_path"] = str(path.resolve())
     return candidate
 
 
@@ -1418,7 +1429,14 @@ def build_render_nodes(
         atom = atoms_by_media.get(rep["media_id"])
         if not atom:
             raise ValueError(f"media evidence atom is absent: {rep['media_id']}")
-        candidate = selected_candidate(atom, rep)
+        candidate = selected_candidate(
+            atom,
+            rep,
+            Path(
+                media_evidence.get("_artifact_root")
+                or Path(media_plan["_path"]).resolve().parents[1]
+            ),
+        )
         binding = {
             "media_id": rep["media_id"], "representation_id": rep["representation_id"],
             "representation_type": representation_type, "selected_candidate_id": rep["selected_candidate_id"],
@@ -1656,6 +1674,9 @@ def produce(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     bindings = read_json(args.construct_binding_ledger.resolve())
     capability = read_json(args.template_capability_manifest.resolve())
     media_evidence = read_json(args.media_evidence_ledger.resolve())
+    media_evidence["_artifact_root"] = str(
+        args.media_evidence_ledger.resolve().parents[1]
+    )
     if outline.get("slice_status") != "passed" or bindings.get("slice_status") != "passed" or media_plan.get("spec_status") != "passed":
         raise ValueError("one or more parent contracts are not passed")
     if final_toc.get("open_reviews") != 0 or bindings.get("summary", {}).get("open_reviews") != 0 or media_plan.get("open_reviews") != 0:
