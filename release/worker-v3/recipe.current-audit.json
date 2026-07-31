@@ -18,7 +18,7 @@
     "requested_status": "incomplete",
     "created_at": "2026-07-26T00:00:00+08:00",
     "source": {
-      "git_sha": "57792aa83f5325cb8a91567dec0df78c0528126d",
+      "git_sha": "7a4f627a2db9214d104cbe5882487460fdcabecc",
       "git_tag": null,
       "dirty": false
     },
@@ -335,7 +335,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-identity.json",
       "destination": "runtime/ordinary-runtime-identity.json",
-      "expected_sha256": "aa531be130240d2e5fcbd31939643dbb21335a933b6149151eff35fe0a808b7b"
+      "expected_sha256": "22a469757893d476838ff759d25e9a77a19a91415ffde7872789071745ddb935"
     },
     {
       "id": "worker-v3-ordinary-runtime-build-proof",
@@ -344,7 +344,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-build-proof.json",
       "destination": "runtime/ordinary-runtime-build-proof.json",
-      "expected_sha256": "6442c63877f7802d6c0b8344b5b716a7fc959c8ba95d8f914b93f0c1a9ebdd70"
+      "expected_sha256": "752277520b7c10b2ed62f6e141145dc64a8428f34f55b7a5df2d2194b3fb4a58"
     },
     {
       "id": "worker-v3-ordinary-runtime-sbom",
@@ -353,7 +353,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-sbom.cdx.json",
       "destination": "runtime/ordinary-runtime-sbom.cdx.json",
-      "expected_sha256": "328d1e5e674c0abc9d5b5d9044c5a07e9b02e0cb121a9ba9e0888bd4b5080dfe"
+      "expected_sha256": "eebeacfabd34fe833708dec2e20c98fb57737c92fafdaf02f1ac76dc68655e67"
     },
     {
       "id": "worker-v3-overleaf-target-environment",
@@ -900,7 +900,7 @@
     "python": "CPython 3.12.13",
     "application_dependencies_path": "runtime/requirements-worker-v3.lock",
     "system_tools": {
-      "runtime_id": "worker-v3-runtime-rc-57792aa",
+      "runtime_id": "worker-v3-runtime-rc-7a4f627",
       "system_lock": "runtime/worker-v3-system-packages.lock",
       "identity": "runtime/ordinary-runtime-identity.json",
       "overleaf_compiler": {
@@ -911,7 +911,7 @@
     "fonts_identity_path": "runtime/ordinary-runtime-identity.json",
     "tex_identity_path": "runtime/ordinary-runtime-identity.json",
     "poppler_identity_path": "runtime/ordinary-runtime-identity.json",
-    "container_image_digest": "sha256:1ca895e7fdf149dce963883171275e1e1a57a65b1d7aac609b6a6c791b4fb2cb",
+    "container_image_digest": "sha256:28b9f3f37cc73637301ce10a305b07b40215e28e2005099a2ef4bed3e01b507f",
     "sbom_path": "runtime/ordinary-runtime-sbom.cdx.json",
     "attestations": [
       "runtime/ordinary-runtime-identity.json",

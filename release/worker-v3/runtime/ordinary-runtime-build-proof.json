@@ -1,10 +1,10 @@
 {
   "architecture": "arm64",
   "build_status": "clean_build_succeeded",
-  "built_at": "2026-07-31T01:18:47Z",
-  "image_id": "sha256:1ca895e7fdf149dce963883171275e1e1a57a65b1d7aac609b6a6c791b4fb2cb",
-  "image_size_bytes": 1455204877,
-  "local_manifest_digest": "sha256:1ca895e7fdf149dce963883171275e1e1a57a65b1d7aac609b6a6c791b4fb2cb",
+  "built_at": "2026-07-31T02:17:23Z",
+  "image_id": "sha256:28b9f3f37cc73637301ce10a305b07b40215e28e2005099a2ef4bed3e01b507f",
+  "image_size_bytes": 1455206026,
+  "local_manifest_digest": "sha256:28b9f3f37cc73637301ce10a305b07b40215e28e2005099a2ef4bed3e01b507f",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
     "pages": 2,
@@ -16,6 +16,12 @@
   "registry_digest": null,
   "registry_status": "pending_until_push",
   "superseded_builds": [
+    {
+      "image_digest": "sha256:1ca895e7fdf149dce963883171275e1e1a57a65b1d7aac609b6a6c791b4fb2cb",
+      "reason": "real-material Spec 04-B qualification on material 1343 returned all 277 decisions but invented semantic role challenge for 41 candidates and selected an unavailable local disposition for candidate 226; the replacement removes free-form disposition and role strings and binds a total integer option protocol",
+      "source_revision": "57792aa83f5325cb8a91567dec0df78c0528126d",
+      "status": "superseded_before_release_admission"
+    },
     {
       "image_digest": "sha256:34ee2a0f57f51c257700599ad0f651fd3864e415ab8138a5b219907a403e787e",
       "reason": "the Spec 04-B prompt content declared version 2.1.0 while the release recipe and recorded request binding still declared 2.0.0; the replacement validates prompt identity headers against the release recipe and binds the corrected prompt version before qualification",
@@ -79,6 +85,11 @@
   ],
   "rejected_build_attempts": [
     {
+      "image_digest": "sha256:37c1f8617d3d90c6fab460ef4450695ac09c54db8832467a5fbd6b8ed98a18ab",
+      "reason": "OCI revision label was manually transcribed and did not equal the actual full source revision 7a4f627a2db9214d104cbe5882487460fdcabecc; the image was overwritten before qualification",
+      "status": "rejected_before_qualification"
+    },
+    {
       "image_digest": "sha256:59eeccf861bf3427f6f59f4e55d7c0ae3fd0ffb976eb3a55b3bff1f19559c5d4",
       "reason": "the clean dependency-cache build completed with an incorrectly transcribed full OCI revision label; the dependency layers were retained, but the image was overwritten before qualification by the correctly bound source revision",
       "status": "rejected_before_qualification"
@@ -99,32 +110,32 @@
       "status": "rejected_before_qualification"
     }
   ],
-  "runtime_id": "worker-v3-runtime-rc-57792aa",
+  "runtime_id": "worker-v3-runtime-rc-7a4f627",
   "runtime_identity": {
     "effective_uid": 10003,
-    "evidence_sha256": "aa531be130240d2e5fcbd31939643dbb21335a933b6149151eff35fe0a808b7b",
+    "evidence_sha256": "22a469757893d476838ff759d25e9a77a19a91415ffde7872789071745ddb935",
     "status": "passed",
     "system_lock_entries": 19
   },
   "sbom": {
     "component_count": 420,
-    "evidence_sha256": "328d1e5e674c0abc9d5b5d9044c5a07e9b02e0cb121a9ba9e0888bd4b5080dfe",
+    "evidence_sha256": "eebeacfabd34fe833708dec2e20c98fb57737c92fafdaf02f1ac76dc68655e67",
     "format": "CycloneDX",
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "57792aa83f5325cb8a91567dec0df78c0528126d",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-57792aa",
+  "source_revision": "7a4f627a2db9214d104cbe5882487460fdcabecc",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-7a4f627",
   "tests": {
     "backend/tests/test_workflow_v3_runtime_image.py": "passed as part of the complete repository integration suite",
-    "backend/tests/test_workflow_v3_*.py": "359 passed, 2 skipped in the exact rebuilt image; repository-level Compose, release and Overleaf Adapter evidence was mounted read-only without replacing image execution code",
+    "backend/tests/test_workflow_v3_*.py": "361 passed, 2 skipped in the exact rebuilt image; repository-level Compose, release and Overleaf Adapter evidence was mounted read-only without replacing image execution code",
     "backend/tests": "947 passed, 2 skipped from the production-runtime test set in the exact rebuilt image, with repository-level deployment evidence mounted read-only, an isolated writable SQLite database, no network, and UID 10003; Codex Expert architecture-trial tests are intentionally excluded from the production image",
-    "combined_result": "runtime identity passed with digest-pinned reference; production-runtime test set 947 passed, 2 skipped; Worker V3 suite 359 passed, 2 skipped; locked-template XeLaTeX/qpdf/pdfinfo smoke passed",
+    "combined_result": "runtime identity passed with digest-pinned reference; Worker V3 suite 361 passed, 2 skipped in the exact rebuilt image; locked-template XeLaTeX/qpdf/pdfinfo smoke passed",
     "spec02_v3_targeted": "compact exhaustive page coverage, deterministic baseline projection, exact override matching and sub-16000-byte 200-page minimum-response regressions passed in the prior qualified image and remain in the regression suite",
     "spec03_v2_targeted": "40 passed in the exact rebuilt image, including deterministic source-region baseline projection, index-to-immutable-ID expansion, baseline drift rejection, evidence-backed exclusion and 255/1000-item capacity bounds",
     "spec04a_bounded_review_targeted": "the exact rebuilt image passed the compact decision schema, deterministic full-bundle projector, order/coverage rejection and provider response-capacity regressions; material 1343 has 339 bounded title candidates and a worst-case schema-complete response of 19389 bytes within the 256000-byte release limit",
-    "spec04b_candidate_choice_targeted": "candidate-local disposition plus semantic-role combinations are bound from the frozen review task and rejected before a model call can be persisted as succeeded; the regression reproduces material 1343 candidate 226 without sample-specific code",
-    "warnings": "8955 existing deprecation warnings in the complete repository suite; zero test failures"
+    "spec04b_candidate_choice_targeted": "fixed total option-index protocol maps every one of 37 choices to a candidate-valid deterministic disposition and role; 93 related release, qualification, kernel, transport and runtime tests passed, plus exhaustive two-candidate totality regression",
+    "warnings": "8023 existing deprecation warnings in the exact Worker V3 image suite; zero test failures"
   },
   "user": "10003:10003"
 }
