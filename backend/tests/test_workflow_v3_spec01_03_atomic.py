@@ -978,6 +978,9 @@ def test_semantic_review_task_compacts_full_ledger_and_projects_exact_partition(
     task = json.loads(task_path.read_text(encoding="utf-8"))
     assert result["candidates"] == 1
     assert task["schema_version"] == kernel.SEMANTIC_REVIEW_TASK_SCHEMA
+    assert task["option_protocol"]["schema_version"] == (
+        "luceon.worker-v3-spec04b-total-option-index/v1"
+    )
     assert task["candidates"][0]["marker"]["block_id"] == records[0]["block_id"]
     assert [
         row["block_id"] for row in task["candidates"][0]["body_options"]
@@ -1000,8 +1003,10 @@ def test_semantic_review_task_compacts_full_ledger_and_projects_exact_partition(
             "decisions": [
                 {
                     "candidate_index": 0,
-                    "disposition": "teaching_group",
-                    "semantic_role": "worked_example",
+                    "option_index": (
+                        task["option_protocol"]["teaching_group_role_offset"]
+                        + task["semantic_role_choices"].index("worked_example")
+                    ),
                 }
             ],
             "open_reviews": [],
@@ -1040,6 +1045,59 @@ def test_semantic_review_task_compacts_full_ledger_and_projects_exact_partition(
     with pytest.raises(kernel.KernelContractError) as exc_info:
         kernel._project_semantic_review(task, invalid)
     assert exc_info.value.code == "semantic_compact_review_invalid"
+
+
+def test_semantic_option_protocol_totalizes_unavailable_group_to_standalone() -> None:
+    roles = list(kernel.SEMANTIC_ROLE_CHOICES)
+    candidate = {
+        "candidate_index": 0,
+        "allowed_dispositions": ["plain_body", "standalone_label"],
+        "body_options": [],
+    }
+    option_index = 1 + len(roles) + roles.index("source_label")
+
+    disposition, semantic_role, totalized = kernel._resolve_semantic_option(
+        candidate,
+        option_index,
+        roles,
+    )
+
+    assert disposition == "standalone_label"
+    assert semantic_role == "source_label"
+    assert totalized is True
+
+
+def test_semantic_option_protocol_is_total_for_every_frozen_index() -> None:
+    roles = list(kernel.SEMANTIC_ROLE_CHOICES)
+    candidates = [
+        {
+            "candidate_index": 0,
+            "allowed_dispositions": ["plain_body", "standalone_label"],
+            "body_options": [],
+        },
+        {
+            "candidate_index": 1,
+            "allowed_dispositions": [
+                "plain_body",
+                "standalone_label",
+                "teaching_group",
+            ],
+            "body_options": [{"block_id": "body-1"}],
+        },
+    ]
+    option_count = 1 + (2 * len(roles))
+
+    for candidate in candidates:
+        for option_index in range(option_count):
+            disposition, semantic_role, _totalized = (
+                kernel._resolve_semantic_option(
+                    candidate,
+                    option_index,
+                    roles,
+                )
+            )
+            assert disposition in candidate["allowed_dispositions"]
+            assert semantic_role == "plain_body" or semantic_role in roles
 
 
 def test_candidate_hashes_are_stable_across_workdirs(tmp_path: Path) -> None:

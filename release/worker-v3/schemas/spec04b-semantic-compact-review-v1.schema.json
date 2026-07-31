@@ -13,7 +13,7 @@
   "additionalProperties": false,
   "properties": {
     "schema_version": {
-      "const": "luceon.worker-v3-spec04b-compact-review/v1"
+      "const": "luceon.worker-v3-spec04b-compact-review/v2"
     },
     "task_id": {
       "type": "string",
@@ -26,48 +26,22 @@
       "type": "array",
       "items": {
         "type": "object",
-      "required": [
-        "candidate_index",
-        "disposition",
-        "semantic_role"
-      ],
+        "required": [
+          "candidate_index",
+          "option_index"
+        ],
         "additionalProperties": false,
         "properties": {
           "candidate_index": {
             "type": "integer",
             "minimum": 0
           },
-          "disposition": {
-            "enum": [
-              "plain_body",
-              "standalone_label",
-              "teaching_group"
-            ]
-          },
-          "semantic_role": {
-            "enum": [
-              "plain_body",
-              "activity",
-              "answer",
-              "assessment",
-              "definition",
-              "example",
-              "exercise",
-              "experiment",
-              "investigation",
-              "key_point",
-              "method_note",
-              "note",
-              "practice",
-              "prompt",
-              "source_label",
-              "summary",
-              "tip",
-              "vocabulary",
-              "worked_example"
-            ]
+          "option_index": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 36
+          }
         }
-      }
       }
     },
     "open_reviews": {

@@ -174,13 +174,15 @@ def _candidate_call():
                     "additionalProperties": False,
                     "required": [
                         "candidate_index",
-                        "disposition",
-                        "semantic_role",
+                        "option_index",
                     ],
                     "properties": {
                         "candidate_index": {"type": "integer", "minimum": 0},
-                        "disposition": {"type": "string"},
-                        "semantic_role": {"type": "string"},
+                        "option_index": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 99,
+                        },
                     },
                 },
             }
@@ -193,8 +195,8 @@ def _candidate_call():
             "output_schema": schema,
             "allowed_choices": {
                 "candidate:226": (
-                    "plain_body|plain_body",
-                    "standalone_label|source_label",
+                    "0",
+                    "1",
                 )
             },
         }
@@ -250,7 +252,7 @@ def test_runtime_transport_executes_one_schema_bounded_call_without_persisting_s
     assert captured["headers"]["Authorization"] == "Bearer runtime-only-secret"
 
 
-def test_candidate_local_choice_policy_rejects_schema_valid_semantic_drift():
+def test_candidate_total_option_policy_rejects_unknown_index():
     transport, _captured = _transport(
         _Response(
             200,
@@ -264,8 +266,7 @@ def test_candidate_local_choice_policy_rejects_schema_valid_semantic_drift():
                                     "decisions": [
                                         {
                                             "candidate_index": 226,
-                                            "disposition": "teaching_group",
-                                            "semantic_role": "source_label",
+                                            "option_index": 2,
                                         }
                                     ]
                                 }
@@ -288,7 +289,7 @@ def test_candidate_local_choice_policy_rejects_schema_valid_semantic_drift():
     )
 
 
-def test_candidate_local_choice_policy_accepts_exact_frozen_semantic_choice():
+def test_candidate_total_option_policy_accepts_frozen_index():
     transport, _captured = _transport(
         _Response(
             200,
@@ -302,8 +303,7 @@ def test_candidate_local_choice_policy_accepts_exact_frozen_semantic_choice():
                                     "decisions": [
                                         {
                                             "candidate_index": 226,
-                                            "disposition": "standalone_label",
-                                            "semantic_role": "source_label",
+                                            "option_index": 1,
                                         }
                                     ]
                                 }
@@ -318,9 +318,7 @@ def test_candidate_local_choice_policy_accepts_exact_frozen_semantic_choice():
 
     result = execute_bounded_call(call, transport)
 
-    assert result.parsed_result["decisions"][0]["disposition"] == (
-        "standalone_label"
-    )
+    assert result.parsed_result["decisions"][0]["option_index"] == 1
 
 
 @pytest.mark.parametrize(

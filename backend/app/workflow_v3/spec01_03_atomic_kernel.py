@@ -22,7 +22,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping, Sequence
 
 
-KERNEL_VERSION = "luceon-worker-v3-spec01-03-atomic/1.5.0"
+KERNEL_VERSION = "luceon-worker-v3-spec01-03-atomic/1.6.0"
 INTAKE_SCHEMA = "luceon.worker-v3-spec01-intake-contract/v1"
 SCOPE_REVIEW_SCHEMA = "luceon.worker-v3-spec02-scope-order-review/v3"
 MEDIA_REVIEW_SCHEMA = "luceon.worker-v3-spec03-media-review/v2"
@@ -32,9 +32,12 @@ OUTLINE_REVIEW_TASK_SCHEMA = "luceon.worker-v3-spec04a-review-task/v1"
 OUTLINE_COMPACT_REVIEW_SCHEMA = (
     "luceon.worker-v3-spec04a-compact-review/v1"
 )
-SEMANTIC_REVIEW_TASK_SCHEMA = "luceon.worker-v3-spec04b-review-task/v1"
+SEMANTIC_REVIEW_TASK_SCHEMA = "luceon.worker-v3-spec04b-review-task/v2"
 SEMANTIC_COMPACT_REVIEW_SCHEMA = (
-    "luceon.worker-v3-spec04b-compact-review/v1"
+    "luceon.worker-v3-spec04b-compact-review/v2"
+)
+SEMANTIC_OPTION_PROTOCOL_SCHEMA = (
+    "luceon.worker-v3-spec04b-total-option-index/v1"
 )
 ATOMIC_STAGE_MANIFEST_SCHEMA = "luceon.worker-v3-atomic-stage-manifest/v1"
 RUN_MANIFEST_SCHEMA = "luceon.worker-v3-atomic-run-manifest/v1"
@@ -2777,6 +2780,85 @@ def _semantic_content(value: Any) -> str:
     return normalized[: SEMANTIC_CONTEXT_EXCERPT_CHARS - 1] + "…"
 
 
+def _semantic_option_protocol() -> dict[str, Any]:
+    role_count = len(SEMANTIC_ROLE_CHOICES)
+    return {
+        "schema_version": SEMANTIC_OPTION_PROTOCOL_SCHEMA,
+        "plain_body_index": 0,
+        "standalone_label_role_offset": 1,
+        "teaching_group_role_offset": 1 + role_count,
+        "option_count": 1 + (2 * role_count),
+        "unavailable_teaching_resolution": (
+            "standalone_label_then_plain_body"
+        ),
+    }
+
+
+def _validate_semantic_option_protocol(
+    value: Any,
+    roles: Sequence[str],
+) -> dict[str, Any]:
+    expected = _semantic_option_protocol()
+    if (
+        list(roles) != list(SEMANTIC_ROLE_CHOICES)
+        or not isinstance(value, Mapping)
+        or dict(value) != expected
+    ):
+        _fail(
+            "semantic_review_task_invalid",
+            "Spec 04-B total option-index protocol drifted",
+        )
+    return expected
+
+
+def _resolve_semantic_option(
+    candidate: Mapping[str, Any],
+    option_index: Any,
+    roles: Sequence[str],
+) -> tuple[str, str, bool]:
+    protocol = _validate_semantic_option_protocol(
+        _semantic_option_protocol(),
+        roles,
+    )
+    if (
+        not isinstance(option_index, int)
+        or isinstance(option_index, bool)
+        or option_index < 0
+        or option_index >= protocol["option_count"]
+    ):
+        _fail(
+            "semantic_compact_review_invalid",
+            "Spec 04-B option index is outside the frozen protocol",
+        )
+    allowed = candidate.get("allowed_dispositions")
+    body_options = candidate.get("body_options")
+    expected_allowed = (
+        ["plain_body", "standalone_label", "teaching_group"]
+        if isinstance(body_options, list) and body_options
+        else ["plain_body", "standalone_label"]
+    )
+    if not isinstance(body_options, list) or allowed != expected_allowed:
+        _fail(
+            "semantic_review_task_invalid",
+            "Spec 04-B candidate has invalid local option evidence",
+        )
+    if option_index == protocol["plain_body_index"]:
+        return "plain_body", "plain_body", False
+    teaching_offset = protocol["teaching_group_role_offset"]
+    if option_index < teaching_offset:
+        disposition = "standalone_label"
+        role_index = option_index - protocol["standalone_label_role_offset"]
+    else:
+        disposition = "teaching_group"
+        role_index = option_index - teaching_offset
+    semantic_role = roles[role_index]
+    if disposition in allowed:
+        return disposition, semantic_role, False
+    if disposition == "teaching_group" and "standalone_label" in allowed:
+        return "standalone_label", semantic_role, True
+    return "plain_body", "plain_body", True
+
+
 def _semantic_tree_path(record: Mapping[str, Any]) -> tuple[int, ...]:
     tree = record.get("tree_context")
     raw_path = tree.get("node_path") if isinstance(tree, Mapping) else []
@@ -2797,7 +2879,7 @@ def _semantic_compact_review(
     *,
     maximum: bool,
 ) -> dict[str, Any]:
-    longest_role = max(SEMANTIC_ROLE_CHOICES, key=len)
+    protocol = _semantic_option_protocol()
     decisions: list[dict[str, Any]] = []
     for candidate_index, candidate in enumerate(candidates):
         body_options = candidate.get("body_options")
@@ -2806,30 +2888,14 @@ def _semantic_compact_review(
                 "semantic_review_task_invalid",
                 f"Spec 04-B candidate {candidate_index} has invalid body options",
             )
-        if maximum and body_options:
-            decisions.append(
-                {
-                    "candidate_index": candidate_index,
-                    "disposition": "teaching_group",
-                    "semantic_role": longest_role,
-                }
-            )
-        elif maximum:
-            decisions.append(
-                {
-                    "candidate_index": candidate_index,
-                    "disposition": "standalone_label",
-                    "semantic_role": longest_role,
-                }
-            )
-        else:
-            decisions.append(
-                {
-                    "candidate_index": candidate_index,
-                    "disposition": "plain_body",
-                    "semantic_role": "plain_body",
-                }
-            )
+        decisions.append(
+            {
+                "candidate_index": candidate_index,
+                "option_index": (
+                    protocol["option_count"] - 1 if maximum else 0
+                ),
+            }
+        )
     return {
         "schema_version": SEMANTIC_COMPACT_REVIEW_SCHEMA,
         "task_id": task_id,
@@ -3060,14 +3126,15 @@ def _semantic_review_task(
         "parent_binding": parent_binding,
         "required_output_schema": SEMANTIC_COMPACT_REVIEW_SCHEMA,
         "semantic_role_choices": list(SEMANTIC_ROLE_CHOICES),
+        "option_protocol": _semantic_option_protocol(),
         "candidates": candidates,
         "allowed_source_evidence": allowed_evidence,
         "constraints": [
-            "Return exactly one decision for every candidate_index in ascending order; deterministic code disposes every non-candidate source atom.",
-            "plain_body is the conservative default when the source does not unambiguously support a teaching group or standalone label.",
+            "Return exactly one option_index for every candidate_index in ascending order; deterministic code disposes every non-candidate source atom.",
+            "option_index 0 is the conservative plain-body default; all other indices are decoded only by the frozen option_protocol and semantic_role_choices.",
+            "A teaching-group preference for a candidate without body_options deterministically totalizes to the same-role standalone label, then plain body if unavailable.",
             "teaching_group deterministically consumes the complete enumerated body_options array; the model does not choose or count source atoms.",
-            "standalone_label preserves only the marker; its following source atoms remain deterministic plain body.",
-            "Use only the enumerated semantic_role choices; no source text, block identity, order, formula, media, or hash may be changed.",
+            "No source text, block identity, order, formula, media, or hash may be changed.",
             "Do not choose template constructs, render policy, LaTeX, boxes, or promotion outcomes.",
         ],
     }
@@ -3130,6 +3197,10 @@ def _project_semantic_review(
             "semantic_review_task_invalid",
             "Spec 04-B semantic role choices drifted",
         )
+    option_protocol = _validate_semantic_option_protocol(
+        task.get("option_protocol"),
+        list(task.get("semantic_role_choices") or []),
+    )
     parent_binding = task.get("parent_binding")
     if not isinstance(parent_binding, Mapping):
         _fail(
@@ -3178,6 +3249,7 @@ def _project_semantic_review(
     teaching_groups: list[dict[str, Any]] = []
     standalone_labels: list[dict[str, Any]] = []
     selected_pages: set[int] = set()
+    totalized_decisions = 0
     for candidate_index, (candidate, decision) in enumerate(
         zip(candidates, decisions, strict=True)
     ):
@@ -3188,8 +3260,7 @@ def _project_semantic_review(
             or set(decision)
             != {
                 "candidate_index",
-                "disposition",
-                "semantic_role",
+                "option_index",
             }
             or decision.get("candidate_index") != candidate_index
         ):
@@ -3209,25 +3280,14 @@ def _project_semantic_review(
                 "semantic_review_task_invalid",
                 f"Spec 04-B candidate {candidate_index} is invalid",
             )
-        disposition = decision.get("disposition")
-        semantic_role = decision.get("semantic_role")
-        if disposition not in allowed_dispositions:
-            _fail(
-                "semantic_compact_review_invalid",
-                f"Spec 04-B candidate {candidate_index} has an invalid disposition",
-            )
+        disposition, semantic_role, totalized = _resolve_semantic_option(
+            candidate,
+            decision.get("option_index"),
+            list(task["semantic_role_choices"]),
+        )
+        totalized_decisions += int(totalized)
         if disposition == "plain_body":
-            if semantic_role != "plain_body":
-                _fail(
-                    "semantic_compact_review_invalid",
-                    f"Spec 04-B plain candidate {candidate_index} carries an invented role",
-                )
             continue
-        if semantic_role not in allowed_roles:
-            _fail(
-                "semantic_compact_review_invalid",
-                f"Spec 04-B candidate {candidate_index} uses an unbound semantic role",
-            )
         page = _require_positive_int(
             marker.get("pdf_physical_page"),
             f"Spec 04-B candidate {candidate_index} page",
@@ -3314,6 +3374,12 @@ def _project_semantic_review(
             "decision_refs": [
                 "compact-review::" + _canonical_hash(compact_review)
             ],
+            "option_protocol": {
+                "schema_version": option_protocol["schema_version"],
+                "compact_review_sha256": _canonical_hash(compact_review),
+                "decision_count": len(decisions),
+                "totalized_decision_count": totalized_decisions,
+            },
         },
         "source_evidence": [
             {

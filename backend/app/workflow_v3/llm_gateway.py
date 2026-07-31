@@ -909,10 +909,17 @@ def _validate_candidate_decisions(
                 "candidate decision index must be a nonnegative integer",
             )
         task_id = f"candidate:{candidate_index}"
-        option_id = (
-            f"{str(decision.get('disposition') or '')}|"
-            f"{str(decision.get('semantic_role') or '')}"
-        )
+        option_index = decision.get("option_index")
+        if (
+            not isinstance(option_index, int)
+            or isinstance(option_index, bool)
+            or option_index < 0
+        ):
+            raise LlmGatewayError(
+                "decision_policy_violation",
+                "candidate option index must be a nonnegative integer",
+            )
+        option_id = str(option_index)
         if task_id not in allowed or task_id in rows:
             raise LlmGatewayError(
                 "decision_policy_violation",
@@ -921,7 +928,7 @@ def _validate_candidate_decisions(
         if option_id not in allowed[task_id]:
             raise LlmGatewayError(
                 "decision_policy_violation",
-                f"{task_id} selected a disposition or role outside its frozen choices",
+                f"{task_id} selected an option index outside its frozen choices",
             )
         rows[task_id] = option_id
     if set(rows) != set(allowed):

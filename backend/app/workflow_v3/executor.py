@@ -2814,6 +2814,30 @@ def _review_allowed_choices(
         raise ArtifactIntegrityError(
             "Spec 04-B model evidence has no bounded non-plain semantic roles"
         )
+    option_protocol = evidence.get("option_protocol")
+    role_count = len(non_plain_roles)
+    expected_protocol = {
+        "schema_version": (
+            "luceon.worker-v3-spec04b-total-option-index/v1"
+        ),
+        "plain_body_index": 0,
+        "standalone_label_role_offset": 1,
+        "teaching_group_role_offset": 1 + role_count,
+        "option_count": 1 + (2 * role_count),
+        "unavailable_teaching_resolution": (
+            "standalone_label_then_plain_body"
+        ),
+    }
+    if (
+        not isinstance(option_protocol, Mapping)
+        or dict(option_protocol) != expected_protocol
+    ):
+        raise ArtifactIntegrityError(
+            "Spec 04-B model evidence has a drifted option protocol"
+        )
+    frozen_options = tuple(
+        str(index) for index in range(expected_protocol["option_count"])
+    )
     result: dict[str, tuple[str, ...]] = {}
     for candidate_index, candidate in enumerate(candidates):
         if (
@@ -2824,28 +2848,20 @@ def _review_allowed_choices(
                 "Spec 04-B candidates must be complete and ordered"
             )
         dispositions = candidate.get("allowed_dispositions")
+        body_options = candidate.get("body_options")
+        expected_dispositions = (
+            ["plain_body", "standalone_label", "teaching_group"]
+            if isinstance(body_options, list) and body_options
+            else ["plain_body", "standalone_label"]
+        )
         if (
-            not isinstance(dispositions, list)
-            or not dispositions
-            or any(
-                disposition
-                not in {"plain_body", "standalone_label", "teaching_group"}
-                for disposition in dispositions
-            )
-            or len(set(dispositions)) != len(dispositions)
+            not isinstance(body_options, list)
+            or dispositions != expected_dispositions
         ):
             raise ArtifactIntegrityError(
                 f"Spec 04-B candidate {candidate_index} has invalid choices"
             )
-        options: list[str] = []
-        for disposition in dispositions:
-            if disposition == "plain_body":
-                options.append("plain_body|plain_body")
-                continue
-            options.extend(
-                f"{disposition}|{role}" for role in non_plain_roles
-            )
-        result[f"candidate:{candidate_index}"] = tuple(options)
+        result[f"candidate:{candidate_index}"] = frozen_options
     return result
 
 

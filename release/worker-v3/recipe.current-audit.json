@@ -245,7 +245,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec01_03_atomic_kernel.py",
       "destination": "scripts/worker-v3/spec01_03_atomic_kernel.py",
-      "expected_sha256": "8c1f4e8459ffc354e0835b4f8a52e480a1d48a23bed0a93d94d76bdc200b2536"
+      "expected_sha256": "fa929b505a568a899de6d8dd325e13463e2a928f85aeefc2e2f57a838522e07c"
     },
     {
       "id": "worker-v3-stage-producer-entrypoints",
@@ -281,7 +281,7 @@
       "include": [
         "spec*.txt"
       ],
-      "expected_tree_sha256": "60160c4361dde615f3a929ebabecb7fa34a987639e88185cb1730ed400fa1ef5"
+      "expected_tree_sha256": "a66f56808777079aaa5d5526754a7474960b4d62b5139304b96deaf56dd7f5d6"
     },
     {
       "id": "worker-v3-ordinary-schemas",
@@ -293,7 +293,7 @@
       "include": [
         "spec*.schema.json"
       ],
-      "expected_tree_sha256": "dd86bd25e40bb5bd8d1bc8ce6c88ce96d705b4752dcd9290142d31432953a0a1"
+      "expected_tree_sha256": "7e47cef81f4348781463e030c1274dd4509279fcb3cad54a10d47d6711970ee5"
     },
     {
       "id": "worker-v3-spec04-review-schemas",
@@ -531,7 +531,7 @@
       },
       {
         "id": "worker-v3.spec04b-semantic-compact-review",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "path": "schemas/spec04b-semantic-compact-review-v1.schema.json"
       },
       {
@@ -730,7 +730,7 @@
     },
     {
       "id": "worker-v3.spec04b-semantic-review",
-      "version": "2.1.0",
+      "version": "3.0.0",
       "path": "prompts/spec04b-semantic-review-v2.txt",
       "output_schema": "schemas/spec04b-semantic-compact-review-v1.schema.json"
     },

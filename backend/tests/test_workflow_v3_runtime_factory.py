@@ -69,10 +69,23 @@ def test_directory_backend_is_explicit_and_test_only(monkeypatch, tmp_path: Path
 def test_semantic_review_choices_are_bound_per_candidate():
     evidence = {
         "semantic_role_choices": ["plain_body", "source_label", "exercise"],
+        "option_protocol": {
+            "schema_version": (
+                "luceon.worker-v3-spec04b-total-option-index/v1"
+            ),
+            "plain_body_index": 0,
+            "standalone_label_role_offset": 1,
+            "teaching_group_role_offset": 3,
+            "option_count": 5,
+            "unavailable_teaching_resolution": (
+                "standalone_label_then_plain_body"
+            ),
+        },
         "candidates": [
             {
                 "candidate_index": 0,
                 "allowed_dispositions": ["plain_body", "standalone_label"],
+                "body_options": [],
             },
             {
                 "candidate_index": 1,
@@ -81,6 +94,7 @@ def test_semantic_review_choices_are_bound_per_candidate():
                     "standalone_label",
                     "teaching_group",
                 ],
+                "body_options": [{"block_id": "body-1"}],
             },
         ],
     }
@@ -90,10 +104,8 @@ def test_semantic_review_choices_are_bound_per_candidate():
         evidence,
     )
 
-    assert "teaching_group|source_label" not in choices["candidate:0"]
-    assert "standalone_label|source_label" in choices["candidate:0"]
-    assert "teaching_group|exercise" in choices["candidate:1"]
-    assert choices["candidate:0"][0] == "plain_body|plain_body"
+    assert choices["candidate:0"] == ("0", "1", "2", "3", "4")
+    assert choices["candidate:1"] == ("0", "1", "2", "3", "4")
 
 
 def test_outline_review_preparation_uses_stable_source_pdf_reference(
