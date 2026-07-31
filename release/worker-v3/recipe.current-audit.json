@@ -18,7 +18,7 @@
     "requested_status": "incomplete",
     "created_at": "2026-07-26T00:00:00+08:00",
     "source": {
-      "git_sha": "a2ae258ef109ceacd2da950e6b67c550c1692a3a",
+      "git_sha": "30ae6e07cfaad72c6d06714182bd84189f505876",
       "git_tag": null,
       "dirty": false
     },
@@ -92,7 +92,7 @@
       "root": "skills",
       "path": "luceon-popo-to-refined-elegantbook",
       "destination": "skills/luceon-popo-to-refined-elegantbook",
-      "expected_tree_sha256": "ade7d458a06a3c419d9d7c0b3ede59d834520ab6acdb32671f1760e74b6dab62"
+      "expected_tree_sha256": "5444e7c3cdbd634ff28e07b853db1e29ee922b5e2db04e5aa459c2bde33d5d8c"
     },
     {
       "id": "skill-pdf-clean-markdown-rebuild",
@@ -245,7 +245,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec01_03_atomic_kernel.py",
       "destination": "scripts/worker-v3/spec01_03_atomic_kernel.py",
-      "expected_sha256": "a152b04b2636304ce463e50b2e169539d00dc992a24152203567d04586278f42"
+      "expected_sha256": "b6f788901536ef419c995338342827dfb2c8acc61e838479ede91e8fcd3136c9"
     },
     {
       "id": "worker-v3-stage-producer-entrypoints",
@@ -335,7 +335,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-identity.json",
       "destination": "runtime/ordinary-runtime-identity.json",
-      "expected_sha256": "344c6f2a957bb003e971a1b9d0a6d6c4e00bb10c512224b8ba75fd1b55a8f263"
+      "expected_sha256": "d69298f5e1e1caec1f3e4371c4e6e2d07de5755422ae6b9aebc4c09614af19af"
     },
     {
       "id": "worker-v3-ordinary-runtime-build-proof",
@@ -344,7 +344,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-build-proof.json",
       "destination": "runtime/ordinary-runtime-build-proof.json",
-      "expected_sha256": "d3e19b4ecc072aa752a84b174b4e11fefae62a59676c48cd503380a07f9774a1"
+      "expected_sha256": "3b084879c1c04e271f42177283f5d29243e99cc6a13fdcbd0d733959f86fffd5"
     },
     {
       "id": "worker-v3-ordinary-runtime-sbom",
@@ -353,7 +353,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-sbom.cdx.json",
       "destination": "runtime/ordinary-runtime-sbom.cdx.json",
-      "expected_sha256": "01e02e621c46a81cb6b4f076a5274ce85c9b7db455a7233817c724f950befd4e"
+      "expected_sha256": "7134ccaa0fc11762a7b6763ecbf0e30862073721c3b98b867c71477f85f7dc30"
     },
     {
       "id": "worker-v3-overleaf-target-environment",
@@ -900,7 +900,7 @@
     "python": "CPython 3.12.13",
     "application_dependencies_path": "runtime/requirements-worker-v3.lock",
     "system_tools": {
-      "runtime_id": "worker-v3-runtime-rc-a2ae258",
+      "runtime_id": "worker-v3-runtime-rc-30ae6e0",
       "system_lock": "runtime/worker-v3-system-packages.lock",
       "identity": "runtime/ordinary-runtime-identity.json",
       "overleaf_compiler": {
@@ -911,7 +911,7 @@
     "fonts_identity_path": "runtime/ordinary-runtime-identity.json",
     "tex_identity_path": "runtime/ordinary-runtime-identity.json",
     "poppler_identity_path": "runtime/ordinary-runtime-identity.json",
-    "container_image_digest": "sha256:3fc9034ab730825290a0235cb266802145f1c493b4c85f6f995cbbc03f65f51c",
+    "container_image_digest": "sha256:b4a654d7022ac36256b2adb2636be176ee5e219cb0af5831e06baf7c420d32ff",
     "sbom_path": "runtime/ordinary-runtime-sbom.cdx.json",
     "attestations": [
       "runtime/ordinary-runtime-identity.json",

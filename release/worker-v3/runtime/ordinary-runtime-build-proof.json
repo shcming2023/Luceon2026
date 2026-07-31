@@ -1,14 +1,14 @@
 {
   "architecture": "arm64",
   "build_status": "clean_build_succeeded",
-  "built_at": "2026-07-31T17:48:46.417136382Z",
-  "image_id": "sha256:3fc9034ab730825290a0235cb266802145f1c493b4c85f6f995cbbc03f65f51c",
-  "image_size_bytes": 1457077184,
-  "local_manifest_digest": "sha256:3fc9034ab730825290a0235cb266802145f1c493b4c85f6f995cbbc03f65f51c",
+  "built_at": "2026-07-31T20:00:43.301654085Z",
+  "image_id": "sha256:b4a654d7022ac36256b2adb2636be176ee5e219cb0af5831e06baf7c420d32ff",
+  "image_size_bytes": 1457075390,
+  "local_manifest_digest": "sha256:b4a654d7022ac36256b2adb2636be176ee5e219cb0af5831e06baf7c420d32ff",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
-    "pages": 3,
-    "pdf_sha256": "ce61b18c7f8aa62c0b1ee811cb0bc4d68dd8d31c6a31f5750ef19048e20bcade",
+    "pages": 2,
+    "pdf_sha256": "5ad6f5885f7b274f16a88bc98faaf4da7587af83b209c2f99f1e70b88e59ec90",
     "pdfinfo": "passed",
     "qpdf_check": "passed",
     "status": "passed"
@@ -111,6 +111,18 @@
       "reason": "the exact-source cached candidate passed content qualification, but final admission requires the same source revision rebuilt with --no-cache; the strict replacement installed all locked system and Python dependencies from scratch and is the only image bound into release evidence",
       "source_revision": "a2ae258ef109ceacd2da950e6b67c550c1692a3a",
       "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:3fc9034ab730825290a0235cb266802145f1c493b4c85f6f995cbbc03f65f51c",
+      "reason": "real-material frozen render-plan qualification exposed double ownership when a source block retained compatibility source_type text while carrying a frozen media contract; the replacement derives effective media semantics from the frozen label and media contract and prevents media from entering teaching groups",
+      "source_revision": "a2ae258ef109ceacd2da950e6b67c550c1692a3a",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:81513117600d2078dc4207f44d0d937cb7beb68a760a363ab97271932e543e95",
+      "reason": "the exact-source cached candidate passed content qualification, but final admission requires the same source revision rebuilt with --no-cache; the replacement completed a full locked system and Python dependency build after bounded Debian network retries",
+      "source_revision": "30ae6e07cfaad72c6d06714182bd84189f505876",
+      "status": "superseded_before_release_admission"
     }
   ],
   "rejected_build_attempts": [
@@ -145,31 +157,31 @@
       "status": "rejected_before_qualification"
     }
   ],
-  "runtime_id": "worker-v3-runtime-rc-a2ae258",
+  "runtime_id": "worker-v3-runtime-rc-30ae6e0",
   "runtime_identity": {
     "effective_uid": 10003,
-    "evidence_sha256": "344c6f2a957bb003e971a1b9d0a6d6c4e00bb10c512224b8ba75fd1b55a8f263",
+    "evidence_sha256": "d69298f5e1e1caec1f3e4371c4e6e2d07de5755422ae6b9aebc4c09614af19af",
     "status": "passed",
     "system_lock_entries": 19,
-    "control_plane_tree_sha256": "53e9718c7a02b872785a089d26ea84c1d334f504d85801ac7c1d4c082591350b"
+    "control_plane_tree_sha256": "eb8ebadd765b241d3dfe3f92fd5599f0e8f412460f7871f44e1981829de39401"
   },
   "sbom": {
     "component_count": 422,
-    "evidence_sha256": "01e02e621c46a81cb6b4f076a5274ce85c9b7db455a7233817c724f950befd4e",
+    "evidence_sha256": "7134ccaa0fc11762a7b6763ecbf0e30862073721c3b98b867c71477f85f7dc30",
     "format": "CycloneDX",
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "a2ae258ef109ceacd2da950e6b67c550c1692a3a",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-a2ae258-clean",
+  "source_revision": "30ae6e07cfaad72c6d06714182bd84189f505876",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-30ae6e0-clean",
   "tests": {
     "backend/tests/test_workflow_v3_release.py": "22 passed, 0 failed in the strict --no-cache full-revision image, including the portable no-follow release walk regression",
-    "backend/tests/test_workflow_v3_*.py_runtime_image": "343 passed, 1 skipped, 10 repository-static nodes deselected and 2 repository-static collection files excluded, 0 failed in the strict --no-cache image with no network",
-    "backend/tests/test_workflow_v3_*.py_qualification_layer": "373 passed, 2 skipped, 0 failed in the final source qualification layer whose resolved parent was sha256:3fc9034ab730825290a0235cb266802145f1c493b4c85f6f995cbbc03f65f51c",
+    "backend/tests/test_workflow_v3_*.py_runtime_image": "343 passed, 1 skipped, 10 repository-static nodes deselected and 2 repository-static collection files excluded, 0 failed in the immutable image with no network",
+    "backend/tests/test_workflow_v3_*.py_qualification_layer": "515 passed, 2 skipped, 0 failed with the immutable clean image and the complete repository plus vendored skill test trees mounted read-only after exact release evidence rebinding",
     "repository_static_tests": "release, Compose and Overleaf Adapter source checks are intentionally outside the production runtime image and remain a separate final qualification gate",
-    "locked_template_smoke": "passed: 3 pages, qpdf and pdfinfo passed, PDF SHA-256 ce61b18c7f8aa62c0b1ee811cb0bc4d68dd8d31c6a31f5750ef19048e20bcade",
+    "locked_template_smoke": "passed: 2 pages, qpdf and pdfinfo passed, PDF SHA-256 5ad6f5885f7b274f16a88bc98faaf4da7587af83b209c2f99f1e70b88e59ec90",
     "production_boundary": "Expert Broker, Codex App Server, Codex SDK adapter, cross-UID runner and Codex expert runtime entrypoints absent",
-    "warnings": "8023 existing deprecation warnings in the exact runtime-image suite and 8021 in the qualification layer; zero executable-test failures"
+    "warnings": "8025 existing deprecation warnings in the exact runtime-image suite and 8028 in the read-only mounted qualification layer; zero executable-test failures"
   },
   "user": "10003:10003"
 }
