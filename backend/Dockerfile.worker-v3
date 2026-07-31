@@ -16,13 +16,18 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY worker-v3-system-packages.lock /app/worker-v3-system-packages.lock
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+RUN --mount=type=cache,id=worker-v3-apt-cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=worker-v3-apt-lists,target=/var/lib/apt/lists,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean \
+    && printf '%s\n' \
+         'APT::Keep-Downloaded-Packages "true";' \
+         'Binary::apt::APT::Keep-Downloaded-Packages "true";' \
+         > /etc/apt/apt.conf.d/01keep-debs \
+    && sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
     && sed -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' /app/worker-v3-system-packages.lock > /tmp/worker-v3-system-packages.install \
-    && apt-get -o Acquire::Retries=5 update \
+    && apt-get -o Acquire::Retries=10 -o Acquire::https::Timeout=30 update \
     && while IFS= read -r package; do \
-         DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y --no-install-recommends "$package" || exit 1; \
+         DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=10 -o Acquire::https::Timeout=30 install -y --no-install-recommends "$package" || exit 1; \
        done < /tmp/worker-v3-system-packages.install \
     && rm -f /tmp/worker-v3-system-packages.install
 

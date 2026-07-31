@@ -50,6 +50,17 @@ def test_worker_v3_system_lock_is_installed_in_bounded_batches() -> None:
     assert "$(cat /tmp/worker-v3-system-packages.install)" not in dockerfile
 
 
+def test_worker_v3_apt_downloads_are_https_retry_bounded_and_cacheable() -> None:
+    dockerfile = DOCKERFILE.read_text(encoding="utf-8")
+
+    assert "id=worker-v3-apt-cache" in dockerfile
+    assert "id=worker-v3-apt-lists" in dockerfile
+    assert 'APT::Keep-Downloaded-Packages "true";' in dockerfile
+    assert "s|http://deb.debian.org|https://deb.debian.org|g" in dockerfile
+    assert dockerfile.count("Acquire::Retries=10") == 2
+    assert dockerfile.count("Acquire::https::Timeout=30") == 2
+
+
 def test_worker_v3_docker_context_excludes_codex_expert_runtime() -> None:
     dockerignore = (BACKEND_ROOT / ".dockerignore").read_text(encoding="utf-8")
     required_patterns = {
