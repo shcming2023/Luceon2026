@@ -961,13 +961,19 @@ def test_semantic_review_task_compacts_full_ledger_and_projects_exact_partition(
     records[2]["block_id"] = "src-" + hashlib.sha256(
         b"second-contiguous-source-step"
     ).hexdigest()[:24]
+    records.append(json.loads(json.dumps(records[2])))
+    records[3]["block_id"] = "src-" + hashlib.sha256(
+        b"text-compatible-chart-media"
+    ).hexdigest()[:24]
     for index, record in enumerate(records):
         record["source_type"] = "text"
         record["source_label"] = "text"
         record["heading_disposition"] = None
         record["structure_memberships"] = []
+        record["asset_ref"] = None
+        record["media_contracts"] = []
         record["tree_context"] = {"node_path": [1]}
-        record["pdf_physical_page"] = 1 if index < 3 else 2
+        record["pdf_physical_page"] = 1 if index < 4 else 2
         record["candidate_final_order"] = index + 1
     records[0].update(
         {
@@ -993,6 +999,17 @@ def test_semantic_review_task_compacts_full_ledger_and_projects_exact_partition(
             "raw_content": "A second contiguous source-supported step.",
             "raw_content_sha256": hashlib.sha256(
                 b"A second contiguous source-supported step."
+            ).hexdigest(),
+        }
+    )
+    records[3].update(
+        {
+            "source_type": "text",
+            "source_label": "chart",
+            "media_contracts": [{"media_kind": "chart"}],
+            "raw_content": "A hash-verified source chart.",
+            "raw_content_sha256": hashlib.sha256(
+                b"A hash-verified source chart."
             ).hexdigest(),
         }
     )
@@ -1048,6 +1065,9 @@ def test_semantic_review_task_compacts_full_ledger_and_projects_exact_partition(
     assert [
         row["block_id"] for row in task["candidates"][0]["body_options"]
     ] == [records[1]["block_id"], records[2]["block_id"]]
+    assert records[3]["block_id"] not in {
+        row["block_id"] for row in task["candidates"][0]["body_options"]
+    }
     assert len(kernel._canonical_bytes(kernel.semantic_model_evidence(task))) < 1_000_000
     assert (
         0

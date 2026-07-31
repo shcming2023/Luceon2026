@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 
-VERSION = "spec04b-semantic-span-contract/1.0.0"
+VERSION = "spec04b-semantic-span-contract/1.0.1"
 CONTRACT_SCHEMA = "spec04b-semantic-span-contract/1.0"
 STAGE_SCHEMA = "spec04b-semantic-stage-manifest/1.0"
 ALLOWED_BODY_TYPES = {"text", "aside_text", "list"}
@@ -108,6 +108,17 @@ def assert_no_downstream_keys(value: Any, path: str = "$") -> None:
     elif isinstance(value, list):
         for index, item in enumerate(value):
             assert_no_downstream_keys(item, f"{path}[{index}]")
+
+
+def is_fragile_or_media(record: dict[str, Any]) -> bool:
+    """Honor frozen media evidence even when source_type remains text-compatible."""
+
+    return bool(
+        record.get("source_type") in FRAGILE_TYPES
+        or record.get("source_label") in FRAGILE_TYPES
+        or record.get("asset_ref")
+        or record.get("media_contracts")
+    )
 
 
 def scalar_strings(value: Any) -> set[str]:
@@ -254,14 +265,18 @@ def validate_bundle(
         marker = included[marker_id]
         if marker.get("structure_memberships") or marker.get("heading_disposition") == "structure_node":
             raise ValueError(f"teaching group marker conflicts with a Spec 04-A structure node: {marker_id}")
-        if marker.get("source_type") not in {"title", "text", "aside_text"}:
+        if marker.get("source_type") not in {"title", "text", "aside_text"} or is_fragile_or_media(marker):
             raise ValueError(f"teaching group marker has an unsafe source type: {marker_id}")
         if marker.get("heading_disposition") not in {None, "local_heading"}:
             raise ValueError(f"teaching group marker has an incompatible Spec 04-A disposition: {marker_id}")
         allowed_types = set(group.get("relation_rule", {}).get("allowed_body_source_types", []))
         if not allowed_types or not allowed_types <= ALLOWED_BODY_TYPES:
             raise ValueError(f"teaching group declares unsafe body source types: {group_id}")
-        if any(included[block_id].get("source_type") not in allowed_types for block_id in body_ids):
+        if any(
+            included[block_id].get("source_type") not in allowed_types
+            or is_fragile_or_media(included[block_id])
+            for block_id in body_ids
+        ):
             raise ValueError(f"teaching group includes media, formula, table, or undeclared body type: {group_id}")
         pages = {included[block_id].get("pdf_physical_page") for block_id in member_ids}
         if len(pages) != 1 or group.get("relation_rule", {}).get("same_physical_page") is not True:
@@ -304,7 +319,11 @@ def validate_bundle(
         standalone_record = included[block_id]
         if standalone_record.get("structure_memberships") or standalone_record.get("heading_disposition") == "structure_node":
             raise ValueError(f"standalone teaching label conflicts with a Spec 04-A structure node: {block_id}")
-        if standalone_record.get("source_type") not in {"title", "text", "aside_text"} or standalone_record.get("heading_disposition") not in {None, "local_heading"}:
+        if (
+            standalone_record.get("source_type") not in {"title", "text", "aside_text"}
+            or standalone_record.get("heading_disposition") not in {None, "local_heading"}
+            or is_fragile_or_media(standalone_record)
+        ):
             raise ValueError(f"standalone teaching label has an unsafe source type or disposition: {block_id}")
         refs = item.get("source_evidence_ids", [])
         page = included[block_id]["pdf_physical_page"]
@@ -339,7 +358,7 @@ def validate_bundle(
                 disposition = "standalone_semantic_label"
             elif record.get("heading_disposition") == "local_heading":
                 disposition = "local_heading"
-            elif record.get("source_type") in FRAGILE_TYPES or record.get("asset_ref"):
+            elif is_fragile_or_media(record):
                 disposition = "fragile_or_media"
             else:
                 disposition = "plain_body"

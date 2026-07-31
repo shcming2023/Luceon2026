@@ -134,6 +134,17 @@ class Spec04BSemanticSpanContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unsafe body source types"):
             self.validate(bundle)
 
+    def test_rejects_text_compatible_body_with_frozen_media_contract(self):
+        records = copy.deepcopy(self.records)
+        body = next(item for item in records if item["block_id"] == "body")
+        body["source_label"] = "chart"
+        body["media_contracts"] = [{"media_kind": "chart"}]
+        with self.assertRaisesRegex(ValueError, "includes media"):
+            SEMANTIC.validate_bundle(
+                header=self.header, records=records, bundle=self.bundle,
+                source_pdf=self.pdf, parent=self.parent,
+            )
+
     def test_rejects_downstream_box_or_render_decision(self):
         bundle = copy.deepcopy(self.bundle)
         bundle["teaching_groups"][0]["target_construct"] = "example"

@@ -22,7 +22,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping, Sequence
 
 
-KERNEL_VERSION = "luceon-worker-v3-spec01-03-atomic/1.7.0"
+KERNEL_VERSION = "luceon-worker-v3-spec01-03-atomic/1.7.1"
 INTAKE_SCHEMA = "luceon.worker-v3-spec01-intake-contract/v1"
 SCOPE_REVIEW_SCHEMA = "luceon.worker-v3-spec02-scope-order-review/v3"
 MEDIA_REVIEW_SCHEMA = "luceon.worker-v3-spec03-media-review/v2"
@@ -68,6 +68,20 @@ OUTLINE_CONTEXT_RADIUS = 1
 SEMANTIC_CONTEXT_EXCERPT_CHARS = 240
 SEMANTIC_MARKER_TYPES = frozenset({"title", "text", "aside_text"})
 SEMANTIC_BODY_TYPES = frozenset({"text", "aside_text", "list"})
+SEMANTIC_FRAGILE_LABELS = frozenset(
+    {
+        "chart",
+        "equation",
+        "equation_interline",
+        "formula",
+        "image",
+        "image_caption",
+        "image_footnote",
+        "page_footnote",
+        "table",
+        "table_caption",
+    }
+)
 SEMANTIC_ROLE_CHOICES = (
     "activity",
     "answer",
@@ -3197,6 +3211,17 @@ def _semantic_content(value: Any) -> str:
     return normalized[: SEMANTIC_CONTEXT_EXCERPT_CHARS - 1] + "…"
 
 
+def _is_semantic_fragile_or_media(record: Mapping[str, Any]) -> bool:
+    """Recognize media authority even when an upstream compatibility type is text."""
+
+    return bool(
+        record.get("source_type") in FRAGILE_SOURCE_TYPES
+        or record.get("source_label") in SEMANTIC_FRAGILE_LABELS
+        or record.get("asset_ref")
+        or record.get("media_contracts")
+    )
+
+
 def _semantic_option_protocol() -> dict[str, Any]:
     role_count = len(SEMANTIC_ROLE_CHOICES)
     return {
@@ -3441,6 +3466,7 @@ def _semantic_review_task(
         index
         for index, record in enumerate(included)
         if not record.get("structure_memberships")
+        and not _is_semantic_fragile_or_media(record)
         and record.get("source_type") in SEMANTIC_MARKER_TYPES
         and (
             record.get("heading_disposition") == "local_heading"
@@ -3472,6 +3498,7 @@ def _semantic_review_task(
                 or body.get("pdf_physical_page") != marker_page
                 or _semantic_tree_path(body) != marker_path
                 or body.get("source_type") not in SEMANTIC_BODY_TYPES
+                or _is_semantic_fragile_or_media(body)
             ):
                 break
             body_options.append(
