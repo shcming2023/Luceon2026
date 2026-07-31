@@ -92,7 +92,7 @@
       "root": "skills",
       "path": "luceon-popo-to-refined-elegantbook",
       "destination": "skills/luceon-popo-to-refined-elegantbook",
-      "expected_tree_sha256": "796acf1384632d65c624fe142fd1559b50adc39aedd8fa7ae88e93e725eb71c4"
+      "expected_tree_sha256": "001ec2ada6214a3dde6a9c9d7968a1484fa509bfcdc23b6baea328a0bc56535b"
     },
     {
       "id": "skill-pdf-clean-markdown-rebuild",
@@ -182,7 +182,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec01_04_stage_adapters.py",
       "destination": "scripts/worker-v3/spec01_04_stage_adapters.py",
-      "expected_sha256": "32a12bfb66b25557f30d50e0108730850abb682a5ff6f74a4746d4aec60ca6d7"
+      "expected_sha256": "1e5ef017a8f69130bf8b0a099a756d305c58e9ea02b8bd1389f92c38f72a47df"
     },
     {
       "id": "worker-v3-spec05-06-adapters",
@@ -281,7 +281,7 @@
       "include": [
         "spec*.txt"
       ],
-      "expected_tree_sha256": "a66f56808777079aaa5d5526754a7474960b4d62b5139304b96deaf56dd7f5d6"
+      "expected_tree_sha256": "c0f68ba37250dd0f250089d1e5759ac16ae6b458230b4b22a36033cb33406d79"
     },
     {
       "id": "worker-v3-ordinary-schemas",
@@ -293,7 +293,7 @@
       "include": [
         "spec*.schema.json"
       ],
-      "expected_tree_sha256": "7e47cef81f4348781463e030c1274dd4509279fcb3cad54a10d47d6711970ee5"
+      "expected_tree_sha256": "fdacc0b91c03d6587c006201d14bdac0e812486dcb41c700517fdb29b07805c7"
     },
     {
       "id": "worker-v3-spec04-review-schemas",
@@ -535,9 +535,9 @@
         "path": "schemas/spec04b-semantic-compact-review-v1.schema.json"
       },
       {
-        "id": "worker-v3.spec04c-construct-review",
+        "id": "worker-v3.spec04c-construct-compact-review",
         "version": "1.0.0",
-        "path": "schemas/spec04c-construct-review-bundle.schema.json"
+        "path": "schemas/spec04c-construct-compact-review-v1.schema.json"
       },
       {
         "id": "worker-v3.spec04d-render-policy",
@@ -736,9 +736,9 @@
     },
     {
       "id": "worker-v3.spec04c-construct-review",
-      "version": "1.0.0",
-      "path": "prompts/spec04c-construct-review-v1.txt",
-      "output_schema": "schemas/spec04c-construct-review-bundle.schema.json"
+      "version": "2.0.0",
+      "path": "prompts/spec04c-construct-review-v2.txt",
+      "output_schema": "schemas/spec04c-construct-compact-review-v1.schema.json"
     },
     {
       "id": "worker-v3.spec04d-render-policy",

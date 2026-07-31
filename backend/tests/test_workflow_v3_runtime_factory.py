@@ -108,6 +108,34 @@ def test_semantic_review_choices_are_bound_per_candidate():
     assert choices["candidate:1"] == ("0", "1", "2", "3", "4")
 
 
+def test_construct_review_choices_are_bound_per_release_task():
+    evidence = {
+        "review_tasks": [
+            {
+                "task_id": "construct:0000",
+                "options": [
+                    {"option_id": "option-0000"},
+                    {"option_id": "option-0001"},
+                ],
+            },
+            {
+                "task_id": "construct:0001",
+                "options": [{"option_id": "option-0000"}],
+            },
+        ]
+    }
+
+    choices = _review_allowed_choices(
+        "worker-v3.spec04c-construct-review",
+        evidence,
+    )
+
+    assert choices == {
+        "construct:0000": ("option-0000", "option-0001"),
+        "construct:0001": ("option-0000",),
+    }
+
+
 def test_outline_review_preparation_uses_stable_source_pdf_reference(
     tmp_path: Path,
 ):
@@ -176,6 +204,118 @@ def test_outline_review_preparation_uses_stable_source_pdf_reference(
                 builder.workdir
                 / "inputs/predecessor_promotion_manifest/artifact"
             ).resolve()
+        ),
+    )
+
+
+def test_construct_review_preparation_uses_compact_release_kernel(
+    monkeypatch,
+    tmp_path: Path,
+):
+    workdir = tmp_path / "work"
+    builder = _StageRequestBuilder(
+        db=object(),
+        session_factory=lambda: None,
+        artifact_store=object(),
+        job=SimpleNamespace(
+            public_id="job-1",
+            material_id="pdf-1",
+        ),
+        stage=SimpleNamespace(
+            stage_key="template_construct_binding",
+            attempt=1,
+        ),
+        release=SimpleNamespace(),
+        release_root=tmp_path / "release",
+        bound=SimpleNamespace(),
+        workdir=workdir,
+        heartbeat=lambda: None,
+    )
+    parent = workdir / "control-plane-bundles/promoted_predecessor"
+    parent.mkdir(parents=True)
+    (parent / "manifests").mkdir()
+    (parent / "manifests/spec04b_semantic_stage_manifest.json").write_text(
+        json.dumps(
+            {
+                "ledger_L": {
+                    "payload_hash": "e" * 64,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    builder.extracted["promoted_predecessor"] = parent
+    template_intake = workdir / "inputs/template_intake/artifact"
+    template_archive = workdir / "inputs/template_archive/artifact"
+    template_intake.parent.mkdir(parents=True)
+    template_archive.parent.mkdir(parents=True)
+    template_intake.write_text("{}\n", encoding="utf-8")
+    template_archive.write_bytes(b"zip")
+    primary = PreparedInputArtifact(
+        role="promoted_predecessor",
+        kind="candidate",
+        ref=ArtifactRef("candidate", "artifact", "b" * 64, 1),
+        path="inputs/promoted_predecessor/artifact",
+    )
+    builder.artifacts.extend(
+        (
+            primary,
+            PreparedInputArtifact(
+                role="template_intake",
+                kind="worker-v3-template-intake",
+                ref=ArtifactRef("local", "template-intake", "c" * 64, 3),
+                path="inputs/template_intake/artifact",
+            ),
+            PreparedInputArtifact(
+                role="template_archive",
+                kind="template-archive",
+                ref=ArtifactRef("local", "template-archive", "d" * 64, 3),
+                path="inputs/template_archive/artifact",
+            ),
+        )
+    )
+    captured = {}
+    task = {
+        "schema_version": "luceon.worker-v3-spec04c-compact-task/v1",
+        "task_id": "spec04c-compact-test",
+        "review_tasks": [],
+    }
+
+    def run_kernel(**kwargs):
+        captured.update(kwargs)
+        args = kwargs["args"]
+        output = Path(args[args.index("--output") + 1])
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(task), encoding="utf-8")
+
+    monkeypatch.setattr(
+        "app.workflow_v3.executor.run_release_python_kernel",
+        run_kernel,
+    )
+
+    result = builder._review_input(
+        "worker-v3.spec04c-construct-review",
+        primary,
+    )
+
+    assert result == task
+    assert captured["kernel_relative"].endswith(
+        "scripts/spec04c_construct_binding_contract.py"
+    )
+    assert captured["args"] == (
+        "prepare-review-task",
+        "--parent",
+        str(parent),
+        "--template-intake",
+        str(template_intake),
+        "--template-zip",
+        str(template_archive),
+        "--predecessor-sha256",
+        "e" * 64,
+        "--output",
+        str(
+            workdir
+            / "control-plane-review-task/spec04c-construct-review-task.json"
         ),
     )
 
@@ -479,7 +619,7 @@ def test_pretty_printed_release_schema_uses_raw_file_hash_then_canonical_call_ha
     monkeypatch,
     tmp_path: Path,
 ):
-    prompt_id = "worker-v3.spec04c-construct-review"
+    prompt_id = "worker-v3.test-schema-review"
     prompt = "Return the release-bound decision as JSON."
     schema = {
         "type": "object",

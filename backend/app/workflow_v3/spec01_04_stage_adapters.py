@@ -714,7 +714,8 @@ def _produce_construct(
             "source_pdf",
             "template_intake",
             "template_archive",
-            "construct_review_bundle",
+            "construct_review_task",
+            "construct_review_decision",
             "llm_call_audit",
         },
     )
@@ -724,8 +725,14 @@ def _produce_construct(
         request,
         inputs,
         release,
-        review_role="construct_review_bundle",
+        review_role="construct_review_decision",
         expected_prompt_id="worker-v3.spec04c-construct-review",
+        expected_input_canonical_sha256=_canonical_hash(
+            _read_json(
+                inputs.file("construct_review_task"),
+                "Spec 04-C deterministic review task",
+            )
+        ),
     )
     _verify_template_archive(request, inputs, release)
     registry, promotions = _materialize_native_lineage_bridge(
@@ -739,9 +746,33 @@ def _produce_construct(
             ),
         },
     )
-    projected_review = request.workdir / "projected-reviews/spec04c-construct-review.json"
+    compact_projected_review = (
+        request.workdir
+        / "projected-reviews"
+        / "spec04c-control-plane-review-bundle.json"
+    )
+    projected_review = (
+        request.workdir
+        / "projected-reviews"
+        / "spec04c-native-review-bundle.json"
+    )
+    run_release_python_kernel(
+        release_root=release,
+        kernel_relative=f"{KERNEL_ROOT}/spec04c_construct_binding_contract.py",
+        args=(
+            "project-review",
+            "--task",
+            str(inputs.file("construct_review_task")),
+            "--compact-review",
+            str(inputs.file("construct_review_decision")),
+            "--output",
+            str(compact_projected_review),
+        ),
+        cwd=request.workdir,
+        timeout_seconds=86_400,
+    )
     _project_review_parent_binding(
-        inputs.file("construct_review_bundle"),
+        compact_projected_review,
         output_path=projected_review,
         parent_root=parent,
         source_pdf=inputs.file("source_pdf"),

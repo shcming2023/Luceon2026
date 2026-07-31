@@ -24,10 +24,12 @@ from pathlib import Path
 from typing import Any
 
 
-VERSION = "spec04c-construct-binding-contract/1.3.0"
+VERSION = "spec04c-construct-binding-contract/1.4.0"
 CONTRACT_SCHEMA = "spec04c-construct-binding-contract/1.0"
 STAGE_SCHEMA = "spec04c-construct-stage-manifest/1.0"
 MANIFEST_SCHEMA = "template-capability-manifest/2.0"
+COMPACT_TASK_SCHEMA = "luceon.worker-v3-spec04c-compact-task/v1"
+COMPACT_REVIEW_SCHEMA = "luceon.worker-v3-spec04c-compact-review/v1"
 FORBIDDEN_KEYS = {
     "render_plan", "render_node_id", "payload", "payload_hash", "latex",
     "formula_reconstruction", "table_reconstruction", "output_anchor",
@@ -137,6 +139,8 @@ def scalar_strings(value: Any) -> set[str]:
 
 def _member_name(intake: dict[str, Any], key: str) -> str:
     value = intake.get(key)
+    if not value:
+        value = intake.get("main_member" if key == "entry" else "class_member")
     if key == "class" and not value:
         value = intake.get("elegantbook_class")
     if not value:
@@ -145,7 +149,11 @@ def _member_name(intake: dict[str, Any], key: str) -> str:
 
 
 def _expected_zip_sha(intake: dict[str, Any]) -> str:
-    value = intake.get("zip_sha256") or intake.get("template_zip_sha256")
+    value = (
+        intake.get("archive_sha256")
+        or intake.get("zip_sha256")
+        or intake.get("template_zip_sha256")
+    )
     if not value:
         raise ValueError("template intake lacks archive sha256")
     return value
@@ -352,7 +360,20 @@ def extract_template_capabilities(template_intake: Path, template_zip: Path) -> 
         "body_insertion_candidate": "between the source body marker and end{document}; pending Spec 05 freeze",
         "spec05_freeze_status": "pending",
     }
-    manifest["capability_payload_hash"] = canonical_hash({key: value for key, value in manifest.items() if key not in {"generated_at", "capability_payload_hash"}})
+    capability_payload = {
+        key: value
+        for key, value in manifest.items()
+        if key not in {"generated_at", "capability_payload_hash"}
+    }
+    for runtime_bound_key in ("template_intake", "template_archive"):
+        value = capability_payload.get(runtime_bound_key)
+        if isinstance(value, dict):
+            capability_payload[runtime_bound_key] = {
+                key: item
+                for key, item in value.items()
+                if key != "path"
+            }
+    manifest["capability_payload_hash"] = canonical_hash(capability_payload)
     return manifest
 
 
@@ -369,6 +390,269 @@ def semantic_inventory(groups: dict[str, Any]) -> list[dict[str, Any]]:
             "semantic_role": item["semantic_role"], "source_block_ids": [item["block_id"]],
         })
     return sorted(items, key=lambda item: (item["object_kind"], item["object_id"]))
+
+
+def _compact_review_result(
+    task_id: str,
+    review_tasks: list[dict[str, Any]],
+    *,
+    use_last_option: bool,
+) -> dict[str, Any]:
+    decisions = []
+    for row in review_tasks:
+        options = row["options"]
+        selected = options[-1] if use_last_option else options[0]
+        decisions.append(
+            {
+                "task_id": row["task_id"],
+                "selected_option_id": selected["option_id"],
+            }
+        )
+    return {
+        "schema_version": COMPACT_REVIEW_SCHEMA,
+        "task_id": task_id,
+        "review_status": "closed",
+        "decisions": decisions,
+        "open_reviews": [],
+    }
+
+
+def construct_review_task(
+    *,
+    groups: dict[str, Any],
+    template: dict[str, Any],
+    predecessor_sha256: str,
+) -> dict[str, Any]:
+    if not re.fullmatch(r"[0-9a-f]{64}", predecessor_sha256):
+        raise ValueError("predecessor SHA-256 is invalid")
+    template_payload_hash = template.get("capability_payload_hash")
+    if not isinstance(template_payload_hash, str) or not re.fullmatch(
+        r"[0-9a-f]{64}",
+        template_payload_hash,
+    ):
+        raise ValueError("template capability payload hash is invalid")
+    inventory = semantic_inventory(groups)
+    inventory_hash = canonical_hash(inventory)
+    counts = Counter(
+        (item["object_kind"], item["semantic_role"])
+        for item in inventory
+    )
+    styles = sorted(template.get("constructs", {}).get("tcolorbox_styles", {}))
+    starred = sorted(
+        item
+        for item in template.get("constructs", {}).get("sectioning", [])
+        if isinstance(item, str) and item.endswith("*")
+    )
+    breakable = (
+        template.get("supported_parameters", {})
+        .get("tcolorbox", {})
+        .get("breakable")
+        is True
+    )
+    review_tasks: list[dict[str, Any]] = []
+    for candidate_index, ((object_kind, semantic_role), object_count) in enumerate(
+        sorted(counts.items())
+    ):
+        options: list[dict[str, Any]] = []
+        if object_kind == "teaching_group":
+            for style in styles:
+                options.append(
+                    {
+                        "option_id": f"option-{len(options):04d}",
+                        "target_construct": "tcolorbox",
+                        "construct_parameters": {
+                            "style": style,
+                            "breakable": breakable,
+                        },
+                        "layer": "book_config",
+                        "selection_reason": (
+                            "Selected from the frozen template tcolorbox style inventory."
+                        ),
+                        "why_box_or_not": (
+                            "A non-empty source-supported teaching group may use an "
+                            "existing template box."
+                        ),
+                    }
+                )
+        elif object_kind == "standalone_label":
+            for construct in starred:
+                options.append(
+                    {
+                        "option_id": f"option-{len(options):04d}",
+                        "target_construct": construct,
+                        "construct_parameters": {},
+                        "layer": "core",
+                        "selection_reason": (
+                            "Selected from the frozen unnumbered sectioning inventory."
+                        ),
+                        "why_box_or_not": (
+                            "A standalone label has no confirmed body, so an empty box "
+                            "is forbidden."
+                        ),
+                    }
+                )
+        else:
+            raise ValueError(f"unsupported semantic object kind: {object_kind}")
+        if not options:
+            raise ValueError(
+                f"template exposes no legal construct for {object_kind}:{semantic_role}"
+            )
+        review_tasks.append(
+            {
+                "candidate_index": candidate_index,
+                "task_id": f"construct:{candidate_index:04d}",
+                "object_kind": object_kind,
+                "semantic_role": semantic_role,
+                "object_count": object_count,
+                "options": options,
+            }
+        )
+    identity = {
+        "predecessor_sha256": predecessor_sha256,
+        "semantic_object_inventory_hash": inventory_hash,
+        "template_capability_payload_hash": template_payload_hash,
+        "review_tasks": review_tasks,
+    }
+    task_id = "spec04c-compact-" + canonical_hash(identity)[:24]
+    minimum = len(
+        canonical_bytes(
+            _compact_review_result(
+                task_id,
+                review_tasks,
+                use_last_option=False,
+            )
+        )
+    )
+    maximum = len(
+        canonical_bytes(
+            _compact_review_result(
+                task_id,
+                review_tasks,
+                use_last_option=True,
+            )
+        )
+    )
+    return {
+        "schema_version": COMPACT_TASK_SCHEMA,
+        "task_id": task_id,
+        "predecessor_sha256": predecessor_sha256,
+        "semantic_object_inventory_hash": inventory_hash,
+        "semantic_object_count": len(inventory),
+        "template_capability_payload_hash": template_payload_hash,
+        "candidate_count": len(review_tasks),
+        "review_tasks": review_tasks,
+        "capacity": {
+            "minimum_response_bytes": min(minimum, maximum),
+            "maximum_response_bytes": max(minimum, maximum),
+        },
+        "instructions": [
+            "Return exactly one selected_option_id for every task_id in supplied order.",
+            "Select only an option_id declared on the same review task.",
+            "Do not emit LaTeX, new constructs, template edits, or source rewrites.",
+        ],
+    }
+
+
+def project_construct_review(
+    task: dict[str, Any],
+    compact_review: dict[str, Any],
+) -> dict[str, Any]:
+    expected_task_fields = {
+        "schema_version",
+        "task_id",
+        "predecessor_sha256",
+        "semantic_object_inventory_hash",
+        "semantic_object_count",
+        "template_capability_payload_hash",
+        "candidate_count",
+        "review_tasks",
+        "capacity",
+        "instructions",
+    }
+    if set(task) != expected_task_fields or task.get("schema_version") != COMPACT_TASK_SCHEMA:
+        raise ValueError("Spec 04-C compact task is unsupported or drifted")
+    expected_review_fields = {
+        "schema_version",
+        "task_id",
+        "review_status",
+        "decisions",
+        "open_reviews",
+    }
+    if (
+        set(compact_review) != expected_review_fields
+        or compact_review.get("schema_version") != COMPACT_REVIEW_SCHEMA
+        or compact_review.get("task_id") != task.get("task_id")
+        or compact_review.get("review_status") != "closed"
+        or compact_review.get("open_reviews") != []
+    ):
+        raise ValueError("Spec 04-C compact review is open, unsupported, or drifted")
+    review_tasks = task.get("review_tasks")
+    decisions = compact_review.get("decisions")
+    if (
+        not isinstance(review_tasks, list)
+        or not isinstance(decisions, list)
+        or len(review_tasks) != task.get("candidate_count")
+        or len(decisions) != len(review_tasks)
+    ):
+        raise ValueError("Spec 04-C decisions must be complete, ordered, and total")
+    rules: list[dict[str, Any]] = []
+    for candidate_index, (review_task, decision) in enumerate(
+        zip(review_tasks, decisions)
+    ):
+        if (
+            not isinstance(review_task, dict)
+            or review_task.get("candidate_index") != candidate_index
+            or not isinstance(decision, dict)
+            or set(decision) != {"task_id", "selected_option_id"}
+            or decision.get("task_id") != review_task.get("task_id")
+        ):
+            raise ValueError("Spec 04-C decisions must be complete, ordered, and total")
+        options = review_task.get("options")
+        if not isinstance(options, list):
+            raise ValueError("Spec 04-C compact task has invalid options")
+        selected = [
+            option
+            for option in options
+            if isinstance(option, dict)
+            and option.get("option_id") == decision.get("selected_option_id")
+        ]
+        if len(selected) != 1:
+            raise ValueError("Spec 04-C decisions must be complete, ordered, and in-set")
+        option = selected[0]
+        rules.append(
+            {
+                "rule_id": (
+                    f"S4C-COMPACT-{candidate_index:04d}-"
+                    f"{option['option_id']}"
+                ),
+                "rule_version": "1.0",
+                "object_kind": review_task["object_kind"],
+                "semantic_role": review_task["semantic_role"],
+                "target_construct": option["target_construct"],
+                "construct_parameters": copy.deepcopy(
+                    option["construct_parameters"]
+                ),
+                "layer": option["layer"],
+                "selection_reason": option["selection_reason"],
+                "why_box_or_not": option["why_box_or_not"],
+            }
+        )
+    compact_hash = canonical_hash(compact_review)
+    return {
+        "schema_version": "spec04c-construct-review-bundle/1.0",
+        "review_id": str(task["task_id"]),
+        "parent_binding": {},
+        "semantic_object_inventory_hash": task[
+            "semantic_object_inventory_hash"
+        ],
+        "construct_rules": rules,
+        "review": {
+            "status": "closed",
+            "open_items": 0,
+            "decision_refs": [f"compact-review::{compact_hash}"],
+            "compact_review_sha256": compact_hash,
+        },
+    }
 
 
 def verify_parent_selection(args: argparse.Namespace, parent_ledger: Path) -> dict[str, Any]:
@@ -755,6 +1039,59 @@ def validate_run(run_dir: Path) -> dict[str, Any]:
     }
 
 
+def prepare_review_task(args: argparse.Namespace) -> dict[str, Any]:
+    parent = args.parent.resolve()
+    groups_path = parent / "semantic/teaching_column_group_ledger.json"
+    spans_path = parent / "semantic/semantic_span_ledger.json"
+    groups = read_json(groups_path)
+    spans = read_json(spans_path)
+    if (
+        groups.get("semantic_span_contract_sha256") != sha256_file(spans_path)
+        or groups.get("open_reviews") != 0
+        or groups.get("status") != "passed"
+        or spans.get("slice_status") != "passed"
+    ):
+        raise ValueError("Spec 04-B semantic artifacts are not exact and closed")
+    template = extract_template_capabilities(
+        args.template_intake.resolve(),
+        args.template_zip.resolve(),
+    )
+    task = construct_review_task(
+        groups=groups,
+        template=template,
+        predecessor_sha256=args.predecessor_sha256,
+    )
+    output = args.output.resolve()
+    if output.exists() or output.is_symlink():
+        raise FileExistsError(f"refusing to overwrite review task: {output}")
+    write_json(output, task)
+    return {
+        "status": "prepared",
+        "task_sha256": sha256_file(output),
+        "task_canonical_sha256": canonical_hash(task),
+        "semantic_objects": task["semantic_object_count"],
+        "candidates": task["candidate_count"],
+        "minimum_response_bytes": task["capacity"]["minimum_response_bytes"],
+        "maximum_response_bytes": task["capacity"]["maximum_response_bytes"],
+    }
+
+
+def project_review(args: argparse.Namespace) -> dict[str, Any]:
+    task = read_json(args.task.resolve())
+    compact_review = read_json(args.compact_review.resolve())
+    output = args.output.resolve()
+    if output.exists() or output.is_symlink():
+        raise FileExistsError(f"refusing to overwrite projected review: {output}")
+    bundle = project_construct_review(task, compact_review)
+    write_json(output, bundle)
+    return {
+        "status": "projected",
+        "output_sha256": sha256_file(output),
+        "output_canonical_sha256": canonical_hash(bundle),
+        "construct_rules": len(bundle["construct_rules"]),
+    }
+
+
 def add_produce_arguments(parser: argparse.ArgumentParser) -> None:
     for name in (
         "parent-ledger", "parent-decision-index", "parent-semantic-span-ledger", "parent-teaching-group-ledger",
@@ -775,9 +1112,26 @@ def main() -> int:
     add_produce_arguments(sub.add_parser("produce"))
     validate_parser = sub.add_parser("validate-run")
     validate_parser.add_argument("--run-dir", type=Path, required=True)
+    prepare_parser = sub.add_parser("prepare-review-task")
+    prepare_parser.add_argument("--parent", type=Path, required=True)
+    prepare_parser.add_argument("--template-intake", type=Path, required=True)
+    prepare_parser.add_argument("--template-zip", type=Path, required=True)
+    prepare_parser.add_argument("--predecessor-sha256", required=True)
+    prepare_parser.add_argument("--output", type=Path, required=True)
+    project_parser = sub.add_parser("project-review")
+    project_parser.add_argument("--task", type=Path, required=True)
+    project_parser.add_argument("--compact-review", type=Path, required=True)
+    project_parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:
-        result, code = produce(args) if args.command == "produce" else (validate_run(args.run_dir), 0)
+        if args.command == "produce":
+            result, code = produce(args)
+        elif args.command == "validate-run":
+            result, code = validate_run(args.run_dir), 0
+        elif args.command == "prepare-review-task":
+            result, code = prepare_review_task(args), 0
+        else:
+            result, code = project_review(args), 0
         print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         return code
     except Exception as exc:

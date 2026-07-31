@@ -886,7 +886,7 @@ _BOUNDED_REVIEW = {
         "worker-v3.spec04b-semantic-review",
     ),
     "template_construct_binding": (
-        "construct_review_bundle",
+        "construct_review_decision",
         "worker-v3.spec04c-construct-review",
     ),
     "frozen_render_plan": (
@@ -1709,6 +1709,30 @@ class _StageRequestBuilder:
                 task_path,
             )
             evidence = semantic_model_evidence(evidence)
+        elif prompt_id == "worker-v3.spec04c-construct-review":
+            task_path = (
+                self.workdir
+                / "control-plane-review-task"
+                / "spec04c-construct-review-task.json"
+            )
+            if (
+                not task_path.is_file()
+                or sha256_json(
+                    _read_json_object(
+                        task_path,
+                        "Spec 04-C deterministic review task",
+                    )
+                )
+                != sha256_json(evidence)
+            ):
+                raise ArtifactIntegrityError(
+                    "Spec 04-C deterministic review task drifted before projection"
+                )
+            self._add_local_file(
+                "construct_review_task",
+                "worker-v3-deterministic-review-task",
+                task_path,
+            )
         manifest = self.bound.verification.manifest
         prompts = [
             row
@@ -1935,12 +1959,73 @@ class _StageRequestBuilder:
                     str((self.workdir / parent_promotion.path).resolve()),
                 ),
             )
+        if prompt_id == "worker-v3.spec04c-construct-review":
+            template_intake = next(
+                (
+                    artifact
+                    for artifact in self.artifacts
+                    if artifact.role == "template_intake"
+                ),
+                None,
+            )
+            template_archive = next(
+                (
+                    artifact
+                    for artifact in self.artifacts
+                    if artifact.role == "template_archive"
+                ),
+                None,
+            )
+            if template_intake is None or template_archive is None:
+                raise ArtifactIntegrityError(
+                    "Spec 04-C compact review task lacks frozen template evidence"
+                )
+            output = (
+                self.workdir
+                / "control-plane-review-task"
+                / "spec04c-construct-review-task.json"
+            )
+            output.parent.mkdir(parents=True, exist_ok=True)
+            semantic_stage_manifest = _read_json_object(
+                parent / "manifests/spec04b_semantic_stage_manifest.json",
+                "Spec 04-B semantic stage manifest",
+            )
+            semantic_ledger = semantic_stage_manifest.get("ledger_L")
+            if not isinstance(semantic_ledger, dict):
+                raise ArtifactIntegrityError(
+                    "Spec 04-B semantic stage manifest lacks ledger payload binding"
+                )
+            predecessor_payload_sha256 = _require_sha256(
+                semantic_ledger.get("payload_hash"),
+                "Spec 04-B semantic ledger payload SHA-256",
+            )
+            run_release_python_kernel(
+                release_root=self.release_root,
+                kernel_relative=(
+                    "skills/luceon-popo-to-refined-elegantbook/scripts/"
+                    "spec04c_construct_binding_contract.py"
+                ),
+                args=(
+                    "prepare-review-task",
+                    "--parent",
+                    str(parent),
+                    "--template-intake",
+                    str((self.workdir / template_intake.path).resolve()),
+                    "--template-zip",
+                    str((self.workdir / template_archive.path).resolve()),
+                    "--predecessor-sha256",
+                    predecessor_payload_sha256,
+                    "--output",
+                    str(output),
+                ),
+                cwd=self.workdir,
+                timeout_seconds=86_400,
+            )
+            return _read_json_object(
+                output,
+                "Spec 04-C deterministic review task",
+            )
         selected = {
-            "worker-v3.spec04c-construct-review": (
-                "semantic/semantic_span_ledger.json",
-                "semantic/teaching_column_group_ledger.json",
-                "ledgers/canonical_block_ledger.jsonl",
-            ),
             "worker-v3.spec04d-render-policy": (
                 "semantic/construct_binding_ledger.json",
                 "template/template_capability_manifest.json",

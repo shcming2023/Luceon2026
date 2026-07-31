@@ -82,8 +82,8 @@ class Spec04CConstructBindingTests(unittest.TestCase):
                 zf.writestr("elegantbook.cls", cls)
             intake = root / "template_intake.json"
             intake.write_text(json.dumps({
-                "entry": "main.tex", "class": "elegantbook.cls",
-                "template_zip_sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
+                "main_member": "main.tex", "class_member": "elegantbook.cls",
+                "archive_sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
             }), encoding="utf-8")
             manifest = MODULE.extract_template_capabilities(intake, archive)
             self.assertEqual(set(manifest["constructs"]["tcolorbox_styles"]), {"featurebox", "notebox"})
@@ -94,6 +94,49 @@ class Spec04CConstructBindingTests(unittest.TestCase):
             self.assertEqual(manifest["toc_capability"]["effective_tocdepth"], 1)
             self.assertEqual(manifest["toc_capability"]["native_visible_entry_types"], ["chapter", "section"])
             self.assertTrue(manifest["toc_capability"]["serialization_strategies"]["localized_depth_override"]["preserves_pdf_outline_level"])
+
+    def test_template_capability_payload_hash_ignores_runtime_paths(self):
+        manifests = []
+        for dirname in ("first-run", "second-run"):
+            with tempfile.TemporaryDirectory(prefix=dirname) as tmp:
+                root = Path(tmp)
+                archive = root / "template.zip"
+                with zipfile.ZipFile(archive, "w") as zf:
+                    zf.writestr(
+                        "main.tex",
+                        "\\documentclass[11pt]{elegantbook}\n"
+                        "\\usepackage{tcolorbox}\n"
+                        "\\tcbset{notebox/.style={breakable,colback=gray}}\n"
+                        "\\begin{document}\n"
+                        "\\tableofcontents\n"
+                        "\\end{document}\n",
+                    )
+                    zf.writestr("elegantbook.cls", "\\NeedsTeXFormat{LaTeX2e}\n")
+                intake = root / "template_intake.json"
+                intake.write_text(
+                    json.dumps(
+                        {
+                            "main_member": "main.tex",
+                            "class_member": "elegantbook.cls",
+                            "archive_sha256": hashlib.sha256(
+                                archive.read_bytes()
+                            ).hexdigest(),
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                manifests.append(
+                    MODULE.extract_template_capabilities(intake, archive)
+                )
+
+        self.assertNotEqual(
+            manifests[0]["template_intake"]["path"],
+            manifests[1]["template_intake"]["path"],
+        )
+        self.assertEqual(
+            manifests[0]["capability_payload_hash"],
+            manifests[1]["capability_payload_hash"],
+        )
 
     def test_valid_rules_bind_every_semantic_object_once(self):
         groups = self.groups()
@@ -117,6 +160,136 @@ class Spec04CConstructBindingTests(unittest.TestCase):
             (SCRIPT.parents[1] / "schemas/spec04c-construct-review-bundle.schema.json").read_text(encoding="utf-8")
         )
         self.assertEqual(schema["properties"]["construct_rules"]["minItems"], 0)
+
+    def test_compact_task_exposes_only_frozen_construct_choices(self):
+        task = MODULE.construct_review_task(
+            groups=self.groups(),
+            template=self.template(),
+            predecessor_sha256="b" * 64,
+        )
+
+        self.assertEqual(
+            task["schema_version"],
+            "luceon.worker-v3-spec04c-compact-task/v1",
+        )
+        self.assertEqual(task["semantic_object_count"], 2)
+        self.assertEqual(task["candidate_count"], 2)
+        self.assertEqual(
+            [
+                (row["object_kind"], row["semantic_role"])
+                for row in task["review_tasks"]
+            ],
+            [
+                ("standalone_label", "teaching_column_label"),
+                ("teaching_group", "summary"),
+            ],
+        )
+        standalone, teaching = task["review_tasks"]
+        self.assertEqual(
+            [row["target_construct"] for row in standalone["options"]],
+            ["subsubsection*"],
+        )
+        self.assertEqual(
+            [row["construct_parameters"]["style"] for row in teaching["options"]],
+            ["featurebox", "notebox", "vocabbox"],
+        )
+        self.assertLess(
+            len(MODULE.canonical_bytes(task)),
+            50_000,
+            "Spec 04-C model task must not echo the full canonical ledger",
+        )
+        self.assertLessEqual(
+            task["capacity"]["minimum_response_bytes"],
+            task["capacity"]["maximum_response_bytes"],
+        )
+
+    def test_compact_projection_is_total_and_deterministic(self):
+        task = MODULE.construct_review_task(
+            groups=self.groups(),
+            template=self.template(),
+            predecessor_sha256="b" * 64,
+        )
+        compact = {
+            "schema_version": "luceon.worker-v3-spec04c-compact-review/v1",
+            "task_id": task["task_id"],
+            "review_status": "closed",
+            "decisions": [
+                {
+                    "task_id": task["review_tasks"][0]["task_id"],
+                    "selected_option_id": "option-0000",
+                },
+                {
+                    "task_id": task["review_tasks"][1]["task_id"],
+                    "selected_option_id": "option-0001",
+                },
+            ],
+            "open_reviews": [],
+        }
+
+        projected = MODULE.project_construct_review(task, compact)
+
+        self.assertEqual(projected["parent_binding"], {})
+        self.assertEqual(
+            projected["semantic_object_inventory_hash"],
+            MODULE.canonical_hash(MODULE.semantic_inventory(self.groups())),
+        )
+        self.assertEqual(len(projected["construct_rules"]), 2)
+        self.assertEqual(
+            projected["construct_rules"][0]["target_construct"],
+            "subsubsection*",
+        )
+        self.assertEqual(
+            projected["construct_rules"][1]["construct_parameters"]["style"],
+            "notebox",
+        )
+        self.assertEqual(projected["review"]["status"], "closed")
+        self.assertEqual(projected["review"]["open_items"], 0)
+
+    def test_compact_projection_accepts_empty_inventory_without_model_invention(self):
+        groups = {"groups": [], "standalone_labels": []}
+        task = MODULE.construct_review_task(
+            groups=groups,
+            template=self.template(),
+            predecessor_sha256="b" * 64,
+        )
+        compact = {
+            "schema_version": "luceon.worker-v3-spec04c-compact-review/v1",
+            "task_id": task["task_id"],
+            "review_status": "closed",
+            "decisions": [],
+            "open_reviews": [],
+        }
+
+        projected = MODULE.project_construct_review(task, compact)
+
+        self.assertEqual(task["candidate_count"], 0)
+        self.assertEqual(projected["construct_rules"], [])
+        self.assertEqual(
+            projected["semantic_object_inventory_hash"],
+            MODULE.canonical_hash([]),
+        )
+
+    def test_compact_projection_rejects_missing_or_out_of_set_decision(self):
+        task = MODULE.construct_review_task(
+            groups=self.groups(),
+            template=self.template(),
+            predecessor_sha256="b" * 64,
+        )
+        compact = {
+            "schema_version": "luceon.worker-v3-spec04c-compact-review/v1",
+            "task_id": task["task_id"],
+            "review_status": "closed",
+            "decisions": [
+                {
+                    "task_id": task["review_tasks"][0]["task_id"],
+                    "selected_option_id": "invented",
+                }
+            ],
+            "open_reviews": [],
+        }
+
+        with self.assertRaisesRegex(ValueError, "complete, ordered"):
+            MODULE.project_construct_review(task, compact)
 
     def test_rejects_unknown_template_style(self):
         bundle = self.bundle()
