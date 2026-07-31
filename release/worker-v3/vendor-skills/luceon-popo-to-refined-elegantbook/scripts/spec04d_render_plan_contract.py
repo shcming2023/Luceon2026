@@ -396,7 +396,7 @@ def render_policy_review_task(
         or construct_binding.get("slice_status") != "passed"
         or construct_binding.get("summary", {}).get("open_reviews") != 0
         or media_plan.get("spec_status") != "passed"
-        or media_plan.get("summary", {}).get("open") != 0
+        or media_plan.get("open_reviews") != 0
     ):
         raise ValueError("Spec 04-D compact inputs are not closed and passed")
     hierarchy = outline.get("body_hierarchy")

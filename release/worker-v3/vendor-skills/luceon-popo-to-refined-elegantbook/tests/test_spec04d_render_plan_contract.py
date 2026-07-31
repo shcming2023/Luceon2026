@@ -132,7 +132,13 @@ class Spec04DRenderPlanTests(unittest.TestCase):
         media_plan = {
             "schema_version": "media-representation-plan/1.0",
             "spec_status": "passed",
-            "summary": {"open": 0},
+            "open_reviews": 0,
+            "summary": {
+                "closed": 0,
+                "excluded": 0,
+                "needs_review": 0,
+                "representations": 0,
+            },
             "representations": [],
         }
         return {
