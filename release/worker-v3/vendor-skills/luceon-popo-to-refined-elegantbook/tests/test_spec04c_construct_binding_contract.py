@@ -88,11 +88,16 @@ class Spec04CConstructBindingTests(unittest.TestCase):
             manifest = MODULE.extract_template_capabilities(intake, archive)
             self.assertEqual(set(manifest["constructs"]["tcolorbox_styles"]), {"featurebox", "notebox"})
             self.assertIn("subsubsection*", manifest["constructs"]["sectioning"])
+            self.assertIn("paragraph*", manifest["constructs"]["sectioning"])
             self.assertIn("paragraph", manifest["constructs"]["standard_serialization"])
             self.assertIn("response_list", manifest["constructs"]["standard_serialization"])
             self.assertEqual(manifest["visibility_constraints"]["hidden_by_default_environments"], ["answershow"])
             self.assertEqual(manifest["toc_capability"]["effective_tocdepth"], 1)
             self.assertEqual(manifest["toc_capability"]["native_visible_entry_types"], ["chapter", "section"])
+            self.assertEqual(
+                manifest["toc_capability"]["entry_type_depths"]["paragraph"],
+                4,
+            )
             self.assertTrue(manifest["toc_capability"]["serialization_strategies"]["localized_depth_override"]["preserves_pdf_outline_level"])
 
     def test_template_capability_payload_hash_ignores_runtime_paths(self):

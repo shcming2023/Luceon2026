@@ -26,7 +26,7 @@ try:
 except ImportError as exc:  # fail clearly instead of silently changing media representation
     raise SystemExit(f"required media dependency unavailable: {exc}")
 
-VERSION = "frozen-plan-renderer/1.9.0"
+VERSION = "frozen-plan-renderer/1.9.1"
 
 
 def load_delivery_compatibility():
@@ -385,7 +385,13 @@ def serialize(
             construct = node["target_construct"]
             payload = node["payload"]
             parameters = node["construct_parameters"]
-            if construct in {"chapter*", "section*", "subsection*"}:
+            if construct in {
+                "chapter*",
+                "section*",
+                "subsection*",
+                "subsubsection*",
+                "paragraph*",
+            }:
                 command = construct[:-1]
                 title = mixed_text(payload["title"])
                 lines = [rf"\{command}*{{{title}}}"]
@@ -409,8 +415,6 @@ def serialize(
                     else:
                         raise ValueError(f"unsupported frozen TOC visibility strategy: {node['render_node_id']} {strategy}")
                 emit(node, lines)
-            elif construct == "subsubsection*":
-                emit(node, [rf"\subsubsection*{{{mixed_text(payload['title'])}}}"])
             elif construct == "tcolorbox":
                 title = parameters.get("title", payload.get("title"))
                 if not isinstance(title, str):

@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any
 
 
-VERSION = "spec04c-construct-binding-contract/1.4.0"
+VERSION = "spec04c-construct-binding-contract/1.4.1"
 CONTRACT_SCHEMA = "spec04c-construct-binding-contract/1.0"
 STAGE_SCHEMA = "spec04c-construct-stage-manifest/1.0"
 MANIFEST_SCHEMA = "template-capability-manifest/2.0"
@@ -34,7 +34,13 @@ FORBIDDEN_KEYS = {
     "render_plan", "render_node_id", "payload", "payload_hash", "latex",
     "formula_reconstruction", "table_reconstruction", "output_anchor",
 }
-TOC_ENTRY_DEPTHS = {"chapter": 0, "section": 1, "subsection": 2, "subsubsection": 3}
+TOC_ENTRY_DEPTHS = {
+    "chapter": 0,
+    "section": 1,
+    "subsection": 2,
+    "subsubsection": 3,
+    "paragraph": 4,
+}
 
 
 def now() -> str:
@@ -284,6 +290,7 @@ def extract_template_capabilities(template_intake: Path, template_zip: Path) -> 
     for name in ("chapter", "section", "subsection", "subsubsection"):
         if re.search(rf"\\(?:titleformat|titlespacing)\{{\\{name}\}}", combined) or re.search(rf"\\{name}(?:\*|\{{)", combined):
             sectioning.extend([name, f"{name}*"])
+    sectioning.extend(["paragraph", "paragraph*"])
     custom_envs = sorted(set(re.findall(r"\\newtcolorbox\{([^}]+)\}", entry_text)) | set(re.findall(r"\\(?:newenvironment|NewEnviron)\{([^}]+)\}", entry_text)))
     custom_commands = sorted(set(re.findall(r"\\(?:newcommand|renewcommand)\{\\([A-Za-z@]+)\}", entry_text)))
     hidden_envs = sorted(set(re.findall(r"\\excludecomment\{([^}]+)\}", entry_text)))

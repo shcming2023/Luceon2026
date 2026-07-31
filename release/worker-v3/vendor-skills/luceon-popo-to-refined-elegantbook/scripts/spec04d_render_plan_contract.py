@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 
-VERSION = "spec04d-render-plan-contract/1.7.0"
+VERSION = "spec04d-render-plan-contract/1.7.1"
 STAGE_SCHEMA = "spec04d-render-plan-stage-manifest/1.0"
 COMPACT_TASK_SCHEMA = "luceon.worker-v3-spec04d-compact-task/v1"
 COMPACT_REVIEW_SCHEMA = "luceon.worker-v3-spec04d-compact-review/v1"
@@ -262,10 +262,7 @@ def _deterministic_render_policy(
     ):
         raise ValueError("Spec 04-D compact task lacks closed structure/template capability")
     levels = sorted({item.get("level") for item in hierarchy})
-    if (
-        any(not isinstance(level, int) or level < 0 for level in levels)
-        or len(levels) > 4
-    ):
+    if any(not isinstance(level, int) or level < 0 for level in levels):
         raise ValueError("Spec 04-D structure levels are unsupported")
     entry_depths = toc.get("entry_type_depths")
     if not isinstance(entry_depths, dict):

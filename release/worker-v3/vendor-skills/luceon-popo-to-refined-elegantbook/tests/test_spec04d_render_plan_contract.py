@@ -44,11 +44,22 @@ class Spec04DRenderPlanTests(unittest.TestCase):
         }
 
     def toc_capability(self, effective_depth=1):
+        entry_type_depths = {
+            "chapter": 0,
+            "section": 1,
+            "subsection": 2,
+            "subsubsection": 3,
+            "paragraph": 4,
+        }
         return {
-            "entry_type_depths": {"chapter": 0, "section": 1, "subsection": 2, "subsubsection": 3},
+            "entry_type_depths": entry_type_depths,
             "effective_tocdepth": effective_depth,
             "effective_tocdepth_status": "explicitly_declared",
-            "native_visible_entry_types": [name for name, depth in {"chapter": 0, "section": 1, "subsection": 2, "subsubsection": 3}.items() if depth <= effective_depth],
+            "native_visible_entry_types": [
+                name
+                for name, depth in entry_type_depths.items()
+                if depth <= effective_depth
+            ],
             "serialization_strategies": {
                 "native": {"supported": True, "preserves_entry_type": True},
                 "localized_depth_override": {
@@ -111,6 +122,7 @@ class Spec04DRenderPlanTests(unittest.TestCase):
                     "section*",
                     "subsection*",
                     "subsubsection*",
+                    "paragraph*",
                 ],
                 "standard_serialization": {
                     "paragraph": {},
@@ -186,6 +198,71 @@ class Spec04DRenderPlanTests(unittest.TestCase):
             {"0": "chapter"},
         )
         self.assertEqual(policy["structure_source_role_overrides"], [])
+        MODULE.validate_policy(policy)
+
+    def test_standard_paragraph_preserves_fifth_frozen_structure_level(self):
+        inputs = self.compact_inputs()
+        records = []
+        hierarchy = []
+        entries = []
+        for level in range(5):
+            block_id = f"s{level}"
+            node_id = f"node-{level}"
+            title = f"Level {level}"
+            records.append(
+                self.record(
+                    block_id,
+                    level + 1,
+                    source_type="title",
+                    disposition="book_structure",
+                    raw=title,
+                )
+            )
+            hierarchy.append({
+                "node_id": node_id,
+                "anchor_block_id": block_id,
+                "heading_evidence_block_ids": [block_id],
+                "level": level,
+                "parent_node_id": f"node-{level - 1}" if level else None,
+                "role": "source_structure",
+                "source_order_start": level + 1,
+                "source_order_end": level + 1,
+                "pdf_physical_page_start": 1,
+                "source_outline_evidence_ids": ["page-1"],
+                "source_toc_entry_ids": [],
+                "final_toc": {
+                    "title": title,
+                    "include": True,
+                    "level": level,
+                },
+            })
+            entries.append({
+                "level": level,
+                "node_id": node_id,
+                "source_order": level + 1,
+                "source_toc_entry_ids": [],
+                "title": title,
+                "toc_entry_id": f"toc::{node_id}",
+            })
+        inputs["records"] = records
+        inputs["outline"]["body_hierarchy"] = hierarchy
+        inputs["final_toc"]["entries"] = entries
+
+        task = MODULE.render_policy_review_task(**inputs)
+        review = {
+            "schema_version": MODULE.COMPACT_REVIEW_SCHEMA,
+            "task_id": task["task_id"],
+            "review_status": "closed",
+            "decisions": [],
+            "open_reviews": [],
+        }
+        policy = MODULE.project_policy_review(task, review)
+
+        self.assertEqual(policy["structure_level_constructs"]["4"], "paragraph*")
+        self.assertEqual(
+            policy["toc_representation"]["semantic_level_to_entry_type"]["4"],
+            "paragraph",
+        )
         MODULE.validate_policy(policy)
 
     def test_non_title_candidate_projects_only_selected_source_role(self):

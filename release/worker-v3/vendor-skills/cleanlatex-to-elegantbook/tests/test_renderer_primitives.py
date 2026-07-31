@@ -180,6 +180,47 @@ class RendererPrimitiveTests(unittest.TestCase):
         self.assertEqual(copied, {})
         self.assertEqual(crops, {})
 
+    def test_standard_paragraph_fifth_level_toc_is_serialized(self):
+        plan = {"nodes": [{
+            "render_node_id": "render::paragraph-toc",
+            "source_block_ids": ["s1"],
+            "target_construct": "paragraph*",
+            "construct_parameters": {
+                "toc": True,
+                "level": 4,
+                "toc_entry_level": "paragraph",
+                "toc_visibility_strategy": "localized_depth_override",
+                "toc_depth_override": 4,
+            },
+            "payload": {"title": "Exercise 1.1A"},
+            "payload_hash": "a" * 64,
+        }]}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            project = root / "project"
+            project.mkdir()
+            rendered, emissions, copied, crops = MODULE.serialize(
+                plan,
+                project,
+                [],
+                None,
+                None,
+                root,
+            )
+        text = rendered.decode("utf-8")
+        self.assertIn(r"\paragraph*{Exercise 1.1A}", text)
+        self.assertIn(
+            r"\addtocontents{toc}{\protect\begingroup\protect\setcounter{tocdepth}{4}}",
+            text,
+        )
+        self.assertIn(
+            r"\addcontentsline{toc}{paragraph}{Exercise 1.1A}",
+            text,
+        )
+        self.assertEqual(len(emissions), 1)
+        self.assertEqual(copied, {})
+        self.assertEqual(crops, {})
+
     def test_source_region_presentation_is_pixel_and_scope_bound(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
