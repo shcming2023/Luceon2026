@@ -21,7 +21,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean \
     && sed -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' /app/worker-v3-system-packages.lock > /tmp/worker-v3-system-packages.install \
     && apt-get -o Acquire::Retries=5 update \
-    && DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y --no-install-recommends $(cat /tmp/worker-v3-system-packages.install) \
+    && while IFS= read -r package; do \
+         DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y --no-install-recommends "$package"; \
+       done < /tmp/worker-v3-system-packages.install \
     && rm -f /tmp/worker-v3-system-packages.install
 
 COPY requirements-worker-v3.lock /app/requirements-worker-v3.lock

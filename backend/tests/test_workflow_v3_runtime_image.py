@@ -42,6 +42,14 @@ def test_worker_v3_runtime_is_digest_pinned_hash_locked_and_non_root() -> None:
     assert "chown -R 10003:10003 /worker-v3 /opt/worker-v3" not in dockerfile
 
 
+def test_worker_v3_system_lock_is_installed_in_bounded_batches() -> None:
+    dockerfile = DOCKERFILE.read_text(encoding="utf-8")
+
+    assert "while IFS= read -r package; do" in dockerfile
+    assert 'install -y --no-install-recommends "$package"' in dockerfile
+    assert "$(cat /tmp/worker-v3-system-packages.install)" not in dockerfile
+
+
 def test_worker_v3_docker_context_excludes_codex_expert_runtime() -> None:
     dockerignore = (BACKEND_ROOT / ".dockerignore").read_text(encoding="utf-8")
     required_patterns = {
