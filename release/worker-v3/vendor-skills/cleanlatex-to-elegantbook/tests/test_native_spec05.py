@@ -151,6 +151,21 @@ def test_build_policy_rejects_unknown_renderer(tmp_path: Path) -> None:
         raise AssertionError("unknown renderer must be rejected")
 
 
+def test_spec01_template_intake_uses_archive_sha256(tmp_path: Path) -> None:
+    intake = tmp_path / "template-intake.json"
+    intake.write_text(
+        json.dumps(
+            {
+                "schema_version": "template-intake/1.0",
+                "archive_sha256": "a" * 64,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert MODULE.template_intake_archive_sha256(intake) == "a" * 64
+
+
 def test_delivery_zip_size_gate_is_strict_at_50mb(tmp_path: Path) -> None:
     below = tmp_path / "below.zip"
     below.write_bytes(b"x")

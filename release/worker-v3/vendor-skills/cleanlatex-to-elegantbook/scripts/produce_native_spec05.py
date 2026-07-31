@@ -54,6 +54,18 @@ def read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def template_intake_archive_sha256(path: Path) -> str:
+    intake = read_json(path)
+    value = intake.get("archive_sha256") if isinstance(intake, dict) else None
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise ValueError("Spec 01 template intake has no valid archive_sha256")
+    return value
+
+
 def write_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -1160,7 +1172,7 @@ def produce(args: argparse.Namespace) -> dict[str, Any]:
         raise ValueError("legacy single-volume plan cannot be invoked as a volume child")
     if sha256_file(args.capability_manifest.resolve()) != plan.get("capability_manifest_file_sha256"):
         raise ValueError("Spec 04-D render plan and supplied capability manifest differ")
-    if sha256_file(args.template_zip.resolve()) != read_json(args.template_intake.resolve()).get("template_zip_sha256"):
+    if sha256_file(args.template_zip.resolve()) != template_intake_archive_sha256(args.template_intake.resolve()):
         raise ValueError("template ZIP and Spec 01 template intake differ")
     if sha256_file(args.media_representation_plan.resolve()) not in {
         (node.get("media_binding") or node.get("payload", {}).get("media_binding") or {}).get("media_representation_plan_sha256")
