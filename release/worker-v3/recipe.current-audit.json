@@ -191,7 +191,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec05_06_stage_adapters.py",
       "destination": "scripts/worker-v3/spec05_06_stage_adapters.py",
-      "expected_sha256": "7ce4558f8864503c6a210f1d1f213d56005d36b14d442153d1ed1e4bf86c08b7"
+      "expected_sha256": "f000d4b0db0f9f68284fbd506dd56a34adeee09b4716d0f6d1f84a92d2a6beff"
     },
     {
       "id": "worker-v3-stage-evaluators-runtime",
@@ -218,7 +218,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/overleaf_compiler.py",
       "destination": "scripts/worker-v3/overleaf_compiler.py",
-      "expected_sha256": "cc77967f719d2a7f9ad9aff47a6f0b6f77f8ce37c438a031c4400ece8eb1049a"
+      "expected_sha256": "669ef6b29808edd7308a5ba64a007ebf309787058d480a9957a7aa396f0a26b9"
     },
     {
       "id": "worker-v3-overleaf-compiler-service",
@@ -227,7 +227,7 @@
       "root": "worker_v3",
       "path": "backend/overleaf-adapter/compiler_service.py",
       "destination": "scripts/worker-v3/overleaf-adapter/compiler_service.py",
-      "expected_sha256": "141557c44bd48ed3a7f651615cdf73a97e373bfa6f738db21489b2224d201a59"
+      "expected_sha256": "3ce6569dcc7c7a7c6e18caeb43f97f8bb6716623859dc03714475450b5c48dda"
     },
     {
       "id": "worker-v3-overleaf-compiler-dockerfile",
@@ -362,7 +362,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/overleaf-target-environment.json",
       "destination": "runtime/overleaf-target-environment.json",
-      "expected_sha256": "684c334f7cf9c90c22d4a9a73a6c026284e2c900759d22962e5c089bf723297d"
+      "expected_sha256": "f2b06cbb494216ee7b84f49a3b3f0440b878cb39fbb5d2e702e8498285854512"
     },
     {
       "id": "worker-v3-spec05-build-policy",
@@ -914,7 +914,7 @@
       "identity": "runtime/ordinary-runtime-identity.json",
       "overleaf_compiler": {
         "profile_path": "runtime/overleaf-target-environment.json",
-        "profile_sha256": "684c334f7cf9c90c22d4a9a73a6c026284e2c900759d22962e5c089bf723297d"
+        "profile_sha256": "f2b06cbb494216ee7b84f49a3b3f0440b878cb39fbb5d2e702e8498285854512"
       },
       "spec05_build": {
         "profile_path": "runtime/spec05-build-policy.json",

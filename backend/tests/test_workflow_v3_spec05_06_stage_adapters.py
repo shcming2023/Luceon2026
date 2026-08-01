@@ -95,6 +95,8 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
         (media_plan, b"{}\n"),
         (assets / "media/media_evidence_ledger.json", b"{}\n"),
         (assets / "media/media_representation_plan.json", b"{}\n"),
+        (assets / "contracts/input_contract.json", b'{"material_identity":{}}\n'),
+        (assets / "contracts/source_trace.json", b'{"source_pdf":{}}\n'),
     ):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(payload)
@@ -249,6 +251,11 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
         "render/volume_partition_plan.json",
     ):
         assert (output / relative).read_bytes() == (parent / relative).read_bytes()
+    for relative in (
+        "contracts/input_contract.json",
+        "contracts/source_trace.json",
+    ):
+        assert (output / relative).read_bytes() == (assets / relative).read_bytes()
     assert not (parent / "template/template_capability_manifest.json").exists()
     assert not (parent / "media/media_evidence_ledger.json").exists()
     assert not (parent / "media/media_representation_plan.json").exists()
@@ -654,7 +661,11 @@ def test_delivery_evaluator_recompiles_exact_zip_instead_of_trusting_report(
         "limits": {
             "max_zip_bytes": MAX_ZIP_BYTES,
                 "max_image_bytes": MAX_IMAGE_BYTES,
-                "allowed_root_files": ["main.tex", "elegantbook.cls"],
+                "allowed_root_files": [
+                    "main.tex",
+                    "elegantbook.cls",
+                    "reference.bib",
+                ],
                 "allowed_asset_directories": ["figure", "images"],
                 "allowed_body_files": ["body/generated-body.tex"],
                 "allowed_body_directories": ["body/units"],

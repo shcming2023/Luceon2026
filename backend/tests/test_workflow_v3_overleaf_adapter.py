@@ -87,7 +87,11 @@ def _target(
         "limits": {
             "max_zip_bytes": MAX_ZIP_BYTES,
             "max_image_bytes": MAX_IMAGE_BYTES,
-            "allowed_root_files": ["main.tex", "elegantbook.cls"],
+            "allowed_root_files": [
+                "main.tex",
+                "elegantbook.cls",
+                "reference.bib",
+            ],
             "allowed_asset_directories": ["figure", "images"],
             "allowed_body_files": ["body/generated-body.tex"],
             "allowed_body_directories": ["body/units"],
@@ -246,7 +250,7 @@ class _Client:
         return False
 
     def stream(self, _method, _url, *, headers, content):
-        content.read()
+        assert isinstance(content, bytes)
         body = _result_archive(
             headers=headers,
             target=self.target,
@@ -360,6 +364,7 @@ def test_client_fails_closed_on_http_or_runtime_drift(tmp_path: Path) -> None:
         "../escape.tex",
         "body/unapproved.tex",
         "images/not-an-image.txt",
+        "other.bib",
     ),
 )
 def test_service_secure_extraction_rejects_unapproved_members(
@@ -376,6 +381,7 @@ def test_service_accepts_formal_semantic_body_profile(tmp_path: Path) -> None:
     delivery = tmp_path / "formal-delivery.zip"
     _delivery(delivery)
     with zipfile.ZipFile(delivery, "a", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("reference.bib", "")
         archive.writestr(
             "body/generated-body.tex",
             "\\input{body/units/unit-0001/part-0001.tex}\n",
@@ -390,6 +396,7 @@ def test_service_accepts_formal_semantic_body_profile(tmp_path: Path) -> None:
         tmp_path
         / "formal-project/body/units/unit-0001/part-0001.tex"
     ).read_text(encoding="utf-8") == "Source-faithful body.\n"
+    assert (tmp_path / "formal-project/reference.bib").read_bytes() == b""
 
 
 def test_service_rejects_symlink_and_oversized_image(tmp_path: Path) -> None:

@@ -50,7 +50,9 @@ MAX_COMPRESSION_RATIO = 1_000
 MAX_LOG_BYTES = 20_000_000
 MAX_PDF_BYTES = 1_000_000_000
 COMPILE_TIMEOUT_SECONDS = 1_200
-_ALLOWED_ROOT_FILES = frozenset({"main.tex", "elegantbook.cls"})
+_ALLOWED_ROOT_FILES = frozenset(
+    {"main.tex", "elegantbook.cls", "reference.bib"}
+)
 _ALLOWED_ASSET_DIRS = frozenset({"images", "figure"})
 _ALLOWED_BODY_FILE = PurePosixPath("body/generated-body.tex")
 _ALLOWED_BODY_PREFIX = ("body", "units")

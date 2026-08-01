@@ -292,6 +292,7 @@ def _produce_spec05(
         accepted_returncodes=(0, 1),
     )
     _materialize_page_provenance_inputs(parent, output)
+    _materialize_source_lineage_inputs(assets, output)
     if execution.returncode == 1:
         review_state_path = run / "reports/needs_review.json"
         warning_path = run / "reports/compile_warnings.json"
@@ -867,6 +868,19 @@ def _materialize_page_provenance_inputs(parent: Path, output: Path) -> None:
         "render/volume_partition_plan.json",
     ):
         source = _required(parent, relative)
+        target = output / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+
+
+def _materialize_source_lineage_inputs(source_assets: Path, output: Path) -> None:
+    """Carry the frozen Spec 01 source identity into the Spec 05 bundle."""
+
+    for relative in (
+        "contracts/input_contract.json",
+        "contracts/source_trace.json",
+    ):
+        source = _required(source_assets, relative)
         target = output / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)

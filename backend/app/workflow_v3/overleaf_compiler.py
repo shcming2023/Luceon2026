@@ -113,7 +113,8 @@ def validate_target_environment(raw: Mapping[str, Any]) -> dict[str, Any]:
         }
         or limits.get("max_zip_bytes") != MAX_ZIP_BYTES
         or limits.get("max_image_bytes") != MAX_IMAGE_BYTES
-        or limits.get("allowed_root_files") != ["main.tex", "elegantbook.cls"]
+        or limits.get("allowed_root_files")
+        != ["main.tex", "elegantbook.cls", "reference.bib"]
         or limits.get("allowed_asset_directories") != ["figure", "images"]
         or limits.get("allowed_body_files") != ["body/generated-body.tex"]
         or limits.get("allowed_body_directories") != ["body/units"]
@@ -214,7 +215,8 @@ def compile_overleaf_delivery(
     }
     timeout = httpx.Timeout(connect=10.0, read=1_260.0, write=120.0, pool=10.0)
     try:
-        with zip_path.open("rb") as source, client_factory(
+        payload = zip_path.read_bytes()
+        with client_factory(
             timeout=timeout,
             follow_redirects=False,
             trust_env=False,
@@ -223,7 +225,7 @@ def compile_overleaf_delivery(
                 "POST",
                 str(target["endpoint"]),
                 headers=headers,
-                content=source,
+                content=payload,
             ) as response:
                 if response.status_code != 200:
                     raise StageEntrypointError(
