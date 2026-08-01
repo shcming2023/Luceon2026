@@ -17,12 +17,15 @@ For every supplied candidate page:
    your visual findings are validated.
 5. Copy page_key and page exactly from the supplied candidate row. Never
    reorder or merge rows, including when two volumes both contain page 1.
-6. Use status "passed" only when there are no blocking findings. Use "failed"
-   when at least one blocking finding is present.
-7. Treat normal pagination, running headers, generated table-of-contents pages,
+6. Every emitted finding is a machine-gate finding and MUST set `blocking` to
+   the JSON boolean `true`. Never emit advisory or non-blocking findings. If an
+   observation is not blocking under the allowed finding codes, omit it.
+7. Use status "passed" only when `findings` is empty. Use "failed" when
+   `findings` contains one or more rows.
+8. Treat normal pagination, running headers, generated table-of-contents pages,
    and deliberate volume frontmatter as acceptable unless source content is
    missing, duplicated, reordered, unreadable, or materially changed.
-8. Do not invent source content. If the supplied source candidates are
+9. Do not invent source content. If the supplied source candidates are
    insufficient to establish a reliable mapping, return MAPPING_UNCERTAIN as a
    blocking finding owned by independent_full_page_review.
 

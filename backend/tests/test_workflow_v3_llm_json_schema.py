@@ -133,6 +133,29 @@ def test_every_formal_prompt_output_schema_uses_the_supported_fail_closed_subset
         validate_json_schema_definition(schema)
 
 
+def test_spec06_prompt_and_schema_forbid_nonblocking_findings():
+    prompt = (
+        RELEASE_ROOT
+        / "prompts/spec06-full-page-source-fidelity-review-v1.txt"
+    ).read_text(encoding="utf-8")
+    schema = _json(
+        RELEASE_ROOT
+        / "schemas/spec06-full-page-source-fidelity-review-v1.schema.json"
+    )
+
+    assert "Every emitted finding is a machine-gate finding" in prompt
+    assert "MUST set `blocking` to" in prompt
+    assert "Never emit advisory or non-blocking findings" in prompt
+    assert "Use status \"passed\" only when `findings` is empty" in prompt
+    finding = schema["properties"]["pages"]["items"]["properties"][
+        "findings"
+    ]["items"]
+    assert finding["properties"]["blocking"] == {
+        "type": "boolean",
+        "const": True,
+    }
+
+
 def test_spec04d_schema_accepts_valid_output_with_local_defs_refs():
     validate_json_schema(_valid_spec04d_output(), _json(SPEC04D_SCHEMA_PATH))
 

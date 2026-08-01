@@ -281,7 +281,7 @@
       "include": [
         "spec*.txt"
       ],
-      "expected_tree_sha256": "4259cb2134e5a7fe438f75e7b9179445d6a9f9027b691901cfb2bade217cd18b"
+      "expected_tree_sha256": "8267d62842f5fd61f383b86d4c187355eaf0f11e6994ef86953c32c446a6b50e"
     },
     {
       "id": "worker-v3-ordinary-schemas",
@@ -766,7 +766,7 @@
     },
     {
       "id": "worker-v3.spec06-full-page-source-fidelity-review",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "path": "prompts/spec06-full-page-source-fidelity-review-v1.txt",
       "output_schema": "schemas/spec06-full-page-source-fidelity-review-v1.schema.json"
     }
