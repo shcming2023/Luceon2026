@@ -1344,17 +1344,24 @@ def _pdf_page_count(path: Path) -> int:
 def _pdf_page_raster_sha256(path: Path) -> list[str]:
     try:
         with fitz.open(path) as document:
-            return [
-                hashlib.sha256(
-                    document.load_page(index).get_pixmap(
-                        matrix=fitz.Matrix(2, 2),
-                        colorspace=fitz.csRGB,
-                        alpha=False,
-                        annots=True,
-                    ).samples
-                ).hexdigest()
-                for index in range(document.page_count)
-            ]
+            hashes: list[str] = []
+            for index in range(document.page_count):
+                pixmap = document.load_page(index).get_pixmap(
+                    matrix=fitz.Matrix(2, 2),
+                    colorspace=fitz.csRGB,
+                    alpha=False,
+                    annots=True,
+                )
+                digest = hashlib.sha256()
+                digest.update(
+                    (
+                        f"{pixmap.width}\n{pixmap.height}\n"
+                        f"{pixmap.n}\n{pixmap.alpha}\n"
+                    ).encode("ascii")
+                )
+                digest.update(pixmap.samples)
+                hashes.append(digest.hexdigest())
+            return hashes
     except Exception as exc:
         _fail("pdf_evidence_invalid", f"cannot rasterize PDF {path.name}: {exc}")
 

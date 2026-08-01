@@ -823,9 +823,13 @@ def test_contract_keeps_spec05_png_and_stage10_review_rasters_separate(
 ) -> None:
     root, release, release_sha, review = _fixture(tmp_path)
     candidate = root / review["volumes"][0]["candidate_pdf"]["path"]
+    source = root / review["source_pdf"]["path"]
     provenance_path = root / review["volumes"][0]["page_provenance"]["path"]
     provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
 
+    assert page_review_contract._pdf_page_raster_sha256(source) == (  # noqa: SLF001
+        stage_evaluators._pdf_page_raster_sha256(source)  # noqa: SLF001
+    )
     assert provenance["pages"][0]["candidate_raster_sha256"] != (
         page_review_contract._pdf_page_raster_sha256(candidate)[0]  # noqa: SLF001
     )
