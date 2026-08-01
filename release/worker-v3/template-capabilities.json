@@ -1,6 +1,10 @@
 {
   "archive_sha256": "ebc5d6575153239552785265d2765de03b76c27d0532137712952f20ad0a9d4d",
   "capabilities": {
+    "body_insertion": {
+      "after_exact_marker": "% ———————————————————— 正文内容从这里开始 ————————————————————",
+      "before_exact_token": "\\end{document}"
+    },
     "body_insertion_candidate": "between the source body marker and end{document}; pending Spec 05 freeze",
     "class": {
       "member": "elegantbook.cls",
@@ -25,7 +29,9 @@
         "subsection",
         "subsection*",
         "subsubsection",
-        "subsubsection*"
+        "subsubsection*",
+        "paragraph",
+        "paragraph*"
       ],
       "standard_serialization": {
         "display_math": {
@@ -193,7 +199,7 @@
       "member": "main.tex",
       "sha256": "b684a7ab0af064111ea36864661a736571340f173c756534343437f4efef71f4"
     },
-    "generator": "spec04c-construct-binding-contract/1.3.0",
+    "generator": "spec04c-construct-binding-contract/1.4.1",
     "schema_version": "template-capability-manifest/2.0",
     "spec05_freeze_status": "pending",
     "supported_parameters": {
@@ -217,6 +223,7 @@
         "toc_default": false,
         "toc_entry_level": [
           "chapter",
+          "paragraph",
           "section",
           "subsection",
           "subsubsection"
@@ -251,6 +258,7 @@
       "effective_tocdepth_status": "explicitly_declared",
       "entry_type_depths": {
         "chapter": 0,
+        "paragraph": 4,
         "section": 1,
         "subsection": 2,
         "subsubsection": 3
@@ -305,8 +313,8 @@
   },
   "class_member": "elegantbook.cls",
   "entry_member": "main.tex",
-  "extractor_sha256": "6fed6bd3a30a251b2f6dfa900e6a0c9467172b1f6bb86f0e16c19135324e0630",
-  "qualification_sha256": "67070408d59c88823d5fea28f96bd79d9e084eda5fbd4694b8873d49a91256df",
+  "extractor_sha256": "ffcd86e972b6386730938fad46e8c4c1c6869b3604ac6077c0c1d99ac45926f6",
+  "qualification_sha256": "25d007ba5b5d2f2b093fb0e427f6a87227bfaf3fc179cb2041b35ac3952f2320",
   "schema_version": "luceon.worker-v3-template-capability-qualification/v1",
   "status": "passed"
 }

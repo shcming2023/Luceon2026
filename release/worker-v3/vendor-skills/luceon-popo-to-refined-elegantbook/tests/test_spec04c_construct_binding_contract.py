@@ -95,6 +95,13 @@ class Spec04CConstructBindingTests(unittest.TestCase):
             self.assertEqual(manifest["toc_capability"]["effective_tocdepth"], 1)
             self.assertEqual(manifest["toc_capability"]["native_visible_entry_types"], ["chapter", "section"])
             self.assertEqual(
+                manifest["body_insertion"],
+                {
+                    "after_exact_marker": r"\tableofcontents",
+                    "before_exact_token": r"\end{document}",
+                },
+            )
+            self.assertEqual(
                 manifest["toc_capability"]["entry_type_depths"]["paragraph"],
                 4,
             )

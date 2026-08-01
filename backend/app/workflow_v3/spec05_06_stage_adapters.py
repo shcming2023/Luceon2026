@@ -140,14 +140,29 @@ def _produce_spec05(
     )
     parameters = require_parameter_keys(
         request,
-        required=("parent_lineage_key", "run_id", "body_marker"),
+        required=("parent_lineage_key", "run_id"),
     )
-    for name in ("parent_lineage_key", "run_id", "body_marker"):
+    for name in ("parent_lineage_key", "run_id"):
         if not isinstance(parameters[name], str) or not parameters[name]:
             raise StageEntrypointError(
                 "stage_parameters_invalid",
                 f"parameter {name!r} must be non-empty text",
             )
+    template_capability = _read_json(
+        inputs.file("template_capability_manifest"),
+        "promoted template capability manifest",
+    )
+    body_insertion = template_capability.get("body_insertion")
+    body_marker = (
+        body_insertion.get("after_exact_marker")
+        if isinstance(body_insertion, dict)
+        else None
+    )
+    if not isinstance(body_marker, str) or not body_marker:
+        raise StageEntrypointError(
+            "template_body_insertion_unbound",
+            "promoted template capability manifest has no exact body insertion marker",
+        )
     registry, promotions = _materialize_native_lineage_bridge(
         request=request,
         inputs=inputs,
@@ -184,7 +199,7 @@ def _produce_spec05(
         "--presentation-config",
         str(inputs.file("presentation_config")),
         "--body-marker",
-        parameters["body_marker"],
+        body_marker,
         "--volume-partition-plan",
         str(_required(parent, "render/volume_partition_plan.json")),
         "--media-evidence-ledger",

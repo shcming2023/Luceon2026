@@ -2207,7 +2207,6 @@ class _StageRequestBuilder:
         return {
             "parent_lineage_key": self._lineage_for("frozen_render_plan"),
             "run_id": str(self._source_evidence().get("run_id") or self.job.public_id),
-            "body_marker": "LUCEON_GENERATED_BODY",
         }
 
     def _render_metadata_evidence_page(

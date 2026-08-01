@@ -75,7 +75,17 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
     for path, payload in (
         (parent / "render/volume_partition_plan.json", b"{}\n"),
         (source_pdf, b"source"),
-        (capability, b"{}\n"),
+        (
+            capability,
+            json.dumps(
+                {
+                    "body_insertion": {
+                        "after_exact_marker": "% frozen body marker",
+                        "before_exact_token": r"\end{document}",
+                    }
+                }
+            ).encode("utf-8"),
+        ),
         (media_evidence, b"{}\n"),
         (media_plan, b"{}\n"),
     ):
@@ -130,7 +140,6 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
         lambda *_args, **_kwargs: {
             "parent_lineage_key": "job:frozen_render_plan",
             "run_id": "run-1",
-            "body_marker": "LUCEON_GENERATED_BODY",
         },
     )
 
@@ -145,6 +154,8 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
         assert Path(args[index + 1]) == media_evidence
         index = args.index("--media-representation-plan")
         assert Path(args[index + 1]) == media_plan
+        index = args.index("--body-marker")
+        assert args[index + 1] == "% frozen body marker"
         run = output / "spec05/manifests"
         _json(
             run / "spec05_native_stage_manifest.json",

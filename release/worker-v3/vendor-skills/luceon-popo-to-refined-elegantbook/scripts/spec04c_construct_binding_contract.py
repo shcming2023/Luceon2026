@@ -266,6 +266,17 @@ def extract_template_capabilities(template_intake: Path, template_zip: Path) -> 
     class_text = class_bytes.decode("utf-8")
     combined = entry_text + "\n" + class_text
 
+    body_end_token = r"\end{document}"
+    if entry_text.count(body_end_token) != 1:
+        raise ValueError("template entry must contain exactly one document end token")
+    body_prefix = entry_text.split(body_end_token, 1)[0]
+    body_marker = next(
+        (line.strip() for line in reversed(body_prefix.splitlines()) if line.strip()),
+        None,
+    )
+    if not body_marker or entry_text.count(body_marker) != 1:
+        raise ValueError("template entry has no unique final body insertion marker")
+
     documentclass = re.search(r"\\documentclass\[([^]]*)\]\{([^}]+)\}", entry_text)
     if not documentclass:
         raise ValueError("template entry lacks a deterministic documentclass declaration")
@@ -364,6 +375,10 @@ def extract_template_capabilities(template_intake: Path, template_zip: Path) -> 
             "source_visible_content_forbidden_in_hidden_environment": True,
         },
         "toc_capability": toc_capability,
+        "body_insertion": {
+            "after_exact_marker": body_marker,
+            "before_exact_token": body_end_token,
+        },
         "body_insertion_candidate": "between the source body marker and end{document}; pending Spec 05 freeze",
         "spec05_freeze_status": "pending",
     }
