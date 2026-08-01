@@ -1,10 +1,10 @@
 {
   "architecture": "arm64",
   "build_status": "cached_qualification_build_succeeded",
-  "built_at": "2026-08-01T09:09:26Z",
-  "image_id": "sha256:22caf7fd94ef414a13fe8f428e3abe5a21cff0dffc3fc161a2abeee58cc7bba3",
-  "image_size_bytes": 1457084678,
-  "local_manifest_digest": "sha256:22caf7fd94ef414a13fe8f428e3abe5a21cff0dffc3fc161a2abeee58cc7bba3",
+  "built_at": "2026-08-01T11:01:22Z",
+  "image_id": "sha256:51b6d26505e089903c77b80a78cb2beaf42d1fcb47f1d487c049c2340426da0a",
+  "image_size_bytes": 1457085385,
+  "local_manifest_digest": "sha256:51b6d26505e089903c77b80a78cb2beaf42d1fcb47f1d487c049c2340426da0a",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
     "pages": 2,
@@ -209,30 +209,35 @@
       "image_digest": "sha256:5742c537a8a7d09f7bd8b1c78783bf5635412d34ce08516f0d894afd060a3c60",
       "reason": "OCI revision label was not the actual full source revision 521fee15ee857cf07115eb77d369c7597c2887ab",
       "status": "rejected_before_qualification"
+    },
+    {
+      "image_digest": "sha256:5bbeac8d5141bf686edd41820094b412eb3b0a5400867f245c22e01a5fc1110f",
+      "reason": "OCI revision label used the short source revision 179da09 instead of the exact full source revision 179da09a7ab2f9c366e07c60add6559e3c1dc65a; its content tests passed, but the image was rejected before release evidence binding",
+      "status": "rejected_before_qualification"
     }
   ],
-  "runtime_id": "worker-v3-runtime-rc-25ea95c-qual",
+  "runtime_id": "worker-v3-runtime-rc-179da09-qual2",
   "runtime_identity": {
-    "control_plane_tree_sha256": "bc6bd3c9e8b9d1b19cfee5bc02f6238a847f80630792da6fbd4e41440e7c63d5",
+    "control_plane_tree_sha256": "5524198bc956a6cf6ad0ea0946238bf79c14b18d1a0829d07642596d074a09a0",
     "effective_uid": 10003,
-    "evidence_sha256": "04f9acf00ae4cb5684a4f8978c30b84f0b46f718c90ba8cc85315c220c2b622a",
+    "evidence_sha256": "dd1ae4bf5277820018f984730668b712b91c0d81053fadd9a568fe7dae841ca1",
     "status": "passed",
     "system_lock_entries": 19
   },
   "sbom": {
     "component_count": 422,
-    "evidence_sha256": "c9f31b8d89ae2409f363661d7a768bae61aad986784aa2e2506f46fd26c52a2e",
+    "evidence_sha256": "2c56461d3fabad6abc4c9cc6eaf96d9f446461c5ef8a19d62b5cd34c5f27cd00",
     "format": "CycloneDX",
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "25ea95c78cff0fc80f987401f3a1d2de5574ab6c",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-25ea95c-qual",
+  "source_revision": "179da09a7ab2f9c366e07c60add6559e3c1dc65a",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-179da09-qual2",
   "tests": {
-    "targeted_repository_regression": "24 focused visual-review and page-review-contract tests passed; complete host Worker V3 suite excluding the host environment pypdf collection gap passed 355 tests with 2 skips",
+    "targeted_repository_regression": "40 focused Overleaf-adapter, visual-review, runtime-image and release-recipe tests passed with one integration skip before exact-image qualification",
     "runtime_identity_gate": "passed with no network and digest-pinned reference: non-root UID 10003, exact control-plane tree and 19 locked system packages",
-    "repository_static_tests": "release source verify-only passed with 24 formal entrypoints, 38 sources and four honest qualification gaps",
-    "exact_image_regression": "332 image-applicable Worker V3 tests passed with one skip; ten repository-root-only tests were excluded in-image and passed in the host suite",
+    "repository_static_tests": "release source verify-only passed with 24 formal entrypoints, 39 sources and three honest qualification gaps before runtime evidence rebinding",
+    "exact_image_regression": "977 tests passed with 2 skips inside the exact digest-pinned image under no-network, non-root, read-only-rootfs and noexec production tmpfs constraints; a dedicated exec tmpfs was limited to pytest-generated executable fixtures",
     "locked_template_smoke": "passed with no network: frozen template class SHA-256 048c3b90da41be64f4744da3bff6ae8c5ea7abd30a5f3e2a6ad1a98f3b0d71fe, 2 pages, PDF SHA-256 1b7c46620bb59ccf6d539c5c3834715a3993735e3c660b08124bc8b0a08d9dae",
     "production_boundary": "Expert Broker, Codex App Server, Codex SDK adapter, cross-UID runner, Codex expert runtime entrypoints, Codex binary and Codex/OpenAI credentials are absent",
     "warnings": "Existing Python and SQLAlchemy deprecation warnings remain non-blocking; no applicable test failure remains. The image is a cached qualification build, not the final clean-build release image."
