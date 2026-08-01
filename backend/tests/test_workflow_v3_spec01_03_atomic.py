@@ -341,6 +341,41 @@ def _common(output: Path, *, run_id: str) -> dict[str, Any]:
     }
 
 
+def test_materialized_parent_accepts_empty_media_atoms_jsonl(
+    tmp_path: Path,
+) -> None:
+    parent = tmp_path / "parent"
+    media_atoms = parent / "source/mineru_media_atoms.jsonl"
+    media_atoms.parent.mkdir(parents=True)
+    media_atoms.write_bytes(b"")
+    _write_json(
+        parent / "contracts/input_contract.json",
+        {
+            "schema_version": kernel.INTAKE_SCHEMA,
+            "spec_status": "passed",
+        },
+    )
+    _write_json(
+        parent / "contracts/materialized_manifest.json",
+        {
+            "schema_version": "compact-reference-manifest/1.0",
+            "external_frozen_inputs_are_not_materialized": True,
+            "entries": [
+                {
+                    "path": "source/mineru_media_atoms.jsonl",
+                    "sha256": _sha(media_atoms),
+                    "size_bytes": 0,
+                    "read_only_source": True,
+                }
+            ],
+        },
+    )
+
+    contract = kernel._verify_materialized_parent(parent)  # noqa: SLF001
+
+    assert contract["spec_status"] == "passed"
+
+
 def _run_pipeline(root: Path, *, padding_bytes: int = 0) -> tuple[Path, Path, Path, dict[str, Path]]:
     paths = _fixture(root, padding_bytes=padding_bytes)
     spec01 = root / "spec01"

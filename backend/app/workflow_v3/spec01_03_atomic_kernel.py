@@ -1727,7 +1727,12 @@ def _verify_materialized_parent(parent: Path) -> dict[str, Any]:
         path = _contained_file(parent, relative, f"materialized entry {relative}")
         if _require_sha(row.get("sha256"), f"{relative}.sha256") != _sha256(path):
             _fail("parent_materialization_drift", f"{relative} hash drifted")
-        if _require_positive_int(row.get("size_bytes"), f"{relative}.size_bytes") != path.stat().st_size:
+        size_parser = (
+            _require_nonnegative_int
+            if relative == "source/mineru_media_atoms.jsonl"
+            else _require_positive_int
+        )
+        if size_parser(row.get("size_bytes"), f"{relative}.size_bytes") != path.stat().st_size:
             _fail("parent_materialization_drift", f"{relative} size drifted")
     return contract
 
