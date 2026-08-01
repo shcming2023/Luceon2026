@@ -1,10 +1,10 @@
 {
   "architecture": "arm64",
   "build_status": "cached_qualification_build_succeeded",
-  "built_at": "2026-08-01T11:43:33Z",
-  "image_id": "sha256:a359ecfacb0b2d994d45c4138f0d7ee7bf566997b80ab84fb605369449a0ff96",
-  "image_size_bytes": 1457088674,
-  "local_manifest_digest": "sha256:a359ecfacb0b2d994d45c4138f0d7ee7bf566997b80ab84fb605369449a0ff96",
+  "built_at": "2026-08-01T13:01:43Z",
+  "image_id": "sha256:d3941cb9e2efc85ee8207dfb4d8687f11b1024fdd4944af9a50ebf5b2a882da6",
+  "image_size_bytes": 1457089025,
+  "local_manifest_digest": "sha256:d3941cb9e2efc85ee8207dfb4d8687f11b1024fdd4944af9a50ebf5b2a882da6",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
     "pages": 2,
@@ -16,6 +16,12 @@
   "registry_digest": null,
   "registry_status": "pending_until_push",
   "superseded_builds": [
+    {
+      "image_digest": "sha256:a359ecfacb0b2d994d45c4138f0d7ee7bf566997b80ab84fb605369449a0ff96",
+      "reason": "real-material full-page visual qualification returned an advisory finding with blocking=false even though the frozen schema admits only machine-gate findings; the replacement prompt requires blocking=true for every emitted finding and omits advisory observations",
+      "source_revision": "b72fb544e0f6e19df491e0c1b6aa17e949fc9102",
+      "status": "superseded_before_release_admission"
+    },
     {
       "image_digest": "sha256:28b9f3f37cc73637301ce10a305b07b40215e28e2005099a2ef4bed3e01b507f",
       "reason": "real-material Spec 03 qualification exposed an empty media ownership false-success path and incomplete evidence closure; the replacement requires exact source ownership, hash-verified source assets, a formal representation contract and an independent evaluator that recomputes closure",
@@ -222,28 +228,28 @@
       "status": "rejected_before_qualification"
     }
   ],
-  "runtime_id": "worker-v3-runtime-rc-b72fb54-qual",
+  "runtime_id": "worker-v3-runtime-rc-9bc2975-qual",
   "runtime_identity": {
     "control_plane_tree_sha256": "d7dea2a76236b4a699a3fe1837873bf5231daa55fbe0cc9d783c0885d5a09e4d",
     "effective_uid": 10003,
-    "evidence_sha256": "096c54ebfcb5997772db6a80e6d0d3693dedcbaaa3a4aa25391b524d2ac356a3",
+    "evidence_sha256": "3b6c39e2afde568965a71cc0bec702856d2cb32415b0ab763725432cf5963f81",
     "status": "passed",
     "system_lock_entries": 19
   },
   "sbom": {
     "component_count": 422,
-    "evidence_sha256": "a3c1953ada2e3c5e62da6780bacb3cacea7c75a88b5b8682041db1b686812eeb",
+    "evidence_sha256": "35342b721ddd64dd0c2c63ac21908976d0a88e3d8cc2d8268c53e1cb99cd5265",
     "format": "CycloneDX",
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "b72fb544e0f6e19df491e0c1b6aa17e949fc9102",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-b72fb54-qual",
+  "source_revision": "9bc297596795fb5637ff4193a4eeea40efd39398",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-9bc2975-qual",
   "tests": {
-    "targeted_repository_regression": "41 focused qualification, control-plane, Spec 05/06 adapter and evaluator-entrypoint tests passed before image build",
+    "targeted_repository_regression": "59 focused qualification, constrained-LLM schema, control-plane, Spec 05/06 adapter and evaluator-entrypoint tests passed before image build",
     "runtime_identity_gate": "passed with no network and digest-pinned reference: non-root UID 10003, exact control-plane tree and 19 locked system packages",
     "repository_static_tests": "release source verify-only passed with 24 formal entrypoints, 39 sources and three honest qualification gaps before runtime evidence rebinding",
-    "exact_image_regression": "1032 tests passed with 2 skips inside the exact digest-pinned image under no-network, non-root and read-only-rootfs constraints; a dedicated exec tmpfs was limited to pytest-generated executable fixtures and the ordinary /tmp remained noexec",
+    "exact_image_regression": "1033 tests passed with 2 skips inside the exact digest-pinned image under no-network, non-root and read-only-rootfs constraints; a dedicated exec tmpfs was limited to pytest-generated executable fixtures and a writable test-only SQLite/config path while the ordinary /tmp remained noexec",
     "locked_template_smoke": "passed with no network: frozen template class SHA-256 048c3b90da41be64f4744da3bff6ae8c5ea7abd30a5f3e2a6ad1a98f3b0d71fe, 2 pages, PDF SHA-256 1b7c46620bb59ccf6d539c5c3834715a3993735e3c660b08124bc8b0a08d9dae",
     "production_boundary": "Expert Broker, Codex App Server, Codex SDK adapter, cross-UID runner, Codex expert runtime entrypoints, Codex binary and Codex/OpenAI credentials are absent",
     "warnings": "Existing Python and SQLAlchemy deprecation warnings remain non-blocking; no applicable test failure remains. The image is a cached qualification build, not the final clean-build release image."
