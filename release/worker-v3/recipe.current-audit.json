@@ -335,7 +335,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-identity.json",
       "destination": "runtime/ordinary-runtime-identity.json",
-      "expected_sha256": "f3824ab69579a989bdaa4002131926990dd56bcbc3c0c2cd7d91fed7749454b7"
+      "expected_sha256": "bbd6cce76f181019a6b625c401dc12d297f240e41b4d33cb45d146a8321b5189"
     },
     {
       "id": "worker-v3-ordinary-runtime-build-proof",
@@ -344,7 +344,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-build-proof.json",
       "destination": "runtime/ordinary-runtime-build-proof.json",
-      "expected_sha256": "e67fa5d59c06dfcc0f6fe349162458c54396077236be25af0dec35cc4b81dea1"
+      "expected_sha256": "1af41a4132804d4fb4f52d2f0969e3a1ba6271c986f85407916215a4d5309bbb"
     },
     {
       "id": "worker-v3-ordinary-runtime-sbom",
@@ -353,7 +353,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-sbom.cdx.json",
       "destination": "runtime/ordinary-runtime-sbom.cdx.json",
-      "expected_sha256": "b46619a0b5b87ccd1dfa71193ea712c4bc9cf2c942fc53901e40e94fcf17f31e"
+      "expected_sha256": "d63b7a8cf36c9be660b649c4f247246e289f53a9afbb9dc9cb8dfa284604bfef"
     },
     {
       "id": "worker-v3-overleaf-target-environment",
@@ -945,7 +945,7 @@
     "python": "CPython 3.12.13",
     "application_dependencies_path": "runtime/requirements-worker-v3.lock",
     "system_tools": {
-      "runtime_id": "worker-v3-runtime-rc-98462ce-qual",
+      "runtime_id": "worker-v3-runtime-rc-98462ce-clean",
       "system_lock": "runtime/worker-v3-system-packages.lock",
       "identity": "runtime/ordinary-runtime-identity.json",
       "build_proof": "runtime/ordinary-runtime-build-proof.json",
@@ -961,7 +961,7 @@
     "fonts_identity_path": "runtime/ordinary-runtime-identity.json",
     "tex_identity_path": "runtime/ordinary-runtime-identity.json",
     "poppler_identity_path": "runtime/ordinary-runtime-identity.json",
-    "container_image_digest": "sha256:19b53cc9020f652a77854ca31456580c3bfe28f34f6e718e7d94efdf59d75632",
+    "container_image_digest": "sha256:4db069c78adf92a12b24f6e0cd312e8cc8ced4415f730ad2d5a957e7c8a19f75",
     "sbom_path": "runtime/ordinary-runtime-sbom.cdx.json",
     "attestations": [
       "runtime/ordinary-runtime-identity.json",

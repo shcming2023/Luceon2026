@@ -9,7 +9,7 @@
     "matches": true
   },
   "effective_uid": 10003,
-  "image_digest": "sha256:19b53cc9020f652a77854ca31456580c3bfe28f34f6e718e7d94efdf59d75632",
+  "image_digest": "sha256:4db069c78adf92a12b24f6e0cd312e8cc8ced4415f730ad2d5a957e7c8a19f75",
   "image_reference_pinned": true,
   "locks": {
     "python": {
@@ -25,7 +25,7 @@
   },
   "non_root": true,
   "python": "3.12.13",
-  "runtime_id": "worker-v3-runtime-rc-98462ce-qual",
+  "runtime_id": "worker-v3-runtime-rc-98462ce-clean",
   "schema": "luceon.worker-v3-runtime-identity/v1",
   "system_packages": {
     "biber": {
