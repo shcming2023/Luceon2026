@@ -2249,10 +2249,10 @@ class _StageRequestBuilder:
             "values": {"title": title},
             "evidence": [
                 {
-                    "source_ref": f"../../{source_pdf.role}/artifact",
+                    "source_ref": f"../{source_pdf.role}/artifact",
                     "source_sha256": source_pdf.ref.sha256,
                     "pdf_physical_page": 1,
-                    "page_render_ref": f"../../{page_render.role}/artifact",
+                    "page_render_ref": f"../{page_render.role}/artifact",
                     "page_render_sha256": page_render.ref.sha256,
                     "supports": ["title"],
                 }
@@ -2312,7 +2312,7 @@ class _StageRequestBuilder:
             "status": "approved",
             "template_zip_sha256": template_archive.ref.sha256,
             "source_scope_binding": {
-                "ledger_ref": f"../../{source_scope.role}/artifact",
+                "ledger_ref": f"../{source_scope.role}/artifact",
                 "ledger_sha256": source_scope.ref.sha256,
             },
             "assets": rows,

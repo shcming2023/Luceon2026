@@ -205,8 +205,17 @@ def test_spec05_metadata_and_presentation_are_source_and_template_bound(
 
     assert metadata["values"] == {"title": "Source Grounded Book"}
     assert metadata["evidence"][0]["source_sha256"] == "a" * 64
+    assert metadata["evidence"][0]["source_ref"] == "../source_pdf/artifact"
+    assert (
+        metadata["evidence"][0]["page_render_ref"]
+        == "../metadata_page_render/artifact"
+    )
     assert presentation["template_zip_sha256"] == template.ref.sha256
     assert presentation["source_scope_binding"]["ledger_sha256"] == "c" * 64
+    assert (
+        presentation["source_scope_binding"]["ledger_ref"]
+        == "../source_scope_ledger/artifact"
+    )
     assert presentation["assets"]["cover"]["asset_sha256"] == hashlib.sha256(b"cover").hexdigest()
     assert presentation["assets"]["logo"]["asset_sha256"] == hashlib.sha256(b"logo").hexdigest()
 
