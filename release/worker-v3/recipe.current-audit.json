@@ -119,7 +119,7 @@
       "root": "skills",
       "path": "cleanlatex-to-elegantbook",
       "destination": "skills/cleanlatex-to-elegantbook",
-      "expected_tree_sha256": "1babbaad66f29a034a16e3a017ea38c511aea078555bd537c443fc7b22dd2f9f"
+      "expected_tree_sha256": "0623c76bdfe9269b39323bebba18df21fe2b1f27950e63b61bba5a32bfe79149"
     },
     {
       "id": "skill-refine-elegantbook-latex",
