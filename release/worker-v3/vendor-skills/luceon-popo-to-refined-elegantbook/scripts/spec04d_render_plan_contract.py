@@ -1223,6 +1223,49 @@ def require_promoted(parent: dict[str, Any], role: str, supplied: Path) -> None:
         raise ValueError(f"active promotion does not promote supplied {role}")
 
 
+def validate_media_parent_binding(plan: dict[str, Any], media_promotion: dict[str, Any]) -> dict[str, int]:
+    promoted = media_promotion.get("promoted_artifacts", {})
+    evidence = promoted.get("media_evidence_ledger", {})
+    representation = promoted.get("media_representation_plan", {})
+    evidence_path = Path(evidence.get("path", ""))
+    representation_path = Path(representation.get("path", ""))
+    if (
+        not evidence_path.is_file()
+        or evidence.get("sha256") != sha256_file(evidence_path)
+        or plan.get("media_evidence_ledger_sha256") != evidence.get("sha256")
+    ):
+        raise ValueError("render plan is not bound to the exact active media evidence ledger")
+    if (
+        not representation_path.is_file()
+        or representation.get("sha256") != sha256_file(representation_path)
+        or plan.get("media_representation_plan_sha256") != representation.get("sha256")
+    ):
+        raise ValueError("render plan is not bound to the exact active media representation plan")
+
+    media_plan = read_json(representation_path)
+    closed = {
+        item["representation_id"]: item
+        for item in media_plan.get("representations", [])
+        if item.get("status") == "closed"
+    }
+    media_nodes = [node for node in plan.get("nodes", []) if node.get("node_kind") == "media"]
+    for node in media_nodes:
+        binding = node.get("payload", {}).get("media_binding", {})
+        representation_id = binding.get("representation_id")
+        parent = closed.get(representation_id)
+        if parent is None:
+            raise ValueError(f"render node does not bind a closed active media representation: {representation_id}")
+        if binding.get("media_representation_plan_sha256") != representation.get("sha256"):
+            raise ValueError(f"render node media plan hash drift: {representation_id}")
+        if (
+            binding.get("artifact_sha256") != parent.get("artifact_sha256")
+            or node.get("payload", {}).get("artifact_sha256") != parent.get("artifact_sha256")
+            or set(node.get("source_block_ids", [])) != set(parent.get("source_block_ids", []))
+        ):
+            raise ValueError(f"render node media representation drift: {representation_id}")
+    return {"media_nodes": len(media_nodes), "closed_representations": len(closed)}
+
+
 def selected_candidate(
     atom: dict[str, Any],
     representation: dict[str, Any],
@@ -1770,6 +1813,8 @@ def produce(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         },
         "pedagogical_layout_contract": copy.deepcopy(pedagogical_contract),
         "decision_index_sha256": decision_sha,
+        "media_evidence_ledger_sha256": sha256_file(args.media_evidence_ledger.resolve()),
+        "media_representation_plan_sha256": sha256_file(args.media_representation_plan.resolve()),
         "parent_promotions": {"spec04c": {k: v for k, v in parent04c.items() if k != "promoted_artifacts"}, "spec04a": {k: v for k, v in structure.items() if k != "promoted_artifacts"}, "spec03": {k: v for k, v in media.items() if k != "promoted_artifacts"}},
         "nodes": nodes, "volume_partition_plan": volume_partition,
         "volume_partition_plan_sha256": sha256_file(volume_partition_path),
@@ -1895,6 +1940,8 @@ def validate_run(run_dir: Path) -> dict[str, Any]:
     if plan.get("pedagogical_layout_contract") != policy.get("pedagogical_layout"):
         raise ValueError("render plan pedagogical layout differs from the bound render policy")
     pedagogical_summary = validate_pedagogical_render_nodes(plan["nodes"], plan.get("pedagogical_layout_contract"))
+    media_promotion = read_json(Path(stage["parent_promotions"]["spec03"]["manifest_path"]))
+    media_binding = validate_media_parent_binding(plan, media_promotion)
     structure_promotion = read_json(Path(stage["parent_promotions"]["spec04a"]["manifest_path"]))
     outline = read_json(Path(structure_promotion["promoted_artifacts"]["source_outline_ledger"]["path"]))
     structure_integrity = validate_structure_source_integrity(plan["nodes"], outline, records, policy)
@@ -1904,7 +1951,7 @@ def validate_run(run_dir: Path) -> dict[str, Any]:
     drift = [item["path"] for item in manifest.get("files", []) if not (run / item["path"]).is_file() or sha256_file(run / item["path"]) != item["sha256"]]
     if drift or not manifest.get("immutable_after_publication"):
         raise ValueError(f"immutable run drift: {drift[:8]}")
-    return {"status": "passed", "run_id": stage["run_id"], "producer_mode": stage["producer_mode"], "full_spec04_status": "passed", "included_source_atoms": len(included), "render_nodes": len(plan["nodes"]), "volume_partition": volume_summary, "toc_renderability": toc_summary, "structure_source_integrity": structure_integrity, "pedagogical_layout": pedagogical_summary, "open_reviews": 0}
+    return {"status": "passed", "run_id": stage["run_id"], "producer_mode": stage["producer_mode"], "full_spec04_status": "passed", "included_source_atoms": len(included), "render_nodes": len(plan["nodes"]), "media_parent_binding": media_binding, "volume_partition": volume_summary, "toc_renderability": toc_summary, "structure_source_integrity": structure_integrity, "pedagogical_layout": pedagogical_summary, "open_reviews": 0}
 
 
 def preflight_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
@@ -2006,6 +2053,7 @@ def evaluate_promotion(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             if len(matches) != 1:
                 raise ValueError(f"construct binding was not inherited exactly once: {binding['binding_id']}")
         parent03 = read_json(Path(stage["parent_promotions"]["spec03"]["manifest_path"]))
+        media_binding = validate_media_parent_binding(plan, parent03)
         media_plan = read_json(Path(parent03["promoted_artifacts"]["media_representation_plan"]["path"]))
         media_nodes = [node for node in plan["nodes"] if node["node_kind"] == "media"]
         by_rep = {node["payload"]["media_binding"]["representation_id"]: node for node in media_nodes}
@@ -2015,7 +2063,7 @@ def evaluate_promotion(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             raise ValueError("one-to-many media fragments were not preserved exactly")
         if any(node["payload"]["media_binding"]["artifact_sha256"] != node["payload"]["artifact_sha256"] for node in media_nodes):
             raise ValueError("media binding artifact hash drift")
-        return {"construct_bindings": len(bindings), "media_nodes": len(media_nodes), "multi_fragment_media_nodes": sum(len(node["source_block_ids"]) > 1 for node in media_nodes)}
+        return {"construct_bindings": len(bindings), "media_nodes": media_binding["media_nodes"], "multi_fragment_media_nodes": sum(len(node["source_block_ids"]) > 1 for node in media_nodes)}
 
     def live_validation() -> dict[str, Any]:
         return validate_run(run)

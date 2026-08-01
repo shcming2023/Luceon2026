@@ -601,6 +601,74 @@ class Spec04DRenderPlanTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "at least two independently ordered atoms"):
             MODULE.validate_pedagogical_render_nodes([node], contract)
 
+    def media_parent_fixture(self, root, representations=None, nodes=None):
+        evidence_path = root / "media_evidence_ledger.json"
+        plan_path = root / "media_representation_plan.json"
+        evidence_path.write_text(json.dumps({"atoms": []}), encoding="utf-8")
+        plan_path.write_text(
+            json.dumps({"representations": representations or []}),
+            encoding="utf-8",
+        )
+        evidence_sha = MODULE.sha256_file(evidence_path)
+        representation_sha = MODULE.sha256_file(plan_path)
+        promotion = {
+            "promoted_artifacts": {
+                "media_evidence_ledger": {
+                    "path": str(evidence_path),
+                    "sha256": evidence_sha,
+                },
+                "media_representation_plan": {
+                    "path": str(plan_path),
+                    "sha256": representation_sha,
+                },
+            },
+        }
+        render_plan = {
+            "media_evidence_ledger_sha256": evidence_sha,
+            "media_representation_plan_sha256": representation_sha,
+            "nodes": nodes or [],
+        }
+        return render_plan, promotion
+
+    def test_media_less_render_plan_binds_exact_active_spec03_artifacts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plan, promotion = self.media_parent_fixture(Path(tmp))
+            result = MODULE.validate_media_parent_binding(plan, promotion)
+            self.assertEqual(result, {"media_nodes": 0, "closed_representations": 0})
+
+    def test_media_parent_binding_rejects_top_level_plan_hash_drift(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plan, promotion = self.media_parent_fixture(Path(tmp))
+            plan["media_representation_plan_sha256"] = "0" * 64
+            with self.assertRaisesRegex(ValueError, "exact active media representation plan"):
+                MODULE.validate_media_parent_binding(plan, promotion)
+
+    def test_media_parent_binding_rejects_per_node_plan_hash_drift(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            representation = {
+                "representation_id": "rep-1",
+                "status": "closed",
+                "artifact_sha256": "a" * 64,
+                "source_block_ids": ["image-1"],
+            }
+            node = {
+                "node_kind": "media",
+                "source_block_ids": ["image-1"],
+                "payload": {
+                    "artifact_sha256": "a" * 64,
+                    "media_binding": {
+                        "representation_id": "rep-1",
+                        "artifact_sha256": "a" * 64,
+                        "media_representation_plan_sha256": "0" * 64,
+                    },
+                },
+            }
+            plan, promotion = self.media_parent_fixture(
+                Path(tmp), representations=[representation], nodes=[node]
+            )
+            with self.assertRaisesRegex(ValueError, "media plan hash drift"):
+                MODULE.validate_media_parent_binding(plan, promotion)
+
     def volume_nodes(self):
         result = []
         for order in range(1, 7):
