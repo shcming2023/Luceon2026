@@ -735,7 +735,6 @@ def _evaluate_atomic_ledger(root: Path) -> dict[str, bool]:
             evidence.get("schema_version") != "media-evidence-ledger/1.1"
             or plan.get("schema_version") != "media-representation-plan/1.1"
             or not isinstance(media_rows, list)
-            or not media_rows
             or not isinstance(plan_rows, list)
             or len(plan_rows) != len(media_rows)
             or evidence.get("payload_hash")

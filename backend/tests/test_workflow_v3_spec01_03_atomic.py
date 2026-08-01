@@ -70,7 +70,12 @@ def _tree_hash(root: Path) -> str:
     ).hexdigest()
 
 
-def _fixture(root: Path, *, padding_bytes: int = 0) -> dict[str, Path]:
+def _fixture(
+    root: Path,
+    *,
+    padding_bytes: int = 0,
+    media_less: bool = False,
+) -> dict[str, Path]:
     inputs = root / "inputs"
     inputs.mkdir(parents=True)
     source_pdf = inputs / "source.pdf"
@@ -84,25 +89,30 @@ def _fixture(root: Path, *, padding_bytes: int = 0) -> dict[str, Path]:
         "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP8"
         "zwACTGCSAQANHQEDgslx/wAAAABJRU5ErkJggg=="
     )
-    content = [
-        [
-            {
-                "type": "image",
-                "bbox": [100, 100, 400, 400],
-                "content": {"image_source": {"path": "images/diagram.png"}},
-            }
-        ],
-        [],
-    ]
+    content = (
+        [[], []]
+        if media_less
+        else [
+            [
+                {
+                    "type": "image",
+                    "bbox": [100, 100, 400, 400],
+                    "content": {
+                        "image_source": {"path": "images/diagram.png"}
+                    },
+                }
+            ],
+            [],
+        ]
+    )
     content_payload = json.dumps(
         content,
         sort_keys=True,
         separators=(",", ":"),
     ).encode()
-    mineru_members = {
-        "mineru/content_list_v2.json": content_payload,
-        "mineru/images/diagram.png": image_payload,
-    }
+    mineru_members = {"mineru/content_list_v2.json": content_payload}
+    if not media_less:
+        mineru_members["mineru/images/diagram.png"] = image_payload
     if padding_bytes:
         mineru_members["metadata/padding.bin"] = b"M" * padding_bytes
     mineru_archive = inputs / "mineru.tar"
@@ -114,7 +124,7 @@ def _fixture(root: Path, *, padding_bytes: int = 0) -> dict[str, Path]:
             "source_id": "unit-p1",
             "page": 1,
             "bbox": [0.1, 0.1, 0.4, 0.4],
-            "type": "image",
+            "type": "paragraph" if media_less else "image",
             "content": "First source unit.",
         },
         {
@@ -163,7 +173,7 @@ def _fixture(root: Path, *, padding_bytes: int = 0) -> dict[str, Path]:
         "run_id": "mineru-run-1",
         "source_pdf": source_identity,
         "full_tree_counts": {
-            "mineru": 2,
+            "mineru": 1 if media_less else 2,
             "minerupopo": 0,
             "metadata": 1 if padding_bytes else 0,
             "logs": 0,
@@ -182,7 +192,9 @@ def _fixture(root: Path, *, padding_bytes: int = 0) -> dict[str, Path]:
                 "sha256": hashlib.sha256(content_payload).hexdigest(),
                 "size_bytes": len(content_payload),
             },
-            "images": [
+            "images": []
+            if media_less
+            else [
                 {
                     "source_member": "mineru/images/diagram.png",
                     "sha256": hashlib.sha256(image_payload).hexdigest(),
@@ -376,8 +388,17 @@ def test_materialized_parent_accepts_empty_media_atoms_jsonl(
     assert contract["spec_status"] == "passed"
 
 
-def _run_pipeline(root: Path, *, padding_bytes: int = 0) -> tuple[Path, Path, Path, dict[str, Path]]:
-    paths = _fixture(root, padding_bytes=padding_bytes)
+def _run_pipeline(
+    root: Path,
+    *,
+    padding_bytes: int = 0,
+    media_less: bool = False,
+) -> tuple[Path, Path, Path, dict[str, Path]]:
+    paths = _fixture(
+        root,
+        padding_bytes=padding_bytes,
+        media_less=media_less,
+    )
     spec01 = root / "spec01"
     intake = argparse.Namespace(
         **_common(spec01, run_id="run-1"),
@@ -516,6 +537,22 @@ def test_atomic_stage_evaluators_recompute_all_gates(tmp_path: Path) -> None:
         assert result.gate_results == {
             gate: True for gate in STAGE_GATES[stage]
         }
+
+
+def test_media_less_atomic_pipeline_passes_independent_spec03_evaluation(
+    tmp_path: Path,
+) -> None:
+    _, _, spec03, paths = _run_pipeline(tmp_path, media_less=True)
+
+    result = _evaluate(
+        "canonical_block_ledger",
+        spec03,
+        paths["release_manifest"].parent,
+    )
+
+    assert result.gate_results == {
+        gate: True for gate in STAGE_GATES["canonical_block_ledger"]
+    }
 
 
 def test_scope_evaluator_rejects_noncontiguous_order(tmp_path: Path) -> None:
