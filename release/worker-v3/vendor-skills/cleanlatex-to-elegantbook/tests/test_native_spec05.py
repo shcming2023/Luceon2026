@@ -99,6 +99,29 @@ def test_warning_report_never_allows_missing_glyph_review_override(tmp_path: Pat
     assert report["summary"]["C1_BLOCKING"] == 1
 
 
+def test_zip_tree_hashes_remain_stable_after_compile_outputs(
+    tmp_path: Path,
+) -> None:
+    archive = tmp_path / "delivery.zip"
+    with zipfile.ZipFile(archive, "w") as output:
+        output.writestr("main.tex", b"source\n")
+        output.writestr("elegantbook.cls", b"class\n")
+    clean = tmp_path / "clean"
+    MODULE.safe_extract(archive, clean)
+
+    verified = MODULE.verify_zip_tree(archive, clean)
+    (clean / "main.aux").write_text("compiler output\n", encoding="utf-8")
+    (clean / "main.log").write_text("compiler output\n", encoding="utf-8")
+    (clean / "main.pdf").write_bytes(b"compiler output")
+
+    assert MODULE.zip_tree_hashes(archive) == verified
+    assert set(MODULE.tree_hashes(clean)) - set(verified) == {
+        "main.aux",
+        "main.log",
+        "main.pdf",
+    }
+
+
 def test_build_policy_accepts_direct_runtime_and_both_supported_poppler_renderers(tmp_path: Path) -> None:
     base = {
         "schema_version": "spec05-build-policy/1.0",

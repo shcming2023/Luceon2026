@@ -129,15 +129,23 @@ def tree_hashes(root: Path) -> dict[str, str]:
     }
 
 
+def zip_tree_hashes(zip_path: Path) -> dict[str, str]:
+    with zipfile.ZipFile(zip_path) as archive:
+        return {
+            item.filename: hashlib.sha256(archive.read(item.filename)).hexdigest()
+            for item in archive.infolist()
+            if not item.is_dir()
+        }
+
+
 def verify_zip_tree(zip_path: Path, tree: Path) -> dict[str, str]:
     expected = tree_hashes(tree)
-    with zipfile.ZipFile(zip_path) as archive:
-        names = sorted(item.filename for item in archive.infolist() if not item.is_dir())
-        if names != sorted(expected):
-            raise ValueError("delivery ZIP member set differs from clean extraction")
-        for name in names:
-            if hashlib.sha256(archive.read(name)).hexdigest() != expected[name]:
-                raise ValueError(f"delivery ZIP member hash differs from clean extraction: {name}")
+    actual = zip_tree_hashes(zip_path)
+    if sorted(actual) != sorted(expected):
+        raise ValueError("delivery ZIP member set differs from clean extraction")
+    for name, digest in actual.items():
+        if digest != expected[name]:
+            raise ValueError(f"delivery ZIP member hash differs from clean extraction: {name}")
     return expected
 
 
@@ -812,7 +820,7 @@ def final_integrity(
     plan = read_json(render_plan_path)
     project = mechanical / "project"
     project_hashes = tree_hashes(project)
-    clean_hashes = verify_zip_tree(zip_path, clean_source)
+    clean_hashes = zip_tree_hashes(zip_path)
     entry = clean_source / contract["body_insertion"]["file"]
     main_text = entry.read_text(encoding="utf-8")
     original_text = (template_dir / contract["body_insertion"]["file"]).read_text(encoding="utf-8")

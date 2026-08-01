@@ -146,6 +146,7 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
     )
 
     review_mode = {"enabled": False}
+    kernel_failure_mode = {"enabled": False}
 
     def run_kernel(*, args: list[str], **_kwargs: Any) -> SimpleNamespace:
         index = args.index("--promotion-registry")
@@ -163,6 +164,12 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
         index = args.index("--body-marker")
         assert args[index + 1] == "% frozen body marker"
         spec05 = Path(args[args.index("--run-dir") + 1])
+        if kernel_failure_mode["enabled"]:
+            return SimpleNamespace(
+                returncode=1,
+                stdout="",
+                stderr="delivery ZIP member set differs from clean extraction",
+            )
         if review_mode["enabled"]:
             warning_path = spec05 / "reports/compile_warnings.json"
             _json(
@@ -258,6 +265,20 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
     assert review.artifact_kind.endswith("review-candidate")
     assert review.metrics["native_kernel_returncode"] == 1
     assert review.metrics["open_compile_warnings"] == 1
+
+    review_mode["enabled"] = False
+    kernel_failure_mode["enabled"] = True
+    with pytest.raises(
+        adapters.StageEntrypointError,
+        match="delivery ZIP member set differs from clean extraction",
+    ) as exc_info:
+        adapters._produce_spec05(
+            request,
+            Inputs(),
+            tmp_path / "kernel-failure-output",
+            tmp_path,
+        )
+    assert exc_info.value.code == "kernel_failed"
 
 
 def test_spec05_warning_only_candidate_requires_evidence_bound_review(

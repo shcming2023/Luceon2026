@@ -294,6 +294,13 @@ def _produce_spec05(
     if execution.returncode == 1:
         review_state_path = run / "reports/needs_review.json"
         warning_path = run / "reports/compile_warnings.json"
+        if not review_state_path.is_file():
+            detail = (execution.stderr or execution.stdout).strip()[-2000:]
+            raise StageEntrypointError(
+                "kernel_failed",
+                "Spec 05 kernel exited 1 without a review state: " + detail,
+                exit_code=3,
+            )
         review_state = _read_json(review_state_path, "Spec 05 review state")
         warning_report = _read_json(warning_path, "Spec 05 compile warnings")
         warning_events = warning_report.get("events")
