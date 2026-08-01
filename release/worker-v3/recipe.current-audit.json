@@ -18,7 +18,7 @@
     "requested_status": "incomplete",
     "created_at": "2026-07-26T00:00:00+08:00",
     "source": {
-      "git_sha": "efc630b9bc78be1826780e65021ecbb2e94db919",
+      "git_sha": "549946247aee843effad4222fafe816b2ec94b06",
       "git_tag": null,
       "dirty": false
     },
@@ -92,7 +92,7 @@
       "root": "skills",
       "path": "luceon-popo-to-refined-elegantbook",
       "destination": "skills/luceon-popo-to-refined-elegantbook",
-      "expected_tree_sha256": "cd35678ae34c2887517100dbca5ba279b01e6e939ff86df9a888f637263da2b8"
+      "expected_tree_sha256": "723f81f18b8b54ae80df6b64c764db928d2570b2dbb9dfff2d42aab7d4167ade"
     },
     {
       "id": "skill-pdf-clean-markdown-rebuild",
@@ -119,7 +119,7 @@
       "root": "skills",
       "path": "cleanlatex-to-elegantbook",
       "destination": "skills/cleanlatex-to-elegantbook",
-      "expected_tree_sha256": "982eca9e6c16b68eadcd5e3040e5db5e282b5352bfec380bcff17a5387f286ca"
+      "expected_tree_sha256": "1babbaad66f29a034a16e3a017ea38c511aea078555bd537c443fc7b22dd2f9f"
     },
     {
       "id": "skill-refine-elegantbook-latex",
@@ -191,7 +191,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec05_06_stage_adapters.py",
       "destination": "scripts/worker-v3/spec05_06_stage_adapters.py",
-      "expected_sha256": "fe71cbf9176d7a39afdd020fdd2b56ae659d0e41cee181e3ac7b7cd0078098a7"
+      "expected_sha256": "21d1a7c131d19862a675d4d19db76241280f642c69ed55b4959f95840f93d7f8"
     },
     {
       "id": "worker-v3-stage-evaluators-runtime",
@@ -200,7 +200,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/stage_evaluators.py",
       "destination": "scripts/worker-v3/stage_evaluators.py",
-      "expected_sha256": "3c0261538495a3663ef449f1a37d63bb9502a62b2ef5d3541397f5b3dfae3878"
+      "expected_sha256": "64defb1a3a752122204975f381474e362d584fbc30c09299815aafe591c24be4"
     },
     {
       "id": "worker-v3-page-review-contract-runtime",
@@ -335,7 +335,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-identity.json",
       "destination": "runtime/ordinary-runtime-identity.json",
-      "expected_sha256": "a6db203dc2efb8d3d3eddb752617278c8aa30d0dd30c81b04a9fdc66f0af27ae"
+      "expected_sha256": "a96770b3e378c1bf83a932fb9ee15b723fdb2deba69f2a5a0ccf1aa0999a598f"
     },
     {
       "id": "worker-v3-ordinary-runtime-build-proof",
@@ -344,7 +344,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-build-proof.json",
       "destination": "runtime/ordinary-runtime-build-proof.json",
-      "expected_sha256": "d19205ab22998d5d444cc80ce21d5252ec35c70532d83eb9c4a851513744cf83"
+      "expected_sha256": "029bf7644ece8b377a98cc9120e46c49e76e7f59c586c00a26b3997327e65d5f"
     },
     {
       "id": "worker-v3-ordinary-runtime-sbom",
@@ -353,7 +353,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-sbom.cdx.json",
       "destination": "runtime/ordinary-runtime-sbom.cdx.json",
-      "expected_sha256": "a824869f15c6e5889fa3ec580fb1b6198164fa92d11df36a4a328f8be9e2feaf"
+      "expected_sha256": "16f2507ccbebe9f99afff40348d9eeaecc99e71f48ebfd14f13204dd288ce42b"
     },
     {
       "id": "worker-v3-overleaf-target-environment",
@@ -380,7 +380,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/template-capabilities.json",
       "destination": "references/template-capabilities.json",
-      "expected_sha256": "b526d10495ec68b89ee3adbafbdc846409bded47e8b680c4e7591bf4537a7549"
+      "expected_sha256": "6fab95bf730ae95bde7bd97c0bc211775e60712781f6dcf714120fd5c0b175b9"
     },
     {
       "id": "fixed-template",
@@ -909,7 +909,7 @@
     "python": "CPython 3.12.13",
     "application_dependencies_path": "runtime/requirements-worker-v3.lock",
     "system_tools": {
-      "runtime_id": "worker-v3-runtime-rc-efc630b",
+      "runtime_id": "worker-v3-runtime-rc-5499462-qual",
       "system_lock": "runtime/worker-v3-system-packages.lock",
       "identity": "runtime/ordinary-runtime-identity.json",
       "overleaf_compiler": {
@@ -924,7 +924,7 @@
     "fonts_identity_path": "runtime/ordinary-runtime-identity.json",
     "tex_identity_path": "runtime/ordinary-runtime-identity.json",
     "poppler_identity_path": "runtime/ordinary-runtime-identity.json",
-    "container_image_digest": "sha256:2a07858ce03d930a669e26a0946142a295deb87e1a591f71244210357fc7f895",
+    "container_image_digest": "sha256:768ce0b38fa4182c880f06980ce14345ddf2a8a0e351f67bc6e12623407ca346",
     "sbom_path": "runtime/ordinary-runtime-sbom.cdx.json",
     "attestations": [
       "runtime/ordinary-runtime-identity.json",
