@@ -1,13 +1,13 @@
 {
   "schema_version": "luceon.worker-v3-overleaf-target-environment/v1",
-  "status": "unqualified",
+  "status": "approved",
   "provider": "luceon-overleaf-compiler-adapter",
   "protocol": "luceon.worker-v3-overleaf-compiler/v1",
   "engine": "xelatex",
   "endpoint": "http://workflow-v3-overleaf-compiler:8080/compile",
   "base_image": "ghcr.io/lcpu-club/sharelatex@sha256:633e180fa9357c2b00e2fa9234b63460033fd2d4e4c441a5bb91c9697a08e145",
-  "adapter_image_digest": "sha256:e983be555820cc24d6d69e813142d1e7bca7fdc514c9a8a29aa139801e7c7ccf",
-  "adapter_runtime_identity_sha256": "2e6ca6c393be2ba6b28871d7dd872c0362974fc846145e510049b66a810a2691",
+  "adapter_image_digest": "sha256:6ab47323c6377557428502bfb8b0fbd9a9c6bbb93304684ab572961ec79aa6d1",
+  "adapter_runtime_identity_sha256": "e7a4799c79e582d098c3c4506760267e0ac3bbd4ada506a7bb9cacc3d139f6b9",
   "adapter_source_sha256": "20653f73a648ac94b2e3d2102d8496ffa5ad9372f31be0b8f616b6c70b4120bc",
   "compiler_command": [
     "latexmk",

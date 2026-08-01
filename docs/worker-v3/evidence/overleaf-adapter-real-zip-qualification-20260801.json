@@ -1,0 +1,75 @@
+{
+  "schema_version": "luceon.worker-v3.qualification.overleaf-adapter-real-zip/v1",
+  "qualification_type": "overleaf_adapter_real_zip",
+  "status": "passed",
+  "evidence_id": "overleaf-adapter-7044732-real-1343-20260801",
+  "qualified_at": "2026-08-01T10:45:37Z",
+  "identity": {
+    "adapter_source_git_sha": "7044732acc0cede41d3043a420bd6b69f1815d3a",
+    "adapter_source_sha256": "20653f73a648ac94b2e3d2102d8496ffa5ad9372f31be0b8f616b6c70b4120bc",
+    "adapter_image_digest": "sha256:6ab47323c6377557428502bfb8b0fbd9a9c6bbb93304684ab572961ec79aa6d1",
+    "adapter_runtime_identity_sha256": "e7a4799c79e582d098c3c4506760267e0ac3bbd4ada506a7bb9cacc3d139f6b9",
+    "worker_client_image_digest": "sha256:2d1577656532b72f3de0c7afb377b6d11251fff03ca768373bfa1c35571f851a",
+    "base_image": "ghcr.io/lcpu-club/sharelatex@sha256:633e180fa9357c2b00e2fa9234b63460033fd2d4e4c441a5bb91c9697a08e145",
+    "architecture": "aarch64",
+    "effective_uid": 10004,
+    "xelatex_version": "XeTeX 3.141592653-2.6-0.999997 (TeX Live 2025)",
+    "latexmk_version": "Latexmk, John Collins, 27 Dec. 2024. Version 4.86a"
+  },
+  "input": {
+    "material_id": "pdf-8e5464971a3e1d6b",
+    "worker_job_id": "f844cbec-4117-5a89-a076-1c9fe9245966",
+    "source_stage": "deterministic_elegantbook",
+    "source_attempt": 2,
+    "delivery_zip_sha256": "9a64e9e40b3241d7fa8d396665e2bbcf94e04b2e5beaf618d361bc967523b9a3",
+    "delivery_zip_size_bytes": 7385644,
+    "image_count": 250,
+    "image_inventory_sha256": "e0a03b9d784207fae056fcb8b7a45e1e4e3df73d86c19db2426c71166aabf940"
+  },
+  "compile": {
+    "protocol": "luceon.worker-v3-overleaf-compiler/v1",
+    "role": "independent_evaluator",
+    "command": [
+      "latexmk",
+      "-xelatex",
+      "-interaction=nonstopmode",
+      "-halt-on-error",
+      "-file-line-error",
+      "-no-shell-escape",
+      "main.tex"
+    ],
+    "duration_ms": 23779,
+    "exit_status": 0,
+    "page_count": 124,
+    "output_pdf_sha256": "2d22db2cc860314aebcb34fd1ec625f20115b7c6d22a599cbc3dbbfe8b482fee",
+    "output_pdf_size_bytes": 9591722,
+    "compile_log_sha256": "581ac1c126ced51814e9358dbdbaed7aaf719c0baf252cc8c499d8f18b0f356d",
+    "result_manifest_sha256": "84a5d1d78c0f8cfc71bbc84d109b796b96b21bf7662323525fe1adb1fde89a5d"
+  },
+  "page_equivalence": {
+    "reference_pdf_sha256": "4974792b9b78947c8b42cdefaf029e4eac3f613df97b31161e74285393873a48",
+    "reference_page_count": 124,
+    "candidate_page_count": 124,
+    "renderer": "pdftoppm 26.04.0",
+    "dpi": 110,
+    "raster_record_count": 124,
+    "raster_records_sha256": "bee05968e55ce160ac3b0d69f9806abab062f77deabb684fb65428f99711e5fc",
+    "identical_page_count": 124,
+    "different_pages": []
+  },
+  "isolation": {
+    "root_filesystem_read_only": true,
+    "capabilities_dropped": "all",
+    "no_new_privileges": true,
+    "project_workspace_noexec": true,
+    "home_noexec": true,
+    "tmp_noexec": true,
+    "biber_cache_scope": "per-container tmpfs",
+    "biber_cache_size_bytes": 268435456,
+    "biber_cache_exec": true,
+    "biber_cache_nosuid": true,
+    "biber_cache_nodev": true,
+    "temporary_internal_network_removed": true,
+    "temporary_adapter_container_removed": true
+  }
+}

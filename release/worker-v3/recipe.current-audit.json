@@ -362,7 +362,16 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/overleaf-target-environment.json",
       "destination": "runtime/overleaf-target-environment.json",
-      "expected_sha256": "2fa24b475e60d48a3ddcaf63e630c4f86d026d5e8f78570561445de417e6ae43"
+      "expected_sha256": "5c434a7ca1fdfcea7659266c997fd581b6a8732ec574fcdf3be46115e30355e4"
+    },
+    {
+      "id": "worker-v3-overleaf-adapter-real-zip-qualification",
+      "source_role": "supporting_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/overleaf-adapter-real-zip-qualification-20260801.json",
+      "destination": "evals/qualification/overleaf-adapter-real-zip-qualification-20260801.json",
+      "expected_sha256": "bbbeac41d0ed0b9c0f5ca00ef3f74c707562a7324bf56a23abc3cf0538780e67"
     },
     {
       "id": "worker-v3-spec05-build-policy",
@@ -914,7 +923,7 @@
       "identity": "runtime/ordinary-runtime-identity.json",
       "overleaf_compiler": {
         "profile_path": "runtime/overleaf-target-environment.json",
-        "profile_sha256": "2fa24b475e60d48a3ddcaf63e630c4f86d026d5e8f78570561445de417e6ae43"
+        "profile_sha256": "5c434a7ca1fdfcea7659266c997fd581b6a8732ec574fcdf3be46115e30355e4"
       },
       "spec05_build": {
         "profile_path": "runtime/spec05-build-policy.json",
@@ -953,11 +962,6 @@
       "code": "spec03_bounded_review_capacity_unqualified",
       "stage": "canonical_block_ledger",
       "detail": "the release-bound Spec 03 full audit task remains frozen and authoritative while the exact exhaustive model-evidence projection is 577170 bytes under the unchanged one-million-byte request gate; this new release identity still requires one exact release-bound real-material call and no-network replay before the gap can close"
-    },
-    {
-      "code": "overleaf_adapter_image_qualification_pending",
-      "stage": "delivery_recompile",
-      "detail": "the final adapter image digest, runtime identity, source and exact Overleaf-equivalent base image are bound and pass the no-network health gate, but a real Worker-produced ZIP compile proof is still required before the target profile can become approved"
     },
     {
       "code": "full_page_review_evidence_provider_unqualified",
