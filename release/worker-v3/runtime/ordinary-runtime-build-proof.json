@@ -1,14 +1,14 @@
 {
   "architecture": "arm64",
   "build_status": "cached_qualification_build_succeeded",
-  "built_at": "2026-08-01T07:52:30Z",
-  "image_id": "sha256:dad89fac86290176bd9d9cb42561874f55b4202e93680e0ba1aaae53f84d1619",
-  "image_size_bytes": 1457084561,
-  "local_manifest_digest": "sha256:dad89fac86290176bd9d9cb42561874f55b4202e93680e0ba1aaae53f84d1619",
+  "built_at": "2026-08-01T09:09:26Z",
+  "image_id": "sha256:22caf7fd94ef414a13fe8f428e3abe5a21cff0dffc3fc161a2abeee58cc7bba3",
+  "image_size_bytes": 1457084678,
+  "local_manifest_digest": "sha256:22caf7fd94ef414a13fe8f428e3abe5a21cff0dffc3fc161a2abeee58cc7bba3",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
     "pages": 2,
-    "pdf_sha256": "2f4a5364ed6f5f74354d44b0e5b4e1f04225fda90e262756f7aa7ac8318767e3",
+    "pdf_sha256": "1b7c46620bb59ccf6d539c5c3834715a3993735e3c660b08124bc8b0a08d9dae",
     "pdfinfo": "passed",
     "qpdf_check": "passed",
     "status": "passed"
@@ -171,6 +171,12 @@
       "reason": "real-material Stage 10 reached DashScope with the release-bound prompt and hash-bound page manifest, but the transport omitted the already-bound output JSON Schema from the provider message; the replacement sends that exact schema while retaining strict downstream validation and refusing array coercion",
       "source_revision": "26cf8e03ee86da8aabbdbc863edc4705ef191f00",
       "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:dad89fac86290176bd9d9cb42561874f55b4202e93680e0ba1aaae53f84d1619",
+      "reason": "real-material Stage 10 proved that deterministic candidate-to-source page provenance was incorrectly delegated to the visual model as a copied response field; the replacement removes that non-model responsibility and attaches the exact frozen Stage 5 mapping in code while retaining the raw provider audit",
+      "source_revision": "ad89b2825881c16db205193e3d3ee36636525c93",
+      "status": "superseded_before_release_admission"
     }
   ],
   "rejected_build_attempts": [
@@ -205,30 +211,31 @@
       "status": "rejected_before_qualification"
     }
   ],
-  "runtime_id": "worker-v3-runtime-rc-ad89b28-qual",
+  "runtime_id": "worker-v3-runtime-rc-25ea95c-qual",
   "runtime_identity": {
-    "control_plane_tree_sha256": "fd6dd46936826825336fe06778b5f5b9e3da32c097fc1c1abaf1222f4b68134e",
+    "control_plane_tree_sha256": "bc6bd3c9e8b9d1b19cfee5bc02f6238a847f80630792da6fbd4e41440e7c63d5",
     "effective_uid": 10003,
-    "evidence_sha256": "8448875338d98a614318c73aef874e59cacce702c4b1c5f5ba6173a1079b0f3d",
+    "evidence_sha256": "04f9acf00ae4cb5684a4f8978c30b84f0b46f718c90ba8cc85315c220c2b622a",
     "status": "passed",
     "system_lock_entries": 19
   },
   "sbom": {
     "component_count": 422,
-    "evidence_sha256": "a798129e53824f46a20a9ae6ddc7e06192d2f96627ecab8200cb14aa5eefa148",
+    "evidence_sha256": "c9f31b8d89ae2409f363661d7a768bae61aad986784aa2e2506f46fd26c52a2e",
     "format": "CycloneDX",
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "ad89b2825881c16db205193e3d3ee36636525c93",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-ad89b28-qual",
+  "source_revision": "25ea95c78cff0fc80f987401f3a1d2de5574ab6c",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-25ea95c-qual",
   "tests": {
-    "targeted_repository_regression": "Exact replacement source passed 22 focused visual-review and executor-resilience regressions with zero failures; after read-only release rebinding, the exact image passed all 34 visual-review, executor-resilience and runtime-image tests.",
-    "runtime_identity_gate": "passed with no network: non-root UID 10003, exact control-plane tree and 19 locked system packages",
-    "repository_static_tests": "release source verify-only passed and intentionally remains incomplete until real-material Stage 8, visual and Overleaf qualification evidence closes",
-    "locked_template_smoke": "passed with direct_exec and no network: frozen template class SHA-256 048c3b90da41be64f4744da3bff6ae8c5ea7abd30a5f3e2a6ad1a98f3b0d71fe, 2 pages, PDF SHA-256 2f4a5364ed6f5f74354d44b0e5b4e1f04225fda90e262756f7aa7ac8318767e3",
-    "production_boundary": "Expert Broker, Codex App Server, Codex SDK adapter, cross-UID runner and Codex expert runtime entrypoints absent",
-    "warnings": "Existing deprecation warnings remain non-blocking; zero focused-test failures. Real-material Stage 10 exposed that the provider request omitted the release-bound output JSON Schema; the replacement sends that exact schema while preserving strict validation and rejecting array coercion. Clean --no-cache rebuild remains pending until real-material replay closes."
+    "targeted_repository_regression": "24 focused visual-review and page-review-contract tests passed; complete host Worker V3 suite excluding the host environment pypdf collection gap passed 355 tests with 2 skips",
+    "runtime_identity_gate": "passed with no network and digest-pinned reference: non-root UID 10003, exact control-plane tree and 19 locked system packages",
+    "repository_static_tests": "release source verify-only passed with 24 formal entrypoints, 38 sources and four honest qualification gaps",
+    "exact_image_regression": "332 image-applicable Worker V3 tests passed with one skip; ten repository-root-only tests were excluded in-image and passed in the host suite",
+    "locked_template_smoke": "passed with no network: frozen template class SHA-256 048c3b90da41be64f4744da3bff6ae8c5ea7abd30a5f3e2a6ad1a98f3b0d71fe, 2 pages, PDF SHA-256 1b7c46620bb59ccf6d539c5c3834715a3993735e3c660b08124bc8b0a08d9dae",
+    "production_boundary": "Expert Broker, Codex App Server, Codex SDK adapter, cross-UID runner, Codex expert runtime entrypoints, Codex binary and Codex/OpenAI credentials are absent",
+    "warnings": "Existing Python and SQLAlchemy deprecation warnings remain non-blocking; no applicable test failure remains. The image is a cached qualification build, not the final clean-build release image."
   },
   "user": "10003:10003"
 }

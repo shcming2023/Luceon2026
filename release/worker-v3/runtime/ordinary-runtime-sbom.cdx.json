@@ -5080,10 +5080,10 @@
         }
       ],
       "type": "container",
-      "version": "worker-v3-runtime-rc-ad89b28-qual"
+      "version": "worker-v3-runtime-rc-25ea95c-qual"
     }
   },
-  "serialNumber": "urn:uuid:5a16a73f-feb7-558a-8bfb-e08e18a9ab0e",
+  "serialNumber": "urn:uuid:75a275eb-4159-55e9-9535-5c36f9b07844",
   "specVersion": "1.5",
   "version": 1
 }
