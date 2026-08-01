@@ -1149,6 +1149,20 @@ def produce_delivery_set(
     }
 
 
+def validate_render_plan_media_binding(plan: dict[str, Any], media_plan_sha256: str) -> None:
+    if plan.get("media_representation_plan_sha256") != media_plan_sha256:
+        raise ValueError("supplied media representation plan is not bound by the active render plan")
+    node_plan_hashes = {
+        (node.get("media_binding") or node.get("payload", {}).get("media_binding") or {}).get(
+            "media_representation_plan_sha256"
+        )
+        for node in plan.get("nodes", [])
+        if node.get("media_binding") or node.get("payload", {}).get("media_binding")
+    }
+    if node_plan_hashes and node_plan_hashes != {media_plan_sha256}:
+        raise ValueError("active render plan contains inconsistent media representation bindings")
+
+
 def produce(args: argparse.Namespace) -> dict[str, Any]:
     import fitz
 
@@ -1195,12 +1209,10 @@ def produce(args: argparse.Namespace) -> dict[str, Any]:
         raise ValueError("Spec 04-D render plan and supplied capability manifest differ")
     if sha256_file(args.template_zip.resolve()) != template_intake_archive_sha256(args.template_intake.resolve()):
         raise ValueError("template ZIP and Spec 01 template intake differ")
-    if sha256_file(args.media_representation_plan.resolve()) not in {
-        (node.get("media_binding") or node.get("payload", {}).get("media_binding") or {}).get("media_representation_plan_sha256")
-        for node in plan.get("nodes", [])
-        if node.get("media_binding") or node.get("payload", {}).get("media_binding")
-    }:
-        raise ValueError("supplied media representation plan is not bound by the active render plan")
+    validate_render_plan_media_binding(
+        plan,
+        sha256_file(args.media_representation_plan.resolve()),
+    )
     media_evidence_root = args.media_evidence_root.resolve()
     if not media_evidence_root.is_dir():
         raise ValueError("media evidence root is unavailable")

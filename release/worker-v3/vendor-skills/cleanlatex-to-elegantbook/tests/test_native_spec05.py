@@ -147,6 +147,53 @@ def test_bound_input_is_frozen_inside_candidate_tree(tmp_path: Path) -> None:
         raise AssertionError("frozen candidate input must be immutable")
 
 
+def test_media_less_render_plan_uses_top_level_frozen_binding() -> None:
+    media_plan_sha256 = "a" * 64
+    MODULE.validate_render_plan_media_binding(
+        {
+            "media_representation_plan_sha256": media_plan_sha256,
+            "nodes": [{"render_node_id": "text-1", "payload": {}}],
+        },
+        media_plan_sha256,
+    )
+
+
+def test_media_binding_rejects_top_level_plan_drift() -> None:
+    try:
+        MODULE.validate_render_plan_media_binding(
+            {
+                "media_representation_plan_sha256": "b" * 64,
+                "nodes": [],
+            },
+            "a" * 64,
+        )
+    except ValueError as exc:
+        assert "not bound by the active render plan" in str(exc)
+    else:
+        raise AssertionError("drifted top-level media plan binding was accepted")
+
+
+def test_media_binding_rejects_inconsistent_node_binding() -> None:
+    media_plan_sha256 = "a" * 64
+    try:
+        MODULE.validate_render_plan_media_binding(
+            {
+                "media_representation_plan_sha256": media_plan_sha256,
+                "nodes": [{
+                    "render_node_id": "media-1",
+                    "media_binding": {
+                        "media_representation_plan_sha256": "b" * 64,
+                    },
+                }],
+            },
+            media_plan_sha256,
+        )
+    except ValueError as exc:
+        assert "inconsistent media representation bindings" in str(exc)
+    else:
+        raise AssertionError("inconsistent per-node media plan binding was accepted")
+
+
 def test_build_policy_accepts_direct_runtime_and_both_supported_poppler_renderers(tmp_path: Path) -> None:
     base = {
         "schema_version": "spec05-build-policy/1.0",
