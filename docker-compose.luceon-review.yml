@@ -86,8 +86,8 @@ services:
       - DEEPSEEK_OUTLINE_GLOBAL_MAX_CANDIDATES=${DEEPSEEK_OUTLINE_GLOBAL_MAX_CANDIDATES:-500}
       - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY:-}
       - DASHSCOPE_BASE_URL=${DASHSCOPE_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
-      - DASHSCOPE_VISION_MODEL=${DASHSCOPE_VISION_MODEL:-qwen3.7-plus}
-      - VISION_MODEL=${VISION_MODEL:-${DASHSCOPE_VISION_MODEL:-qwen3.7-plus}}
+      - DASHSCOPE_VISION_MODEL=${DASHSCOPE_VISION_MODEL:-qwen3.7-plus-2026-05-26}
+      - VISION_MODEL=${VISION_MODEL:-${DASHSCOPE_VISION_MODEL:-qwen3.7-plus-2026-05-26}}
     volumes:
       - ${LUCEON_RUNTIME_ROOT:-./runtime}/backend:/data
       - ${LUCEON_RUNTIME_ROOT:-./runtime}/backups:/backups
@@ -142,8 +142,8 @@ services:
       - DEEPSEEK_OUTLINE_DECISION_MAX_TOKENS=${DEEPSEEK_OUTLINE_DECISION_MAX_TOKENS:-24000}
       - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY:-}
       - DASHSCOPE_BASE_URL=${DASHSCOPE_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
-      - DASHSCOPE_VISION_MODEL=${DASHSCOPE_VISION_MODEL:-qwen3.7-plus}
-      - VISION_MODEL=${VISION_MODEL:-${DASHSCOPE_VISION_MODEL:-qwen3.7-plus}}
+      - DASHSCOPE_VISION_MODEL=${DASHSCOPE_VISION_MODEL:-qwen3.7-plus-2026-05-26}
+      - VISION_MODEL=${VISION_MODEL:-${DASHSCOPE_VISION_MODEL:-qwen3.7-plus-2026-05-26}}
     volumes:
       - ${LUCEON_RUNTIME_ROOT:-./runtime}/backend:/data
       - /var/run/docker.sock:/var/run/docker.sock
@@ -259,8 +259,8 @@ services:
       - DEEPSEEK_REASONING_MODEL=${DEEPSEEK_REASONING_MODEL:-deepseek-v4-pro}
       - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY:-}
       - DASHSCOPE_BASE_URL=${DASHSCOPE_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
-      - DASHSCOPE_VISION_MODEL=${DASHSCOPE_VISION_MODEL:-qwen3.7-plus}
-      - VISION_MODEL=${VISION_MODEL:-${DASHSCOPE_VISION_MODEL:-qwen3.7-plus}}
+      - DASHSCOPE_VISION_MODEL=${DASHSCOPE_VISION_MODEL:-qwen3.7-plus-2026-05-26}
+      - VISION_MODEL=${VISION_MODEL:-${DASHSCOPE_VISION_MODEL:-qwen3.7-plus-2026-05-26}}
     volumes:
       - ${LUCEON_RUNTIME_ROOT:-./runtime}/backend:/data
       - ${LUCEON_RUNTIME_ROOT:-./runtime}/worker-v3/releases:/worker-v3/releases:ro

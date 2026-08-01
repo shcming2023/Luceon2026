@@ -202,6 +202,9 @@ def test_build_policy_accepts_direct_runtime_and_both_supported_poppler_renderer
         "compile": {
             "executor": "direct_exec", "container": "worker-v3-runtime", "entry": "main.tex",
             "command": ["latexmk", "main.tex"],
+            "environment": {
+                "FORCE_SOURCE_DATE": "1", "SOURCE_DATE_EPOCH": "946684800", "TZ": "UTC",
+            },
         },
         "render": {"renderer": "pdftoppm", "format": "png", "dpi": 110},
     }
@@ -229,13 +232,39 @@ def test_build_policy_rejects_unknown_compile_executor(tmp_path: Path) -> None:
         raise AssertionError("unknown compile executor must be rejected")
 
 
+def test_build_policy_rejects_non_reproducible_compile_environment(tmp_path: Path) -> None:
+    policy = tmp_path / "policy.json"
+    policy.write_text(json.dumps({
+        "schema_version": "spec05-build-policy/1.0",
+        "status": "approved",
+        "template_metadata_constraints": {"required_nonempty": ["title"]},
+        "compile": {
+            "executor": "direct_exec", "container": "runtime", "entry": "main.tex",
+            "command": ["latexmk", "main.tex"], "environment": {"TZ": "UTC"},
+        },
+        "render": {"renderer": "pdftoppm", "format": "png", "dpi": 110},
+    }), encoding="utf-8")
+    try:
+        MODULE.validate_policy(policy)
+    except ValueError as exc:
+        assert "SOURCE_DATE_EPOCH" in str(exc)
+    else:
+        raise AssertionError("non-reproducible compile environment must be rejected")
+
+
 def test_build_policy_rejects_unknown_renderer(tmp_path: Path) -> None:
     policy = tmp_path / "policy.json"
     policy.write_text(json.dumps({
         "schema_version": "spec05-build-policy/1.0",
         "status": "approved",
         "template_metadata_constraints": {"required_nonempty": ["title"]},
-        "compile": {"executor": "docker_copy_exec", "container": "tex", "entry": "main.tex", "command": ["latexmk"]},
+        "compile": {
+            "executor": "docker_copy_exec", "container": "tex", "entry": "main.tex",
+            "command": ["latexmk"],
+            "environment": {
+                "FORCE_SOURCE_DATE": "1", "SOURCE_DATE_EPOCH": "946684800", "TZ": "UTC",
+            },
+        },
         "render": {"renderer": "sample-specific-renderer", "format": "png", "dpi": 110},
     }), encoding="utf-8")
     try:

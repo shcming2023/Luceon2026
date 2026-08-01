@@ -22,7 +22,9 @@
       "main.tex"
     ],
     "environment": {
+      "FORCE_SOURCE_DATE": "1",
       "LC_ALL": "C.UTF-8",
+      "SOURCE_DATE_EPOCH": "946684800",
       "TZ": "UTC"
     },
     "max_runs": 5,

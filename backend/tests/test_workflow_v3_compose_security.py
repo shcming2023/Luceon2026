@@ -81,6 +81,7 @@ def test_producer_evaluator_and_promoter_have_distinct_identities_and_work_roots
         "https://dashscope.aliyuncs.com/compatible-mode/v1}"
     ) in producer
     assert "DASHSCOPE_VISION_MODEL" in producer
+    assert "qwen3.7-plus-2026-05-26" in producer
     assert "worker-v3-independent-evaluator-local" in evaluator
     assert "work/evaluator:/worker-v3/evaluation-work" in evaluator
     assert "WORKFLOW_V3_ARTIFACT_BACKEND=minio" in evaluator

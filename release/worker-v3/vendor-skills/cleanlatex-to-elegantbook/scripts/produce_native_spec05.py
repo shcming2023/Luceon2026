@@ -183,6 +183,16 @@ def validate_policy(path: Path) -> dict[str, Any]:
         raise ValueError("compile command must be a non-empty argv list")
     if compile_cfg.get("entry") != "main.tex":
         raise ValueError("build policy must compile the frozen main.tex entry")
+    environment = compile_cfg.get("environment")
+    if (
+        not isinstance(environment, dict)
+        or environment.get("FORCE_SOURCE_DATE") != "1"
+        or environment.get("TZ") != "UTC"
+        or not str(environment.get("SOURCE_DATE_EPOCH") or "").isdigit()
+    ):
+        raise ValueError(
+            "compile policy must freeze SOURCE_DATE_EPOCH and FORCE_SOURCE_DATE in UTC"
+        )
     render_cfg = policy.get("render", {})
     if render_cfg.get("renderer") not in {"pdftoppm", "pdftocairo"} or render_cfg.get("format") != "png":
         raise ValueError("render policy must explicitly select a supported Poppler PNG renderer")
