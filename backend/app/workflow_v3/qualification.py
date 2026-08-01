@@ -449,6 +449,7 @@ def run_qualification(
         )
         warning_review = prepared["spec05_warning_review"]
         warning_review_used = False
+        terminal_needs_review_stage = ""
         target_index = _stage_index(config.stop_after)
         for contract in STAGE_CONTRACTS[: target_index + 1]:
             produced = executor.run_one_stage(job_id)
@@ -490,6 +491,18 @@ def run_qualification(
                     job_id,
                     int(produced["candidate_id"]),
                 )
+            if (
+                contract.key == "independent_full_page_review"
+                and config.stop_after == "ready_for_user_acceptance"
+                and evaluated.get("ok") is True
+                and evaluated.get("decision") == "needs_review"
+                and evaluated.get("spec_passed") is False
+            ):
+                report_payload["stages"].append(
+                    _stage_report(factory, job_id, contract.key)
+                )
+                terminal_needs_review_stage = contract.key
+                break
             if (
                 evaluated.get("ok") is not True
                 or evaluated.get("decision") != "passed"
@@ -543,11 +556,23 @@ def run_qualification(
                 raise QualificationError(
                     "qualification fixture bundle contains unused responses"
                 )
+        job_report = _job_report(factory, job_id)
         report_payload["outcome"].update(
             {
                 "passed": True,
                 "stop_condition_reached": True,
-                "job": _job_report(factory, job_id),
+                "qualification_disposition": (
+                    "evidence_closed_needs_review"
+                    if terminal_needs_review_stage
+                    else "passed"
+                ),
+                "actual_stop_stage": (
+                    terminal_needs_review_stage or config.stop_after
+                ),
+                "machine_succeeded": (
+                    job_report["machine_status"] == "succeeded"
+                ),
+                "job": job_report,
             }
         )
     except Exception as exc:
@@ -1180,7 +1205,7 @@ def _stage_report(
         promotion = (
             db.query(WorkflowV3Promotion)
             .filter(WorkflowV3Promotion.stage_run_id == stage.id)
-            .one()
+            .one_or_none()
         )
         attempts = []
         for row in stage_rows:
@@ -1261,11 +1286,15 @@ def _stage_report(
                     [],
                 ),
             },
-            "promotion": {
-                "id": str(promotion.id),
-                "artifact_sha256": promotion.artifact_sha256,
-                "promoted_by": promotion.promoted_by,
-            },
+            "promotion": (
+                {
+                    "id": str(promotion.id),
+                    "artifact_sha256": promotion.artifact_sha256,
+                    "promoted_by": promotion.promoted_by,
+                }
+                if promotion is not None
+                else None
+            ),
         }
     finally:
         db.close()

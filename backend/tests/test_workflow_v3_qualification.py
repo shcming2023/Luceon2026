@@ -373,6 +373,63 @@ class QualificationSpec05ReviewFixture(QualificationCommandFixture):
         super()._evaluate(cwd, request)
 
 
+class QualificationFullPageNeedsReviewFixture(QualificationCommandFixture):
+    @classmethod
+    def _evaluate(cls, cwd: Path, request: dict) -> None:
+        if request["stage_key"] == "independent_full_page_review":
+            _write_json(
+                cwd / request["output_manifest"],
+                {
+                    "schema_version": (
+                        "luceon.worker-v3-stage-evaluation/v1"
+                    ),
+                    "job_id": request["job_id"],
+                    "stage_key": request["stage_key"],
+                    "attempt": request["attempt"],
+                    "candidate_sha256": request["candidate"]["sha256"],
+                    "release_manifest_sha256": request[
+                        "release_manifest_sha256"
+                    ],
+                    "policy_sha256": request["policy_sha256"],
+                    "decision": "needs_review",
+                    "gate_results": {
+                        gate: gate != "blocking_findings_zero"
+                        for gate in request["required_gates"]
+                    },
+                    "findings": [
+                        {
+                            "code": "source_fidelity_review_open",
+                            "blocking": True,
+                            "responsible_stage": (
+                                "template_construct_binding"
+                            ),
+                            "recovery_stage": "template_construct_binding",
+                            "evidence_refs": [
+                                {
+                                    "path": "manifests/stage.json",
+                                    "sha256": "b" * 64,
+                                }
+                            ],
+                            "handoff": {
+                                "summary": (
+                                    "Full-page review found source drift."
+                                ),
+                                "required_action": (
+                                    "Review the bound evidence and resume "
+                                    "from template construct binding."
+                                ),
+                                "resume_stage": (
+                                    "template_construct_binding"
+                                ),
+                            },
+                        }
+                    ],
+                },
+            )
+            return
+        super()._evaluate(cwd, request)
+
+
 def _qualification_inputs(tmp_path: Path):
     release_root = _incomplete_readonly_release(tmp_path)
     package_root, source_json, evidence = _frozen_source_package(tmp_path)
@@ -527,6 +584,56 @@ def test_isolated_qualification_runs_normal_three_role_chain_and_hash_report(
     finally:
         db.close()
         engine.dispose()
+
+
+def test_full_page_needs_review_is_a_qualified_non_success_terminal(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("LUCEON_ENVIRONMENT", "qualification")
+    monkeypatch.delenv("WORKFLOW_V3_DATABASE_URL", raising=False)
+    release_root, package_root, source_json, _ = _qualification_inputs(
+        tmp_path
+    )
+    transport = QualificationFullPageNeedsReviewFixture()
+
+    result = run_qualification(
+        QualificationConfig(
+            release_root=release_root,
+            source_package_root=package_root,
+            source_evidence_json=source_json,
+            run_root=tmp_path / "run-full-page-needs-review",
+            stop_after="ready_for_user_acceptance",
+        ),
+        command_transport=transport,
+    )
+
+    assert result.passed is True
+    assert transport.calls[-2:] == [
+        ("produce", "independent_full_page_review"),
+        ("evaluate", "independent_full_page_review"),
+    ]
+    payload = json.loads(
+        result.report_path.read_text(encoding="utf-8")
+    )["payload"]
+    assert payload["outcome"]["passed"] is True
+    assert payload["outcome"]["qualification_disposition"] == (
+        "evidence_closed_needs_review"
+    )
+    assert payload["outcome"]["actual_stop_stage"] == (
+        "independent_full_page_review"
+    )
+    assert payload["outcome"]["machine_succeeded"] is False
+    assert payload["outcome"]["job"]["machine_status"] == "needs_review"
+    assert payload["outcome"]["job"]["spec_status"] == "needs_review"
+    assert payload["stages"][-1]["stage"]["machine_status"] == (
+        "needs_review"
+    )
+    assert payload["stages"][-1]["evaluation"]["decision"] == (
+        "needs_review"
+    )
+    assert payload["stages"][-1]["promotion"] is None
+    assert len(payload["stages"]) == 10
 
 
 def test_qualification_closes_exact_spec05_warning_and_resumes_only_stage8(
