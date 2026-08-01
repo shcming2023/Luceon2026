@@ -82,6 +82,22 @@ def _review_jpegs(pdf: Path, destination: Path) -> list[Path]:
     return result
 
 
+def _render_pack_pngs(pdf: Path, destination: Path) -> list[Path]:
+    destination.mkdir(parents=True, exist_ok=True)
+    result: list[Path] = []
+    with fitz.open(pdf) as document:
+        for index in range(document.page_count):
+            target = destination / f"page-{index + 1:03d}.png"
+            document.load_page(index).get_pixmap(
+                matrix=fitz.Matrix(1.5, 1.5),
+                colorspace=fitz.csRGB,
+                alpha=False,
+                annots=True,
+            ).save(target)
+            result.append(target)
+    return result
+
+
 def _stable_id(*parts: str) -> str:
     digest = hashlib.sha256()
     for part in parts:
@@ -205,8 +221,9 @@ def _fixture(
     source_review_jpegs = page_review_contract._pdf_page_review_jpeg_sha256(  # noqa: SLF001
         source
     )
-    candidate_rasters = page_review_contract._pdf_page_raster_sha256(  # noqa: SLF001
-        candidate
+    render_pack_pngs = _render_pack_pngs(
+        candidate,
+        root / "spec05/volumes/v1/final_render_pack/pages",
     )
     candidate_jpegs = _review_jpegs(
         candidate,
@@ -284,8 +301,12 @@ def _fixture(
         {
             "page_count": len(candidate_pages),
             "pages": [
-                {"index": index, "raster_sha256": raster}
-                for index, raster in enumerate(candidate_rasters, 1)
+                {
+                    "index": index,
+                    "raster_path": f"pages/{raster.name}",
+                    "raster_sha256": _sha(raster),
+                }
+                for index, raster in enumerate(render_pack_pngs, 1)
             ],
         },
     )
@@ -312,7 +333,7 @@ def _fixture(
     provenance_pages = [
         {
             "candidate_page": 1,
-            "candidate_raster_sha256": candidate_rasters[0],
+            "candidate_raster_sha256": _sha(render_pack_pngs[0]),
             "disposition": "source_body",
             "generated_role": None,
             "render_node_ids": ["n1"],
@@ -321,7 +342,7 @@ def _fixture(
         },
         {
             "candidate_page": 2,
-            "candidate_raster_sha256": candidate_rasters[1],
+            "candidate_raster_sha256": _sha(render_pack_pngs[1]),
             "disposition": "source_body",
             "generated_role": None,
             "render_node_ids": ["n2"],
@@ -333,7 +354,7 @@ def _fixture(
         provenance_pages.append(
             {
                 "candidate_page": 3,
-                "candidate_raster_sha256": candidate_rasters[2],
+                "candidate_raster_sha256": _sha(render_pack_pngs[2]),
                 "disposition": "mapping_uncertain",
                 "generated_role": None,
                 "render_node_ids": [],
@@ -788,6 +809,37 @@ def test_contract_rejects_response_set_and_provenance_raster_forgery(
     provenance = json.loads(provenance_path.read_text())
     provenance["pages"][0]["candidate_raster_sha256"] = "f" * 64
     _rebind_provenance(root, review, provenance)
+    with pytest.raises(PageReviewContractError, match="provenance page"):
+        validate_page_review_contract(
+            candidate_root=root,
+            review=review,
+            release_root=release,
+            expected_release_sha256=release_sha,
+        )
+
+
+def test_contract_keeps_spec05_png_and_stage10_review_rasters_separate(
+    tmp_path: Path,
+) -> None:
+    root, release, release_sha, review = _fixture(tmp_path)
+    candidate = root / review["volumes"][0]["candidate_pdf"]["path"]
+    provenance_path = root / review["volumes"][0]["page_provenance"]["path"]
+    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+
+    assert provenance["pages"][0]["candidate_raster_sha256"] != (
+        page_review_contract._pdf_page_raster_sha256(candidate)[0]  # noqa: SLF001
+    )
+    validate_page_review_contract(
+        candidate_root=root,
+        review=review,
+        release_root=release,
+        expected_release_sha256=release_sha,
+    )
+
+    render_pack_path = root / "spec05/volumes/v1/final_render_pack/manifest.json"
+    render_pack = json.loads(render_pack_path.read_text(encoding="utf-8"))
+    raster = render_pack_path.parent / render_pack["pages"][0]["raster_path"]
+    raster.write_bytes(raster.read_bytes() + b"drift")
     with pytest.raises(PageReviewContractError, match="provenance page"):
         validate_page_review_contract(
             candidate_root=root,

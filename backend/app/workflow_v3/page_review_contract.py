@@ -701,12 +701,6 @@ def _validate_page_provenance(
             "page_review_mapping_binding_mismatch",
             f"render-pack page coverage drifted for {volume_id}",
         )
-    candidate_rasters = _pdf_page_raster_sha256(candidate_pdf)
-    if len(candidate_rasters) != page_count:
-        _fail(
-            "page_review_mapping_binding_mismatch",
-            f"candidate raster coverage drifted for {volume_id}",
-        )
     generated = value.get("allowed_generated_pages")
     if (
         not isinstance(generated, Mapping)
@@ -841,14 +835,20 @@ def _validate_page_provenance(
     uncertain: list[int] = []
     for index, row in enumerate(pages, 1):
         render_page = render_pages[index - 1]
+        render_raster = (
+            _required(render_pack_path.parent, render_page.get("raster_path"))
+            if isinstance(render_page, Mapping)
+            else None
+        )
         if (
             not isinstance(row, Mapping)
             or not isinstance(render_page, Mapping)
+            or render_raster is None
+            or render_page.get("index") != index
+            or render_page.get("raster_sha256") != _sha256_file(render_raster)
             or row.get("candidate_page") != index
             or row.get("candidate_raster_sha256")
             != render_page.get("raster_sha256")
-            or row.get("candidate_raster_sha256")
-            != candidate_rasters[index - 1]
         ):
             _fail("page_review_mapping_binding_mismatch", "provenance page is malformed")
         active = [
