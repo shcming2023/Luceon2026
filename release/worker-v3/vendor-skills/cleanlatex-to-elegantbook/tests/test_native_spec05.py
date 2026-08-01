@@ -122,6 +122,31 @@ def test_zip_tree_hashes_remain_stable_after_compile_outputs(
     }
 
 
+def test_bound_input_is_frozen_inside_candidate_tree(tmp_path: Path) -> None:
+    source = tmp_path / "stage-inputs/template-capability.json"
+    source.parent.mkdir()
+    source.write_bytes(b'{"body_insertion":{"after_exact_marker":"% body"}}\n')
+    run = tmp_path / "candidate/spec05"
+    target = run / "contracts/template_capability_manifest.json"
+
+    frozen = MODULE.freeze_bound_input(source, target)
+
+    assert frozen == target
+    assert frozen.read_bytes() == source.read_bytes()
+    assert MODULE.artifact(run, frozen)["path"] == (
+        "contracts/template_capability_manifest.json"
+    )
+
+    source.write_bytes(b'{"drift":true}\n')
+    assert frozen.read_bytes() != source.read_bytes()
+    try:
+        MODULE.freeze_bound_input(source, target)
+    except FileExistsError as exc:
+        assert "refusing to overwrite frozen input" in str(exc)
+    else:
+        raise AssertionError("frozen candidate input must be immutable")
+
+
 def test_build_policy_accepts_direct_runtime_and_both_supported_poppler_renderers(tmp_path: Path) -> None:
     base = {
         "schema_version": "spec05-build-policy/1.0",

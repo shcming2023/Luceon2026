@@ -219,6 +219,18 @@ def assess_delivery_zip_size(zip_path: Path) -> dict[str, Any]:
     }
 
 
+def freeze_bound_input(source: Path, target: Path) -> Path:
+    """Materialize an immutable input inside the candidate artifact tree."""
+    source = source.resolve()
+    if target.exists() or target.is_symlink():
+        raise FileExistsError(f"refusing to overwrite frozen input: {target}")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, target)
+    if sha256_file(target) != sha256_file(source):
+        raise ValueError(f"frozen input differs from its bound source: {source.name}")
+    return target
+
+
 def capability_manifest(args: argparse.Namespace, execution_core: Any, run: Path) -> dict[str, Any]:
     skill_root = Path(__file__).resolve().parents[1]
     resources = [
@@ -1201,6 +1213,14 @@ def produce(args: argparse.Namespace) -> dict[str, Any]:
         raise ValueError("media contracts differ from the frozen media evidence root")
 
     run.mkdir(parents=True)
+    frozen_capability_manifest = freeze_bound_input(
+        args.capability_manifest,
+        run / "contracts/template_capability_manifest.json",
+    )
+    frozen_metadata_config = freeze_bound_input(
+        args.metadata_config,
+        run / "contracts/metadata_config.json",
+    )
     template_dir = run / "precommit/template"
     safe_extract(args.template_zip.resolve(), template_dir)
     capability = capability_manifest(args, execution_core, run)
@@ -1209,7 +1229,7 @@ def produce(args: argparse.Namespace) -> dict[str, Any]:
     contract_path = run / "contracts/template_contract.json"
     capability_validation = run / "reports/template_capability_validation_report.json"
     freeze_args = argparse.Namespace(
-        template_dir=template_dir, template_zip=args.template_zip.resolve(), capability_manifest=args.capability_manifest.resolve(),
+        template_dir=template_dir, template_zip=args.template_zip.resolve(), capability_manifest=frozen_capability_manifest,
         metadata_config=args.metadata_config.resolve(), presentation_config=args.presentation_config.resolve(),
         entry="main.tex", body_marker=args.body_marker,
         body_end_token=r"\end{document}", engine=policy["compile"].get("engine", "XeLaTeX"),
@@ -1231,7 +1251,7 @@ def produce(args: argparse.Namespace) -> dict[str, Any]:
     mechanical = run / "mechanical"
     render_args = argparse.Namespace(
         template_dir=template_dir, template_contract=contract_path, ledger=ledger, decision_index=parent_index,
-        render_plan=render_plan, capability_manifest=args.capability_manifest.resolve(), asset_root=args.asset_root,
+        render_plan=render_plan, capability_manifest=frozen_capability_manifest, asset_root=args.asset_root,
         source_pdf=args.source_pdf.resolve(),
         source_page_dir=(args.source_page_dir.resolve() if args.source_page_dir else None),
         contract_validator=args.contract_validator.resolve(), media_evidence_ledger=args.media_evidence_ledger.resolve(),
@@ -1251,7 +1271,7 @@ def produce(args: argparse.Namespace) -> dict[str, Any]:
     (run / "render").mkdir()
     shutil.copy2(mechanical / "render/rendered_body.tex", run / "render/rendered_body.tex")
     template_local_api_report = template_local_api.audit_template_local_api_usage(
-        args.capability_manifest.resolve(), run / "render/rendered_body.tex"
+        frozen_capability_manifest, run / "render/rendered_body.tex"
     )
     write_json(run / "reports/template_local_api_usage_report.json", template_local_api_report)
     if template_local_api_report["spec_status"] != "passed":
@@ -1397,9 +1417,9 @@ def produce(args: argparse.Namespace) -> dict[str, Any]:
     )
     artifacts = {
         "execution_capability_E": artifact(run, run / "precommit/execution_capability_manifest.json", payload_hash=capability["payload_hash"]),
-        "template_contract": artifact(run, contract_path), "template_capability_manifest": artifact(run, args.capability_manifest.resolve()),
+        "template_contract": artifact(run, contract_path), "template_capability_manifest": artifact(run, frozen_capability_manifest),
         "template_capability_validation": artifact(run, capability_validation),
-        "metadata_config": artifact(run, args.metadata_config.resolve()),
+        "metadata_config": artifact(run, frozen_metadata_config),
         "presentation_config": artifact(run, frozen_presentation_config),
         "template_integrity": artifact(run, run / "reports/template_integrity_final_report.json"),
         "template_local_api_usage": artifact(run, run / "reports/template_local_api_usage_report.json"),
