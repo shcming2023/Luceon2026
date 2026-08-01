@@ -826,6 +826,51 @@ def test_source_hash_drift_fails_before_any_output_is_written(tmp_path):
     assert (root / "ebc/stable.zip").exists()
 
 
+def test_runtime_profile_hash_drift_is_rejected_before_assembly(tmp_path):
+    recipe, _ = _fixture_recipe(tmp_path)
+    recipe["runtime"]["system_tools"] = {
+        "spec05_build": {
+            "profile_path": "runtime/fonts.json",
+            "profile_sha256": "0" * 64,
+        }
+    }
+
+    with pytest.raises(ReleaseRecipeError, match="profile_sha256 mismatch"):
+        audit_release_recipe(recipe)
+
+
+def test_runtime_identity_and_build_proof_must_bind_container_digest(tmp_path):
+    recipe, root = _fixture_recipe(tmp_path)
+    digest = recipe["runtime"]["container_image_digest"]
+    attestation_path = root / "release-inputs/attestation.json"
+    payload = json.dumps(
+        {
+            "runtime_id": "fixture-runtime",
+            "image_id": digest,
+            "local_manifest_digest": digest,
+        },
+        sort_keys=True,
+    ).encode()
+    _write(attestation_path, payload)
+    attestation_source = next(
+        row
+        for row in recipe["sources"]
+        if row["destination"] == "runtime/attestation.json"
+    )
+    attestation_source["expected_sha256"] = _sha(payload)
+    recipe["runtime"]["system_tools"] = {
+        "runtime_id": "fixture-runtime",
+        "identity": "runtime/attestation.json",
+        "build_proof": "runtime/attestation.json",
+    }
+
+    audit_release_recipe(recipe)
+    recipe["runtime"]["container_image_digest"] = f"sha256:{'c' * 64}"
+
+    with pytest.raises(ReleaseRecipeError, match="image_id mismatch"):
+        audit_release_recipe(recipe)
+
+
 def test_symlink_in_source_tree_is_rejected_even_when_it_would_be_filtered(tmp_path):
     recipe, root = _fixture_recipe(tmp_path)
     skill = root / "skills" / REQUIRED_SKILLS[0]

@@ -1144,6 +1144,73 @@ def _template_identity(
     )
 
 
+def _runtime_system_tools(
+    raw_value: object,
+    *,
+    planned: Mapping[str, PlannedFile],
+    container_digest: str,
+) -> dict[str, Any]:
+    tools = dict(_mapping(raw_value, field="runtime.system_tools"))
+    for name, value in tools.items():
+        if not isinstance(value, Mapping):
+            continue
+        has_profile_binding = "profile_path" in value or "profile_sha256" in value
+        if not has_profile_binding:
+            continue
+        profile_path = _relative(
+            value.get("profile_path"),
+            field=f"runtime.system_tools.{name}.profile_path",
+        )
+        if profile_path not in planned:
+            _fail(
+                f"runtime.system_tools.{name}.profile_path is not planned"
+            )
+        expected_sha = _sha256(
+            value.get("profile_sha256"),
+            field=f"runtime.system_tools.{name}.profile_sha256",
+        )
+        if expected_sha != planned[profile_path].sha256:
+            _fail(
+                f"runtime.system_tools.{name}.profile_sha256 mismatch"
+            )
+
+    binding_keys = ("runtime_id", "identity", "build_proof")
+    if not any(key in tools for key in binding_keys):
+        return tools
+    missing = [key for key in binding_keys if key not in tools]
+    if missing:
+        _fail(f"runtime.system_tools is missing runtime binding keys: {missing}")
+    runtime_id = _nonempty_string(
+        tools["runtime_id"],
+        field="runtime.system_tools.runtime_id",
+    )
+
+    def evidence(name: str) -> Mapping[str, Any]:
+        relative = _relative(
+            tools[name],
+            field=f"runtime.system_tools.{name}",
+        )
+        if relative not in planned:
+            _fail(f"runtime.system_tools.{name} is not planned")
+        try:
+            document = json.loads(planned[relative].payload.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            _fail(f"runtime.system_tools.{name} is not valid UTF-8 JSON: {exc}")
+        return _mapping(document, field=f"runtime.system_tools.{name}")
+
+    identity = evidence("identity")
+    if identity.get("runtime_id") != runtime_id:
+        _fail("runtime.system_tools.identity runtime_id mismatch")
+    build_proof = evidence("build_proof")
+    if build_proof.get("runtime_id") != runtime_id:
+        _fail("runtime.system_tools.build_proof runtime_id mismatch")
+    if build_proof.get("image_id") != container_digest:
+        _fail("runtime.system_tools.build_proof image_id mismatch")
+    if build_proof.get("local_manifest_digest") != container_digest:
+        _fail("runtime.system_tools.build_proof local_manifest_digest mismatch")
+    return tools
+
+
 def _runtime_identity(
     recipe: Mapping[str, Any],
     planned: dict[str, PlannedFile],
@@ -1224,11 +1291,16 @@ def _runtime_identity(
     else:
         _sha256(container_digest.removeprefix("sha256:"), field="runtime.container_image_digest")
 
+    system_tools = _runtime_system_tools(
+        raw.get("system_tools", {}),
+        planned=planned,
+        container_digest=container_digest,
+    )
     return (
         {
             "python": raw["python"],
             "application_dependencies_sha256": planned[dependency_path].sha256,
-            "system_tools": raw.get("system_tools", {}),
+            "system_tools": system_tools,
             "fonts_sha256": identity("fonts"),
             "tex_sha256": identity("tex"),
             "poppler_sha256": identity("poppler"),
