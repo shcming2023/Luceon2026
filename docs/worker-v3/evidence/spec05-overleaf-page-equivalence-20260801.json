@@ -1,0 +1,41 @@
+{
+  "schema_version": "luceon.worker-v3.supporting-evidence.overleaf-page-equivalence/v1",
+  "status": "passed",
+  "evidence_id": "worker-v3-overleaf-page-equivalence-pdf-8e5464971a3e1d6b-9bc2975",
+  "qualified_at": "2026-08-01T21:35:00+08:00",
+  "release_binding": {
+    "release_source_git_sha": "9bc297596795fb5637ff4193a4eeea40efd39398",
+    "worker_container_image_digest": "sha256:d3941cb9e2efc85ee8207dfb4d8687f11b1024fdd4944af9a50ebf5b2a882da6",
+    "overleaf_adapter_image_digest": "sha256:6ab47323c6377557428502bfb8b0fbd9a9c6bbb93304684ab572961ec79aa6d1",
+    "overleaf_adapter_runtime_identity_sha256": "e7a4799c79e582d098c3c4506760267e0ac3bbd4ada506a7bb9cacc3d139f6b9"
+  },
+  "input": {
+    "zip_sha256": "0f9a3eac57f750a25e6b53f4c7afff063e94d5cb9f6eda6c5d194984e2116d14",
+    "zip_size_bytes": 7385769,
+    "source_pdf_sha256": "8e5464971a3e1d6b40f5afc996dba67efc9af60e29d73ce10730e91c4fa12fad",
+    "popo_manifest_sha256": "c643bc08caa8c9c5e274014568f93cb550aa7c1b4380c526dc6ddd5409f484e4"
+  },
+  "compile": {
+    "status": "passed",
+    "duration_ms": 13167,
+    "result_manifest_sha256": "fd023dfe496fa33c87c17a081504d14ccbaae4c1bae4f414074d3592d072299f",
+    "compile_log_sha256": "27f9cced55202310e0bb6294fcf29ad271a55ce1315a18d88d595f63d31134fa",
+    "worker_pdf_sha256": "79566b151424ca48077021f035a5cf1d72e4a420865b300b125bb64d93214ec5",
+    "overleaf_pdf_sha256": "88a0776383612f7db74fdf732dcb6a5c23188f70157252561e7d7507332c64ff",
+    "worker_page_count": 123,
+    "overleaf_page_count": 123
+  },
+  "page_equivalence": {
+    "render_dpi": 110,
+    "worker_rendered_page_count": 123,
+    "overleaf_rendered_page_count": 123,
+    "identical_page_count": 123,
+    "different_page_count": 0,
+    "worker_raster_record_sha256": "5d2487233dd323353a293fec880b6c8ce67aa8bf6453e2d20e2d3afea005e29e",
+    "overleaf_raster_record_sha256": "5d2487233dd323353a293fec880b6c8ce67aa8bf6453e2d20e2d3afea005e29e"
+  },
+  "cleanup": {
+    "temporary_network_removed": true,
+    "temporary_container_removed": true
+  }
+}
