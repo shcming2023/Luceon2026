@@ -73,6 +73,11 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
     media_evidence = tmp_path / "media-evidence.json"
     media_plan = tmp_path / "media-plan.json"
     for path, payload in (
+        (
+            parent / "ledgers/canonical_block_ledger.jsonl",
+            b'{"record_type":"ledger_header"}\n',
+        ),
+        (parent / "render/render_plan.json", b"{}\n"),
         (parent / "render/volume_partition_plan.json", b"{}\n"),
         (source_pdf, b"source"),
         (
@@ -238,6 +243,12 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
     )
 
     assert produced.metrics["native_kernel_returncode"] == 0
+    for relative in (
+        "ledgers/canonical_block_ledger.jsonl",
+        "render/render_plan.json",
+        "render/volume_partition_plan.json",
+    ):
+        assert (output / relative).read_bytes() == (parent / relative).read_bytes()
     assert not (parent / "template/template_capability_manifest.json").exists()
     assert not (parent / "media/media_evidence_ledger.json").exists()
     assert not (parent / "media/media_representation_plan.json").exists()

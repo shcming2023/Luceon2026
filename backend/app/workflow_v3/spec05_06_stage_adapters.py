@@ -291,6 +291,7 @@ def _produce_spec05(
         timeout_seconds=86_400,
         accepted_returncodes=(0, 1),
     )
+    _materialize_page_provenance_inputs(parent, output)
     if execution.returncode == 1:
         review_state_path = run / "reports/needs_review.json"
         warning_path = run / "reports/compile_warnings.json"
@@ -855,6 +856,20 @@ def _copy_bundle(source: Path, output: Path) -> None:
                 "predecessor_artifact_invalid",
                 "predecessor contains a non-regular artifact",
             )
+
+
+def _materialize_page_provenance_inputs(parent: Path, output: Path) -> None:
+    """Carry the exact Stage 5 provenance parents into downstream bundles."""
+
+    for relative in (
+        "ledgers/canonical_block_ledger.jsonl",
+        "render/render_plan.json",
+        "render/volume_partition_plan.json",
+    ):
+        source = _required(parent, relative)
+        target = output / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
 
 
 def _make_writable(root: Path) -> None:
