@@ -1,10 +1,10 @@
 {
   "architecture": "arm64",
   "build_status": "clean_no_cache_build_succeeded",
-  "built_at": "2026-08-01T20:04:57Z",
-  "image_id": "sha256:4db069c78adf92a12b24f6e0cd312e8cc8ced4415f730ad2d5a957e7c8a19f75",
-  "image_size_bytes": 1457082744,
-  "local_manifest_digest": "sha256:4db069c78adf92a12b24f6e0cd312e8cc8ced4415f730ad2d5a957e7c8a19f75",
+  "built_at": "2026-08-01T22:00:14Z",
+  "image_id": "sha256:39e0195aa4c16fc31b990564e37c1c439fd0fcc9fcc7905b25d0692d174ce702",
+  "image_size_bytes": 1457053108,
+  "local_manifest_digest": "sha256:39e0195aa4c16fc31b990564e37c1c439fd0fcc9fcc7905b25d0692d174ce702",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
     "pages": 2,
@@ -16,6 +16,12 @@
   "registry_digest": null,
   "registry_status": "pending_until_push",
   "superseded_builds": [
+    {
+      "image_digest": "sha256:4db069c78adf92a12b24f6e0cd312e8cc8ced4415f730ad2d5a957e7c8a19f75",
+      "reason": "real-material qualification reached independent full-page review and correctly produced an evidence-bound needs_review, but the qualification harness treated that legitimate product terminal as a fatal infrastructure error; the replacement preserves needs_review as a qualified non-success terminal without promotion or Stage 11/12 execution",
+      "source_revision": "98462ce8c7e57981937404ec5ad03ef041fe37b7",
+      "status": "superseded_before_release_admission"
+    },
     {
       "image_digest": "sha256:f6d0515f597e55229500473d8a90686559b54a8ecce96246c60f24d15b800d23",
       "reason": "real-material qualification on a valid media-less render plan proved that Spec 05 ignored the frozen top-level media plan binding and required a nonexistent per-node media binding; the replacement accepts the exact top-level binding while still rejecting top-level drift and inconsistent nonempty node bindings",
@@ -286,31 +292,31 @@
       "status": "rejected_before_qualification"
     }
   ],
-  "runtime_id": "worker-v3-runtime-rc-98462ce-clean",
+  "runtime_id": "worker-v3-runtime-rc-15d88fc-clean",
   "runtime_identity": {
-    "control_plane_tree_sha256": "4d4e7ee84d5be9e1a4ca279051599d14487eff8dd01bac47ab0808d490be542d",
+    "control_plane_tree_sha256": "4b3cd47c65f7f03e3b125708b689add93de8a361228381489f9e217ed2afa6e4",
     "effective_uid": 10003,
-    "evidence_sha256": "bbd6cce76f181019a6b625c401dc12d297f240e41b4d33cb45d146a8321b5189",
+    "evidence_sha256": "9ced0dda8b57c29b64aad22d897f821f4fb202149015509629e120af2697214d",
     "status": "passed",
     "system_lock_entries": 19
   },
   "sbom": {
     "component_count": 422,
-    "evidence_sha256": "d63b7a8cf36c9be660b649c4f247246e289f53a9afbb9dc9cb8dfa284604bfef",
+    "evidence_sha256": "283de94441bc6d6f7bc07d5964dce528b0f680cceac29355eda62d67c4926a9c",
     "format": "CycloneDX",
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "98462ce8c7e57981937404ec5ad03ef041fe37b7",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-98462ce-clean",
+  "source_revision": "15d88fcd10bb25194d23f29e183422c1ef014e63",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-15d88fc-clean",
   "tests": {
     "targeted_repository_regression": "31 page-review, visual-review and Spec05/06 adapter regressions passed, including exact equality between Producer and contract source-page raster identities",
     "runtime_identity_gate": "passed with no network and digest-pinned reference: non-root UID 10003, exact control-plane tree and 19 locked system packages",
     "repository_static_tests": "release source verify-only passed with 24 formal entrypoints, 42 sources and three honest qualification gaps before real-material requalification",
-    "exact_image_regression": "1039 tests passed with 2 skips in 50.70 seconds inside the exact digest-pinned rc-98462ce-clean runtime under no-network, non-root UID 10003 and read-only-rootfs constraints; the exact Git worktree was mounted read-only for repository-level fixtures",
+    "exact_image_regression": "1040 tests passed with 2 skips in 52.29 seconds inside the exact digest-pinned rc-15d88fc-clean runtime under no-network, non-root UID 10003 and read-only-rootfs constraints; the exact Git worktree was mounted read-only for repository-level fixtures",
     "locked_template_smoke": "passed with no network: frozen template class SHA-256 048c3b90da41be64f4744da3bff6ae8c5ea7abd30a5f3e2a6ad1a98f3b0d71fe, 2 pages, PDF SHA-256 1b7c46620bb59ccf6d539c5c3834715a3993735e3c660b08124bc8b0a08d9dae",
     "production_boundary": "Expert Broker, Codex App Server, Codex SDK adapter, cross-UID runner, Codex expert runtime entrypoints, Codex binary and Codex/OpenAI credentials are absent",
-    "warnings": "Existing Python, SQLAlchemy and legacy SyntaxWarning output remains non-blocking; no applicable test failure remains. Two preliminary test launches were invalidated before qualification because the repository fixture root was incomplete and /tmp inherited noexec; the corrected fail-closed harness passed all 1039 applicable tests."
+    "warnings": "Existing Python, SQLAlchemy and legacy SyntaxWarning output remains non-blocking; no applicable test failure remains. The first two no-cache attempts failed before image creation because the host network intercepted Docker DNS/TLS and an initial temporary relay used non-blocking sendall, which truncated one wheel; the package hash gate rejected the bytes. The corrected end-to-end TLS relay used blocking writes, the official PyPI digest matched the lock, and all temporary relay, builder and network resources were removed after the successful build."
   },
   "user": "10003:10003",
   "build_provenance": {
@@ -318,7 +324,7 @@
     "source_dockerfile": "backend/Dockerfile.worker-v3",
     "source_dockerfile_sha256": "e0f8978e3f0ef23a9498ec18b185eeb4def4f4bdc279872ed8e241638609281f",
     "build_context": "backend",
-    "source_revision": "98462ce8c7e57981937404ec5ad03ef041fe37b7",
+    "source_revision": "15d88fcd10bb25194d23f29e183422c1ef014e63",
     "declared_base_image": "python:3.12.13-slim@sha256:64695412729fbe8cf054511723820c82bbe5a077d4a6b4070cd4a7225d3422ce",
     "official_base_index_digest": "sha256:64695412729fbe8cf054511723820c82bbe5a077d4a6b4070cd4a7225d3422ce",
     "official_arm64_manifest_digest": "sha256:55842c72c6b3584d06ec84c731fc516b30b8a53ad262ebd085e47ab568b3bfc1",
@@ -333,6 +339,17 @@
       "relay_removed_after_build": true,
       "buildkit_builder_removed_after_build": true,
       "temporary_network_removed_after_build": true
+    },
+    "python_package_transport": {
+      "sources": [
+        "https://pypi.org",
+        "https://files.pythonhosted.org"
+      ],
+      "relay": "temporary isolated transparent TCP relay with end-to-end PyPI TLS certificate and requirements --require-hashes validation",
+      "source_rewrite": false,
+      "requirement_or_hash_rewrite": false,
+      "hash_rejection_exercised": true,
+      "relay_removed_after_build": true
     }
   }
 }

@@ -16,9 +16,9 @@
     "version": "3.0.0-rc.0",
     "channel": "rc",
     "requested_status": "incomplete",
-    "created_at": "2026-08-02T01:53:02+08:00",
+    "created_at": "2026-08-02T06:40:00+08:00",
     "source": {
-      "git_sha": "98462ce8c7e57981937404ec5ad03ef041fe37b7",
+      "git_sha": "15d88fcd10bb25194d23f29e183422c1ef014e63",
       "git_tag": null,
       "dirty": false
     },
@@ -335,7 +335,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-identity.json",
       "destination": "runtime/ordinary-runtime-identity.json",
-      "expected_sha256": "bbd6cce76f181019a6b625c401dc12d297f240e41b4d33cb45d146a8321b5189"
+      "expected_sha256": "9ced0dda8b57c29b64aad22d897f821f4fb202149015509629e120af2697214d"
     },
     {
       "id": "worker-v3-ordinary-runtime-build-proof",
@@ -344,7 +344,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-build-proof.json",
       "destination": "runtime/ordinary-runtime-build-proof.json",
-      "expected_sha256": "1af41a4132804d4fb4f52d2f0969e3a1ba6271c986f85407916215a4d5309bbb"
+      "expected_sha256": "27c04a26d1b4d990ddd6d5aa5d1daabe557e9740b87539a9b3fdc1aef1cf6140"
     },
     {
       "id": "worker-v3-ordinary-runtime-sbom",
@@ -353,7 +353,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-sbom.cdx.json",
       "destination": "runtime/ordinary-runtime-sbom.cdx.json",
-      "expected_sha256": "d63b7a8cf36c9be660b649c4f247246e289f53a9afbb9dc9cb8dfa284604bfef"
+      "expected_sha256": "283de94441bc6d6f7bc07d5964dce528b0f680cceac29355eda62d67c4926a9c"
     },
     {
       "id": "worker-v3-overleaf-target-environment",
@@ -399,6 +399,42 @@
       "path": "docs/worker-v3/evidence/spec05-overleaf-page-equivalence-20260801.json",
       "destination": "evals/qualification/spec05-overleaf-page-equivalence-20260801.json",
       "expected_sha256": "2f46efd4dafd7aab25dbe95aed2de41b3a35daa52028a224f1af4c4a7959ab14"
+    },
+    {
+      "id": "worker-v3-spec03-real-deepseek-qualification-15d88fc",
+      "source_role": "supporting_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/spec03-real-deepseek-qualification-20260802.json",
+      "destination": "evals/qualification/spec03-real-deepseek-qualification-20260802.json",
+      "expected_sha256": "25bfb8ff7a088e11085654c7f6e4556edbef285475578c09c9e980dc967f899b"
+    },
+    {
+      "id": "worker-v3-visual-full-page-provider-qualification-15d88fc",
+      "source_role": "supporting_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/visual-full-page-provider-qualification-20260802.json",
+      "destination": "evals/qualification/visual-full-page-provider-qualification-20260802.json",
+      "expected_sha256": "d31aaa5160c6e22d79ddd511e6a850172d025975b67fbd048b8b33fcafec3775"
+    },
+    {
+      "id": "worker-v3-spec05-final-image-real-material-qualification-15d88fc",
+      "source_role": "runtime_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/spec05-final-image-real-material-qualification-20260802.json",
+      "destination": "evals/qualification/spec05-final-image-real-material-qualification-20260802.json",
+      "expected_sha256": "b0ee8e64a0754bf6846468ce6ef6a4a75d5b40a59c875f788d94f8bce380b257"
+    },
+    {
+      "id": "worker-v3-overleaf-adapter-real-zip-qualification-15d88fc",
+      "source_role": "supporting_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/overleaf-adapter-real-zip-qualification-20260802.json",
+      "destination": "evals/qualification/overleaf-adapter-real-zip-qualification-20260802.json",
+      "expected_sha256": "7857394d9381dace7c909c85e44b1e98bb7142cb2666e47772ab8050bf108c43"
     },
     {
       "id": "worker-v3-spec05-build-policy",
@@ -945,7 +981,7 @@
     "python": "CPython 3.12.13",
     "application_dependencies_path": "runtime/requirements-worker-v3.lock",
     "system_tools": {
-      "runtime_id": "worker-v3-runtime-rc-98462ce-clean",
+      "runtime_id": "worker-v3-runtime-rc-15d88fc-clean",
       "system_lock": "runtime/worker-v3-system-packages.lock",
       "identity": "runtime/ordinary-runtime-identity.json",
       "build_proof": "runtime/ordinary-runtime-build-proof.json",
@@ -961,7 +997,7 @@
     "fonts_identity_path": "runtime/ordinary-runtime-identity.json",
     "tex_identity_path": "runtime/ordinary-runtime-identity.json",
     "poppler_identity_path": "runtime/ordinary-runtime-identity.json",
-    "container_image_digest": "sha256:4db069c78adf92a12b24f6e0cd312e8cc8ced4415f730ad2d5a957e7c8a19f75",
+    "container_image_digest": "sha256:39e0195aa4c16fc31b990564e37c1c439fd0fcc9fcc7905b25d0692d174ce702",
     "sbom_path": "runtime/ordinary-runtime-sbom.cdx.json",
     "attestations": [
       "runtime/ordinary-runtime-identity.json",
@@ -978,28 +1014,18 @@
   "qualification_evidence": {
     "visual_full_page_provider": {
       "required": true,
-      "source_id": null
+      "source_id": "worker-v3-visual-full-page-provider-qualification-15d88fc"
     },
     "spec05_final_image_real_material": {
       "required": true,
-      "source_id": null
+      "source_id": "worker-v3-spec05-final-image-real-material-qualification-15d88fc"
     }
   },
   "known_gaps": [
     {
-      "code": "spec03_bounded_review_capacity_unqualified",
-      "stage": "canonical_block_ledger",
-      "detail": "source revision 98462ce requires one exact release-bound real-material constrained-LLM qualification and no-network replay"
-    },
-    {
-      "code": "full_page_review_evidence_provider_unqualified",
-      "stage": "independent_full_page_review",
-      "detail": "the Producer and independent evaluator contracts are executable, but the release-scoped all-page visual evidence provider and reviewer identity have not completed clean-image qualification"
-    },
-    {
-      "code": "spec05_worker_v3_runtime_qualification_pending",
-      "stage": "deterministic_elegantbook",
-      "detail": "source revision 98462ce requires exact-image real-material compile and independent Overleaf recompile qualification"
+      "code": "final_five_sample_no_change_smoke_pending",
+      "stage": "ready_for_user_acceptance",
+      "detail": "qualification image gates are closed; final five-sample no-code-change, no-rebuild, no-redeploy batch smoke and UI/DB/MinIO consistency audit remain pending"
     }
   ],
   "compatibility": {
