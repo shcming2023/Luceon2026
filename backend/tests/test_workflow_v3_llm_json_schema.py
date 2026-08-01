@@ -36,6 +36,26 @@ def _json(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def test_spec03_media_review_schema_accepts_closed_media_less_material() -> None:
+    schema = _json(
+        RELEASE_ROOT / "schemas" / "spec03-media-review-v2.schema.json"
+    )
+    validate_json_schema(
+        {
+            "schema_version": "luceon.worker-v3-spec03-media-review/v2",
+            "review_id": "media-review-no-media",
+            "material_id": "pdf-no-media",
+            "source_pdf_sha256": "a" * 64,
+            "baseline_sha256": "b" * 64,
+            "review_status": "closed",
+            "media": [],
+            "media_overrides": [],
+            "open_reviews": [],
+        },
+        schema,
+    )
+
+
 def _valid_delivery_preflight():
     return {
         "estimated_generated_body_bytes_upper_bound": 250_000,
