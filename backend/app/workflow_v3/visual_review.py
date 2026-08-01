@@ -166,11 +166,19 @@ class OpenAiCompatibleVisionTransport:
                 "transport_request_invalid",
                 "visual review input evidence is missing",
             )
+        output_schema = request.get("output_schema")
+        if not isinstance(output_schema, Mapping):
+            raise LlmGatewayError(
+                "transport_request_invalid",
+                "visual review output schema is missing",
+            )
         content: list[dict[str, Any]] = [
             {
                 "type": "text",
                 "text": (
                     str(request.get("prompt") or "")
+                    + "\n\nRelease-bound output JSON Schema:\n"
+                    + canonical_json_bytes(output_schema).decode("utf-8")
                     + "\n\nHash-bound batch manifest:\n"
                     + canonical_json_bytes(evidence).decode("utf-8")
                 ),

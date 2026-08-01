@@ -8,10 +8,17 @@ from pathlib import Path
 import fitz
 import pytest
 
-from app.workflow_v3.llm_gateway import LlmCallResult, LlmGatewayError, sha256_json
+from app.workflow_v3.llm_gateway import (
+    LlmCallResult,
+    LlmGatewayError,
+    canonical_json_bytes,
+    sha256_json,
+)
 from app.workflow_v3.visual_review import (
+    OpenAiCompatibleVisionTransport,
     VISUAL_PROVIDER_PROTOCOL,
     VISUAL_PROMPT_ID,
+    VisionRuntime,
     VisualReviewError,
     _assistant_json_content,
     _visual_model_call_id,
@@ -59,6 +66,94 @@ def test_visual_transport_accepts_one_multimodal_assistant_text_block(
 def test_visual_transport_rejects_ambiguous_assistant_content(content) -> None:
     with pytest.raises(LlmGatewayError, match="visual review assistant content"):
         _assistant_json_content(content)
+
+
+def test_visual_transport_sends_the_release_bound_output_schema(
+    tmp_path: Path,
+) -> None:
+    image = tmp_path / "page.jpg"
+    image.write_bytes(b"bound-image-bytes")
+    image_sha = hashlib.sha256(image.read_bytes()).hexdigest()
+    output_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["pages"],
+        "properties": {"pages": {"type": "array"}},
+    }
+    captured = {}
+
+    class Response:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {
+                "id": "response-1",
+                "model": "vision-test",
+                "choices": [
+                    {
+                        "message": {
+                            "content": [
+                                {"type": "text", "text": '{"pages": []}'}
+                            ]
+                        }
+                    }
+                ],
+                "usage": {
+                    "input_tokens": 10,
+                    "output_tokens": 5,
+                    "total_tokens": 15,
+                },
+            }
+
+    class Client:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def post(self, _url, *, headers, json):
+            captured["headers"] = headers
+            captured["json"] = json
+            return Response()
+
+    transport = OpenAiCompatibleVisionTransport(
+        VisionRuntime(
+            provider="dashscope",
+            model="vision-test",
+            base_url="https://example.test/v1",
+            api_key="test-secret",
+        ),
+        {image_sha: image},
+        client_factory=lambda **_kwargs: Client(),
+    )
+    response = transport(
+        {
+            "provider": "dashscope",
+            "model": "vision-test",
+            "prompt": "Return JSON only.",
+            "output_schema": output_schema,
+            "input": {
+                "pages": [
+                    {
+                        "page": 1,
+                        "disposition": "generated_frontmatter",
+                        "candidate_image_sha256": image_sha,
+                        "allowed_sources": [],
+                    }
+                ]
+            },
+            "parameters": {"temperature": 0, "max_output_tokens": 1000},
+        },
+        30,
+    )
+
+    prompt = captured["json"]["messages"][1]["content"][0]["text"]
+    assert "Release-bound output JSON Schema:" in prompt
+    assert canonical_json_bytes(output_schema).decode("utf-8") in prompt
+    assert captured["json"]["response_format"] == {"type": "json_object"}
+    assert response.content == '{"pages": []}'
 
 
 def _sha(path: Path) -> str:
