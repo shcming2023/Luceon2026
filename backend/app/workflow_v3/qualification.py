@@ -6,6 +6,7 @@ import os
 import stat
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
@@ -41,7 +42,12 @@ from app.workflow_v3.models import (
     WorkflowV3Job,
     WorkflowV3ModelCall,
     WorkflowV3Promotion,
+    WorkflowV3ReviewResolution,
     WorkflowV3StageRun,
+)
+from app.workflow_v3.review_resolution import (
+    evaluation_fingerprint,
+    finding_fingerprint,
 )
 from app.workflow_v3.release import (
     MANIFEST_NAME,
@@ -58,10 +64,12 @@ from app.workflow_v3.service import (
     register_skill_release,
     runtime_identity_for_manifest,
 )
+from app.workflow_v3.state_machine import apply_review_resolution
 
 
 QUALIFICATION_REPORT_PROTOCOL = "luceon.worker-v3-qualification-report/v1"
 QUALIFICATION_FIXTURE_PROTOCOL = "luceon.worker-v3-llm-fixtures/v1"
+SPEC05_WARNING_REVIEW_PROTOCOL = "spec05-warning-review/1.0"
 QUALIFICATION_STOP_STAGES = (
     "deterministic_elegantbook",
     "ready_for_user_acceptance",
@@ -102,6 +110,7 @@ class QualificationConfig:
     fixture_responses_json: Path | None = None
     release_archive: Path | None = None
     release_archive_sha256: str = ""
+    spec05_warning_review_json: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -288,6 +297,7 @@ def run_qualification(
         "source": source_snapshot,
         "stop_after": config.stop_after,
         "stages": [],
+        "review_resolutions": [],
         "model_calls": [],
         "fixture_transport": None,
         "outcome": {
@@ -437,6 +447,8 @@ def run_qualification(
             promoter_identity="qualification-promoter",
             qualification_mode=True,
         )
+        warning_review = prepared["spec05_warning_review"]
+        warning_review_used = False
         target_index = _stage_index(config.stop_after)
         for contract in STAGE_CONTRACTS[: target_index + 1]:
             produced = executor.run_one_stage(job_id)
@@ -450,6 +462,34 @@ def run_qualification(
                 job_id,
                 int(produced["candidate_id"]),
             )
+            if (
+                contract.key == "deterministic_elegantbook"
+                and evaluated.get("ok") is True
+                and evaluated.get("decision") == "needs_review"
+                and warning_review is not None
+                and not warning_review_used
+            ):
+                resolution = _apply_qualification_warning_review(
+                    factory,
+                    store,
+                    job_id=job_id,
+                    evaluation_id=int(evaluated["evaluation_id"]),
+                    warning_review=warning_review,
+                    run_root=run_root,
+                )
+                report_payload["review_resolutions"].append(resolution)
+                warning_review_used = True
+                produced = executor.run_one_stage(job_id)
+                if produced.get("ok") is not True or not produced.get(
+                    "candidate_id"
+                ):
+                    raise QualificationError(
+                        f"{contract.key} recovery producer failed: {produced}"
+                    )
+                evaluated = evaluator.evaluate(
+                    job_id,
+                    int(produced["candidate_id"]),
+                )
             if (
                 evaluated.get("ok") is not True
                 or evaluated.get("decision") != "passed"
@@ -468,6 +508,11 @@ def run_qualification(
                 )
             report_payload["stages"].append(
                 _stage_report(factory, job_id, contract.key)
+            )
+
+        if warning_review is not None and not warning_review_used:
+            raise QualificationError(
+                "qualification Spec 05 warning review was not consumed"
             )
 
         _assert_source_unchanged(
@@ -627,10 +672,25 @@ def _preflight(config: QualificationConfig) -> dict[str, Any]:
         config.source_evidence_json,
         "source_evidence JSON",
     )
+    spec05_warning_review_path = None
+    spec05_warning_review = None
+    if config.spec05_warning_review_json is not None:
+        spec05_warning_review_path = _readonly_file(
+            config.spec05_warning_review_json,
+            "Spec 05 warning review JSON",
+        )
+        spec05_warning_review = _validate_spec05_warning_review(
+            spec05_warning_review_path
+        )
     for protected in (
         release_source_path,
         source_package_root,
         source_json,
+        *(
+            (spec05_warning_review_path,)
+            if spec05_warning_review_path is not None
+            else ()
+        ),
     ):
         if _overlaps(run_root, protected):
             raise QualificationError(
@@ -696,6 +756,8 @@ def _preflight(config: QualificationConfig) -> dict[str, Any]:
         ),
         "fixture_path": fixture_path,
         "fixture_replay": fixture_replay,
+        "spec05_warning_review_path": spec05_warning_review_path,
+        "spec05_warning_review": spec05_warning_review,
     }
 
 
@@ -840,6 +902,211 @@ def _validate_source_evidence(
     return value
 
 
+def _validate_spec05_warning_review(path: Path) -> dict[str, Any]:
+    value = _read_json(path, "Spec 05 warning review JSON")
+    if (
+        set(value) != {"schema_version", "status", "closures"}
+        or value.get("schema_version") != SPEC05_WARNING_REVIEW_PROTOCOL
+        or value.get("status") != "approved"
+        or not isinstance(value.get("closures"), list)
+        or not value["closures"]
+    ):
+        raise QualificationError("Spec 05 warning review JSON is malformed")
+    fingerprints: list[str] = []
+    for index, closure in enumerate(value["closures"]):
+        if (
+            not isinstance(closure, dict)
+            or set(closure)
+            != {
+                "fingerprint",
+                "classification",
+                "rationale",
+                "visual_pages",
+            }
+        ):
+            raise QualificationError(
+                f"Spec 05 warning closure {index} fields are not exact"
+            )
+        fingerprint = _sha256(
+            closure.get("fingerprint"),
+            f"Spec 05 warning closure {index} fingerprint",
+        )
+        rationale = closure.get("rationale")
+        pages = closure.get("visual_pages")
+        if (
+            closure.get("classification")
+            not in {"C2_REVIEW_REQUIRED_CLOSED", "C3_INFO_CLOSED"}
+            or not isinstance(rationale, str)
+            or not rationale.strip()
+            or len(rationale) > 4000
+            or not isinstance(pages, list)
+            or not pages
+            or len(set(pages)) != len(pages)
+            or any(
+                not isinstance(page, int)
+                or isinstance(page, bool)
+                or page < 1
+                for page in pages
+            )
+        ):
+            raise QualificationError(
+                f"Spec 05 warning closure {index} is incomplete"
+            )
+        fingerprints.append(fingerprint)
+    if len(set(fingerprints)) != len(fingerprints):
+        raise QualificationError(
+            "Spec 05 warning review contains duplicate fingerprints"
+        )
+    return value
+
+
+def _apply_qualification_warning_review(
+    factory,
+    store: DirectoryArtifactStore,
+    *,
+    job_id: str,
+    evaluation_id: int,
+    warning_review: Mapping[str, Any],
+    run_root: Path,
+) -> dict[str, Any]:
+    authorized_by = "qualification-visual-reviewer"
+    db: Session = factory()
+    try:
+        job = (
+            db.query(WorkflowV3Job)
+            .filter(WorkflowV3Job.public_id == job_id)
+            .one()
+        )
+        evaluation = db.get(WorkflowV3Evaluation, evaluation_id)
+        if (
+            evaluation is None
+            or evaluation.workflow_job_id != job.id
+            or evaluation.decision != "needs_review"
+        ):
+            raise QualificationError(
+                "Spec 05 warning review has no exact needs_review evaluation"
+            )
+        candidate = db.get(WorkflowV3Candidate, evaluation.candidate_id)
+        if candidate is None or candidate.workflow_job_id != job.id:
+            raise QualificationError(
+                "Spec 05 warning review candidate binding is invalid"
+            )
+        findings = evaluation.load(evaluation.findings_json, [])
+        if (
+            len(findings) != 1
+            or not isinstance(findings[0], dict)
+            or findings[0].get("blocking") is not True
+            or findings[0].get("code")
+            != "spec05_compile_warning_review_open"
+            or findings[0].get("recovery_stage")
+            != "deterministic_elegantbook"
+        ):
+            raise QualificationError(
+                "Spec 05 warning review cannot resolve this evaluation"
+            )
+        expected_warning_fingerprints = findings[0].get(
+            "warning_fingerprints"
+        )
+        supplied_warning_fingerprints = [
+            row["fingerprint"] for row in warning_review["closures"]
+        ]
+        if (
+            not isinstance(expected_warning_fingerprints, list)
+            or supplied_warning_fingerprints
+            != expected_warning_fingerprints
+        ):
+            raise QualificationError(
+                "Spec 05 warning review does not match every open warning "
+                "fingerprint in evaluator order"
+            )
+        blocker_fingerprints = [finding_fingerprint(row) for row in findings]
+        manifest = {
+            "schema_version": "luceon.worker-v3.review-resolution/v1",
+            "job_id": job.public_id,
+            "evaluation": {
+                "id": str(evaluation.id),
+                "sha256": evaluation_fingerprint(evaluation, candidate),
+                "candidate_id": str(candidate.id),
+                "candidate_sha256": candidate.sha256,
+                "finding_fingerprints": blocker_fingerprints,
+            },
+            "authorization": {
+                "authorized_by": authorized_by,
+                "decision": "revise",
+            },
+            "blocker_resolutions": [
+                {
+                    "finding_fingerprint": fingerprint,
+                    "disposition": "resolved_for_revision",
+                    "rationale": (
+                        "The exact warning fingerprints were closed by "
+                        "hash-bound rendered-page inspection."
+                    ),
+                }
+                for fingerprint in blocker_fingerprints
+            ],
+            "recovery_stage": "deterministic_elegantbook",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "stage_payload": {
+                "stage_key": "deterministic_elegantbook",
+                "kind": "spec05_warning_review",
+                "payload": dict(warning_review),
+            },
+        }
+        manifest_path = (
+            run_root
+            / "review-resolutions"
+            / f"evaluation-{evaluation.id}.json"
+        )
+        _write_json(manifest_path, manifest)
+        manifest_path.chmod(0o444)
+        manifest_sha256 = _sha256_file(manifest_path)
+        artifact = store.seed(
+            manifest_path,
+            bucket="qualification-review-resolutions",
+            object_name=(
+                f"{job.public_id}/evaluation-{evaluation.id}/"
+                f"{manifest_sha256}/manifest.json"
+            ),
+        )
+        _job, resolution, recovery_stage, _candidate = (
+            apply_review_resolution(
+                db,
+                job.public_id,
+                idempotency_key=(
+                    "qualification-spec05-warning-review:"
+                    f"{manifest_sha256}"
+                ),
+                authorized_by=authorized_by,
+                manifest_bucket=artifact.bucket,
+                manifest_object=artifact.object_name,
+                manifest_sha256=artifact.sha256,
+                manifest_size_bytes=artifact.size_bytes,
+                manifest=manifest,
+            )
+        )
+        db.commit()
+        return {
+            "id": str(resolution.id),
+            "manifest_sha256": resolution.manifest_sha256,
+            "manifest_size_bytes": resolution.manifest_size_bytes,
+            "authorized_by": resolution.authorized_by,
+            "evaluation_id": str(evaluation.id),
+            "evaluation_sha256": resolution.evaluation_sha256,
+            "source_generation": resolution.source_generation,
+            "recovery_generation": resolution.recovery_generation,
+            "recovery_stage": resolution.recovery_stage_key,
+            "recovery_stage_run_id": str(recovery_stage.id),
+            "warning_review_sha256": sha256_json(warning_review),
+            "warning_fingerprints": supplied_warning_fingerprints,
+        }
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 def _seed_frozen_source_package(
     store: DirectoryArtifactStore,
     *,
@@ -877,14 +1144,24 @@ def _stage_report(
             .filter(WorkflowV3Job.public_id == job_id)
             .one()
         )
-        stage = (
+        stage_rows = (
             db.query(WorkflowV3StageRun)
             .filter(
                 WorkflowV3StageRun.workflow_job_id == job.id,
                 WorkflowV3StageRun.stage_key == stage_key,
             )
-            .one()
+            .order_by(
+                WorkflowV3StageRun.generation.asc(),
+                WorkflowV3StageRun.attempt.asc(),
+                WorkflowV3StageRun.id.asc(),
+            )
+            .all()
         )
+        if not stage_rows:
+            raise QualificationError(
+                f"qualification stage report is missing {stage_key}"
+            )
+        stage = stage_rows[-1]
         execution = (
             db.query(WorkflowV3Execution)
             .filter(WorkflowV3Execution.stage_run_id == stage.id)
@@ -905,8 +1182,53 @@ def _stage_report(
             .filter(WorkflowV3Promotion.stage_run_id == stage.id)
             .one()
         )
+        attempts = []
+        for row in stage_rows:
+            row_candidate = (
+                db.query(WorkflowV3Candidate)
+                .filter(WorkflowV3Candidate.stage_run_id == row.id)
+                .one_or_none()
+            )
+            row_evaluation = (
+                db.query(WorkflowV3Evaluation)
+                .filter(WorkflowV3Evaluation.stage_run_id == row.id)
+                .one_or_none()
+            )
+            row_promotion = (
+                db.query(WorkflowV3Promotion)
+                .filter(WorkflowV3Promotion.stage_run_id == row.id)
+                .one_or_none()
+            )
+            attempts.append(
+                {
+                    "stage_run_id": str(row.id),
+                    "attempt": row.attempt,
+                    "generation": row.generation,
+                    "machine_status": row.machine_status,
+                    "spec_status": row.spec_status,
+                    "review_resolution_sha256": (
+                        row.review_resolution_sha256
+                    ),
+                    "candidate_id": (
+                        str(row_candidate.id) if row_candidate else ""
+                    ),
+                    "candidate_sha256": (
+                        row_candidate.sha256 if row_candidate else ""
+                    ),
+                    "evaluation_id": (
+                        str(row_evaluation.id) if row_evaluation else ""
+                    ),
+                    "evaluation_decision": (
+                        row_evaluation.decision if row_evaluation else ""
+                    ),
+                    "promotion_id": (
+                        str(row_promotion.id) if row_promotion else ""
+                    ),
+                }
+            )
         return {
             "stage": stage.to_dict(),
+            "attempts": attempts,
             "execution": {
                 "id": str(execution.id),
                 "producer_identity": execution.producer_identity,

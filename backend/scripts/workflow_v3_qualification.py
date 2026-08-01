@@ -57,6 +57,15 @@ def main() -> int:
             "Required when the release invokes bounded LLM/vision stages."
         ),
     )
+    parser.add_argument(
+        "--spec05-warning-review-json",
+        type=Path,
+        help=(
+            "Optional read-only, exact-fingerprint Spec 05 warning review. "
+            "It is consumed only after a real deterministic_elegantbook "
+            "needs_review evaluation and resumes that stage once."
+        ),
+    )
     args = parser.parse_args()
     if args.release_archive and not args.release_archive_sha256:
         parser.error(
@@ -77,6 +86,9 @@ def main() -> int:
                 run_root=args.run_root,
                 stop_after=args.stop_after,
                 fixture_responses_json=args.fixture_responses_json,
+                spec05_warning_review_json=(
+                    args.spec05_warning_review_json
+                ),
             )
         )
     except QualificationError as exc:

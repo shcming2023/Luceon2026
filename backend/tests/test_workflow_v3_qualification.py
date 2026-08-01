@@ -19,6 +19,7 @@ from app.workflow_v3.executor import (
 from app.workflow_v3.llm_gateway import LlmGatewayError, sha256_json
 from app.workflow_v3.models import (
     WorkflowV3Job,
+    WorkflowV3ReviewResolution,
     WorkflowV3SkillRelease,
 )
 from app.workflow_v3.release import (
@@ -306,10 +307,100 @@ class QualificationCommandFixture:
         )
 
 
+class QualificationSpec05ReviewFixture(QualificationCommandFixture):
+    warning_fingerprint = "a" * 64
+
+    @classmethod
+    def _evaluate(cls, cwd: Path, request: dict) -> None:
+        if (
+            request["stage_key"] == "deterministic_elegantbook"
+            and request["attempt"] == 1
+        ):
+            _write_json(
+                cwd / request["output_manifest"],
+                {
+                    "schema_version": (
+                        "luceon.worker-v3-stage-evaluation/v1"
+                    ),
+                    "job_id": request["job_id"],
+                    "stage_key": request["stage_key"],
+                    "attempt": request["attempt"],
+                    "candidate_sha256": request["candidate"]["sha256"],
+                    "release_manifest_sha256": request[
+                        "release_manifest_sha256"
+                    ],
+                    "policy_sha256": request["policy_sha256"],
+                    "decision": "needs_review",
+                    "gate_results": {
+                        gate: gate == "xelatex_recompile_passed"
+                        for gate in request["required_gates"]
+                    },
+                    "findings": [
+                        {
+                            "code": "spec05_compile_warning_review_open",
+                            "blocking": True,
+                            "responsible_stage": (
+                                "deterministic_elegantbook"
+                            ),
+                            "recovery_stage": "deterministic_elegantbook",
+                            "warning_fingerprints": [
+                                cls.warning_fingerprint
+                            ],
+                            "evidence_refs": [
+                                {
+                                    "path": (
+                                        "spec05/reports/"
+                                        "compile_warnings.json"
+                                    ),
+                                    "sha256": "b" * 64,
+                                }
+                            ],
+                            "handoff": {
+                                "summary": "Rendered warning needs review.",
+                                "required_action": (
+                                    "Inspect the bound page and close the "
+                                    "exact warning fingerprint."
+                                ),
+                                "resume_stage": (
+                                    "deterministic_elegantbook"
+                                ),
+                            },
+                        }
+                    ],
+                },
+            )
+            return
+        super()._evaluate(cwd, request)
+
+
 def _qualification_inputs(tmp_path: Path):
     release_root = _incomplete_readonly_release(tmp_path)
     package_root, source_json, evidence = _frozen_source_package(tmp_path)
     return release_root, package_root, source_json, evidence
+
+
+def _spec05_warning_review(tmp_path: Path, fingerprint: str) -> Path:
+    path = tmp_path / f"spec05-warning-review-{fingerprint[:8]}.json"
+    _write_json(
+        path,
+        {
+            "schema_version": "spec05-warning-review/1.0",
+            "status": "approved",
+            "closures": [
+                {
+                    "fingerprint": fingerprint,
+                    "classification": "C2_REVIEW_REQUIRED_CLOSED",
+                    "rationale": (
+                        "Hash-bound rendered page inspection found no "
+                        "clipping or lost content."
+                    ),
+                    "visual_pages": [1],
+                }
+            ],
+        },
+    )
+    path.chmod(0o444)
+    return path
 
 
 @pytest.mark.parametrize(
@@ -436,6 +527,119 @@ def test_isolated_qualification_runs_normal_three_role_chain_and_hash_report(
     finally:
         db.close()
         engine.dispose()
+
+
+def test_qualification_closes_exact_spec05_warning_and_resumes_only_stage8(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("LUCEON_ENVIRONMENT", "qualification")
+    monkeypatch.delenv("WORKFLOW_V3_DATABASE_URL", raising=False)
+    release_root, package_root, source_json, _ = _qualification_inputs(
+        tmp_path
+    )
+    transport = QualificationSpec05ReviewFixture()
+    warning_review = _spec05_warning_review(
+        tmp_path,
+        transport.warning_fingerprint,
+    )
+    run_root = tmp_path / "run-spec05-review"
+
+    result = run_qualification(
+        QualificationConfig(
+            release_root=release_root,
+            source_package_root=package_root,
+            source_evidence_json=source_json,
+            run_root=run_root,
+            stop_after="deterministic_elegantbook",
+            spec05_warning_review_json=warning_review,
+        ),
+        command_transport=transport,
+    )
+
+    assert result.passed is True
+    assert transport.calls[-4:] == [
+        ("produce", "deterministic_elegantbook"),
+        ("evaluate", "deterministic_elegantbook"),
+        ("produce", "deterministic_elegantbook"),
+        ("evaluate", "deterministic_elegantbook"),
+    ]
+    assert len(transport.calls) == (len(STAGE_CONTRACTS[:8]) * 2) + 2
+    payload = json.loads(
+        result.report_path.read_text(encoding="utf-8")
+    )["payload"]
+    assert len(payload["review_resolutions"]) == 1
+    resolution = payload["review_resolutions"][0]
+    assert resolution["source_generation"] == 1
+    assert resolution["recovery_generation"] == 2
+    assert resolution["recovery_stage"] == "deterministic_elegantbook"
+    assert resolution["warning_fingerprints"] == [
+        transport.warning_fingerprint
+    ]
+    stage = payload["stages"][-1]
+    assert stage["stage"]["generation"] == 2
+    assert stage["stage"]["attempt"] == 2
+    assert stage["evaluation"]["decision"] == "passed"
+    assert [row["evaluation_decision"] for row in stage["attempts"]] == [
+        "needs_review",
+        "passed",
+    ]
+    assert stage["attempts"][0]["promotion_id"] == ""
+    assert stage["attempts"][1]["promotion_id"]
+
+    engine = create_engine(
+        f"sqlite+pysqlite:///{run_root / 'qualification.sqlite3'}"
+    )
+    db = sessionmaker(bind=engine, expire_on_commit=False)()
+    try:
+        persisted = db.query(WorkflowV3ReviewResolution).one()
+        assert persisted.manifest_sha256 == resolution["manifest_sha256"]
+        assert persisted.authorized_by == "qualification-visual-reviewer"
+    finally:
+        db.close()
+        engine.dispose()
+
+
+def test_qualification_rejects_unconsumed_or_mismatched_spec05_review(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("LUCEON_ENVIRONMENT", "qualification")
+    monkeypatch.delenv("WORKFLOW_V3_DATABASE_URL", raising=False)
+    release_root, package_root, source_json, _ = _qualification_inputs(
+        tmp_path
+    )
+    unused = _spec05_warning_review(tmp_path, "c" * 64)
+    with pytest.raises(
+        QualificationError,
+        match="warning review was not consumed",
+    ):
+        run_qualification(
+            QualificationConfig(
+                release_root=release_root,
+                source_package_root=package_root,
+                source_evidence_json=source_json,
+                run_root=tmp_path / "run-unused-review",
+                spec05_warning_review_json=unused,
+            ),
+            command_transport=QualificationCommandFixture(),
+        )
+
+    mismatched = _spec05_warning_review(tmp_path, "d" * 64)
+    with pytest.raises(
+        QualificationError,
+        match="does not match every open warning fingerprint",
+    ):
+        run_qualification(
+            QualificationConfig(
+                release_root=release_root,
+                source_package_root=package_root,
+                source_evidence_json=source_json,
+                run_root=tmp_path / "run-mismatched-review",
+                spec05_warning_review_json=mismatched,
+            ),
+            command_transport=QualificationSpec05ReviewFixture(),
+        )
 
 
 def test_qualification_identity_is_replayable_across_run_roots(

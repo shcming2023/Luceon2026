@@ -145,6 +145,21 @@ python backend/scripts/workflow_v3_qualification.py \
   --release-archive-sha256 "$INCOMPLETE_RELEASE_ARCHIVE_SHA256"
 ```
 
+若真实 Spec 05 首次编译只产生 `C2_REVIEW_REQUIRED_OPEN` 警告，先检查
+`final_render_pack/pages/` 中与每个警告对应的哈希绑定页面，再制作只读
+`spec05-warning-review/1.0` 文件。资格入口可显式增加：
+
+```bash
+  --spec05-warning-review-json "$SPEC05_WARNING_REVIEW_JSON"
+```
+
+该文件不能预先豁免门禁。入口只会在 `deterministic_elegantbook` 的真实
+Evaluator 返回 `needs_review`、警告指纹和顺序完全一致时消费它，随后写入
+隔离制品仓中的完整不可变 review-resolution manifest，并只恢复一次 Spec 05。
+未消费、指纹不完整、顺序漂移、第二次仍未通过均 fail closed；报告同时保留
+首次 `needs_review` 与恢复代际证据。普通 API、生产数据库和正式 MinIO 不会
+读取这个资格参数。
+
 运行完整 12 阶段：
 
 ```bash
@@ -198,6 +213,9 @@ LLM 或视觉审阅的候选发行不得省略。
    `network_used=false`。
 9. 归档模式下，`archive_sha256` 等于外部绑定，且
    `materialized_tree_sha256 == tree_sha256`。
+10. 使用 Spec 05 警告审阅时，`review_resolutions` 绑定首次 Evaluator、
+    candidate、finding、精确警告指纹和恢复代际；最终通过阶段的 `attempts`
+    同时保留首次 `needs_review` 与恢复尝试。
 
 任何一项不成立都不能用这份报告补齐发行证据。
 
