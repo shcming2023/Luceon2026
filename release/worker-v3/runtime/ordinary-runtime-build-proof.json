@@ -1,14 +1,14 @@
 {
   "architecture": "arm64",
   "build_status": "cached_qualification_build_succeeded",
-  "built_at": "2026-08-01T01:55:55.853718876Z",
-  "image_id": "sha256:768ce0b38fa4182c880f06980ce14345ddf2a8a0e351f67bc6e12623407ca346",
-  "image_size_bytes": 1457082748,
-  "local_manifest_digest": "sha256:768ce0b38fa4182c880f06980ce14345ddf2a8a0e351f67bc6e12623407ca346",
+  "built_at": "2026-08-01T03:14:17.439669048Z",
+  "image_id": "sha256:08cf27e398b9e6dc0544a836111b41e96efd40552168cfcb1a1dd3ffc79d78ea",
+  "image_size_bytes": 1457082703,
+  "local_manifest_digest": "sha256:08cf27e398b9e6dc0544a836111b41e96efd40552168cfcb1a1dd3ffc79d78ea",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
     "pages": 2,
-    "pdf_sha256": "5ad6f5885f7b274f16a88bc98faaf4da7587af83b209c2f99f1e70b88e59ec90",
+    "pdf_sha256": "2f4a5364ed6f5f74354d44b0e5b4e1f04225fda90e262756f7aa7ac8318767e3",
     "pdfinfo": "passed",
     "qpdf_check": "passed",
     "status": "passed"
@@ -141,6 +141,12 @@
       "reason": "real-material Stage 8 recovery closed all evidence-bound compile warnings, then exposed that final integrity compared the delivery ZIP with the XeLaTeX-mutated compile directory; the replacement preserves the strict precompile ZIP comparison and verifies immutable ZIP content after compilation",
       "source_revision": "c4fc461c1ed61252ca16574ebc6d02eb65e09e7f",
       "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:768ce0b38fa4182c880f06980ce14345ddf2a8a0e351f67bc6e12623407ca346",
+      "reason": "real-material Stage 8 retry compiled successfully but the independent evaluator rejected candidate paths that escaped the candidate tree; the replacement freezes the exact template-capability and metadata inputs inside the candidate contracts directory before build-manifest publication",
+      "source_revision": "549946247aee843effad4222fafe816b2ec94b06",
+      "status": "superseded_before_release_admission"
     }
   ],
   "rejected_build_attempts": [
@@ -175,30 +181,30 @@
       "status": "rejected_before_qualification"
     }
   ],
-  "runtime_id": "worker-v3-runtime-rc-5499462-qual",
+  "runtime_id": "worker-v3-runtime-rc-821235f-qual",
   "runtime_identity": {
     "effective_uid": 10003,
-    "evidence_sha256": "a96770b3e378c1bf83a932fb9ee15b723fdb2deba69f2a5a0ccf1aa0999a598f",
+    "evidence_sha256": "86b40d18b0493d65b41d68185b19b771a4fb45920665c1736a18c650cf03e854",
     "status": "passed",
     "system_lock_entries": 19,
     "control_plane_tree_sha256": "9eb0321d4605dad16dcb42df6b2cb8b1c02acf07fa0b628b660aa1e3d7e00b8d"
   },
   "sbom": {
     "component_count": 422,
-    "evidence_sha256": "16f2507ccbebe9f99afff40348d9eeaecc99e71f48ebfd14f13204dd288ce42b",
+    "evidence_sha256": "137aba1766b00d26c1bb47746b6c6d85865686cc7549007166e8fb67a47d8140",
     "format": "CycloneDX",
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "549946247aee843effad4222fafe816b2ec94b06",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-5499462-qual",
+  "source_revision": "821235f673b5be12a3ba1b670db1013590218dc7",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-821235f-qual",
   "tests": {
-    "targeted_repository_regression": "1166 passed, 2 skipped, 0 failed across the repository backend tests and all executable vendored skill suites with writable isolated runtime paths; exact image backend code passed 966 tests with 2 skipped using only read-only repository contract inputs",
+    "targeted_repository_regression": "1114 passed, 2 skipped, 0 failed across exact image backend code (966 passed, 2 skipped) and all executable vendored skill suites (148 passed) with only read-only repository contract and skill inputs",
     "runtime_identity_gate": "passed with no network: non-root UID 10003, exact control-plane tree and 19 locked system packages",
     "repository_static_tests": "release source verify-only passed and intentionally remains incomplete until real-material Stage 8, visual and Overleaf qualification evidence closes",
-    "locked_template_smoke": "passed with direct_exec and no network: 2 pages, PDF SHA-256 5ad6f5885f7b274f16a88bc98faaf4da7587af83b209c2f99f1e70b88e59ec90",
+    "locked_template_smoke": "passed with direct_exec and no network: frozen template class SHA-256 048c3b90da41be64f4744da3bff6ae8c5ea7abd30a5f3e2a6ad1a98f3b0d71fe, 2 pages, PDF SHA-256 2f4a5364ed6f5f74354d44b0e5b4e1f04225fda90e262756f7aa7ac8318767e3",
     "production_boundary": "Expert Broker, Codex App Server, Codex SDK adapter, cross-UID runner and Codex expert runtime entrypoints absent",
-    "warnings": "10077 existing deprecation warnings in the complete executable-baseline regression; zero executable-test failures; clean --no-cache rebuild remains pending until real-material replay closes"
+    "warnings": "existing deprecation warnings remain outside this Stage 8 contract change; zero executable-test failures; the generic parser compatibility default /root/mineru.json requires an explicit non-root test/runtime override and is not invoked by Worker V3 roles; clean --no-cache rebuild remains pending until real-material replay closes"
   },
   "user": "10003:10003"
 }
