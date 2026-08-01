@@ -1,14 +1,14 @@
 {
   "architecture": "arm64",
   "build_status": "cached_qualification_build_succeeded",
-  "built_at": "2026-08-01T04:41:41Z",
-  "image_id": "sha256:80f2380a9f4aa3a05599bd9b1f3050b5fdcd8e5756299610d767f91f94567905",
-  "image_size_bytes": 1457083257,
-  "local_manifest_digest": "sha256:80f2380a9f4aa3a05599bd9b1f3050b5fdcd8e5756299610d767f91f94567905",
+  "built_at": "2026-08-01T05:53:57Z",
+  "image_id": "sha256:25c3a6d274268b69ec58f105c272bc0555fd35ce124fac88e041514bd626fe45",
+  "image_size_bytes": 1457083448,
+  "local_manifest_digest": "sha256:25c3a6d274268b69ec58f105c272bc0555fd35ce124fac88e041514bd626fe45",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
-    "pages": 2,
-    "pdf_sha256": "2f4a5364ed6f5f74354d44b0e5b4e1f04225fda90e262756f7aa7ac8318767e3",
+    "pages": 3,
+    "pdf_sha256": "d60ef16e84b9c6ce1ccd2ff5a80d23944d11e3bebd528b2551243f1ae5bb0897",
     "pdfinfo": "passed",
     "qpdf_check": "passed",
     "status": "passed"
@@ -153,6 +153,12 @@
       "reason": "real-material Stage 8 warning closure passed, then Stage 9 correctly rejected a review_resolution_manifest that the control plane leaked beyond the exact recovery stage; the replacement limits the immutable resolution payload to deterministic_elegantbook while retaining recovery lineage in database records",
       "source_revision": "821235f673b5be12a3ba1b670db1013590218dc7",
       "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:80f2380a9f4aa3a05599bd9b1f3050b5fdcd8e5756299610d767f91f94567905",
+      "reason": "real-material Stage 10 qualification proved that Stage 5 page provenance bound canonical ledger and render-plan parents that the Stage 8 candidate omitted from its downstream bundle; the replacement carries the exact hash-bound parents without changing their bytes or relaxing visual review",
+      "source_revision": "18fe6671a5c063ebbfa077c907fb172c32b2fa82",
+      "status": "superseded_before_release_admission"
     }
   ],
   "rejected_build_attempts": [
@@ -187,30 +193,30 @@
       "status": "rejected_before_qualification"
     }
   ],
-  "runtime_id": "worker-v3-runtime-rc-18fe667-qual",
+  "runtime_id": "worker-v3-runtime-rc-6190fd3-qual",
   "runtime_identity": {
+    "control_plane_tree_sha256": "80fc3673021ed58337af8dce26a491cdfecd262258ec99b9e63cb7b9c13a4a9e",
     "effective_uid": 10003,
-    "evidence_sha256": "c0d4659bda4d9ac3e549049ddaceab8df65c8d07e451ead396f45946889852fb",
+    "evidence_sha256": "ba6d1209d6fe225e4fa5ceef38533dcadcb7ef88654d25ef8e5bc4f3d93969c8",
     "status": "passed",
-    "system_lock_entries": 19,
-    "control_plane_tree_sha256": "f4e8ca9fc6a2f008348e6215053a6a409a4dfc59b137cc43550f0584d7d8e5aa"
+    "system_lock_entries": 19
   },
   "sbom": {
     "component_count": 422,
-    "evidence_sha256": "db23f7462bb40f02155afc58f551f852fc19f150d6546d0688578a813880ea3e",
+    "evidence_sha256": "7bf3a147a32c3290ef9d73fec3c12267c40035391eef88cb8bcb5a90f595f2fc",
     "format": "CycloneDX",
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "18fe6671a5c063ebbfa077c907fb172c32b2fa82",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-18fe667-qual",
+  "source_revision": "6190fd3fc29ffa8d6b1c082b8990170387feb73d",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-6190fd3-qual",
   "tests": {
-    "targeted_repository_regression": "Immediate predecessor retained the 1114-pass executable baseline; the exact replacement image additionally passed 42 focused recovery, control-plane, and Spec 05/06 regressions with zero failures. Full exact-image suite will be rerun before admission.",
+    "targeted_repository_regression": "Exact replacement source passed 31 focused Spec 05/06, visual-review and runtime-factory regressions with zero failures; full exact-image suite will be rerun before admission.",
     "runtime_identity_gate": "passed with no network: non-root UID 10003, exact control-plane tree and 19 locked system packages",
     "repository_static_tests": "release source verify-only passed and intentionally remains incomplete until real-material Stage 8, visual and Overleaf qualification evidence closes",
-    "locked_template_smoke": "passed with direct_exec and no network: frozen template class SHA-256 048c3b90da41be64f4744da3bff6ae8c5ea7abd30a5f3e2a6ad1a98f3b0d71fe, 2 pages, PDF SHA-256 2f4a5364ed6f5f74354d44b0e5b4e1f04225fda90e262756f7aa7ac8318767e3",
+    "locked_template_smoke": "passed with direct_exec and no network: frozen template class SHA-256 048c3b90da41be64f4744da3bff6ae8c5ea7abd30a5f3e2a6ad1a98f3b0d71fe, 3 pages, PDF SHA-256 d60ef16e84b9c6ce1ccd2ff5a80d23944d11e3bebd528b2551243f1ae5bb0897",
     "production_boundary": "Expert Broker, Codex App Server, Codex SDK adapter, cross-UID runner and Codex expert runtime entrypoints absent",
-    "warnings": "Existing deprecation warnings remain non-blocking; zero focused-test failures. Real-material Stage 9 exposed and the replacement fixes recovery-manifest leakage beyond the exact retry stage. Clean --no-cache rebuild remains pending until real-material replay closes."
+    "warnings": "Existing deprecation warnings remain non-blocking; zero focused-test failures. Real-material Stage 10 exposed and the replacement fixes missing immutable page-provenance parent files. Clean --no-cache rebuild remains pending until real-material replay closes."
   },
   "user": "10003:10003"
 }

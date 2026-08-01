@@ -18,7 +18,7 @@
     "requested_status": "incomplete",
     "created_at": "2026-07-26T00:00:00+08:00",
     "source": {
-      "git_sha": "18fe6671a5c063ebbfa077c907fb172c32b2fa82",
+      "git_sha": "6190fd3fc29ffa8d6b1c082b8990170387feb73d",
       "git_tag": null,
       "dirty": false
     },
@@ -191,7 +191,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec05_06_stage_adapters.py",
       "destination": "scripts/worker-v3/spec05_06_stage_adapters.py",
-      "expected_sha256": "21d1a7c131d19862a675d4d19db76241280f642c69ed55b4959f95840f93d7f8"
+      "expected_sha256": "7ce4558f8864503c6a210f1d1f213d56005d36b14d442153d1ed1e4bf86c08b7"
     },
     {
       "id": "worker-v3-stage-evaluators-runtime",
@@ -335,7 +335,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-identity.json",
       "destination": "runtime/ordinary-runtime-identity.json",
-      "expected_sha256": "c0d4659bda4d9ac3e549049ddaceab8df65c8d07e451ead396f45946889852fb"
+      "expected_sha256": "ba6d1209d6fe225e4fa5ceef38533dcadcb7ef88654d25ef8e5bc4f3d93969c8"
     },
     {
       "id": "worker-v3-ordinary-runtime-build-proof",
@@ -344,7 +344,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-build-proof.json",
       "destination": "runtime/ordinary-runtime-build-proof.json",
-      "expected_sha256": "60239a2bc4f78ac3d723b46fe3d72472b1e67590aca84c21ddafcd30c11a41eb"
+      "expected_sha256": "90af46eb36c538569b64552604b621236f8eeffb2067c2c71a4fb828bebff3d1"
     },
     {
       "id": "worker-v3-ordinary-runtime-sbom",
@@ -353,7 +353,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-sbom.cdx.json",
       "destination": "runtime/ordinary-runtime-sbom.cdx.json",
-      "expected_sha256": "db23f7462bb40f02155afc58f551f852fc19f150d6546d0688578a813880ea3e"
+      "expected_sha256": "7bf3a147a32c3290ef9d73fec3c12267c40035391eef88cb8bcb5a90f595f2fc"
     },
     {
       "id": "worker-v3-overleaf-target-environment",
@@ -909,7 +909,7 @@
     "python": "CPython 3.12.13",
     "application_dependencies_path": "runtime/requirements-worker-v3.lock",
     "system_tools": {
-      "runtime_id": "worker-v3-runtime-rc-18fe667-qual",
+      "runtime_id": "worker-v3-runtime-rc-6190fd3-qual",
       "system_lock": "runtime/worker-v3-system-packages.lock",
       "identity": "runtime/ordinary-runtime-identity.json",
       "overleaf_compiler": {
@@ -924,7 +924,7 @@
     "fonts_identity_path": "runtime/ordinary-runtime-identity.json",
     "tex_identity_path": "runtime/ordinary-runtime-identity.json",
     "poppler_identity_path": "runtime/ordinary-runtime-identity.json",
-    "container_image_digest": "sha256:80f2380a9f4aa3a05599bd9b1f3050b5fdcd8e5756299610d767f91f94567905",
+    "container_image_digest": "sha256:25c3a6d274268b69ec58f105c272bc0555fd35ce124fac88e041514bd626fe45",
     "sbom_path": "runtime/ordinary-runtime-sbom.cdx.json",
     "attestations": [
       "runtime/ordinary-runtime-identity.json",
