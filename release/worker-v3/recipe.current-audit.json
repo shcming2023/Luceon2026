@@ -227,7 +227,7 @@
       "root": "worker_v3",
       "path": "backend/overleaf-adapter/compiler_service.py",
       "destination": "scripts/worker-v3/overleaf-adapter/compiler_service.py",
-      "expected_sha256": "3ce6569dcc7c7a7c6e18caeb43f97f8bb6716623859dc03714475450b5c48dda"
+      "expected_sha256": "20653f73a648ac94b2e3d2102d8496ffa5ad9372f31be0b8f616b6c70b4120bc"
     },
     {
       "id": "worker-v3-overleaf-compiler-dockerfile",
@@ -236,7 +236,7 @@
       "root": "worker_v3",
       "path": "backend/Dockerfile.overleaf-adapter",
       "destination": "scripts/worker-v3/overleaf-adapter/Dockerfile",
-      "expected_sha256": "f3b51b4f3f580e3620187d83e4d91f32bb277dacf337d6c2810964419a9aff0e"
+      "expected_sha256": "d48ac7b1c763048db930e48f3efcd1d011179fde30d33a88827b346c12aa33c0"
     },
     {
       "id": "worker-v3-spec01-03-atomic-kernel",
@@ -362,7 +362,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/overleaf-target-environment.json",
       "destination": "runtime/overleaf-target-environment.json",
-      "expected_sha256": "f2b06cbb494216ee7b84f49a3b3f0440b878cb39fbb5d2e702e8498285854512"
+      "expected_sha256": "2fa24b475e60d48a3ddcaf63e630c4f86d026d5e8f78570561445de417e6ae43"
     },
     {
       "id": "worker-v3-spec05-build-policy",
@@ -914,7 +914,7 @@
       "identity": "runtime/ordinary-runtime-identity.json",
       "overleaf_compiler": {
         "profile_path": "runtime/overleaf-target-environment.json",
-        "profile_sha256": "f2b06cbb494216ee7b84f49a3b3f0440b878cb39fbb5d2e702e8498285854512"
+        "profile_sha256": "2fa24b475e60d48a3ddcaf63e630c4f86d026d5e8f78570561445de417e6ae43"
       },
       "spec05_build": {
         "profile_path": "runtime/spec05-build-policy.json",

@@ -127,6 +127,7 @@ def _formal_delivery(path: Path) -> None:
             "\\NeedsTeXFormat{LaTeX2e}\\ProvidesClass{elegantbook}"
             "\\LoadClass{article}\n",
         )
+        archive.writestr("reference.bib", "")
         archive.writestr(
             "body/generated-body.tex",
             "\\input{body/units/unit-0001/part-0001.tex}\n",
@@ -438,6 +439,40 @@ def test_compiler_image_and_compose_are_isolated_from_existing_overleaf() -> Non
     assert "cap_drop:\n      - ALL" in section
     assert "no-new-privileges:true" in section
     assert "read_only: true" in section
+    assert "PAR_GLOBAL_TEMP=/biber-cache" in dockerfile
+    assert (
+        "/biber-cache:uid=10004,gid=10004,mode=0700,exec,nosuid,nodev,"
+        "size=268435456"
+    ) in section
+
+
+def test_service_routes_biber_unpacking_to_bounded_exec_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    class Process:
+        pid = 1234
+
+        def wait(self, *, timeout: int) -> int:
+            captured["timeout"] = timeout
+            return 0
+
+    def popen(command, *, cwd, env, **_kwargs):
+        captured.update(command=command, cwd=cwd, env=env)
+        return Process()
+
+    monkeypatch.setattr(SERVICE.subprocess, "Popen", popen)
+    project = tmp_path / "project"
+    project.mkdir()
+
+    assert SERVICE._run_compile(project) == 0
+    assert captured["command"] == list(SERVICE.COMPILE_COMMAND)
+    assert captured["cwd"] == project
+    assert captured["env"]["TMPDIR"] == str(project / ".tmp")
+    assert captured["env"]["PAR_GLOBAL_TEMP"] == SERVICE.BIBER_CACHE_ROOT
+    assert captured["timeout"] == SERVICE.COMPILE_TIMEOUT_SECONDS
 
 
 def test_real_pinned_overleaf_image_compiles_through_adapter(
@@ -485,6 +520,8 @@ def test_real_pinned_overleaf_image_compiles_through_adapter(
             "/tmp:rw,noexec,nosuid,nodev,size=268435456,uid=10004,gid=10004,mode=0700",
             "--tmpfs",
             "/work/home:rw,noexec,nosuid,nodev,size=16777216,uid=10004,gid=10004,mode=0700",
+            "--tmpfs",
+            "/biber-cache:rw,exec,nosuid,nodev,size=268435456,uid=10004,gid=10004,mode=0700",
             "-e",
             f"OVERLEAF_ADAPTER_IMAGE_DIGEST={inspected}",
             "-p",

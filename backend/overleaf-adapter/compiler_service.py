@@ -50,6 +50,7 @@ MAX_COMPRESSION_RATIO = 1_000
 MAX_LOG_BYTES = 20_000_000
 MAX_PDF_BYTES = 1_000_000_000
 COMPILE_TIMEOUT_SECONDS = 1_200
+BIBER_CACHE_ROOT = "/biber-cache"
 _ALLOWED_ROOT_FILES = frozenset(
     {"main.tex", "elegantbook.cls", "reference.bib"}
 )
@@ -354,6 +355,7 @@ def _run_compile(project: Path) -> int:
         ),
         "HOME": str(project),
         "TMPDIR": str(project / ".tmp"),
+        "PAR_GLOBAL_TEMP": BIBER_CACHE_ROOT,
         "LANG": "C.UTF-8",
         "LC_ALL": "C.UTF-8",
         "SOURCE_DATE_EPOCH": "0",

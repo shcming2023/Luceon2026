@@ -341,6 +341,7 @@ services:
       - /work:uid=10004,gid=10004,mode=0700,nosuid,nodev,size=4294967296
       - /tmp:uid=10004,gid=10004,mode=0700,noexec,nosuid,nodev,size=268435456
       - /work/home:uid=10004,gid=10004,mode=0700,noexec,nosuid,nodev,size=16777216
+      - /biber-cache:uid=10004,gid=10004,mode=0700,exec,nosuid,nodev,size=268435456
     networks:
       - workflow-v3-overleaf-net
 

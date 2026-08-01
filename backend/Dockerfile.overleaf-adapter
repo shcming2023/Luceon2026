@@ -14,6 +14,7 @@ LABEL org.opencontainers.image.title="Luceon Worker V3 Overleaf compiler adapter
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     HOME=/work/home \
+    PAR_GLOBAL_TEMP=/biber-cache \
     OVERLEAF_ADAPTER_WORK_ROOT=/work \
     OVERLEAF_ADAPTER_SOURCE_SHA256=${OVERLEAF_ADAPTER_SOURCE_SHA256}
 
