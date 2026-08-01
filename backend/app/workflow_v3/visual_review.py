@@ -320,6 +320,7 @@ class OpenAiCompatibleVisionTransport:
             content_value = (
                 message.get("content") if isinstance(message, Mapping) else None
             )
+        content_value = _assistant_json_content(content_value)
         return LlmTransportResponse(
             status_code=int(response.status_code),
             provider=self.runtime.provider,
@@ -329,6 +330,31 @@ class OpenAiCompatibleVisionTransport:
             usage=raw.get("usage") if isinstance(raw.get("usage"), Mapping) else {},
             raw_response=raw,
         )
+
+
+def _assistant_json_content(content: Any) -> Any:
+    """Normalize the bounded multimodal assistant envelope to one JSON value."""
+
+    if not isinstance(content, list):
+        return content
+    if len(content) != 1 or not isinstance(content[0], Mapping):
+        raise LlmGatewayError(
+            "malformed_json",
+            "visual review assistant content must contain exactly one text block",
+        )
+    block = content[0]
+    block_type = block.get("type")
+    text = block.get("text")
+    if (
+        block_type not in {None, "text", "output_text"}
+        or not isinstance(text, str)
+        or not text.strip()
+    ):
+        raise LlmGatewayError(
+            "malformed_json",
+            "visual review assistant content block is not JSON text",
+        )
+    return text
 
 
 def build_full_page_review_inputs(

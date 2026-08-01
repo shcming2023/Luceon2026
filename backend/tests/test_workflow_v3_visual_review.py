@@ -8,11 +8,12 @@ from pathlib import Path
 import fitz
 import pytest
 
-from app.workflow_v3.llm_gateway import LlmCallResult, sha256_json
+from app.workflow_v3.llm_gateway import LlmCallResult, LlmGatewayError, sha256_json
 from app.workflow_v3.visual_review import (
     VISUAL_PROVIDER_PROTOCOL,
     VISUAL_PROMPT_ID,
     VisualReviewError,
+    _assistant_json_content,
     _visual_model_call_id,
     build_full_page_review_inputs,
 )
@@ -33,6 +34,31 @@ def test_visual_model_call_id_is_stable_for_the_same_job_scope() -> None:
     assert first != _visual_model_call_id(
         **{**values, "call_scope_id": "different-job-scope"}
     )
+
+
+@pytest.mark.parametrize("block_type", [None, "text", "output_text"])
+def test_visual_transport_accepts_one_multimodal_assistant_text_block(
+    block_type: str | None,
+) -> None:
+    block = {"text": '{"pages": []}'}
+    if block_type is not None:
+        block["type"] = block_type
+
+    assert _assistant_json_content([block]) == '{"pages": []}'
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        [],
+        [{"text": "{}"}, {"text": "{}"}],
+        [{"type": "image_url", "text": "{}"}],
+        [{"type": "text", "text": ""}],
+    ],
+)
+def test_visual_transport_rejects_ambiguous_assistant_content(content) -> None:
+    with pytest.raises(LlmGatewayError, match="visual review assistant content"):
+        _assistant_json_content(content)
 
 
 def _sha(path: Path) -> str:
