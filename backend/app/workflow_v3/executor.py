@@ -1171,6 +1171,8 @@ class _StageRequestBuilder:
             raise ArtifactIntegrityError(
                 "recovery stage resolution lineage drifted"
             )
+        if self.stage.stage_key != resolution.recovery_stage_key:
+            return None
         artifact = self._add_store_artifact(
             "review_resolution_manifest",
             "worker-v3-review-resolution-manifest",

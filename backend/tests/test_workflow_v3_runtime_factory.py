@@ -220,6 +220,64 @@ def test_spec05_metadata_and_presentation_are_source_and_template_bound(
     assert presentation["assets"]["logo"]["asset_sha256"] == hashlib.sha256(b"logo").hexdigest()
 
 
+def test_review_resolution_manifest_is_only_bound_to_the_recovery_stage(
+    tmp_path: Path,
+):
+    resolution = SimpleNamespace(
+        id=17,
+        workflow_job_id=9,
+        manifest_bucket="worker-v3-resolutions",
+        manifest_object="job-1/resolution.json",
+        manifest_sha256="a" * 64,
+        manifest_size_bytes=321,
+        recovery_stage_key="deterministic_elegantbook",
+        recovery_generation=2,
+        evaluation_id=23,
+        evaluation_sha256="b" * 64,
+    )
+
+    class FakeDb:
+        @staticmethod
+        def get(_model, identity):
+            assert identity == resolution.id
+            return resolution
+
+    def builder(stage_key: str) -> _StageRequestBuilder:
+        value = _StageRequestBuilder(
+            db=FakeDb(),
+            session_factory=lambda: None,
+            artifact_store=object(),
+            job=SimpleNamespace(id=9),
+            stage=SimpleNamespace(
+                stage_key=stage_key,
+                generation=2,
+                review_resolution_id=resolution.id,
+                review_resolution_sha256=resolution.manifest_sha256,
+            ),
+            release=SimpleNamespace(),
+            release_root=tmp_path / "release",
+            bound=SimpleNamespace(),
+            workdir=tmp_path / stage_key,
+            heartbeat=lambda: None,
+        )
+        value._add_store_artifact = lambda role, kind, ref: PreparedInputArtifact(
+            role=role,
+            kind=kind,
+            ref=ref,
+            path=f"inputs/{role}/artifact",
+        )
+        return value
+
+    recovery = builder("deterministic_elegantbook")._add_review_resolution()
+    assert recovery is not None
+    assert recovery["review_resolution_id"] == str(resolution.id)
+    assert recovery["manifest"]["sha256"] == resolution.manifest_sha256
+
+    downstream = builder("readonly_latex_audit")
+    assert downstream._add_review_resolution() is None
+    assert downstream.artifacts == []
+
+
 def test_outline_review_preparation_uses_stable_source_pdf_reference(
     tmp_path: Path,
 ):
