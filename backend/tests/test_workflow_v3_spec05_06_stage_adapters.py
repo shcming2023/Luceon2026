@@ -145,6 +145,8 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
         },
     )
 
+    review_mode = {"enabled": False}
+
     def run_kernel(*, args: list[str], **_kwargs: Any) -> SimpleNamespace:
         index = args.index("--promotion-registry")
         assert Path(args[index + 1]) == native_registry
@@ -160,7 +162,39 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
         assert Path(args[index + 1]) == assets
         index = args.index("--body-marker")
         assert args[index + 1] == "% frozen body marker"
-        run = output / "spec05/manifests"
+        spec05 = Path(args[args.index("--run-dir") + 1])
+        if review_mode["enabled"]:
+            warning_path = spec05 / "reports/compile_warnings.json"
+            _json(
+                warning_path,
+                {
+                    "schema_version": "compile-warnings/3.0",
+                    "status": "needs_review",
+                    "blocking_findings": [],
+                    "events": [
+                        {
+                            "classification": "C2_REVIEW_REQUIRED_OPEN",
+                            "fingerprint": "a" * 64,
+                        }
+                    ],
+                },
+            )
+            _json(
+                spec05 / "reports/needs_review.json",
+                {
+                    "schema_version": "spec05-review-state/1.0",
+                    "failure_code": "COMPILE_REVIEW_OPEN",
+                    "spec_status": "needs_review",
+                    "warning_report": _artifact(spec05, warning_path),
+                },
+            )
+            _json(spec05 / "final_render_pack/manifest.json", {"pages": 3})
+            _json(spec05 / "reports/final_pdf_page_provenance.json", {"pages": 3})
+            log_path = spec05 / "build/final/main.log"
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            log_path.write_text("compiled\n", encoding="utf-8")
+            return SimpleNamespace(returncode=1)
+        run = spec05 / "manifests"
         _json(
             run / "spec05_native_stage_manifest.json",
             {
@@ -183,6 +217,10 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
     request = SimpleNamespace(
         stage_key="deterministic_elegantbook",
         predecessor_promotion=SimpleNamespace(stage_key="frozen_render_plan"),
+        parameters={
+            "parent_lineage_key": "job:frozen_render_plan",
+            "run_id": "run-1",
+        },
         workdir=tmp_path,
     )
     produced = adapters._produce_spec05(
@@ -208,6 +246,73 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
             tmp_path / "mismatch-output",
             tmp_path,
         )
+
+    (assets / "media/media_representation_plan.json").write_bytes(b"{}\n")
+    review_mode["enabled"] = True
+    review = adapters._produce_spec05(
+        request,
+        Inputs(),
+        tmp_path / "review-output",
+        tmp_path,
+    )
+    assert review.artifact_kind.endswith("review-candidate")
+    assert review.metrics["native_kernel_returncode"] == 1
+    assert review.metrics["open_compile_warnings"] == 1
+
+
+def test_spec05_warning_only_candidate_requires_evidence_bound_review(
+    tmp_path: Path,
+) -> None:
+    bundle = tmp_path / "candidate"
+    spec05 = bundle / "spec05"
+    warning_path = spec05 / "reports/compile_warnings.json"
+    fingerprints = ["1" * 64, "2" * 64]
+    _json(
+        warning_path,
+        {
+            "schema_version": "compile-warnings/3.0",
+            "status": "needs_review",
+            "blocking_findings": [],
+            "events": [
+                {
+                    "classification": "C2_REVIEW_REQUIRED_OPEN",
+                    "fingerprint": fingerprint,
+                }
+                for fingerprint in fingerprints
+            ],
+        },
+    )
+    _json(
+        spec05 / "reports/needs_review.json",
+        {
+            "schema_version": "spec05-review-state/1.0",
+            "failure_code": "COMPILE_REVIEW_OPEN",
+            "spec_status": "needs_review",
+            "warning_report": _artifact(spec05, warning_path),
+        },
+    )
+    _json(spec05 / "final_render_pack/manifest.json", {"pages": 3})
+    _json(spec05 / "reports/final_pdf_page_provenance.json", {"pages": 3})
+    log_path = spec05 / "build/final/main.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text("Output written on main.pdf (3 pages).\n", encoding="utf-8")
+
+    evaluation = stage_evaluators._evaluate_spec05(
+        _request("deterministic_elegantbook", tmp_path),
+        EvaluationInput(bundle_root=bundle, content_manifest={}),
+        tmp_path,
+    )
+
+    assert evaluation.disposition == "needs_review"
+    assert evaluation.gate_results == {
+        "formal_native_renderer_used": False,
+        "protected_template_unchanged": False,
+        "delivery_limits_passed": False,
+        "xelatex_recompile_passed": True,
+    }
+    assert evaluation.findings[0]["warning_fingerprints"] == fingerprints
+    assert evaluation.findings[0]["recovery_stage"] == "deterministic_elegantbook"
+    assert len(evaluation.findings[0]["evidence_refs"]) == 5
 
 
 def _readiness_fixture(

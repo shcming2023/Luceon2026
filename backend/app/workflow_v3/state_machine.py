@@ -1312,6 +1312,14 @@ def apply_review_resolution(
         raise WorkflowV3TransitionError(
             "review resolution must start at the earliest blocking recovery stage"
         )
+    stage_payload = manifest.get("stage_payload")
+    if (
+        stage_payload is not None
+        and stage_payload.get("stage_key") != recovery_stage_key
+    ):
+        raise WorkflowV3TransitionError(
+            "review resolution stage payload must target the recovery stage"
+        )
     recovery_index = stage_keys.index(recovery_stage_key)
     source_generation = int(job.current_generation or current_stage.generation or 1)
     recovery_generation = source_generation + 1

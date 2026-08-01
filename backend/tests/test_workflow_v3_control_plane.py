@@ -647,6 +647,7 @@ def _resolution_manifest(
     finding,
     *,
     expert_candidate=None,
+    stage_payload=None,
 ):
     fingerprint = finding_fingerprint(finding)
     manifest = {
@@ -675,7 +676,48 @@ def _resolution_manifest(
     }
     if expert_candidate is not None:
         manifest["expert_candidate"] = expert_candidate
+    if stage_payload is not None:
+        manifest["stage_payload"] = stage_payload
     return manifest
+
+
+def test_review_resolution_accepts_exact_spec05_warning_closures():
+    db = make_db()
+    job, _stage, candidate, evaluation, finding = _pause_first_stage_for_review(db)
+    manifest = _resolution_manifest(
+        job,
+        candidate,
+        evaluation,
+        finding,
+        stage_payload={
+            "stage_key": "deterministic_elegantbook",
+            "kind": "spec05_warning_review",
+            "payload": {
+                "schema_version": "spec05-warning-review/1.0",
+                "status": "approved",
+                "closures": [
+                    {
+                        "fingerprint": "a" * 64,
+                        "classification": "C2_REVIEW_REQUIRED_CLOSED",
+                        "rationale": "Rendered pages were visually inspected.",
+                        "visual_pages": [1, 3],
+                    }
+                ],
+            },
+        },
+    )
+    manifest["recovery_stage"] = "deterministic_elegantbook"
+
+    assert validate_review_resolution_manifest(manifest) is manifest
+
+    manifest["stage_payload"]["payload"]["closures"].append(
+        dict(manifest["stage_payload"]["payload"]["closures"][0])
+    )
+    with pytest.raises(
+        ReviewResolutionManifestError,
+        match="duplicate warning fingerprints",
+    ):
+        validate_review_resolution_manifest(manifest)
 
 
 def test_review_resolution_is_immutable_idempotent_and_carries_recovery_lineage():

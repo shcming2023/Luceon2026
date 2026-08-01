@@ -1239,6 +1239,9 @@ def _evaluate_spec05(
     release_root: Path,
 ) -> StageEvaluation:
     root = candidate.bundle_root
+    review_state_path = root / "spec05/reports/needs_review.json"
+    if review_state_path.is_file():
+        return _evaluate_spec05_review_candidate(root)
     stage = _read_json(
         _required(root, "spec05/manifests/spec05_native_stage_manifest.json"),
         "Spec 05 stage manifest",
@@ -1332,6 +1335,91 @@ def _evaluate_spec05(
             "xelatex_recompile_passed": compile_pass,
         },
         findings=tuple(findings),
+    )
+
+
+def _evaluate_spec05_review_candidate(root: Path) -> StageEvaluation:
+    review_path = _required(root, "spec05/reports/needs_review.json")
+    warning_path = _required(root, "spec05/reports/compile_warnings.json")
+    render_path = _required(root, "spec05/final_render_pack/manifest.json")
+    provenance_path = _required(
+        root,
+        "spec05/reports/final_pdf_page_provenance.json",
+    )
+    compile_log = _required(root, "spec05/build/final/main.log")
+    review = _read_json(review_path, "Spec 05 review state")
+    warnings = _read_json(warning_path, "Spec 05 compile warnings")
+    bound_warning = _bound_file(root / "spec05", review, "warning_report")
+    events = warnings.get("events")
+    open_events = [
+        row
+        for row in events
+        if isinstance(row, dict)
+        and row.get("classification") == "C2_REVIEW_REQUIRED_OPEN"
+    ] if isinstance(events, list) else []
+    open_fingerprints = [row.get("fingerprint") for row in open_events]
+    if (
+        bound_warning != warning_path
+        or review.get("schema_version") != "spec05-review-state/1.0"
+        or review.get("failure_code") != "COMPILE_REVIEW_OPEN"
+        or review.get("spec_status") != "needs_review"
+        or warnings.get("schema_version") != "compile-warnings/3.0"
+        or warnings.get("status") != "needs_review"
+        or warnings.get("blocking_findings") != []
+        or not open_events
+        or len(set(open_fingerprints)) != len(open_fingerprints)
+        or not all(_is_sha256(value) for value in open_fingerprints)
+    ):
+        raise StageEntrypointError(
+            "spec05_review_candidate_invalid",
+            "Spec 05 review candidate is not an evidence-bound warning-only handoff",
+        )
+    evidence_paths = (
+        review_path,
+        warning_path,
+        render_path,
+        provenance_path,
+        compile_log,
+    )
+    evidence_refs = [
+        {
+            "path": path.relative_to(root).as_posix(),
+            "sha256": sha256_file(path),
+        }
+        for path in evidence_paths
+    ]
+    return StageEvaluation(
+        gate_results={
+            "formal_native_renderer_used": False,
+            "protected_template_unchanged": False,
+            "delivery_limits_passed": False,
+            "xelatex_recompile_passed": True,
+        },
+        findings=(
+            {
+                "code": "spec05_compile_warning_review_open",
+                "blocking": True,
+                "responsible_stage": "deterministic_elegantbook",
+                "recovery_stage": "deterministic_elegantbook",
+                "warning_fingerprints": [
+                    str(fingerprint) for fingerprint in open_fingerprints
+                ],
+                "evidence_refs": evidence_refs,
+                "handoff": {
+                    "summary": (
+                        "XeLaTeX completed and produced a full render pack, but "
+                        "non-blocking compile warnings require exact visual closure."
+                    ),
+                    "required_action": (
+                        "Inspect the hash-bound rendered pages, submit an approved "
+                        "spec05-warning-review/1.0 payload for every fingerprint, "
+                        "then resume only deterministic_elegantbook."
+                    ),
+                    "resume_stage": "deterministic_elegantbook",
+                },
+            },
+        ),
+        disposition="needs_review",
     )
 
 

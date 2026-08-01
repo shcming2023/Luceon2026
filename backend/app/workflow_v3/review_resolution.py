@@ -66,7 +66,12 @@ def validate_review_resolution_manifest(manifest: Any) -> dict[str, Any]:
         "recovery_stage",
         "created_at",
     }
-    _exact_keys(manifest, required=required, label="manifest")
+    _exact_keys(
+        manifest,
+        required=required,
+        allowed=required | {"stage_payload"},
+        label="manifest",
+    )
     if manifest["schema_version"] != REVIEW_RESOLUTION_SCHEMA:
         raise ReviewResolutionManifestError(
             "review resolution manifest schema_version is not supported"
@@ -156,7 +161,91 @@ def validate_review_resolution_manifest(manifest: Any) -> dict[str, Any]:
             "manifest.blocker_resolutions contains duplicate findings"
         )
 
+    stage_payload = manifest.get("stage_payload")
+    if stage_payload is not None:
+        _validate_stage_payload(stage_payload)
+
     return manifest
+
+
+def _validate_stage_payload(value: Any) -> None:
+    _exact_keys(
+        value,
+        required={"stage_key", "kind", "payload"},
+        label="manifest.stage_payload",
+    )
+    if value["stage_key"] != "deterministic_elegantbook":
+        raise ReviewResolutionManifestError(
+            "manifest.stage_payload.stage_key is unsupported"
+        )
+    if value["kind"] != "spec05_warning_review":
+        raise ReviewResolutionManifestError(
+            "manifest.stage_payload.kind is unsupported"
+        )
+    review = value["payload"]
+    _exact_keys(
+        review,
+        required={"schema_version", "status", "closures"},
+        label="manifest.stage_payload.payload",
+    )
+    if (
+        review["schema_version"] != "spec05-warning-review/1.0"
+        or review["status"] != "approved"
+    ):
+        raise ReviewResolutionManifestError(
+            "manifest.stage_payload.payload is not an approved Spec 05 warning review"
+        )
+    closures = review["closures"]
+    if not isinstance(closures, list) or not closures:
+        raise ReviewResolutionManifestError(
+            "manifest.stage_payload.payload.closures must be non-empty"
+        )
+    fingerprints: list[str] = []
+    for index, closure in enumerate(closures):
+        label = f"manifest.stage_payload.payload.closures[{index}]"
+        _exact_keys(
+            closure,
+            required={
+                "fingerprint",
+                "classification",
+                "rationale",
+                "visual_pages",
+            },
+            label=label,
+        )
+        _sha256(closure["fingerprint"], f"{label}.fingerprint")
+        if closure["classification"] not in {
+            "C2_REVIEW_REQUIRED_CLOSED",
+            "C3_INFO_CLOSED",
+        }:
+            raise ReviewResolutionManifestError(
+                f"{label}.classification is unsupported"
+            )
+        rationale = _nonempty_string(closure["rationale"], f"{label}.rationale")
+        if len(rationale) > 4000:
+            raise ReviewResolutionManifestError(
+                f"{label}.rationale must contain at most 4000 characters"
+            )
+        pages = closure["visual_pages"]
+        if (
+            not isinstance(pages, list)
+            or not pages
+            or len(set(pages)) != len(pages)
+            or any(
+                not isinstance(page, int)
+                or isinstance(page, bool)
+                or page < 1
+                for page in pages
+            )
+        ):
+            raise ReviewResolutionManifestError(
+                f"{label}.visual_pages must be a non-empty unique positive integer array"
+            )
+        fingerprints.append(closure["fingerprint"])
+    if len(set(fingerprints)) != len(fingerprints):
+        raise ReviewResolutionManifestError(
+            "manifest.stage_payload.payload contains duplicate warning fingerprints"
+        )
 
 
 def _exact_keys(

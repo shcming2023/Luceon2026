@@ -114,25 +114,29 @@ def _produce_spec05(
     output: Path,
     release: Path,
 ) -> StageProduction:
+    has_recovery = "recovery_lineage" in request.parameters
+    expected_roles = {
+        "promoted_predecessor",
+        "predecessor_promotion_manifest",
+        "promotion_registry",
+        "source_pdf",
+        "template_archive",
+        "template_intake",
+        "template_capability_manifest",
+        "media_evidence_ledger",
+        "media_representation_plan",
+        "metadata_config",
+        "metadata_page_render",
+        "presentation_config",
+        "build_policy",
+        "source_scope_ledger",
+        "source_asset_bundle",
+    }
+    if has_recovery:
+        expected_roles.add("review_resolution_manifest")
     _require_roles(
         request,
-        {
-            "promoted_predecessor",
-            "predecessor_promotion_manifest",
-            "promotion_registry",
-            "source_pdf",
-            "template_archive",
-            "template_intake",
-            "template_capability_manifest",
-            "media_evidence_ledger",
-            "media_representation_plan",
-            "metadata_config",
-            "metadata_page_render",
-            "presentation_config",
-            "build_policy",
-            "source_scope_ledger",
-            "source_asset_bundle",
-        },
+        expected_roles,
         bundle_roles={
             "promoted_predecessor",
             "source_asset_bundle",
@@ -141,6 +145,7 @@ def _produce_spec05(
     parameters = require_parameter_keys(
         request,
         required=("parent_lineage_key", "run_id"),
+        optional=("recovery_lineage",),
     )
     for name in ("parent_lineage_key", "run_id"):
         if not isinstance(parameters[name], str) or not parameters[name]:
@@ -258,13 +263,83 @@ def _produce_spec05(
             "media_source_representation.py"
         ),
     ]
+    if has_recovery:
+        resolution = _read_json(
+            inputs.file("review_resolution_manifest"),
+            "review resolution manifest",
+        )
+        stage_payload = resolution.get("stage_payload")
+        if (
+            not isinstance(stage_payload, dict)
+            or stage_payload.get("stage_key") != request.stage_key
+            or stage_payload.get("kind") != "spec05_warning_review"
+            or not isinstance(stage_payload.get("payload"), dict)
+        ):
+            raise StageEntrypointError(
+                "spec05_warning_review_missing",
+                "Spec 05 recovery requires an approved warning review payload",
+                exit_code=3,
+            )
+        warning_review = request.workdir / "generated-inputs/spec05-warning-review.json"
+        write_json(warning_review, stage_payload["payload"])
+        args.extend(("--warning-review", str(warning_review)))
     execution = run_release_python_kernel(
         release_root=release,
         kernel_relative=_SPEC05_KERNEL,
         args=args,
         cwd=request.workdir,
         timeout_seconds=86_400,
+        accepted_returncodes=(0, 1),
     )
+    if execution.returncode == 1:
+        review_state_path = run / "reports/needs_review.json"
+        warning_path = run / "reports/compile_warnings.json"
+        review_state = _read_json(review_state_path, "Spec 05 review state")
+        warning_report = _read_json(warning_path, "Spec 05 compile warnings")
+        warning_events = warning_report.get("events")
+        open_warning_fingerprints = [
+            row.get("fingerprint")
+            for row in warning_events
+            if isinstance(row, dict)
+            and row.get("classification") == "C2_REVIEW_REQUIRED_OPEN"
+        ] if isinstance(warning_events, list) else []
+        if (
+            review_state.get("schema_version")
+            != "spec05-review-state/1.0"
+            or review_state.get("failure_code") != "COMPILE_REVIEW_OPEN"
+            or review_state.get("spec_status") != "needs_review"
+            or warning_report.get("schema_version") != "compile-warnings/3.0"
+            or warning_report.get("status") != "needs_review"
+            or warning_report.get("blocking_findings") != []
+            or not open_warning_fingerprints
+            or len(set(open_warning_fingerprints))
+            != len(open_warning_fingerprints)
+            or not all(_is_sha256(value) for value in open_warning_fingerprints)
+        ):
+            raise StageEntrypointError(
+                "kernel_failed",
+                "Spec 05 kernel exited nonzero without a valid review candidate",
+                exit_code=3,
+            )
+        _required(run, "final_render_pack/manifest.json")
+        _required(run, "reports/final_pdf_page_provenance.json")
+        _required(run, "build/final/main.log")
+        return StageProduction(
+            artifact_kind="worker-v3-deterministic-elegantbook-review-candidate",
+            metrics={
+                "native_kernel_returncode": execution.returncode,
+                "open_compile_warnings": len(open_warning_fingerprints),
+                "promotion_status": "not_evaluated",
+            },
+            findings=(_candidate_only_finding(),),
+            artifact_roles={
+                "spec05/reports/needs_review.json": "stage_review_state",
+                "spec05/reports/compile_warnings.json": "compile_warnings",
+                "spec05/final_render_pack/manifest.json": "render_pack",
+                "spec05/reports/final_pdf_page_provenance.json": "page_provenance",
+                "spec05/build/final/main.log": "compile_log",
+            },
+        )
     stage = _read_json(
         _required(run, "manifests/spec05_native_stage_manifest.json"),
         "Spec 05 stage manifest",
