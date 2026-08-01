@@ -209,7 +209,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/page_review_contract.py",
       "destination": "scripts/worker-v3/page_review_contract.py",
-      "expected_sha256": "6d24a75472af207b597e73ab9907bd839f4dad38124a75af373d0c6c66b45467"
+      "expected_sha256": "5de661c61b9d048cd8cf776d641b18d8f8612ae17f6643b1a9d009edc9ce6b3b"
     },
     {
       "id": "worker-v3-overleaf-compiler-client",
@@ -281,7 +281,7 @@
       "include": [
         "spec*.txt"
       ],
-      "expected_tree_sha256": "299dd9f9d13fa24437c8af3b8436b586ace1d4ed8f4c8acfd15a159de3b29557"
+      "expected_tree_sha256": "4259cb2134e5a7fe438f75e7b9179445d6a9f9027b691901cfb2bade217cd18b"
     },
     {
       "id": "worker-v3-ordinary-schemas",
@@ -293,7 +293,7 @@
       "include": [
         "spec*.schema.json"
       ],
-      "expected_tree_sha256": "44019603bf9f05eac60973110d84f8b191cc1e7c0e01d44089914cee1c48cfeb"
+      "expected_tree_sha256": "5c5c71c917d11729e71e1f8819b756e7f2b3961d9ebae5f9d494a3fb9d726726"
     },
     {
       "id": "worker-v3-spec04-review-schemas",
@@ -555,7 +555,7 @@
       },
       {
         "id": "worker-v3.spec06-full-page-source-fidelity-review",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "path": "schemas/spec06-full-page-source-fidelity-review-v1.schema.json"
       }
     ]
@@ -757,7 +757,7 @@
     },
     {
       "id": "worker-v3.spec06-full-page-source-fidelity-review",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "path": "prompts/spec06-full-page-source-fidelity-review-v1.txt",
       "output_schema": "schemas/spec06-full-page-source-fidelity-review-v1.schema.json"
     }

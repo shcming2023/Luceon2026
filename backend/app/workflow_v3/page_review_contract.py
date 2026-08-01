@@ -582,7 +582,6 @@ def _validate_call_chain(
                 or not _is_sha256(input_page.get("candidate_image_sha256"))
                 or result_page.get("page_key") != page_key
                 or result_page.get("page") != input_page.get("page")
-                or result_page.get("source_pages") != allowed_pages
                 or disposition
                 not in {"source_body", "generated_frontmatter", "mapping_uncertain"}
                 or not isinstance(allowed_pages, list)
@@ -597,15 +596,19 @@ def _validate_call_chain(
                 or len(allowed_sources) != len(allowed_pages)
                 or (disposition == "source_body" and not allowed_pages)
                 or (disposition != "source_body" and allowed_pages)
-                or not _valid_provider_result(result_page)
+                or not _valid_model_result(result_page)
             ):
                 _fail(
                     "page_review_provider_binding_invalid",
                     f"provider result differs from deterministic mapping at {page_key}",
                 )
+            normalized_result = {
+                **dict(result_page),
+                "source_pages": list(allowed_pages),
+            }
             provider_pages[page_key] = {
                 "call_id": call["call_id"],
-                "result": dict(result_page),
+                "result": normalized_result,
                 "page": input_page["page"],
                 "disposition": disposition,
                 "candidate_pdf_sha256": input_page.get("candidate_pdf_sha256"),
@@ -1285,6 +1288,13 @@ def _valid_provider_result(value: Mapping[str, Any]) -> bool:
     ) or (
         value.get("status") == "failed" and blockers > 0
     )
+
+
+def _valid_model_result(value: Mapping[str, Any]) -> bool:
+    if set(value) != {"page_key", "page", "status", "findings"}:
+        return False
+    normalized = {**dict(value), "source_pages": []}
+    return _valid_provider_result(normalized)
 
 
 def _valid_usage(value: Any) -> bool:

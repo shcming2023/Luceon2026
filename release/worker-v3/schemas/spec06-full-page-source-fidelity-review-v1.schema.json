@@ -18,7 +18,6 @@
         "required": [
           "page_key",
           "page",
-          "source_pages",
           "status",
           "findings"
         ],
@@ -32,16 +31,6 @@
           "page": {
             "type": "integer",
             "minimum": 1
-          },
-          "source_pages": {
-            "type": "array",
-            "minItems": 0,
-            "maxItems": 6,
-            "uniqueItems": true,
-            "items": {
-              "type": "integer",
-              "minimum": 1
-            }
           },
           "status": {
             "type": "string",

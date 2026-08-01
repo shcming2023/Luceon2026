@@ -115,19 +115,12 @@ def _release(root: Path) -> tuple[Path, str, dict[str, Any], dict[str, Any]]:
                     "required": [
                         "page_key",
                         "page",
-                        "source_pages",
                         "status",
                         "findings",
                     ],
                     "properties": {
                         "page_key": {"type": "string", "minLength": 1},
                         "page": {"type": "integer", "minimum": 1},
-                        "source_pages": {
-                            "type": "array",
-                            "minItems": 0,
-                            "uniqueItems": True,
-                            "items": {"type": "integer", "minimum": 1},
-                        },
                         "status": {
                             "type": "string",
                             "enum": ["passed", "failed"],
@@ -449,14 +442,17 @@ def _fixture(
                 "allowed_sources": allowed_sources,
             }
         )
-        provider_result = {
+        model_result = {
             "page_key": page_key,
             "page": index,
-            "source_pages": allowed,
             "status": "passed",
             "findings": [],
         }
-        result_pages.append(provider_result)
+        result_pages.append(model_result)
+        provider_result = {
+            **model_result,
+            "source_pages": allowed,
+        }
         deterministic = (
             [
                 {

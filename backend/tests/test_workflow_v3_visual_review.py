@@ -191,20 +191,12 @@ def _release(tmp_path: Path) -> tuple[Path, str]:
                     "required": [
                         "page_key",
                         "page",
-                        "source_pages",
                         "status",
                         "findings",
                     ],
                     "properties": {
                         "page_key": {"type": "string", "minLength": 1},
                         "page": {"type": "integer", "minimum": 1},
-                        "source_pages": {
-                            "type": "array",
-                            "minItems": 1,
-                            "maxItems": 6,
-                            "uniqueItems": True,
-                            "items": {"type": "integer", "minimum": 1},
-                        },
                         "status": {
                             "type": "string",
                             "enum": ["passed", "failed"],
@@ -525,7 +517,6 @@ def test_dynamic_visual_review_covers_every_candidate_page(
             {
                 "page_key": row["page_key"],
                 "page": row["page"],
-                "source_pages": [row["allowed_source_pages"][0]],
                 "status": "passed",
                 "findings": [],
             }
@@ -581,6 +572,14 @@ def test_dynamic_visual_review_covers_every_candidate_page(
     assert evidence["reviewer"]["response_ids"] == ["response-1"]
     assert evidence["reviewer"]["schema_version"] == VISUAL_PROVIDER_PROTOCOL
     assert evidence["reviewer"]["output_schema_version"] == "1.0.0"
+    assert [
+        row["provider_result"]["source_pages"]
+        for row in evidence["volumes"][0]["pages"]
+    ] == [[1], [2]]
+    assert all(
+        "source_pages" not in row
+        for row in evidence["reviewer"]["calls"][0]["parsed_result"]["pages"]
+    )
     with tarfile.open(result.render_bundle_path, "r:gz") as archive:
         names = archive.getnames()
     assert "candidate-content-manifest.json" in names
@@ -592,7 +591,7 @@ def test_dynamic_visual_review_covers_every_candidate_page(
     )
 
 
-def test_visual_review_rejects_source_page_outside_allowed_set(
+def test_visual_review_rejects_model_owned_page_identity_drift(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -608,9 +607,8 @@ def test_visual_review_rejects_source_page_outside_allowed_set(
     def run(call, _transport):
         rows = [
             {
-                "page_key": row["page_key"],
+                "page_key": "wrong-volume:999",
                 "page": row["page"],
-                "source_pages": [999],
                 "status": "passed",
                 "findings": [],
             }
@@ -635,7 +633,7 @@ def test_visual_review_rejects_source_page_outside_allowed_set(
             },
         )
 
-    with pytest.raises(VisualReviewError, match="source mapping is invalid"):
+    with pytest.raises(VisualReviewError, match="page identity is invalid"):
         build_full_page_review_inputs(
             job_id="job-1",
             call_scope_id="stable-job-scope-1",

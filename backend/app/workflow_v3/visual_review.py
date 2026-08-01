@@ -1002,25 +1002,13 @@ def _accept_batch_result(
             raise VisualReviewError("visual provider page result is malformed")
         page_key = str(expected_row["page_key"])
         page = int(expected_row["page"])
-        disposition = str(expected_row["disposition"])
         allowed = [int(value) for value in expected_row["allowed_source_pages"]]
-        returned = row.get("source_pages")
         if (
             str(row.get("page_key") or "") != page_key
             or int(row.get("page") or 0) != page
-            or not isinstance(returned, list)
-            or returned != allowed
-            or (
-                disposition == "source_body"
-                and not returned
-            )
-            or (
-                disposition != "source_body"
-                and returned
-            )
         ):
             raise VisualReviewError(
-                f"visual provider source mapping is invalid at {page_key}"
+                f"visual provider page identity is invalid at {page_key}"
             )
         if page_key in output:
             raise VisualReviewError(f"visual provider duplicated page {page_key}")
@@ -1036,7 +1024,15 @@ def _accept_batch_result(
             raise VisualReviewError(
                 f"visual provider returned a non-blocking finding at {page_key}"
             )
-        output[page_key] = {**dict(row), "_call_id": call_id}
+        # Stage 5 owns candidate-to-source provenance. The visual model owns
+        # findings only and must never be asked to reproduce or alter the
+        # frozen mapping. Attach the deterministic mapping after validating
+        # the model-owned page identity and findings.
+        output[page_key] = {
+            **dict(row),
+            "source_pages": allowed,
+            "_call_id": call_id,
+        }
 
 
 def _load_frozen_volume_mapping(

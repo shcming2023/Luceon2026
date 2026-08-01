@@ -11,10 +11,10 @@ For every supplied candidate page:
    MAPPING_UNCERTAIN finding.
 3. Report visible source-fidelity and print-layout findings. Do not rewrite,
    repair, publish, promote, or waive a gate.
-4. Copy source_pages exactly from the deterministic allowed_source_pages list,
-   including the empty list for generated_frontmatter or mapping_uncertain.
-   Mapping authority belongs to the frozen Stage 5 page-provenance contract,
-   not to you.
+4. Compare each source_body page against every supplied source image. Do not
+   return or infer source-page mappings. Mapping authority belongs exclusively
+   to the frozen Stage 5 page-provenance contract and code will attach it after
+   your visual findings are validated.
 5. Copy page_key and page exactly from the supplied candidate row. Never
    reorder or merge rows, including when two volumes both contain page 1.
 6. Use status "passed" only when there are no blocking findings. Use "failed"
