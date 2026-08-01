@@ -176,6 +176,25 @@ def _produce_spec05(
     )
     parent = inputs.extracted("promoted_predecessor")
     assets = inputs.extracted("source_asset_bundle")
+    bundled_media_evidence = _required(
+        assets,
+        "media/media_evidence_ledger.json",
+    )
+    bundled_media_plan = _required(
+        assets,
+        "media/media_representation_plan.json",
+    )
+    if (
+        sha256_file(bundled_media_evidence)
+        != sha256_file(inputs.file("media_evidence_ledger"))
+        or sha256_file(bundled_media_plan)
+        != sha256_file(inputs.file("media_representation_plan"))
+    ):
+        raise StageEntrypointError(
+            "media_bundle_identity_mismatch",
+            "standalone media contracts differ from the frozen source asset bundle",
+            exit_code=3,
+        )
     run = output / "spec05"
     args = [
         "--run-dir",
@@ -206,6 +225,8 @@ def _produce_spec05(
         str(inputs.file("media_evidence_ledger")),
         "--media-representation-plan",
         str(inputs.file("media_representation_plan")),
+        "--media-evidence-root",
+        str(assets),
         "--asset-root",
         str(assets),
         "--source-pdf",

@@ -645,8 +645,19 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         media_validator = load_validator(media_validator_path)
         media_ledger_path = args.media_evidence_ledger.resolve()
         media_plan_path = args.media_representation_plan.resolve()
-        media_validation = media_validator.validate_contracts(media_ledger_path, media_plan_path)
-        media_binding_validation = media_validator.validate_render_binding(media_ledger_path, media_plan_path, plan_path)
+        media_validation = media_validator.validate_contracts(
+            media_ledger_path,
+            media_plan_path,
+            evidence_root=args.media_evidence_root.resolve(),
+            source_pdf_path=args.source_pdf.resolve(),
+        )
+        media_binding_validation = media_validator.validate_render_binding(
+            media_ledger_path,
+            media_plan_path,
+            plan_path,
+            evidence_root=args.media_evidence_root.resolve(),
+            source_pdf_path=args.source_pdf.resolve(),
+        )
         if media_validation.get("status") != "passed" or media_binding_validation.get("status") != "passed":
             raise ValueError("media contract or render binding validation failed")
 
@@ -861,6 +872,7 @@ def main() -> int:
     parser.add_argument("--media-evidence-ledger", type=Path)
     parser.add_argument("--media-representation-plan", type=Path)
     parser.add_argument("--media-validator", type=Path)
+    parser.add_argument("--media-evidence-root", type=Path)
     parser.add_argument("--out-dir", type=Path, required=True)
     args = parser.parse_args()
     try:

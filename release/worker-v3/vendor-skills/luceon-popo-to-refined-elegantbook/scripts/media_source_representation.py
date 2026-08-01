@@ -83,6 +83,13 @@ def safe_relative(value: str) -> Path:
     return Path(*posix.parts)
 
 
+def evidence_path(value: str, root: Path | None) -> Path:
+    path = Path(value)
+    if path.is_absolute() or root is None:
+        return path
+    return root / safe_relative(value)
+
+
 def parse_roots(values: list[str]) -> dict[str, Path]:
     roots: dict[str, Path] = {}
     for value in values:
@@ -551,10 +558,17 @@ class Checks:
         return all(row["status"] == "passed" for row in self.rows)
 
 
-def validate_contracts(ledger_path: Path, plan_path: Path) -> dict[str, Any]:
+def validate_contracts(
+    ledger_path: Path,
+    plan_path: Path,
+    *,
+    evidence_root: Path | None = None,
+    source_pdf_path: Path | None = None,
+) -> dict[str, Any]:
     ledger = read_json(ledger_path)
     plan = read_json(plan_path)
     checks = Checks()
+    evidence_root = evidence_root.resolve() if evidence_root is not None else None
 
     def identities() -> dict[str, Any]:
         atoms = ledger.get("atoms", [])
@@ -567,7 +581,11 @@ def validate_contracts(ledger_path: Path, plan_path: Path) -> dict[str, Any]:
 
     def source_pdf_live() -> dict[str, Any]:
         source = ledger["source_pdf"]
-        path = Path(source["path"])
+        path = (
+            source_pdf_path.resolve()
+            if source_pdf_path is not None
+            else evidence_path(source["path"], evidence_root)
+        )
         if not path.is_file() or sha256_file(path) != source["sha256"]:
             raise ValueError("source PDF bytes drifted")
         with fitz.open(path) as doc:
@@ -588,11 +606,17 @@ def validate_contracts(ledger_path: Path, plan_path: Path) -> dict[str, Any]:
                 candidate_ids.add(cid)
                 representation = candidate.get("representation_type")
                 if representation == "source_asset_image":
-                    path = Path(candidate.get("resolved_path", ""))
+                    path = evidence_path(
+                        candidate.get("resolved_path", ""),
+                        evidence_root,
+                    )
                     if not path.is_file() or sha256_file(path) != candidate.get("artifact_sha256"):
                         failures.append(f"{atom['media_id']}:{cid}:asset-drift")
                 elif representation == "source_region_image":
-                    path = Path(candidate.get("crop_path", ""))
+                    path = evidence_path(
+                        candidate.get("crop_path", ""),
+                        evidence_root,
+                    )
                     if not path.is_file() or sha256_file(path) != candidate.get("artifact_sha256"):
                         failures.append(f"{atom['media_id']}:{cid}:crop-drift")
                 elif representation in STRUCTURED and canonical_hash(candidate.get("payload")) != candidate.get("artifact_sha256"):
@@ -648,8 +672,8 @@ def validate_contracts(ledger_path: Path, plan_path: Path) -> dict[str, Any]:
             return {"mode": "legacy_normalized_input"}
         canonical = ledger.get("canonical_ledger") or {}
         decision = ledger.get("decision_index") or {}
-        canonical_path = Path(canonical.get("path", ""))
-        decision_path = Path(decision.get("path", ""))
+        canonical_path = evidence_path(canonical.get("path", ""), evidence_root)
+        decision_path = evidence_path(decision.get("path", ""), evidence_root)
         if not canonical_path.is_file() or sha256_file(canonical_path) != canonical.get("sha256"):
             raise ValueError("canonical ledger bytes drifted")
         if not decision_path.is_file() or sha256_file(decision_path) != decision.get("sha256"):
@@ -728,8 +752,20 @@ def validate_contracts(ledger_path: Path, plan_path: Path) -> dict[str, Any]:
     }
 
 
-def validate_render_binding(ledger_path: Path, plan_path: Path, render_plan_path: Path) -> dict[str, Any]:
-    contract_report = validate_contracts(ledger_path, plan_path)
+def validate_render_binding(
+    ledger_path: Path,
+    plan_path: Path,
+    render_plan_path: Path,
+    *,
+    evidence_root: Path | None = None,
+    source_pdf_path: Path | None = None,
+) -> dict[str, Any]:
+    contract_report = validate_contracts(
+        ledger_path,
+        plan_path,
+        evidence_root=evidence_root,
+        source_pdf_path=source_pdf_path,
+    )
     ledger = read_json(ledger_path)
     plan = read_json(plan_path)
     render_plan = read_json(render_plan_path)

@@ -231,6 +231,69 @@ class MediaSourceRepresentationTests(unittest.TestCase):
         tampered = MODULE.validate_render_binding(output / "media_evidence_ledger.json", media_plan_path, render_plan_path)
         self.assertEqual("failed", tampered["status"])
 
+    def test_relocated_media_contract_uses_explicit_evidence_root(self):
+        evidence_root = self.root / "portable"
+        selected = evidence_root / "media/selected/figure.png"
+        selected.parent.mkdir(parents=True)
+        Image.new("RGB", (20, 20), "navy").save(selected)
+        external_pdf = self.root / "external-source.pdf"
+        external_pdf.write_bytes(self.pdf.read_bytes())
+        candidate = {
+            "candidate_id": "asset",
+            "representation_type": "source_asset_image",
+            "status": "usable",
+            "resolved_path": "media/selected/figure.png",
+            "artifact_sha256": MODULE.sha256_file(selected),
+        }
+        ledger = {
+            "schema_version": "media-evidence-ledger/1.0",
+            "ledger_id": "portable-ledger",
+            "source_pdf": {
+                "path": "external/source.pdf",
+                "sha256": MODULE.sha256_file(self.pdf),
+                "page_count": 1,
+            },
+            "atoms": [{
+                "media_id": "m-portable",
+                "source_block_ids": ["b-portable"],
+                "inclusion_status": "included",
+                "candidates": [candidate],
+            }],
+            "summary": {"atoms": 1, "included": 1, "excluded": 0, "needs_review": 0},
+        }
+        ledger["payload_hash"] = MODULE.payload_hash(ledger)
+        ledger_path = self.root / "portable-ledger.json"
+        ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+        representation = {
+            "representation_id": "representation::m-portable",
+            "media_id": "m-portable",
+            "source_block_ids": ["b-portable"],
+            "status": "closed",
+            "selected_candidate_id": "asset",
+            "representation_type": "source_asset_image",
+            "artifact_sha256": candidate["artifact_sha256"],
+        }
+        plan = {
+            "schema_version": "media-representation-plan/1.0",
+            "media_evidence_ledger_sha256": MODULE.sha256_file(ledger_path),
+            "spec_status": "passed",
+            "open_reviews": 0,
+            "representations": [representation],
+            "summary": {"representations": 1, "closed": 1, "excluded": 0, "needs_review": 0},
+        }
+        plan["payload_hash"] = MODULE.payload_hash(plan)
+        plan_path = self.root / "portable-plan.json"
+        plan_path.write_text(json.dumps(plan), encoding="utf-8")
+
+        report = MODULE.validate_contracts(
+            ledger_path,
+            plan_path,
+            evidence_root=evidence_root,
+            source_pdf_path=external_pdf,
+        )
+
+        self.assertEqual("passed", report["status"])
+
 
 if __name__ == "__main__":
     unittest.main()

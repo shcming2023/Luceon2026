@@ -88,6 +88,8 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
         ),
         (media_evidence, b"{}\n"),
         (media_plan, b"{}\n"),
+        (assets / "media/media_evidence_ledger.json", b"{}\n"),
+        (assets / "media/media_representation_plan.json", b"{}\n"),
     ):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(payload)
@@ -154,6 +156,8 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
         assert Path(args[index + 1]) == media_evidence
         index = args.index("--media-representation-plan")
         assert Path(args[index + 1]) == media_plan
+        index = args.index("--media-evidence-root")
+        assert Path(args[index + 1]) == assets
         index = args.index("--body-marker")
         assert args[index + 1] == "% frozen body marker"
         run = output / "spec05/manifests"
@@ -192,6 +196,18 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
     assert not (parent / "template/template_capability_manifest.json").exists()
     assert not (parent / "media/media_evidence_ledger.json").exists()
     assert not (parent / "media/media_representation_plan.json").exists()
+
+    (assets / "media/media_representation_plan.json").write_bytes(b'{"drift":true}\n')
+    with pytest.raises(
+        adapters.StageEntrypointError,
+        match="standalone media contracts differ",
+    ):
+        adapters._produce_spec05(
+            request,
+            Inputs(),
+            tmp_path / "mismatch-output",
+            tmp_path,
+        )
 
 
 def _readiness_fixture(

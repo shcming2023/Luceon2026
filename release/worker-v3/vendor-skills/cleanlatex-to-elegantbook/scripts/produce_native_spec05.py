@@ -252,6 +252,7 @@ def capability_manifest(args: argparse.Namespace, execution_core: Any, run: Path
         "--body-marker", args.body_marker,
         "--media-evidence-ledger", str(args.media_evidence_ledger.resolve()),
         "--media-representation-plan", str(args.media_representation_plan.resolve()),
+        "--media-evidence-root", str(args.media_evidence_root.resolve()),
         "--source-pdf", str(args.source_pdf.resolve()),
         "--build-policy", str(args.build_policy.resolve()),
     ]
@@ -1180,6 +1181,16 @@ def produce(args: argparse.Namespace) -> dict[str, Any]:
         if node.get("media_binding") or node.get("payload", {}).get("media_binding")
     }:
         raise ValueError("supplied media representation plan is not bound by the active render plan")
+    media_evidence_root = args.media_evidence_root.resolve()
+    if not media_evidence_root.is_dir():
+        raise ValueError("media evidence root is unavailable")
+    if (
+        sha256_file(media_evidence_root / "media/media_evidence_ledger.json")
+        != sha256_file(args.media_evidence_ledger.resolve())
+        or sha256_file(media_evidence_root / "media/media_representation_plan.json")
+        != sha256_file(args.media_representation_plan.resolve())
+    ):
+        raise ValueError("media contracts differ from the frozen media evidence root")
 
     run.mkdir(parents=True)
     template_dir = run / "precommit/template"
@@ -1217,6 +1228,7 @@ def produce(args: argparse.Namespace) -> dict[str, Any]:
         source_page_dir=(args.source_page_dir.resolve() if args.source_page_dir else None),
         contract_validator=args.contract_validator.resolve(), media_evidence_ledger=args.media_evidence_ledger.resolve(),
         media_representation_plan=args.media_representation_plan.resolve(), media_validator=args.media_validator.resolve(),
+        media_evidence_root=media_evidence_root,
         out_dir=mechanical,
         volume_partition_plan=partition_path,
         volume_id=getattr(args, "volume_id", None),
@@ -1530,6 +1542,7 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--volume-id", help=argparse.SUPPRESS)
     value.add_argument("--media-evidence-ledger", type=Path, required=True)
     value.add_argument("--media-representation-plan", type=Path, required=True)
+    value.add_argument("--media-evidence-root", type=Path, required=True)
     value.add_argument("--asset-root", type=Path, action="append", default=[], required=True)
     value.add_argument("--source-pdf", type=Path, required=True)
     value.add_argument("--source-page-dir", type=Path)
