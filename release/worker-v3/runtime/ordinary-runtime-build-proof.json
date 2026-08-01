@@ -1,10 +1,10 @@
 {
   "architecture": "arm64",
   "build_status": "cached_qualification_build_succeeded",
-  "built_at": "2026-08-01T11:01:22Z",
-  "image_id": "sha256:51b6d26505e089903c77b80a78cb2beaf42d1fcb47f1d487c049c2340426da0a",
-  "image_size_bytes": 1457085385,
-  "local_manifest_digest": "sha256:51b6d26505e089903c77b80a78cb2beaf42d1fcb47f1d487c049c2340426da0a",
+  "built_at": "2026-08-01T11:43:33Z",
+  "image_id": "sha256:a359ecfacb0b2d994d45c4138f0d7ee7bf566997b80ab84fb605369449a0ff96",
+  "image_size_bytes": 1457088674,
+  "local_manifest_digest": "sha256:a359ecfacb0b2d994d45c4138f0d7ee7bf566997b80ab84fb605369449a0ff96",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
     "pages": 2,
@@ -177,6 +177,12 @@
       "reason": "real-material Stage 10 proved that deterministic candidate-to-source page provenance was incorrectly delegated to the visual model as a copied response field; the replacement removes that non-model responsibility and attaches the exact frozen Stage 5 mapping in code while retaining the raw provider audit",
       "source_revision": "ad89b2825881c16db205193e3d3ee36636525c93",
       "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:51b6d26505e089903c77b80a78cb2beaf42d1fcb47f1d487c049c2340426da0a",
+      "reason": "real-material Spec 05 produced review-only warnings and exposed that the isolated qualification CLI could not consume an exact immutable review resolution and resume only Stage 8; the replacement adds qualification-only, fail-closed warning review recovery without changing ordinary API, MinIO or production control-plane behavior",
+      "source_revision": "179da09a7ab2f9c366e07c60add6559e3c1dc65a",
+      "status": "superseded_before_release_admission"
     }
   ],
   "rejected_build_attempts": [
@@ -216,28 +222,28 @@
       "status": "rejected_before_qualification"
     }
   ],
-  "runtime_id": "worker-v3-runtime-rc-179da09-qual2",
+  "runtime_id": "worker-v3-runtime-rc-b72fb54-qual",
   "runtime_identity": {
-    "control_plane_tree_sha256": "5524198bc956a6cf6ad0ea0946238bf79c14b18d1a0829d07642596d074a09a0",
+    "control_plane_tree_sha256": "d7dea2a76236b4a699a3fe1837873bf5231daa55fbe0cc9d783c0885d5a09e4d",
     "effective_uid": 10003,
-    "evidence_sha256": "dd1ae4bf5277820018f984730668b712b91c0d81053fadd9a568fe7dae841ca1",
+    "evidence_sha256": "096c54ebfcb5997772db6a80e6d0d3693dedcbaaa3a4aa25391b524d2ac356a3",
     "status": "passed",
     "system_lock_entries": 19
   },
   "sbom": {
     "component_count": 422,
-    "evidence_sha256": "2c56461d3fabad6abc4c9cc6eaf96d9f446461c5ef8a19d62b5cd34c5f27cd00",
+    "evidence_sha256": "a3c1953ada2e3c5e62da6780bacb3cacea7c75a88b5b8682041db1b686812eeb",
     "format": "CycloneDX",
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "179da09a7ab2f9c366e07c60add6559e3c1dc65a",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-179da09-qual2",
+  "source_revision": "b72fb544e0f6e19df491e0c1b6aa17e949fc9102",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-b72fb54-qual",
   "tests": {
-    "targeted_repository_regression": "40 focused Overleaf-adapter, visual-review, runtime-image and release-recipe tests passed with one integration skip before exact-image qualification",
+    "targeted_repository_regression": "41 focused qualification, control-plane, Spec 05/06 adapter and evaluator-entrypoint tests passed before image build",
     "runtime_identity_gate": "passed with no network and digest-pinned reference: non-root UID 10003, exact control-plane tree and 19 locked system packages",
     "repository_static_tests": "release source verify-only passed with 24 formal entrypoints, 39 sources and three honest qualification gaps before runtime evidence rebinding",
-    "exact_image_regression": "977 tests passed with 2 skips inside the exact digest-pinned image under no-network, non-root, read-only-rootfs and noexec production tmpfs constraints; a dedicated exec tmpfs was limited to pytest-generated executable fixtures",
+    "exact_image_regression": "1032 tests passed with 2 skips inside the exact digest-pinned image under no-network, non-root and read-only-rootfs constraints; a dedicated exec tmpfs was limited to pytest-generated executable fixtures and the ordinary /tmp remained noexec",
     "locked_template_smoke": "passed with no network: frozen template class SHA-256 048c3b90da41be64f4744da3bff6ae8c5ea7abd30a5f3e2a6ad1a98f3b0d71fe, 2 pages, PDF SHA-256 1b7c46620bb59ccf6d539c5c3834715a3993735e3c660b08124bc8b0a08d9dae",
     "production_boundary": "Expert Broker, Codex App Server, Codex SDK adapter, cross-UID runner, Codex expert runtime entrypoints, Codex binary and Codex/OpenAI credentials are absent",
     "warnings": "Existing Python and SQLAlchemy deprecation warnings remain non-blocking; no applicable test failure remains. The image is a cached qualification build, not the final clean-build release image."
