@@ -1,10 +1,10 @@
 {
   "architecture": "arm64",
   "build_status": "cached_qualification_build_succeeded",
-  "built_at": "2026-08-01T13:01:43Z",
-  "image_id": "sha256:d3941cb9e2efc85ee8207dfb4d8687f11b1024fdd4944af9a50ebf5b2a882da6",
-  "image_size_bytes": 1457089025,
-  "local_manifest_digest": "sha256:d3941cb9e2efc85ee8207dfb4d8687f11b1024fdd4944af9a50ebf5b2a882da6",
+  "built_at": "2026-08-01T17:38:02Z",
+  "image_id": "sha256:19b53cc9020f652a77854ca31456580c3bfe28f34f6e718e7d94efdf59d75632",
+  "image_size_bytes": 1457090618,
+  "local_manifest_digest": "sha256:19b53cc9020f652a77854ca31456580c3bfe28f34f6e718e7d94efdf59d75632",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
     "pages": 2,
@@ -16,6 +16,24 @@
   "registry_digest": null,
   "registry_status": "pending_until_push",
   "superseded_builds": [
+    {
+      "image_digest": "sha256:f6d0515f597e55229500473d8a90686559b54a8ecce96246c60f24d15b800d23",
+      "reason": "real-material qualification on a valid media-less render plan proved that Spec 05 ignored the frozen top-level media plan binding and required a nonexistent per-node media binding; the replacement accepts the exact top-level binding while still rejecting top-level drift and inconsistent nonempty node bindings",
+      "source_revision": "2c9ad0298ff708a2323d195eec5ba60364695bb2",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:bd822c7533de1df8d898a5ce4aad4b7d83068db2a146e344f4a30fd703f7e0bd",
+      "reason": "real-material qualification produced a fully hash-bound empty Spec 03 media contract, but the independent evaluator still rejected the empty evidence inventory before checking closure; the replacement accepts the empty set only after the same cross-hash, summary, fragile-source ownership and decision-index gates pass",
+      "source_revision": "eb719b55724910e35a3b3b470860229499f4dae7",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:8212aed6327ab96b23287ac8d3fc276a9be21e20ed2cc2d6e2bbcf1265e80a35",
+      "reason": "real-material qualification on a legitimate media-less PDF reached Spec 03 and proved that the output schema still required at least one media decision even though intake and the deterministic kernel accepted an empty media inventory; the replacement closes that exact empty review contract without relaxing any other field",
+      "source_revision": "115d40c104aaa9ef0054ddb650f602f0b975abb8",
+      "status": "superseded_before_release_admission"
+    },
     {
       "image_digest": "sha256:a359ecfacb0b2d994d45c4138f0d7ee7bf566997b80ab84fb605369449a0ff96",
       "reason": "real-material full-page visual qualification returned an advisory finding with blocking=false even though the frozen schema admits only machine-gate findings; the replacement prompt requires blocking=true for every emitted finding and omits advisory observations",
@@ -189,9 +207,49 @@
       "reason": "real-material Spec 05 produced review-only warnings and exposed that the isolated qualification CLI could not consume an exact immutable review resolution and resume only Stage 8; the replacement adds qualification-only, fail-closed warning review recovery without changing ordinary API, MinIO or production control-plane behavior",
       "source_revision": "179da09a7ab2f9c366e07c60add6559e3c1dc65a",
       "status": "superseded_before_release_admission"
+    },
+    {
+      "source_revision": "534a589bebaf7b8527d4c4f1845a10e2cb4d6d2c",
+      "image_digest": "sha256:3e5536314f02790d9dc87b65e19baaea0e193ec872900234ba64162567ca3841",
+      "status": "superseded_before_release_admission",
+      "reason": "real-material Stage 8 qualification proved that Stage 7 omitted the exact active Spec 03 media evidence and representation-plan hashes from the frozen render plan; the replacement binds both top-level hashes for every plan, including media-less plans, and independently rejects top-level or per-node drift"
+    },
+    {
+      "source_revision": "8ff9881504e2438331140f56e0644009350832e3",
+      "image_digest": "sha256:00dbaf8a605ddc76a8e21a9010004b2ea4ecdd6e21f32c8c9a264379922c0b4c",
+      "status": "superseded_before_release_admission",
+      "reason": "fresh-root Stage 10 qualification proved that XeLaTeX creation timestamps changed the hash-bound candidate PDF and visual request across otherwise identical runs, while fresh deployment defaults still selected a mutable DashScope model alias; the replacement freezes the compile epoch and aligns Compose and migration defaults with the exact release model"
+    },
+    {
+      "source_revision": "713e33e1a3ccbe3ede184ea86b98cf98b10ea7ce",
+      "image_digest": "sha256:42485624ad320ebc625fcf9af153aa482e84a566c054ad80dc28b6f94e3a854e",
+      "status": "superseded_before_release_admission",
+      "reason": "real-material Stage 8 qualification proved that release assembly accepted stale build-policy, runtime and image bindings; the replacement cross-validates every runtime profile plus identity and build proof before assembly"
+    },
+    {
+      "source_revision": "866fbda75eec6229b86dabb798e137b100dda105",
+      "image_digest": "sha256:aa9f2a64688ce8f2ed7cf9b152d624902f2ddad17f7381edc0c81c9313c34850",
+      "status": "superseded_before_release_admission",
+      "reason": "real-material Stage 10 qualification proved that Spec05 pdftoppm PNG file hashes were incorrectly compared with independently re-rendered PyMuPDF pixel hashes; the replacement keeps both format-specific identities separately bound while preserving exact PDF, page-order and source-lineage gates"
+    },
+    {
+      "source_revision": "92a8c2c475279e02d0249f2f99e19407e5c6f9cf",
+      "image_digest": "sha256:5042c094d9288a0a1a843415baf02e1ee183ef9919a6ce2b3604c8078e22f4db",
+      "status": "superseded_before_release_admission",
+      "reason": "real-material Stage 10 qualification proved that the visual Producer included raster dimensions and channel metadata in source-page identities while the contract duplicate hashed pixel bytes only; the replacement uses the same frozen identity algorithm and carries an inter-module equality regression"
     }
   ],
   "rejected_build_attempts": [
+    {
+      "image_digest": "sha256:785a0bd95a3cd643d2760d13cfd1d1c988b3953aef23d4ffb6b70959b7bbd1e9",
+      "reason": "the Docker build context contained untracked qualification-only request-capture and orchestration helpers; the image was rejected before evidence binding and rebuilt from a clean tracked context",
+      "status": "rejected_before_qualification"
+    },
+    {
+      "image_digest": "sha256:e76244d9d159d36d71ad035a8d7b7446217fd38de21a501988ac2ef323804b63",
+      "reason": "the OCI revision label did not equal the exact full source revision 115d40c104aaa9ef0054ddb650f602f0b975abb8; the image was rejected before qualification",
+      "status": "rejected_before_qualification"
+    },
     {
       "image_digest": "sha256:57464e291fa75eb4a9a0686c1ff1d2cc1ce874a02e5c9f038de6afd5b4931c27",
       "reason": "OCI revision label used the short source revision 7970c45 instead of the exact full revision 7970c455f509c234c2964efb7d0179827802e8e3; content tests and clean dependency installation passed, but the image was rejected before release evidence binding",
@@ -228,28 +286,28 @@
       "status": "rejected_before_qualification"
     }
   ],
-  "runtime_id": "worker-v3-runtime-rc-9bc2975-qual",
+  "runtime_id": "worker-v3-runtime-rc-98462ce-qual",
   "runtime_identity": {
-    "control_plane_tree_sha256": "d7dea2a76236b4a699a3fe1837873bf5231daa55fbe0cc9d783c0885d5a09e4d",
+    "control_plane_tree_sha256": "4d4e7ee84d5be9e1a4ca279051599d14487eff8dd01bac47ab0808d490be542d",
     "effective_uid": 10003,
-    "evidence_sha256": "3b6c39e2afde568965a71cc0bec702856d2cb32415b0ab763725432cf5963f81",
+    "evidence_sha256": "f3824ab69579a989bdaa4002131926990dd56bcbc3c0c2cd7d91fed7749454b7",
     "status": "passed",
     "system_lock_entries": 19
   },
   "sbom": {
     "component_count": 422,
-    "evidence_sha256": "35342b721ddd64dd0c2c63ac21908976d0a88e3d8cc2d8268c53e1cb99cd5265",
+    "evidence_sha256": "b46619a0b5b87ccd1dfa71193ea712c4bc9cf2c942fc53901e40e94fcf17f31e",
     "format": "CycloneDX",
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "9bc297596795fb5637ff4193a4eeea40efd39398",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-9bc2975-qual",
+  "source_revision": "98462ce8c7e57981937404ec5ad03ef041fe37b7",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-98462ce-qual",
   "tests": {
-    "targeted_repository_regression": "59 focused qualification, constrained-LLM schema, control-plane, Spec 05/06 adapter and evaluator-entrypoint tests passed before image build",
+    "targeted_repository_regression": "31 page-review, visual-review and Spec05/06 adapter regressions passed, including exact equality between Producer and contract source-page raster identities",
     "runtime_identity_gate": "passed with no network and digest-pinned reference: non-root UID 10003, exact control-plane tree and 19 locked system packages",
-    "repository_static_tests": "release source verify-only passed with 24 formal entrypoints, 39 sources and three honest qualification gaps before runtime evidence rebinding",
-    "exact_image_regression": "1033 tests passed with 2 skips inside the exact digest-pinned image under no-network, non-root and read-only-rootfs constraints; a dedicated exec tmpfs was limited to pytest-generated executable fixtures and a writable test-only SQLite/config path while the ordinary /tmp remained noexec",
+    "repository_static_tests": "release source verify-only passed with 24 formal entrypoints, 42 sources and three honest qualification gaps before real-material requalification",
+    "exact_image_regression": "986 tests passed with 2 skips in 52.27 seconds inside the exact digest-pinned rc-98462ce-qual image under no-network, non-root UID 10003 and read-only-rootfs constraints",
     "locked_template_smoke": "passed with no network: frozen template class SHA-256 048c3b90da41be64f4744da3bff6ae8c5ea7abd30a5f3e2a6ad1a98f3b0d71fe, 2 pages, PDF SHA-256 1b7c46620bb59ccf6d539c5c3834715a3993735e3c660b08124bc8b0a08d9dae",
     "production_boundary": "Expert Broker, Codex App Server, Codex SDK adapter, cross-UID runner, Codex expert runtime entrypoints, Codex binary and Codex/OpenAI credentials are absent",
     "warnings": "Existing Python and SQLAlchemy deprecation warnings remain non-blocking; no applicable test failure remains. The image is a cached qualification build, not the final clean-build release image."
