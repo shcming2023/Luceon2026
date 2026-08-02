@@ -39,6 +39,7 @@ _PRECONDITION_CODES = frozenset(
 )
 _SOURCE_BUCKETS = (
     "eduassets-input",
+    "eduassets-parsed",
     "eduassets-mineru",
     "eduassets-minerupopo",
 )

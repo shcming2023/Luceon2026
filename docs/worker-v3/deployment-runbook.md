@@ -83,7 +83,7 @@ as service identities:
 
 | Role | Allowed object operations |
 |---|---|
-| Producer | exact `GetObject` on the three frozen source buckets and candidate prefix; conditional create in the candidate prefix |
+| Producer | exact `GetObject` on the four frozen source buckets and candidate prefix; conditional create in the candidate prefix |
 | Evaluator | exact `GetObject` in the candidate prefix only |
 | Promoter | exact `GetObject` in the candidate prefix only |
 | Projector | exact `GetObject` in the candidate/formal prefixes; conditional create in the formal prefix |

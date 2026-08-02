@@ -45,6 +45,30 @@ def _policies():
     )
 
 
+def test_default_source_buckets_cover_material_source_pdf_and_frozen_parse_assets():
+    module = _script_module()
+
+    assert module._SOURCE_BUCKETS == (
+        "eduassets-input",
+        "eduassets-parsed",
+        "eduassets-mineru",
+        "eduassets-minerupopo",
+    )
+    policies = role_policy_documents(
+        candidate_bucket="worker-v3-candidates",
+        candidate_prefix="v3/candidates",
+        formal_bucket="eduassets-elegantbook",
+        formal_prefix="elegantbook/v3",
+        source_buckets=module._SOURCE_BUCKETS,
+    )
+    producer_reads = _statements(
+        policies["producer"],
+        effect="Allow",
+        action="s3:GetObject",
+    )
+    assert "arn:aws:s3:::eduassets-parsed/*" in producer_reads[0]["Resource"]
+
+
 def _statements(policy, *, effect: str, action: str):
     return [
         statement
