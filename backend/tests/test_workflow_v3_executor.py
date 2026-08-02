@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -33,6 +34,38 @@ def test_native_spec03_04_promotions_preserve_formal_native_lineage() -> None:
         "frozen_render_plan",
     ):
         assert _control_plane_promotion_class(stage_key) == "formal_native"
+
+
+def test_subprocess_transport_passes_only_bound_producer_work_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    script = tmp_path / "inspect_env.py"
+    script.write_text(
+        "import json, os\n"
+        "print(json.dumps({\n"
+        "  'producer_root': os.getenv('WORKFLOW_V3_PRODUCER_WORK_ROOT'),\n"
+        "  'secret': os.getenv('UNRELATED_SECRET'),\n"
+        "}, sort_keys=True))\n",
+        encoding="utf-8",
+    )
+    producer_root = tmp_path / "producer"
+    monkeypatch.setenv("WORKFLOW_V3_PRODUCER_WORK_ROOT", str(producer_root))
+    monkeypatch.setenv("UNRELATED_SECRET", "must-not-cross")
+
+    result = SubprocessTransport(poll_seconds=0.01).run(
+        [sys.executable, str(script)],
+        cwd=tmp_path,
+        timeout_seconds=10,
+        heartbeat=lambda: None,
+        cancelled=lambda: False,
+    )
+
+    assert result.returncode == 0
+    assert json.loads(result.stdout) == {
+        "producer_root": str(producer_root),
+        "secret": None,
+    }
 from app.workflow_v3.models import (
     WorkflowV3Base,
     WorkflowV3Candidate,

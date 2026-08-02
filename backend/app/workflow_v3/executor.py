@@ -357,6 +357,11 @@ class SubprocessTransport:
             "LUCEON_WORKER_V3_REQUEST": str(cwd / "request.json"),
             "PYTHONDONTWRITEBYTECODE": "1",
         }
+        producer_work_root = os.environ.get(
+            "WORKFLOW_V3_PRODUCER_WORK_ROOT", ""
+        ).strip()
+        if producer_work_root:
+            sanitized_env["WORKFLOW_V3_PRODUCER_WORK_ROOT"] = producer_work_root
         with stdout_path.open("wb") as stdout_handle, stderr_path.open("wb") as stderr_handle:
             process = subprocess.Popen(
                 list(argv),
