@@ -1,0 +1,43 @@
+{
+  "schema_version": "luceon.worker-v3.qualification.spec05-final-image-real-material/v1",
+  "qualification_type": "spec05_final_image_real_material",
+  "status": "passed",
+  "evidence_id": "worker-v3-spec05-final-image-b195904-pdf-8e5464971a3e1d6b",
+  "qualified_at": "2026-08-02T15:18:06+08:00",
+  "identity": {
+    "runner": "worker-v3-runtime-rc-b195904-clean",
+    "verifier": "worker-v3-overleaf-dual-role-qualification",
+    "run_id": "80282324-3447-5ca3-b970-02e85e676a9d"
+  },
+  "release_binding": {
+    "release_id": "worker-v3-skill-source-audit-20260726",
+    "release_source_git_sha": "b1959042814cc3978b8a563f5a63a3ddce0d11b6",
+    "executable_baseline_hash_algorithm": "sha256-executable-baseline-file-records-v1",
+    "executable_baseline_sha256": "edc6bf01f8ed58508ad6417e519d3bfe60d940f518a30a71292f46d73f5e0801",
+    "container_image_digest": "sha256:59dcab576361ac0614a57bb5ef3a5d3107b8ba46a3d183833cea67045e82e772"
+  },
+  "proof": {
+    "material": {
+      "material_identity_sha256": "b0942f21129c3eab6b3cbd106aa0c3179dc35883be6bb575e44f69ac34a13220",
+      "source_pdf_sha256": "8e5464971a3e1d6b40f5afc996dba67efc9af60e29d73ce10730e91c4fa12fad",
+      "popo_manifest_sha256": "c643bc08caa8c9c5e274014568f93cb550aa7c1b4380c526dc6ddd5409f484e4"
+    },
+    "execution": {
+      "entrypoint_id": "worker-v3.deterministic-elegantbook.produce",
+      "exact_final_image": true,
+      "unchanged_code": true
+    },
+    "delivery": {
+      "zip_sha256": "0f9a3eac57f750a25e6b53f4c7afff063e94d5cb9f6eda6c5d194984e2116d14",
+      "pdf_sha256": "3a77e16f187f3e15d78f656ad50a05a0ea9deeae051f605ba1257810569d5167",
+      "page_count": 123,
+      "xelatex_status": "passed",
+      "overleaf_status": "passed",
+      "template_archive_sha256": "ebc5d6575153239552785265d2765de03b76c27d0532137712952f20ad0a9d4d"
+    },
+    "result": {
+      "decision": "passed",
+      "spec05_gates_passed": true
+    }
+  }
+}
