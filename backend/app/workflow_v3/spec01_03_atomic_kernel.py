@@ -2714,50 +2714,89 @@ def media_model_evidence(task: Mapping[str, Any]) -> dict[str, Any]:
             "media_review_task_invalid",
             "Spec 03 media review task has no complete evidence inventories",
         )
-    normalized["page_source_units"] = [
+    source_unit_fields = (
+        "source_unit_index",
+        "scope_status",
+        "bbox",
+        "source_type",
+        "source_label",
+        "content_excerpt",
+    )
+    candidate_fields = (
+        "candidate_index",
+        "representation_type",
+        "source_page",
+        "bbox",
+        "bbox_coordinate_space",
+        "payload",
+    )
+    media_atom_fields = (
+        "media_index",
+        "physical_page",
+        "bbox",
+        "bbox_basis",
+        "media_kind",
+        "baseline_disposition",
+        "baseline_candidate_index",
+        "baseline_source_unit_indexes",
+        "candidates",
+    )
+    projected = {
+        key: normalized[key]
+        for key in (
+            "stage_key",
+            "material_id",
+            "source_pdf_sha256",
+            "media_atom_count",
+            "baseline_algorithm",
+            "baseline_sha256",
+            "required_output_schema",
+            "allowed_choices",
+            "constraints",
+            "capacity",
+        )
+    }
+    projected.update(
         {
-            "physical_page": group["physical_page"],
-            "source_units": [
-                {
-                    key: unit[key]
-                    for key in (
-                        "source_unit_index",
-                        "scope_status",
-                        "bbox",
-                        "source_type",
-                        "source_label",
-                        "content_excerpt",
-                    )
-                }
-                for unit in group["source_units"]
+            "schema_version": "luceon.worker-v3-spec03-model-evidence/v2",
+            "encoding": {
+                "page_group_fields": ["physical_page", "source_units"],
+                "source_unit_fields": list(source_unit_fields),
+                "media_atom_fields": list(media_atom_fields),
+                "candidate_fields": list(candidate_fields),
+                "positional_rule": (
+                    "Read every array position against its declared field table. "
+                    "A null candidate value means that optional field is absent."
+                ),
+            },
+            "page_source_units": [
+                [
+                    group["physical_page"],
+                    [
+                        [unit.get(key) for key in source_unit_fields]
+                        for unit in group["source_units"]
+                    ],
+                ]
+                for group in page_groups
+            ],
+            "media_atoms": [
+                [
+                    *[
+                        atom.get(key)
+                        for key in media_atom_fields
+                        if key != "candidates"
+                    ],
+                    [
+                        [candidate.get(key) for key in candidate_fields]
+                        for candidate in atom["candidates"]
+                    ],
+                ]
+                for atom in media_atoms
             ],
         }
-        for group in page_groups
-    ]
-    compact_atoms: list[dict[str, Any]] = []
-    for atom in media_atoms:
-        compact = {
-            key: value
-            for key, value in atom.items()
-            if key not in {"media_id", "raw_content_sha256", "candidates"}
-        }
-        compact["candidates"] = [
-            {
-                key: value
-                for key, value in candidate.items()
-                if key
-                not in {
-                    "candidate_id",
-                    "sha256",
-                    "size_bytes",
-                    "payload_sha256",
-                }
-            }
-            for candidate in atom["candidates"]
-        ]
-        compact_atoms.append(compact)
-    normalized["media_atoms"] = compact_atoms
-    return normalized
+    )
+    projected["task_id"] = normalized["task_id"]
+    return projected
 
 
 def prepare_media_review_task(args: argparse.Namespace) -> dict[str, Any]:

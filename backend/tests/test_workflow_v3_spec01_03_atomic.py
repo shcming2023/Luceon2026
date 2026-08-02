@@ -1627,6 +1627,124 @@ def test_scope_model_evidence_is_lossless_and_fits_large_request_budget() -> Non
         assert full_media_id == original_page["mineru_media_atoms"][0]["media_id"]
 
 
+def test_media_model_evidence_is_lossless_and_fits_large_request_budget() -> None:
+    page_count = 350
+    page_source_units = []
+    media_atoms = []
+    for page in range(1, page_count + 1):
+        source_units = []
+        for index in range(20):
+            source_units.append(
+                {
+                    "source_unit_index": index + 1,
+                    "scope_status": "included",
+                    "bbox": [0.1, index / 20, 0.9, (index + 1) / 20],
+                    "source_type": "text",
+                    "source_label": "text",
+                    "content_excerpt": (
+                        f"Source-supported excerpt for page {page}, unit {index}. "
+                        "Keep this evidence unchanged."
+                    ),
+                    "physical_page": page,
+                    "bbox_basis": "pdf_cropbox_normalized_0_1_top_left",
+                    "candidate_final_order": index + 1,
+                    "raw_content_sha256": f"{page * 20 + index:064x}",
+                    "source_id": f"popo-generic:{page * 20 + index}",
+                }
+            )
+        page_source_units.append(
+            {"physical_page": page, "source_units": source_units}
+        )
+        media_atoms.append(
+            {
+                "media_index": page,
+                "media_id": f"media-{page:024x}",
+                "physical_page": page,
+                "bbox": [0.2, 0.2, 0.8, 0.8],
+                "bbox_basis": "pdf_cropbox_normalized_0_1_top_left",
+                "media_kind": "image",
+                "raw_content_sha256": f"{page:064x}",
+                "baseline_disposition": "source_region",
+                "baseline_candidate_index": 1,
+                "baseline_source_unit_indexes": [1],
+                "candidates": [
+                    {
+                        "candidate_index": 1,
+                        "candidate_id": "source-pdf-region",
+                        "representation_type": "source_region_image",
+                        "source_page": page,
+                        "bbox": [0.2, 0.2, 0.8, 0.8],
+                        "bbox_coordinate_space": (
+                            "pdf_cropbox_normalized_0_1_top_left"
+                        ),
+                    }
+                ],
+            }
+        )
+    task = {
+        "schema_version": kernel.MEDIA_REVIEW_TASK_SCHEMA,
+        "stage_key": "canonical_block_ledger",
+        "material_id": "pdf-large-generic",
+        "source_pdf_sha256": "a" * 64,
+        "media_atom_count": page_count,
+        "baseline_algorithm": kernel.MEDIA_BASELINE_ALGORITHM,
+        "baseline_sha256": "b" * 64,
+        "required_output_schema": kernel.MEDIA_REVIEW_SCHEMA,
+        "allowed_choices": {
+            "disposition": [
+                "source_asset",
+                "source_region",
+                "structured_transcription",
+                "excluded_noninstructional",
+            ]
+        },
+        "constraints": ["Use every enumerated source unit and media atom."],
+        "capacity": {"minimum_response_bytes": 20_000},
+        "task_id": "media-review-large",
+        "page_source_units": page_source_units,
+        "media_atoms": media_atoms,
+    }
+
+    projected = kernel.media_model_evidence(task)
+
+    assert len(kernel._canonical_bytes(task)) > 1_000_000  # noqa: SLF001
+    assert len(kernel._canonical_bytes(projected)) < 1_000_000  # noqa: SLF001
+    assert projected["media_atom_count"] == page_count
+    assert len(projected["page_source_units"]) == page_count
+    assert len(projected["media_atoms"]) == page_count
+    source_fields = projected["encoding"]["source_unit_fields"]
+    atom_fields = projected["encoding"]["media_atom_fields"]
+    candidate_fields = projected["encoding"]["candidate_fields"]
+    for original_group, compact_group in zip(
+        page_source_units,
+        projected["page_source_units"],
+        strict=True,
+    ):
+        assert compact_group[0] == original_group["physical_page"]
+        for original_unit, compact_unit in zip(
+            original_group["source_units"],
+            compact_group[1],
+            strict=True,
+        ):
+            assert dict(zip(source_fields, compact_unit, strict=True)) == {
+                key: original_unit[key] for key in source_fields
+            }
+    for original_atom, compact_atom in zip(
+        media_atoms,
+        projected["media_atoms"],
+        strict=True,
+    ):
+        expanded = dict(zip(atom_fields, compact_atom, strict=True))
+        assert expanded["media_index"] == original_atom["media_index"]
+        assert expanded["baseline_source_unit_indexes"] == [1]
+        assert dict(
+            zip(candidate_fields, expanded["candidates"][0], strict=True)
+        ) == {
+            key: original_atom["candidates"][0].get(key)
+            for key in candidate_fields
+        }
+
+
 def test_compact_scope_review_projects_only_declared_page_override() -> None:
     source_units = [
         {
@@ -2071,20 +2189,20 @@ def test_media_model_evidence_uses_indexes_without_audit_identity_duplication(
     assert task == frozen
     assert projected["task_id"] == task["task_id"]
     assert projected["baseline_sha256"] == task["baseline_sha256"]
-    assert [row["media_index"] for row in projected["media_atoms"]] == [
+    atom_fields = projected["encoding"]["media_atom_fields"]
+    candidate_fields = projected["encoding"]["candidate_fields"]
+    source_fields = projected["encoding"]["source_unit_fields"]
+    expanded_atoms = [
+        dict(zip(atom_fields, row, strict=True))
+        for row in projected["media_atoms"]
+    ]
+    assert [row["media_index"] for row in expanded_atoms] == [
         row["media_index"] for row in task["media_atoms"]
     ]
-    assert all("media_id" not in row for row in projected["media_atoms"])
-    assert all(
-        "candidate_id" not in candidate
-        for row in projected["media_atoms"]
-        for candidate in row["candidates"]
-    )
-    assert all(
-        "source_id" not in unit and "raw_content_sha256" not in unit
-        for group in projected["page_source_units"]
-        for unit in group["source_units"]
-    )
+    assert "media_id" not in atom_fields
+    assert "candidate_id" not in candidate_fields
+    assert "source_id" not in source_fields
+    assert "raw_content_sha256" not in source_fields
     assert len(kernel._canonical_bytes(projected)) < len(  # noqa: SLF001
         kernel._canonical_bytes(task)  # noqa: SLF001
     )
