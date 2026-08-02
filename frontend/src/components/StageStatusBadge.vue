@@ -11,7 +11,7 @@ const type = computed(() => {
 })
 
 const text = computed(() => props.label || ({
-  queued: '排队中', running: '运行中', validating: '验证中', retrying: '重试中',
+  queued: '排队中', running: '运行中', in_progress: '进行中', validating: '验证中', retrying: '重试中',
   succeeded: '已完成', success: '已完成', completed: '已完成', done: '已完成', passed: '已通过', published: '已发布',
   partial: '部分失败', failed: '失败', error: '错误', cancelled: '已取消', rejected: '已拒绝',
   needs_review: '需人工接手', frozen: '已冻结', available: '可下载', unavailable: '不可用', missing: '缺失',

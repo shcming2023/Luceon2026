@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Sequence
@@ -569,6 +570,7 @@ def _produce_outline(
             *_identity_args(parameters),
         ),
     )
+    _snapshot_portable_execution_configuration(projected_review, output)
     return _completed_production(
         output,
         stage_manifest="manifests/spec04a_structure_stage_manifest.json",
@@ -581,6 +583,7 @@ def _produce_outline(
             "structure/final_toc_plan.json": "final_toc_plan",
             "ledgers/canonical_block_ledger.jsonl": "canonical_ledger",
             "decisions/canonical_decision_index.json": "decision_index",
+            "reviews/spec04a-outline-review-bundle.json": "portable_execution_configuration",
         },
     )
 
@@ -692,6 +695,7 @@ def _produce_semantic(
             *_identity_args(parameters),
         ),
     )
+    _snapshot_portable_execution_configuration(projected_review, output)
     return _completed_production(
         output,
         stage_manifest="manifests/spec04b_semantic_stage_manifest.json",
@@ -704,6 +708,7 @@ def _produce_semantic(
             "semantic/teaching_column_group_ledger.json": "teaching_group_ledger",
             "ledgers/canonical_block_ledger.jsonl": "canonical_ledger",
             "decisions/canonical_decision_index.json": "decision_index",
+            "reviews/spec04b-native-review-bundle.json": "portable_execution_configuration",
         },
     )
 
@@ -830,6 +835,7 @@ def _produce_construct(
             *_identity_args(parameters),
         ),
     )
+    _snapshot_portable_execution_configuration(projected_review, output)
     return _completed_production(
         output,
         stage_manifest="manifests/spec04c_construct_stage_manifest.json",
@@ -842,6 +848,7 @@ def _produce_construct(
             "semantic/construct_binding_ledger.json": "construct_binding_ledger",
             "ledgers/canonical_block_ledger.jsonl": "canonical_ledger",
             "decisions/canonical_decision_index.json": "decision_index",
+            "reviews/spec04c-native-review-bundle.json": "portable_execution_configuration",
         },
     )
 
@@ -974,6 +981,7 @@ def _produce_render_plan(
             *_identity_args(parameters),
         ),
     )
+    _snapshot_portable_execution_configuration(projected_policy, output)
     return _completed_production(
         output,
         stage_manifest="manifests/spec04d_render_plan_stage_manifest.json",
@@ -987,6 +995,7 @@ def _produce_render_plan(
             "semantic/semantic_mapping_ledger.json": "semantic_mapping_ledger",
             "ledgers/canonical_block_ledger.jsonl": "canonical_ledger",
             "decisions/canonical_decision_index.json": "decision_index",
+            "reviews/spec04d-render-policy.json": "portable_execution_configuration",
         },
     )
 
@@ -1544,6 +1553,37 @@ def _run_native_kernel_to_candidate(
         os.replace(child, target)
     native_output.rmdir()
     return execution
+
+
+def _snapshot_portable_execution_configuration(
+    source: Path,
+    candidate_root: Path,
+) -> Path:
+    """Carry the exact external Spec 04 configuration into the candidate."""
+
+    if not source.is_file() or source.is_symlink():
+        raise StageEntrypointError(
+            "portable_execution_configuration_missing",
+            "native Spec 04 execution configuration is not a regular file",
+            exit_code=3,
+        )
+    target = candidate_root / "reviews" / source.name
+    if target.exists() or target.is_symlink():
+        raise StageEntrypointError(
+            "portable_execution_configuration_exists",
+            f"portable execution configuration already exists: {target.name}",
+            exit_code=3,
+        )
+    target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    shutil.copyfile(source, target)
+    if sha256_file(target) != sha256_file(source):
+        raise StageEntrypointError(
+            "portable_execution_configuration_hash_mismatch",
+            "portable execution configuration differs from the producer input",
+            exit_code=3,
+        )
+    target.chmod(0o444)
+    return target
 
 
 def _identity_args(parameters: Mapping[str, Any]) -> tuple[str, ...]:

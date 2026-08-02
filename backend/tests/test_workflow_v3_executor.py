@@ -20,6 +20,7 @@ from app.workflow_v3.executor import (
     SubprocessTransport,
     WorkflowV3Executor,
 )
+from app.workflow_v3.llm_gateway import LlmGatewayError
 
 
 def test_native_spec03_04_promotions_preserve_formal_native_lineage() -> None:
@@ -509,6 +510,114 @@ def test_external_command_and_manifest_failures_are_closed(
         assert job.error_code == error_code
         assert db.query(WorkflowV3Candidate).count() == 0
         assert db.query(WorkflowV3Promotion).count() == 0
+    finally:
+        db.close()
+
+
+def test_retryable_llm_failure_requeues_twice_then_fails_terminally(tmp_path):
+    env = _environment(tmp_path)
+
+    for expected_attempt, expected_status in ((1, "retrying"), (2, "retrying"), (3, "failed")):
+        db = env["factory"]()
+        try:
+            job = db.query(WorkflowV3Job).filter(
+                WorkflowV3Job.public_id == env["job_id"]
+            ).one()
+            release = db.query(WorkflowV3SkillRelease).filter(
+                WorkflowV3SkillRelease.id == job.skill_release_id
+            ).one()
+            _, stage, execution = claim_current_stage(
+                db,
+                job.public_id,
+                producer_identity="producer-fixture",
+                idempotency_key=f"retryable-provider-{expected_attempt}",
+                runtime_identity_sha256=release.runtime_identity_sha256,
+            )
+            assert stage.attempt == expected_attempt
+            execution_id = execution.id
+            db.commit()
+        finally:
+            db.close()
+
+        status = env["executor"]._record_failure(
+            env["job_id"],
+            execution_id,
+            LlmGatewayError(
+                "transport_error",
+                "temporary provider connection failure",
+                retryable=True,
+            ),
+        )
+        assert status == expected_status
+
+    db = env["factory"]()
+    try:
+        job = db.query(WorkflowV3Job).filter(
+            WorkflowV3Job.public_id == env["job_id"]
+        ).one()
+        attempts = (
+            db.query(WorkflowV3StageRun)
+            .filter(
+                WorkflowV3StageRun.workflow_job_id == job.id,
+                WorkflowV3StageRun.stage_key == STAGE_CONTRACTS[0].key,
+            )
+            .order_by(WorkflowV3StageRun.attempt)
+            .all()
+        )
+        assert [(row.attempt, row.machine_status) for row in attempts] == [
+            (1, "failed"),
+            (2, "failed"),
+            (3, "failed"),
+        ]
+        assert len({row.input_artifact_sha256 for row in attempts}) == 1
+        assert job.machine_status == "failed"
+        assert job.error_code == "transport_error"
+    finally:
+        db.close()
+
+
+def test_nonretryable_llm_failure_remains_terminal(tmp_path):
+    env = _environment(tmp_path)
+    db = env["factory"]()
+    try:
+        job = db.query(WorkflowV3Job).filter(
+            WorkflowV3Job.public_id == env["job_id"]
+        ).one()
+        release = db.query(WorkflowV3SkillRelease).filter(
+            WorkflowV3SkillRelease.id == job.skill_release_id
+        ).one()
+        _, _, execution = claim_current_stage(
+            db,
+            job.public_id,
+            producer_identity="producer-fixture",
+            idempotency_key="nonretryable-provider",
+            runtime_identity_sha256=release.runtime_identity_sha256,
+        )
+        execution_id = execution.id
+        db.commit()
+    finally:
+        db.close()
+
+    status = env["executor"]._record_failure(
+        env["job_id"],
+        execution_id,
+        LlmGatewayError(
+            "provider_auth_error",
+            "provider rejected credentials",
+            retryable=False,
+        ),
+    )
+
+    assert status == "failed"
+    db = env["factory"]()
+    try:
+        assert (
+            db.query(WorkflowV3StageRun)
+            .filter(WorkflowV3StageRun.stage_key == STAGE_CONTRACTS[0].key)
+            .count()
+            == 1
+        )
+        assert db.query(WorkflowV3Job).one().machine_status == "failed"
     finally:
         db.close()
 

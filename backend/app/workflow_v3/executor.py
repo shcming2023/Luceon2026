@@ -60,6 +60,7 @@ from app.workflow_v3.state_machine import (
     WorkflowV3TransitionError,
     claim_current_stage,
     fail_execution,
+    retry_failed_stage,
     submit_candidate,
     touch_execution_heartbeat,
 )
@@ -71,6 +72,7 @@ CANDIDATE_PROTOCOL = "luceon.worker-v3-stage-candidate/v1"
 REQUEST_PROTOCOL = "luceon.worker-v3-stage-request/v1"
 _PRODUCER_SUCCESS = "candidate_ready"
 _SHA256_CHARS = frozenset("0123456789abcdef")
+_MAX_RETRYABLE_LLM_STAGE_ATTEMPTS = 3
 
 
 class WorkerV3RuntimeError(RuntimeError):
@@ -661,12 +663,13 @@ class WorkflowV3Executor:
                 "error_code": ExternalCommandCancelled.code,
             }
         except Exception as exc:
-            self._record_failure(public_id, execution_id, exc)
+            status = self._record_failure(public_id, execution_id, exc)
             return {
                 "ok": False,
                 "job_id": public_id,
                 "execution_id": str(execution_id),
-                "status": "failed",
+                "status": status,
+                "retry_queued": status == "retrying",
                 "error_code": getattr(exc, "code", "worker_v3_runtime_error"),
                 "error": str(exc)[:2000],
             }
@@ -832,21 +835,30 @@ class WorkflowV3Executor:
         finally:
             db.close()
 
-    def _record_failure(self, public_id: str, execution_id: int, exc: Exception) -> None:
+    def _record_failure(self, public_id: str, execution_id: int, exc: Exception) -> str:
         db = self.session_factory()
         try:
-            fail_execution(
+            _, stage, _ = fail_execution(
                 db,
                 public_id,
                 execution_id=execution_id,
                 error_code=getattr(exc, "code", "worker_v3_runtime_error"),
                 error_message=str(exc)[:4000],
             )
+            retryable_llm_failure = (
+                isinstance(exc, LlmGatewayError)
+                and exc.retryable
+                and stage.attempt < _MAX_RETRYABLE_LLM_STAGE_ATTEMPTS
+            )
+            if retryable_llm_failure:
+                retry_failed_stage(db, public_id)
             db.commit()
+            return "retrying" if retryable_llm_failure else "failed"
         except WorkflowV3TransitionError:
             # Cancellation or a concurrent terminal transition wins.  A late
             # command result must never overwrite it.
             db.rollback()
+            return "cancelled"
         finally:
             db.close()
 

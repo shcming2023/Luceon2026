@@ -96,6 +96,38 @@ def _request(root: Path) -> StageEvaluationRequest:
     )
 
 
+def _bind_portable_configuration(
+    root: Path,
+    bundle: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    producer_root = root / "producer-work"
+    monkeypatch.setenv("WORKFLOW_V3_PRODUCER_WORK_ROOT", str(producer_root))
+    portable = bundle / "reviews/spec04a-outline-review-bundle.json"
+    _write_json(portable, {"review": "frozen"})
+    target = (
+        producer_root
+        / "job-outline"
+        / "outline_reconstruction"
+        / "attempt-1"
+        / "projected-reviews"
+        / portable.name
+    )
+    _write_json(
+        bundle / "precommit/execution_capability_manifest.json",
+        {
+            "resources": [
+                {
+                    "role": "book_configuration",
+                    "path": str(target),
+                    "sha256": stage_evaluators.sha256_file(portable),
+                    "size_bytes": portable.stat().st_size,
+                }
+            ]
+        },
+    )
+
+
 @pytest.mark.parametrize(
     ("incorrect", "expected_pass", "expected_basis_points"),
     ((1, True, 9_900), (2, False, 9_800)),
@@ -108,6 +140,7 @@ def test_outline_accuracy_is_recomputed_at_exact_99_percent_boundary(
     expected_basis_points: int,
 ) -> None:
     bundle = _bundle(tmp_path, incorrect=incorrect)
+    _bind_portable_configuration(tmp_path, bundle, monkeypatch)
     monkeypatch.setattr(
         stage_evaluators,
         "run_release_python_kernel",
@@ -138,6 +171,7 @@ def test_outline_accuracy_accepts_source_evidenced_depth_beyond_subsection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bundle = _bundle(tmp_path, incorrect=0)
+    _bind_portable_configuration(tmp_path, bundle, monkeypatch)
     outline_path = bundle / "structure/source_outline_ledger.json"
     outline = json.loads(outline_path.read_text(encoding="utf-8"))
     final_path = bundle / "structure/final_toc_plan.json"

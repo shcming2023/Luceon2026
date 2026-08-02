@@ -311,6 +311,8 @@ def run_qualification(
     engine = None
     factory = None
     error: Exception | None = None
+    producer_work_root_env = os.environ.get("WORKFLOW_V3_PRODUCER_WORK_ROOT")
+    os.environ["WORKFLOW_V3_PRODUCER_WORK_ROOT"] = str(work_root / "producer")
     try:
         archive_verification: QualificationArchiveVerification | None = (
             prepared["archive_verification"]
@@ -597,6 +599,10 @@ def run_qualification(
     finally:
         if engine is not None:
             engine.dispose()
+        if producer_work_root_env is None:
+            os.environ.pop("WORKFLOW_V3_PRODUCER_WORK_ROOT", None)
+        else:
+            os.environ["WORKFLOW_V3_PRODUCER_WORK_ROOT"] = producer_work_root_env
 
     envelope = {
         "schema_version": QUALIFICATION_REPORT_PROTOCOL,

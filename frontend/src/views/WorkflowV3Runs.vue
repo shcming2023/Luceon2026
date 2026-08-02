@@ -64,8 +64,37 @@ const deliveryStatusLabels: Record<WorkflowV3Job['delivery_status'], string> = {
   projection_failed: '交付投影失败'
 }
 
-function deliveryStatusLabel(value: WorkflowV3Job['delivery_status']) {
-  return deliveryStatusLabels[value] || '交付投影中'
+function deliveryStatusLabel(job: WorkflowV3Job) {
+  if (!job.spec_ready_for_projection && !(job.projection_outbox || []).length) {
+    return '尚无正式交付'
+  }
+  return deliveryStatusLabels[job.delivery_status] || '交付投影中'
+}
+
+function specStatusLabel(job: WorkflowV3Job) {
+  if (['failed', 'cancelled'].includes(job.machine_status) && job.spec_status === 'in_progress') {
+    return '规范未完成'
+  }
+  return undefined
+}
+
+function deliveryAlertTitle(job: WorkflowV3Job) {
+  if (job.delivery_status === 'projected') {
+    return '独立评估、正式投影和交付复编已经通过。人工接受只记录业务决定，不会改变规范评估结果。'
+  }
+  if (job.delivery_status === 'projection_failed') {
+    return '机器与规范门禁保持通过，但正式交付投影失败；错误证据保留，当前不能人工接受。'
+  }
+  if (job.machine_status === 'needs_review') {
+    return '当前停在证据闭环的人工接手；尚无正式交付。完成恢复与重新验证前不能人工接受。'
+  }
+  if (['failed', 'cancelled'].includes(job.machine_status)) {
+    return '机器执行未完成；尚无正式交付。请按失败证据从最小失败阶段恢复。'
+  }
+  if (job.spec_ready_for_projection) {
+    return '机器与规范门禁已通过，但正式交付尚未投影为可审阅输出；当前不能人工接受。'
+  }
+  return '任务尚未通过全部机器与规范门禁；当前没有正式交付。'
 }
 
 function needsPolling(job: WorkflowV3Job) {
@@ -395,11 +424,11 @@ onUnmounted(() => {
           <template #default="{ row }"><StageStatusBadge :status="row.machine_status" /></template>
         </el-table-column>
         <el-table-column label="规范门禁" width="125">
-          <template #default="{ row }"><StageStatusBadge :status="row.spec_status" /></template>
+          <template #default="{ row }"><StageStatusBadge :status="row.spec_status" :label="specStatusLabel(row)" /></template>
         </el-table-column>
         <el-table-column label="交付状态" min-width="170">
           <template #default="{ row }">
-            <span>{{ deliveryStatusLabel(row.delivery_status) }}</span>
+            <span>{{ deliveryStatusLabel(row) }}</span>
             <span class="identity-meta">
               {{ row.human_acceptance_decision_recorded ? `人工决定：${row.human_acceptance_status}` : '人工决定：未记录' }}
               · {{ row.human_acceptance_effective ? '投影已生效' : '投影未生效' }}
@@ -499,9 +528,9 @@ onUnmounted(() => {
       <div v-loading="detailLoading">
         <el-descriptions v-if="selectedJob" :column="4" border class="detail-section">
           <el-descriptions-item label="机器执行"><StageStatusBadge :status="selectedJob.machine_status" /></el-descriptions-item>
-          <el-descriptions-item label="规范门禁"><StageStatusBadge :status="selectedJob.spec_status" /></el-descriptions-item>
+          <el-descriptions-item label="规范门禁"><StageStatusBadge :status="selectedJob.spec_status" :label="specStatusLabel(selectedJob)" /></el-descriptions-item>
           <el-descriptions-item label="规范就绪">{{ selectedJob.spec_ready_for_projection ? '是' : '否' }}</el-descriptions-item>
-          <el-descriptions-item label="交付投影">{{ deliveryStatusLabel(selectedJob.delivery_status) }}</el-descriptions-item>
+          <el-descriptions-item label="交付投影">{{ deliveryStatusLabel(selectedJob) }}</el-descriptions-item>
           <el-descriptions-item label="验收就绪">{{ selectedJob.ready_for_user_acceptance ? '是' : '否' }}</el-descriptions-item>
           <el-descriptions-item label="人工决定">
             {{ selectedJob.human_acceptance_decision_recorded ? selectedJob.human_acceptance_status : '未记录' }}
@@ -631,7 +660,9 @@ onUnmounted(() => {
                 {{ row.output_sha256 || '—' }}
               </template>
             </el-table-column>
-            <el-table-column prop="usage" label="用量" min-width="150" />
+            <el-table-column label="用量" min-width="180">
+              <template #default="{ row }"><pre class="mono-note">{{ jsonEvidence(row.usage) }}</pre></template>
+            </el-table-column>
           </el-table>
         </section>
 
@@ -659,11 +690,7 @@ onUnmounted(() => {
           <el-alert
             :type="selectedJob.delivery_status === 'projected' ? 'success' : selectedJob.delivery_status === 'projection_failed' ? 'error' : 'warning'"
             :closable="false"
-            :title="selectedJob.delivery_status === 'projected'
-              ? '独立评估、正式投影和交付复编已经通过。人工接受只记录业务决定，不会改变规范评估结果。'
-              : selectedJob.delivery_status === 'projection_failed'
-              ? '机器与规范门禁保持通过，但正式交付投影失败；错误证据保留，当前不能人工接受。'
-              : '机器与规范门禁已通过，但正式交付尚未投影为可审阅输出；当前不能人工接受。'"
+            :title="deliveryAlertTitle(selectedJob)"
           />
           <el-table
             :data="selectedJob.projection_outbox || []"

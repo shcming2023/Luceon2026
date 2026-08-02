@@ -1270,14 +1270,24 @@ def _evaluate_native_spec04(
     candidate: EvaluationInput,
     release_root: Path,
 ) -> StageEvaluation:
-    execution = run_release_python_kernel(
-        release_root=release_root,
-        kernel_relative=_NATIVE_VALIDATORS[request.stage_key],
-        args=("validate-run", "--run-dir", str(candidate.bundle_root)),
-        cwd=request.workdir,
-        timeout_seconds=86_400,
-        accepted_returncodes=(0, 1, 2),
+    hydrated, hydrated_by_evaluator = _hydrate_portable_execution_configuration(
+        request,
+        candidate,
     )
+    try:
+        execution = run_release_python_kernel(
+            release_root=release_root,
+            kernel_relative=_NATIVE_VALIDATORS[request.stage_key],
+            args=("validate-run", "--run-dir", str(candidate.bundle_root)),
+            cwd=request.workdir,
+            timeout_seconds=86_400,
+            accepted_returncodes=(0, 1, 2),
+        )
+    finally:
+        _remove_hydrated_execution_configuration(
+            hydrated,
+            created=hydrated_by_evaluator,
+        )
     passed = execution.returncode == 0
     findings: list[Mapping[str, Any]] = []
     if not passed:
@@ -1306,6 +1316,128 @@ def _evaluate_native_spec04(
         gate_results=gate_results,
         findings=tuple(findings),
     )
+
+
+_PORTABLE_SPEC04_CONFIGURATION = {
+    "outline_reconstruction": "spec04a-outline-review-bundle.json",
+    "semantic_annotation": "spec04b-native-review-bundle.json",
+    "template_construct_binding": "spec04c-native-review-bundle.json",
+    "frozen_render_plan": "spec04d-render-policy.json",
+}
+
+
+def _hydrate_portable_execution_configuration(
+    request: StageEvaluationRequest,
+    candidate: EvaluationInput,
+) -> tuple[Path, bool]:
+    """Restore one capability-bound config at its recorded producer path.
+
+    The native capability manifest intentionally live-rehashes every execution
+    input. Producer and evaluator do not share mutable workspaces, so the exact
+    configuration is carried inside the immutable candidate and restored only
+    to the release-configured producer work root for validation.
+    """
+
+    filename = _PORTABLE_SPEC04_CONFIGURATION[request.stage_key]
+    portable = _required(
+        candidate.bundle_root,
+        f"reviews/{filename}",
+    )
+    capability_path = _required(
+        candidate.bundle_root,
+        "precommit/execution_capability_manifest.json",
+    )
+    capability = _read_json(capability_path, "execution capability manifest")
+    resources = [
+        item
+        for item in capability.get("resources", [])
+        if isinstance(item, dict) and item.get("role") == "book_configuration"
+    ]
+    if len(resources) != 1:
+        raise StageEntrypointError(
+            "portable_execution_configuration_binding_invalid",
+            "native capability manifest must bind exactly one book configuration",
+            exit_code=3,
+        )
+    resource = resources[0]
+    target = Path(str(resource.get("path", "")))
+    allowed_root_value = os.getenv("WORKFLOW_V3_PRODUCER_WORK_ROOT", "").strip()
+    if not allowed_root_value:
+        raise StageEntrypointError(
+            "producer_work_root_missing",
+            "WORKFLOW_V3_PRODUCER_WORK_ROOT is required for independent Spec 04 evaluation",
+            exit_code=3,
+        )
+    allowed_root = Path(allowed_root_value).resolve()
+    expected = (
+        allowed_root
+        / request.job_id
+        / request.stage_key
+        / f"attempt-{request.attempt}"
+        / "projected-reviews"
+        / filename
+    )
+    if not target.is_absolute() or target != expected:
+        raise StageEntrypointError(
+            "portable_execution_configuration_target_invalid",
+            "native capability configuration path is outside the bound producer attempt",
+            exit_code=3,
+        )
+    expected_sha = str(resource.get("sha256", ""))
+    expected_size = resource.get("size_bytes")
+    if (
+        not re.fullmatch(r"[0-9a-f]{64}", expected_sha)
+        or not isinstance(expected_size, int)
+        or expected_size < 0
+        or portable.stat().st_size != expected_size
+        or sha256_file(portable) != expected_sha
+    ):
+        raise StageEntrypointError(
+            "portable_execution_configuration_identity_mismatch",
+            "portable execution configuration differs from the capability binding",
+            exit_code=3,
+        )
+    target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    created = False
+    if target.exists() or target.is_symlink():
+        if (
+            not target.is_file()
+            or target.is_symlink()
+            or target.stat().st_size != expected_size
+            or sha256_file(target) != expected_sha
+        ):
+            raise StageEntrypointError(
+                "portable_execution_configuration_collision",
+                "hydration target already exists with different bytes",
+                exit_code=3,
+            )
+    else:
+        shutil.copyfile(portable, target)
+        target.chmod(0o400)
+        created = True
+    return target, created
+
+
+def _remove_hydrated_execution_configuration(
+    target: Path,
+    *,
+    created: bool,
+) -> None:
+    if not created:
+        return
+    if target.is_file() and not target.is_symlink():
+        target.unlink()
+    allowed_root_value = os.getenv("WORKFLOW_V3_PRODUCER_WORK_ROOT", "").strip()
+    if not allowed_root_value:
+        return
+    allowed_root = Path(allowed_root_value).resolve()
+    parent = target.parent
+    while parent != allowed_root and allowed_root in parent.parents:
+        try:
+            parent.rmdir()
+        except OSError:
+            break
+        parent = parent.parent
 
 
 def _outline_accuracy_evidence(root: Path) -> dict[str, Any]:

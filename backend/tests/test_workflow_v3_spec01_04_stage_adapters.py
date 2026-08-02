@@ -1438,3 +1438,43 @@ def test_all_four_spec04_producer_adapters_are_explicitly_dispatched(
         request = type("Request", (), {"stage_key": stage})()
         adapters.produce_stage(request, object(), tmp_path, tmp_path)
     assert dispatched == list(mapping)
+
+
+@pytest.mark.parametrize(
+    "filename",
+    (
+        "spec04a-outline-review-bundle.json",
+        "spec04b-native-review-bundle.json",
+        "spec04c-native-review-bundle.json",
+        "spec04d-render-policy.json",
+    ),
+)
+def test_spec04_execution_configuration_is_snapshotted_into_candidate(
+    tmp_path: Path,
+    filename: str,
+) -> None:
+    source = tmp_path / "producer" / "projected-reviews" / filename
+    _json(source, {"binding": filename, "source": "frozen"})
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+
+    target = adapters._snapshot_portable_execution_configuration(source, candidate)
+
+    assert target == candidate / "reviews" / filename
+    assert target.read_bytes() == source.read_bytes()
+    assert target.stat().st_mode & 0o222 == 0
+
+
+def test_spec04_execution_configuration_snapshot_refuses_collision(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.json"
+    _json(source, {"binding": "first"})
+    candidate = tmp_path / "candidate"
+    _json(candidate / "reviews/source.json", {"binding": "other"})
+
+    with pytest.raises(
+        StageEntrypointError,
+        match="portable execution configuration already exists",
+    ):
+        adapters._snapshot_portable_execution_configuration(source, candidate)
