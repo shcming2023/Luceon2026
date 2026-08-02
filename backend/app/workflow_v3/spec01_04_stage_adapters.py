@@ -466,6 +466,7 @@ def _produce_canonical_ledger(
             "ledgers/media_ledger.json": "media_ledger",
             "media/media_evidence_ledger.json": "media_evidence_ledger",
             "media/media_representation_plan.json": "media_representation_plan",
+            "media/media_review_queue.json": "media_review_queue",
             "decisions/canonical_decision_index.json": "decision_index",
             "reports/source_completeness_report.json": "completeness_report",
             "reviews/spec03_media_review_task.json": "review_task",

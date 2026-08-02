@@ -22,7 +22,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping, Sequence
 
 
-KERNEL_VERSION = "luceon-worker-v3-spec01-03-atomic/1.7.1"
+KERNEL_VERSION = "luceon-worker-v3-spec01-03-atomic/1.8.0"
 INTAKE_SCHEMA = "luceon.worker-v3-spec01-intake-contract/v1"
 SCOPE_REVIEW_SCHEMA = "luceon.worker-v3-spec02-scope-order-review/v3"
 MEDIA_REVIEW_SCHEMA = "luceon.worker-v3-spec03-media-review/v2"
@@ -679,6 +679,107 @@ def _verified_selected_media_candidate(
             "height_px": height,
         },
         "anomaly_flags": [],
+    }
+
+
+def _materialized_source_region_candidate(
+    candidate: Mapping[str, Any],
+    *,
+    source_pdf: Path,
+    output: Path,
+    page_count: int,
+) -> dict[str, Any]:
+    page_number = _require_positive_int(
+        candidate.get("source_page"),
+        "source region page",
+    )
+    if page_number > page_count:
+        _fail("source_region_page_invalid", "source region page is outside the PDF")
+    bbox = candidate.get("bbox")
+    if (
+        candidate.get("bbox_coordinate_space")
+        != "pdf_cropbox_normalized_0_1_top_left"
+        or not isinstance(bbox, list)
+        or len(bbox) != 4
+        or any(
+            not isinstance(value, (int, float)) or isinstance(value, bool)
+            for value in bbox
+        )
+    ):
+        _fail("source_region_bbox_invalid", "source region bbox is not normalized")
+    x0, y0, x1, y1 = (float(value) for value in bbox)
+    if not (0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1):
+        _fail("source_region_bbox_invalid", "source region bbox is outside the page")
+    try:
+        import fitz  # type: ignore
+
+        document = fitz.open(source_pdf)
+        if len(document) != page_count:
+            _fail("source_pdf_page_count_drift", "renderer sees a different page count")
+        page = document[page_number - 1]
+        page_rect = page.rect
+        clip = fitz.Rect(
+            page_rect.x0 + x0 * page_rect.width,
+            page_rect.y0 + y0 * page_rect.height,
+            page_rect.x0 + x1 * page_rect.width,
+            page_rect.y0 + y1 * page_rect.height,
+        )
+        pixmap = page.get_pixmap(
+            matrix=fitz.Matrix(2, 2),
+            clip=clip,
+            colorspace=fitz.csRGB,
+            alpha=False,
+        )
+        selected_dir = output / "media/selected"
+        selected_dir.mkdir(parents=True, exist_ok=True)
+        token = _canonical_hash(
+            {
+                "source_page": page_number,
+                "bbox": [x0, y0, x1, y1],
+                "bbox_coordinate_space": candidate["bbox_coordinate_space"],
+            }
+        )
+        temporary = selected_dir / f".{token}.png"
+        pixmap.save(temporary)
+        document.close()
+    except ImportError:
+        _fail("pdf_renderer_unavailable", "PyMuPDF is required for exact source-region crops")
+    except Exception as exc:
+        if isinstance(exc, KernelContractError):
+            raise
+        _fail("source_region_render_failed", f"source region render failed: {exc}")
+    artifact_sha256 = _sha256(temporary)
+    destination = selected_dir / f"{artifact_sha256}.png"
+    if destination.exists():
+        if _sha256(destination) != artifact_sha256:
+            _fail("media_asset_drift", "source region destination hash collided")
+        temporary.unlink()
+    else:
+        temporary.replace(destination)
+    try:
+        from PIL import Image
+
+        with Image.open(destination) as image:
+            image.verify()
+        with Image.open(destination) as image:
+            width, height = image.size
+            image_format = image.format
+    except Exception as exc:
+        _fail("source_region_render_invalid", f"source region crop is invalid: {exc}")
+    relative = destination.relative_to(output).as_posix()
+    return {
+        **dict(candidate),
+        "status": "needs_review",
+        "crop_path": relative,
+        "artifact_sha256": artifact_sha256,
+        "size_bytes": destination.stat().st_size,
+        "metrics": {
+            "format": image_format,
+            "width_px": width,
+            "height_px": height,
+            "render_scale": 2,
+        },
+        "anomaly_flags": ["source_region_review_not_bound_to_artifact"],
     }
 
 
@@ -5402,16 +5503,76 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
                 "materialized_evidence": materialized_selected[member],
             }
 
+    verified_by_media: dict[str, dict[str, Any]] = {}
+    source_region_reviews: list[dict[str, Any]] = []
+    for disposition in media_dispositions:
+        selected = disposition["selected_candidate"]
+        if not isinstance(selected, Mapping):
+            _fail(
+                "media_candidate_not_formally_executable",
+                f"{disposition['media_id']} has no selected executable candidate",
+            )
+        if selected.get("representation_type") == "source_region_image":
+            verified = _materialized_source_region_candidate(
+                selected,
+                source_pdf=args.source_pdf.resolve(),
+                output=output,
+                page_count=identity["page_count"],
+            )
+            source_region_reviews.append(
+                {
+                    "media_id": disposition["media_id"],
+                    "selected_candidate_id": disposition["selected_candidate_id"],
+                    "source_page": verified["source_page"],
+                    "bbox": verified["bbox"],
+                    "bbox_coordinate_space": verified["bbox_coordinate_space"],
+                    "crop_path": verified["crop_path"],
+                    "crop_sha256": verified["artifact_sha256"],
+                    "crop_size_bytes": verified["size_bytes"],
+                    "review_status": "pending",
+                    "required_action": (
+                        "Inspect this exact hash-bound crop against the source PDF "
+                        "and record an explicit accept or reject decision."
+                    ),
+                }
+            )
+        else:
+            verified = _verified_selected_media_candidate(
+                selected,
+                output=output,
+            )
+        verified_by_media[str(disposition["media_id"])] = verified
+    open_review_count = len(source_region_reviews)
+    candidate_spec_status = "needs_review" if open_review_count else "passed"
+    media_review_queue = {
+        "schema_version": "spec03-source-region-review-queue/1.0",
+        "material_id": material_id,
+        "source_pdf_sha256": source_sha,
+        "spec_status": candidate_spec_status,
+        "open_reviews": open_review_count,
+        "items": source_region_reviews,
+    }
+    media_review_queue["payload_hash"] = _contract_payload_hash(media_review_queue)
+    media_review_queue_hash = _write_json(
+        output / "media/media_review_queue.json",
+        media_review_queue,
+    )
+
     decision_event = {
         "schema_version": "decision-event/1.0",
         "decision_id": args.stage_decision_id,
         "rule_id": "CV-H01..CV-H07",
-        "status": "closed",
-        "decision": "Freeze the exact Popo source-unit dispositions and every MinerU media representation decision at source_reconciled checkpoint.",
+        "status": "open" if open_review_count else "closed",
+        "decision": (
+            "Freeze the exact Popo source-unit dispositions and every MinerU media "
+            "representation decision at source_reconciled checkpoint; source-region "
+            "crops remain open until their exact artifact hashes are reviewed."
+        ),
         "evidence_refs": [
             "reviews/spec03_media_review.json",
             "ledgers/source_scope_ledger.json",
             "ledgers/reading_order_ledger.json",
+            "media/media_review_queue.json",
         ],
     }
     decision_hash = _write_jsonl(
@@ -5433,6 +5594,10 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
                 "sha256": _sha256(output / "reviews/spec03_media_review_task.json"),
             },
             {"ref": "reviews/spec03_media_review.json", "sha256": review_hash},
+            {
+                "ref": "media/media_review_queue.json",
+                "sha256": media_review_queue_hash,
+            },
             {
                 "ref": "ledgers/source_scope_ledger.json",
                 "sha256": _sha256(output / "ledgers/source_scope_ledger.json"),
@@ -5460,19 +5625,19 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
             *inherited,
             {
                 "decision_id": args.stage_decision_id,
-                "status": "closed",
+                "status": "open" if open_review_count else "closed",
                 "rule_id": "CV-H01..CV-H07",
                 "event_file": "decisions/evidence_decisions.jsonl",
             },
         ],
         "summary": {
             "total": len(inherited) + 1,
-            "closed": len(inherited) + 1,
-            "open": 0,
+            "closed": len(inherited) + (0 if open_review_count else 1),
+            "open": 1 if open_review_count else 0,
             "stale": 0,
             "invalidated": 0,
         },
-        "spec_status": "passed",
+        "spec_status": candidate_spec_status,
     }
     decision_index_hash = _write_json(
         output / "decisions/canonical_decision_index.json",
@@ -5491,16 +5656,7 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
             for item in media_atoms
             if item["media_id"] == disposition["media_id"]
         )
-        selected = disposition["selected_candidate"]
-        if not isinstance(selected, Mapping):
-            _fail(
-                "media_candidate_not_formally_executable",
-                f"{disposition['media_id']} has no selected executable candidate",
-            )
-        verified_candidate = _verified_selected_media_candidate(
-            selected,
-            output=output,
-        )
+        verified_candidate = verified_by_media[str(disposition["media_id"])]
         source_block_ids = [
             block_ids_by_source[source_id]
             for source_id in disposition["source_ids"]
@@ -5511,11 +5667,16 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
                 f"{disposition['media_id']} has no canonical source blocks",
             )
         representation_id = f"representation::{disposition['media_id']}"
+        review_status = (
+            "needs_review"
+            if verified_candidate["status"] == "needs_review"
+            else "closed"
+        )
         representation = {
             "representation_id": representation_id,
             "media_id": disposition["media_id"],
             "source_block_ids": source_block_ids,
-            "status": "closed",
+            "status": review_status,
             "selected_candidate_id": disposition["selected_candidate_id"],
             "representation_type": verified_candidate[
                 "representation_type"
@@ -5538,7 +5699,7 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
                 "media_kind": atom["media_kind"],
                 "inclusion_status": "included",
                 "candidates": [verified_candidate],
-                "review_status": "closed",
+                "review_status": review_status,
                 "source_ids": list(disposition["source_ids"]),
                 "evidence_refs": list(disposition["evidence_refs"]),
             }
@@ -5557,7 +5718,7 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
             "atoms": len(base_media_atoms),
             "included": len(base_media_atoms),
             "excluded": 0,
-            "needs_review": 0,
+            "needs_review": open_review_count,
         },
     }
     precommit_evidence["payload_hash"] = _contract_payload_hash(
@@ -5573,14 +5734,14 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
     precommit_plan = {
         "schema_version": "media-representation-plan/1.0",
         "media_evidence_ledger_sha256": precommit_evidence_hash,
-        "spec_status": "passed",
-        "open_reviews": 0,
+        "spec_status": candidate_spec_status,
+        "open_reviews": open_review_count,
         "representations": representation_rows,
         "summary": {
             "representations": len(representation_rows),
-            "closed": len(representation_rows),
+            "closed": len(representation_rows) - open_review_count,
             "excluded": 0,
-            "needs_review": 0,
+            "needs_review": open_review_count,
         },
     }
     precommit_plan["payload_hash"] = _contract_payload_hash(precommit_plan)
@@ -5593,7 +5754,7 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
     )
     precommit_validation = {
         "schema_version": "media-representation-validation/1.0",
-        "status": "passed",
+        "status": candidate_spec_status,
         "inputs": {
             "media_evidence_ledger": {
                 "path": "media/precommit/media_evidence_ledger.json",
@@ -5615,7 +5776,7 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
             },
             {
                 "check_id": "MSR-H04-representation-coverage-and-closure",
-                "status": "passed",
+                "status": candidate_spec_status,
             },
         ],
     }
@@ -5651,6 +5812,10 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
         status = scope_unit["scope_status"]
         block_id = block_ids_by_source[source_id]
         block_media = media_by_source.get(source_id, [])
+        block_needs_review = any(
+            item.get("review_status") == "needs_review"
+            for item in block_media
+        )
         block = {
             "record_type": "source_block",
             "block_id": block_id,
@@ -5687,8 +5852,14 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
                 "extracted_value_status": "candidate_transcription",
             },
             "media_contracts": block_media,
-            "terminal_state": "source_reconciled" if status == "included" else "scope_excluded",
-            "review_required": False,
+            "terminal_state": (
+                "source_region_review_pending"
+                if block_needs_review
+                else "source_reconciled"
+                if status == "included"
+                else "scope_excluded"
+            ),
+            "review_required": block_needs_review,
         }
         blocks.append(block)
         coverage_rows.append(
@@ -5725,7 +5896,7 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
         "current_ledger_hash_scope": (
             "canonical JSON hash of ordered source_block records including native media_contracts"
         ),
-        "spec_status": "passed",
+        "spec_status": candidate_spec_status,
         "run_mode": "formal_candidate",
         "material_identity": {
             "material_id": material_id,
@@ -5751,7 +5922,7 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
             "included_atoms": sum(item["scope_status"] == "included" for item in blocks),
             "excluded_source_records": sum(item["scope_status"] == "excluded" for item in blocks),
             "media_atoms": len(representation_rows),
-            "open_reviews": 0,
+            "open_reviews": open_review_count,
         },
         "generated_by": KERNEL_VERSION,
     }
@@ -5798,7 +5969,7 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
             "atoms": len(canonical_media_atoms),
             "included": len(canonical_media_atoms),
             "excluded": 0,
-            "needs_review": 0,
+            "needs_review": open_review_count,
         },
     }
     media_evidence["payload_hash"] = _contract_payload_hash(media_evidence)
@@ -5811,14 +5982,14 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
         "canonical_ledger_sha256": ledger_hash,
         "decision_index_sha256": decision_index_hash,
         "media_evidence_ledger_sha256": media_evidence_hash,
-        "spec_status": "passed",
-        "open_reviews": 0,
+        "spec_status": candidate_spec_status,
+        "open_reviews": open_review_count,
         "representations": representation_rows,
         "summary": {
             "representations": len(representation_rows),
-            "closed": len(representation_rows),
+            "closed": len(representation_rows) - open_review_count,
             "excluded": 0,
-            "needs_review": 0,
+            "needs_review": open_review_count,
         },
     }
     media_plan["payload_hash"] = _contract_payload_hash(media_plan)
@@ -5840,10 +6011,10 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
             "asset_inventory_hash": _sha256(output / "source/media_asset_inventory.json"),
             "summary": {
                 "media_atoms": len(canonical_media_atoms),
-                "closed": len(representation_rows),
-                "open": 0,
+                "closed": len(representation_rows) - open_review_count,
+                "open": open_review_count,
             },
-            "spec_status": "passed",
+            "spec_status": candidate_spec_status,
         },
     )
     gates = {f"CV-H{index:02d}": "passed" for index in range(1, 8)}
@@ -5859,8 +6030,10 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
         "media_dispositions": len(media_dispositions),
         "missing_source_units": [],
         "duplicate_source_units": [],
-        "open_reviews": [],
-        "spec_status": "passed",
+        "open_reviews": [
+            item["media_id"] for item in source_region_reviews
+        ],
+        "spec_status": candidate_spec_status,
     }
     completeness_hash = _write_json(
         output / "reports/source_completeness_report.json",
@@ -5875,10 +6048,13 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
                 f"- Source units: {len(source_units)}",
                 f"- Canonical blocks: {len(blocks)}",
                 f"- MinerU media atoms: {len(media_atoms)}",
-                f"- Closed media dispositions: {len(media_dispositions)}",
+                (
+                    "- Closed media dispositions: "
+                    f"{len(media_dispositions) - open_review_count}"
+                ),
                 "- Missing source units: 0",
                 "- Duplicate source coverage: 0",
-                "- Open source/media reviews: 0",
+                f"- Open source/media reviews: {open_review_count}",
                 "",
                 "This is producer evidence only; independent evaluation and promotion remain pending.",
                 "",
@@ -5898,7 +6074,7 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
             "payload_hash": current_ledger_hash,
             "decision_index_ref": "decisions/canonical_decision_index.json",
             "decision_index_hash": decision_index_hash,
-            "spec_status": "passed",
+            "spec_status": candidate_spec_status,
             "immutable_after_publication": True,
         },
     )
@@ -5908,7 +6084,7 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
             "schema_version": "source-reconciled-stage-manifest/2.0",
             "producer": KERNEL_VERSION,
             "checkpoint": "source_reconciled",
-            "status": "passed",
+            "status": candidate_spec_status,
             "promotion_status": "not_evaluated",
             "canonical_ledger": {
                 "path": "ledgers/canonical_block_ledger.jsonl",
@@ -5939,6 +6115,7 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
             "media_ledger": "ledgers/media_ledger.json",
             "media_evidence_ledger": "media/media_evidence_ledger.json",
             "media_representation_plan": "media/media_representation_plan.json",
+            "media_review_queue": "media/media_review_queue.json",
             "decision_index": "decisions/canonical_decision_index.json",
             "source_completeness_report": "reports/source_completeness_report.json",
             "source_reconciled_commit": "manifests/source_reconciled_commit.json",
@@ -5954,6 +6131,8 @@ def produce_ledger(args: argparse.Namespace) -> dict[str, Any]:
             "completeness_sha256": completeness_hash,
             "source_commit_sha256": source_commit_hash,
             "review_task_canonical_sha256": review_task_hash,
+            "media_review_queue_sha256": media_review_queue_hash,
+            "open_media_reviews": open_review_count,
         },
     )
     _run_manifest(

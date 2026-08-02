@@ -258,12 +258,235 @@ def _evaluate_atomic_stage(
     elif request.stage_key == "source_scope_and_order":
         gates = _evaluate_atomic_scope_order(root)
     else:
+        review_candidate = _evaluate_spec03_source_region_review(root)
+        if review_candidate is not None:
+            return review_candidate
         gates = _evaluate_atomic_ledger(root)
     gates["skill_release_identity_verified"] = (
         gates.get("skill_release_identity_verified", True) and common
     )
     return StageEvaluation(
         gate_results={gate: bool(gates.get(gate, False)) for gate in request.required_gates},
+    )
+
+
+def _evaluate_spec03_source_region_review(
+    root: Path,
+) -> StageEvaluation | None:
+    queue_path = _required(root, "media/media_review_queue.json")
+    queue = _read_json(queue_path, "Spec 03 source-region review queue")
+    if (
+        queue.get("schema_version") != "spec03-source-region-review-queue/1.0"
+        or queue.get("payload_hash") != _contract_payload_hash(queue)
+    ):
+        raise StageEntrypointError(
+            "spec03_source_region_review_invalid",
+            "Spec 03 source-region review queue identity is invalid",
+        )
+    items = queue.get("items")
+    if not isinstance(items, list):
+        raise StageEntrypointError(
+            "spec03_source_region_review_invalid",
+            "Spec 03 source-region review queue has no item inventory",
+        )
+    if queue.get("spec_status") == "passed" and queue.get("open_reviews") == 0:
+        if items:
+            raise StageEntrypointError(
+                "spec03_source_region_review_invalid",
+                "A passed Spec 03 source-region queue cannot contain open items",
+            )
+        return None
+    if (
+        queue.get("spec_status") != "needs_review"
+        or queue.get("open_reviews") != len(items)
+        or not items
+    ):
+        raise StageEntrypointError(
+            "spec03_source_region_review_invalid",
+            "Spec 03 source-region review state is inconsistent",
+        )
+
+    contract = _read_json(
+        _required(root, "contracts/input_contract.json"),
+        "Spec 03 input contract",
+    )
+    identity = contract.get("material_identity")
+    if (
+        not isinstance(identity, dict)
+        or queue.get("material_id") != identity.get("material_id")
+        or queue.get("source_pdf_sha256") != identity.get("source_pdf_sha256")
+    ):
+        raise StageEntrypointError(
+            "spec03_source_region_review_invalid",
+            "Spec 03 source-region queue names another source",
+        )
+    evidence = _read_json(
+        _required(root, "media/media_evidence_ledger.json"),
+        "Spec 03 media evidence ledger",
+    )
+    plan = _read_json(
+        _required(root, "media/media_representation_plan.json"),
+        "Spec 03 media representation plan",
+    )
+    evidence_atoms = {
+        item.get("media_id"): item
+        for item in evidence.get("atoms", [])
+        if isinstance(item, dict) and isinstance(item.get("media_id"), str)
+    }
+    representations = {
+        item.get("media_id"): item
+        for item in plan.get("representations", [])
+        if isinstance(item, dict) and isinstance(item.get("media_id"), str)
+    }
+    seen: set[str] = set()
+    crop_paths: list[Path] = []
+    required_fields = {
+        "media_id",
+        "selected_candidate_id",
+        "source_page",
+        "bbox",
+        "bbox_coordinate_space",
+        "crop_path",
+        "crop_sha256",
+        "crop_size_bytes",
+        "review_status",
+        "required_action",
+    }
+    for item in items:
+        if not isinstance(item, dict) or set(item) != required_fields:
+            raise StageEntrypointError(
+                "spec03_source_region_review_invalid",
+                "Spec 03 source-region review item shape is invalid",
+            )
+        media_id = item.get("media_id")
+        if (
+            not isinstance(media_id, str)
+            or not media_id
+            or media_id in seen
+            or item.get("review_status") != "pending"
+            or item.get("bbox_coordinate_space")
+            != "pdf_cropbox_normalized_0_1_top_left"
+            or not str(item.get("required_action") or "").strip()
+        ):
+            raise StageEntrypointError(
+                "spec03_source_region_review_invalid",
+                "Spec 03 source-region review item is not an open exact crop",
+            )
+        seen.add(media_id)
+        crop = _required(root, item.get("crop_path"))
+        if (
+            not str(item["crop_path"]).startswith("media/selected/")
+            or not _is_sha256(item.get("crop_sha256"))
+            or sha256_file(crop) != item.get("crop_sha256")
+            or crop.stat().st_size != item.get("crop_size_bytes")
+        ):
+            raise StageEntrypointError(
+                "spec03_source_region_review_invalid",
+                "Spec 03 source-region crop differs from its review binding",
+            )
+        try:
+            from PIL import Image
+
+            with Image.open(crop) as image:
+                image.verify()
+        except Exception as exc:
+            raise StageEntrypointError(
+                "spec03_source_region_review_invalid",
+                f"Spec 03 source-region crop is not decodable: {exc}",
+            ) from exc
+        atom = evidence_atoms.get(media_id)
+        representation = representations.get(media_id)
+        candidates = atom.get("candidates") if isinstance(atom, dict) else None
+        selected = [
+            candidate
+            for candidate in candidates or []
+            if isinstance(candidate, dict)
+            and candidate.get("candidate_id") == item.get("selected_candidate_id")
+        ]
+        if (
+            not isinstance(atom, dict)
+            or atom.get("review_status") != "needs_review"
+            or not isinstance(representation, dict)
+            or representation.get("status") != "needs_review"
+            or representation.get("representation_type") != "source_region_image"
+            or representation.get("artifact_sha256") != item.get("crop_sha256")
+            or len(selected) != 1
+            or selected[0].get("crop_path") != item.get("crop_path")
+            or selected[0].get("artifact_sha256") != item.get("crop_sha256")
+        ):
+            raise StageEntrypointError(
+                "spec03_source_region_review_invalid",
+                "Spec 03 source-region queue is not bound to media contracts",
+            )
+        crop_paths.append(crop)
+
+    ledger_rows = _read_jsonl(
+        _required(root, "ledgers/canonical_block_ledger.jsonl"),
+        "Spec 03 canonical block ledger",
+    )
+    completeness = _read_json(
+        _required(root, "reports/source_completeness_report.json"),
+        "Spec 03 source completeness report",
+    )
+    decision = _read_json(
+        _required(root, "decisions/canonical_decision_index.json"),
+        "Spec 03 decision index",
+    )
+    if (
+        not ledger_rows
+        or ledger_rows[0].get("spec_status") != "needs_review"
+        or (ledger_rows[0].get("summary") or {}).get("open_reviews") != len(items)
+        or evidence.get("payload_hash") != _contract_payload_hash(evidence)
+        or (evidence.get("summary") or {}).get("needs_review") != len(items)
+        or plan.get("payload_hash") != _contract_payload_hash(plan)
+        or plan.get("spec_status") != "needs_review"
+        or plan.get("open_reviews") != len(items)
+        or completeness.get("spec_status") != "needs_review"
+        or sorted(completeness.get("open_reviews") or []) != sorted(seen)
+        or decision.get("spec_status") != "needs_review"
+        or (decision.get("summary") or {}).get("open") != 1
+    ):
+        raise StageEntrypointError(
+            "spec03_source_region_review_invalid",
+            "Spec 03 needs_review evidence is internally inconsistent",
+        )
+
+    gates = _evaluate_atomic_ledger(root)
+    gates["media_relations_closed"] = False
+    evidence_paths = [queue_path, *crop_paths]
+    return StageEvaluation(
+        gate_results={
+            gate: bool(gates.get(gate, False))
+            for gate in STAGE_GATES["canonical_block_ledger"]
+        },
+        findings=(
+            {
+                "code": "spec03_source_region_review_open",
+                "blocking": True,
+                "responsible_stage": "canonical_block_ledger",
+                "recovery_stage": "canonical_block_ledger",
+                "open_media_reviews": len(items),
+                "evidence_refs": [
+                    {
+                        "path": path.relative_to(root).as_posix(),
+                        "sha256": sha256_file(path),
+                    }
+                    for path in evidence_paths
+                ],
+                "handoff": {
+                    "summary": (
+                        f"{len(items)} source-region crops require exact visual review."
+                    ),
+                    "required_action": (
+                        "Inspect every hash-bound crop against its source PDF region, "
+                        "record explicit accept or reject decisions, then resume only "
+                        "canonical_block_ledger."
+                    ),
+                    "resume_stage": "canonical_block_ledger",
+                },
+            },
+        ),
+        disposition="needs_review",
     )
 
 

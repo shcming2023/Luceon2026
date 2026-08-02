@@ -75,6 +75,7 @@ def _fixture(
     *,
     padding_bytes: int = 0,
     media_less: bool = False,
+    source_region: bool = False,
 ) -> dict[str, Path]:
     inputs = root / "inputs"
     inputs.mkdir(parents=True)
@@ -98,7 +99,9 @@ def _fixture(
                     "type": "image",
                     "bbox": [100, 100, 400, 400],
                     "content": {
-                        "image_source": {"path": "images/diagram.png"}
+                        "image_source": {
+                            "path": "images/" if source_region else "images/diagram.png"
+                        }
                     },
                 }
             ],
@@ -111,7 +114,7 @@ def _fixture(
         separators=(",", ":"),
     ).encode()
     mineru_members = {"mineru/content_list_v2.json": content_payload}
-    if not media_less:
+    if not media_less and not source_region:
         mineru_members["mineru/images/diagram.png"] = image_payload
     if padding_bytes:
         mineru_members["metadata/padding.bin"] = b"M" * padding_bytes
@@ -173,7 +176,7 @@ def _fixture(
         "run_id": "mineru-run-1",
         "source_pdf": source_identity,
         "full_tree_counts": {
-            "mineru": 1 if media_less else 2,
+            "mineru": 1 if media_less or source_region else 2,
             "minerupopo": 0,
             "metadata": 1 if padding_bytes else 0,
             "logs": 0,
@@ -193,7 +196,7 @@ def _fixture(
                 "size_bytes": len(content_payload),
             },
             "images": []
-            if media_less
+            if media_less or source_region
             else [
                 {
                     "source_member": "mineru/images/diagram.png",
@@ -393,11 +396,13 @@ def _run_pipeline(
     *,
     padding_bytes: int = 0,
     media_less: bool = False,
+    source_region: bool = False,
 ) -> tuple[Path, Path, Path, dict[str, Path]]:
     paths = _fixture(
         root,
         padding_bytes=padding_bytes,
         media_less=media_less,
+        source_region=source_region,
     )
     spec01 = root / "spec01"
     intake = argparse.Namespace(
@@ -553,6 +558,55 @@ def test_media_less_atomic_pipeline_passes_independent_spec03_evaluation(
     assert result.gate_results == {
         gate: True for gate in STAGE_GATES["canonical_block_ledger"]
     }
+
+
+def test_source_region_candidate_is_hash_bound_needs_review(
+    tmp_path: Path,
+) -> None:
+    _, _, spec03, paths = _run_pipeline(tmp_path, source_region=True)
+
+    queue_path = spec03 / "media/media_review_queue.json"
+    queue = json.loads(queue_path.read_text(encoding="utf-8"))
+    assert queue["schema_version"] == "spec03-source-region-review-queue/1.0"
+    assert queue["spec_status"] == "needs_review"
+    assert queue["open_reviews"] == 1
+    assert len(queue["items"]) == 1
+    item = queue["items"][0]
+    crop_path = spec03 / item["crop_path"]
+    assert crop_path.is_file()
+    assert item["crop_sha256"] == _sha(crop_path)
+    assert item["review_status"] == "pending"
+
+    result = _evaluate(
+        "canonical_block_ledger",
+        spec03,
+        paths["release_manifest"].parent,
+    )
+
+    assert result.disposition == "needs_review"
+    assert result.gate_results["media_relations_closed"] is False
+    assert result.findings[0]["code"] == "spec03_source_region_review_open"
+    assert {
+        reference["path"] for reference in result.findings[0]["evidence_refs"]
+    } >= {"media/media_review_queue.json", item["crop_path"]}
+
+
+def test_source_region_review_crop_drift_fails_closed(tmp_path: Path) -> None:
+    _, _, spec03, paths = _run_pipeline(tmp_path, source_region=True)
+    queue = json.loads(
+        (spec03 / "media/media_review_queue.json").read_text(encoding="utf-8")
+    )
+    crop_path = spec03 / queue["items"][0]["crop_path"]
+    crop_path.write_bytes(crop_path.read_bytes() + b"drift")
+
+    with pytest.raises(stage_evaluators.StageEntrypointError) as exc_info:
+        _evaluate(
+            "canonical_block_ledger",
+            spec03,
+            paths["release_manifest"].parent,
+        )
+
+    assert exc_info.value.code == "spec03_source_region_review_invalid"
 
 
 def test_scope_evaluator_rejects_noncontiguous_order(tmp_path: Path) -> None:
