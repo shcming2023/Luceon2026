@@ -16,9 +16,9 @@
     "version": "3.0.0-rc.0",
     "channel": "rc",
     "requested_status": "incomplete",
-    "created_at": "2026-08-02T12:10:21+08:00",
+    "created_at": "2026-08-02T13:13:08+08:00",
     "source": {
-      "git_sha": "ff8658317a55e963342574d53fb50bb755f68ca5",
+      "git_sha": "b1959042814cc3978b8a563f5a63a3ddce0d11b6",
       "git_tag": null,
       "dirty": false
     },
@@ -335,7 +335,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-identity.json",
       "destination": "runtime/ordinary-runtime-identity.json",
-      "expected_sha256": "96c2f80bcbecf08c32b1cd3c845fbc5682aeb5286e1409549bb88c76b066365d"
+      "expected_sha256": "c413a583aa4213e7ffac6e3f5ce13f15c756fecac2b7c39c5d28d023432de027"
     },
     {
       "id": "worker-v3-ordinary-runtime-build-proof",
@@ -344,7 +344,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-build-proof.json",
       "destination": "runtime/ordinary-runtime-build-proof.json",
-      "expected_sha256": "bd25995f391b1c2dfb1a93ecf17c6c86c77d67b7983657598ddee95cbf1f00ea"
+      "expected_sha256": "2b4e03b79dc6d28a321f484ee516f8664b866aacbe15611bdd8d76db4de03a3a"
     },
     {
       "id": "worker-v3-ordinary-runtime-sbom",
@@ -353,7 +353,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-sbom.cdx.json",
       "destination": "runtime/ordinary-runtime-sbom.cdx.json",
-      "expected_sha256": "f61935397347890107202ec9f88f577e75fdfb705326a486bbca2583c85ef95f"
+      "expected_sha256": "aec64f4b44ee2d278d6e52e08370521d3598e2d1f6cea62fe04592eb3e11dc71"
     },
     {
       "id": "worker-v3-overleaf-target-environment",
@@ -981,7 +981,7 @@
     "python": "CPython 3.12.13",
     "application_dependencies_path": "runtime/requirements-worker-v3.lock",
     "system_tools": {
-      "runtime_id": "worker-v3-runtime-rc-ff86583-clean",
+      "runtime_id": "worker-v3-runtime-rc-b195904-clean",
       "system_lock": "runtime/worker-v3-system-packages.lock",
       "identity": "runtime/ordinary-runtime-identity.json",
       "build_proof": "runtime/ordinary-runtime-build-proof.json",
@@ -997,7 +997,7 @@
     "fonts_identity_path": "runtime/ordinary-runtime-identity.json",
     "tex_identity_path": "runtime/ordinary-runtime-identity.json",
     "poppler_identity_path": "runtime/ordinary-runtime-identity.json",
-    "container_image_digest": "sha256:f898a37fb1fdb6065340e2eb06f9d3366059f96ecda44b1bc99f9cf1afef14ef",
+    "container_image_digest": "sha256:59dcab576361ac0614a57bb5ef3a5d3107b8ba46a3d183833cea67045e82e772",
     "sbom_path": "runtime/ordinary-runtime-sbom.cdx.json",
     "attestations": [
       "runtime/ordinary-runtime-identity.json",
