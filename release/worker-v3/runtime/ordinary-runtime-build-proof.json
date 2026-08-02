@@ -1,14 +1,14 @@
 {
   "architecture": "arm64",
   "build_status": "clean_no_cache_build_succeeded",
-  "built_at": "2026-08-02T05:13:08Z",
-  "image_id": "sha256:59dcab576361ac0614a57bb5ef3a5d3107b8ba46a3d183833cea67045e82e772",
-  "image_size_bytes": 1457072154,
-  "local_manifest_digest": "sha256:59dcab576361ac0614a57bb5ef3a5d3107b8ba46a3d183833cea67045e82e772",
+  "built_at": "2026-08-02T09:50:47Z",
+  "image_id": "sha256:315d63da308c50f614a3e0117db9c7afe781f218b342205a3b234c94f62087ec",
+  "image_size_bytes": 1457101914,
+  "local_manifest_digest": "sha256:315d63da308c50f614a3e0117db9c7afe781f218b342205a3b234c94f62087ec",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
     "pages": 2,
-    "pdf_sha256": "5ad6f5885f7b274f16a88bc98faaf4da7587af83b209c2f99f1e70b88e59ec90",
+    "pdf_sha256": "1b7c46620bb59ccf6d539c5c3834715a3993735e3c660b08124bc8b0a08d9dae",
     "pdfinfo": "passed",
     "qpdf_check": "passed",
     "status": "passed"
@@ -16,6 +16,12 @@
   "registry_digest": null,
   "registry_status": "pending_until_push",
   "superseded_builds": [
+    {
+      "image_digest": "sha256:59dcab576361ac0614a57bb5ef3a5d3107b8ba46a3d183833cea67045e82e772",
+      "reason": "material 1340 produced a real XeLaTeX candidate PDF, render pack, provenance and compile log with C1 blocking missing-glyph findings and no C0 fatal error, but the Stage 8 adapter collapsed that evidence-complete repair handoff into kernel_failed; the replacement keeps the hard quality gates false while preserving an independently validated needs_review terminal and exact Stage 8 recovery evidence",
+      "source_revision": "b1959042814cc3978b8a563f5a63a3ddce0d11b6",
+      "status": "superseded_before_release_admission"
+    },
     {
       "image_digest": "sha256:f898a37fb1fdb6065340e2eb06f9d3366059f96ecda44b1bc99f9cf1afef14ef",
       "reason": "material 1339 real qualification produced a formally validated, evidence-closed needs_review at Spec 03, but the qualification harness incorrectly reserved that terminal for independent_full_page_review; the replacement accepts a validated needs_review at any stage without promotion while preserving the one-retry fail-closed rule for deterministic_elegantbook",
@@ -316,31 +322,31 @@
       "status": "rejected_before_qualification"
     }
   ],
-  "runtime_id": "worker-v3-runtime-rc-b195904-clean",
+  "runtime_id": "worker-v3-runtime-rc-243c21f-clean",
   "runtime_identity": {
-    "control_plane_tree_sha256": "04cc1ad8f86aec9f430c26ff0e5130910a4c306c5c3237d52466e7a6f664d6a8",
+    "control_plane_tree_sha256": "f516dca887552836ecbd48560b5f9a426a8a7ff574044691ec9cf58f9c1aa96f",
     "effective_uid": 10003,
-    "evidence_sha256": "c413a583aa4213e7ffac6e3f5ce13f15c756fecac2b7c39c5d28d023432de027",
+    "evidence_sha256": "4ffa1fb0495f5785e4955291e6aac167ac041c601e9fa726a7eaeaa326b7dfaf",
     "status": "passed",
     "system_lock_entries": 19
   },
   "sbom": {
     "component_count": 422,
-    "evidence_sha256": "aec64f4b44ee2d278d6e52e08370521d3598e2d1f6cea62fe04592eb3e11dc71",
+    "evidence_sha256": "e38e38602641845939aadeceb9527f854bb0e820a756889c907455d18d0cbc5e",
     "format": "CycloneDX",
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "b1959042814cc3978b8a563f5a63a3ddce0d11b6",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-b195904-clean",
+  "source_revision": "243c21fefa989ef50dafab00975c6c6d30485069",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-243c21f-clean",
   "tests": {
-    "targeted_repository_regression": "the new early-stage evidence-closed needs_review regression passed together with the existing independent-full-page and deterministic_elegantbook one-retry fail-closed qualification regressions; the full qualification module passed 11 tests",
+    "targeted_repository_regression": "the Spec 05 blocking-candidate Producer and Evaluator regressions passed with 7 focused tests; the full Workflow V3 host suite passed 405 tests with 2 skips before the immutable image build",
     "runtime_identity_gate": "passed with no network and digest-pinned reference: non-root UID 10003, exact control-plane tree and 19 locked system packages",
     "repository_static_tests": "release source verify-only passed with 24 formal entrypoints, 46 sources and three honest qualification gaps before real-material requalification",
-    "exact_image_regression": "1045 tests passed with 2 skips in 52.41 seconds inside the exact digest-pinned rc-b195904-clean runtime under no-network, non-root UID 10003 and read-only-rootfs constraints; the exact Git worktree was mounted read-only and isolated HOME, SQLite and executable temporary storage were used without weakening the runtime boundary",
-    "locked_template_smoke": "passed twice with no network: frozen template class SHA-256 048c3b90da41be64f4744da3bff6ae8c5ea7abd30a5f3e2a6ad1a98f3b0d71fe, 2 pages, deterministic PDF SHA-256 5ad6f5885f7b274f16a88bc98faaf4da7587af83b209c2f99f1e70b88e59ec90",
+    "exact_image_regression": "1046 tests passed with 2 skips in 53.06 seconds inside the exact digest-pinned rc-243c21f-clean runtime under no-network, non-root UID 10003 and read-only-rootfs constraints; the exact Git worktree was mounted read-only and isolated HOME, SQLite and executable temporary storage were used without weakening the runtime boundary",
+    "locked_template_smoke": "passed twice with no network: frozen template class SHA-256 048c3b90da41be64f4744da3bff6ae8c5ea7abd30a5f3e2a6ad1a98f3b0d71fe, 2 pages, byte-identical deterministic PDF SHA-256 1b7c46620bb59ccf6d539c5c3834715a3993735e3c660b08124bc8b0a08d9dae",
     "production_boundary": "Expert Broker, Codex App Server, Codex SDK adapter, cross-UID runner, Codex expert runtime entrypoints, Codex binary and Codex/OpenAI credentials are absent",
-    "warnings": "Existing Python, SQLAlchemy and legacy SyntaxWarning output remains non-blocking; no applicable test failure remains. One preceding build command was stopped before image creation when its manually transcribed OCI revision did not match Git HEAD. The corrected clean no-cache build completed from the official Debian and PyPI endpoints without dependency, hash or source changes. The host lacks qpdf, so the successful two-pass template compilation was followed by qpdf and pdfinfo validation inside the exact qualification image."
+    "warnings": "Existing Python, SQLAlchemy and legacy SyntaxWarning output remains non-blocking; no applicable test failure remains. The first no-cache build attempt failed before image creation because Docker BuildKit resolved the official Debian endpoint to an unreachable local interception range. The identical locked build then succeeded with host networking as a build-transport adaptation, still using the official Debian and PyPI endpoints without dependency, hash or source changes; no temporary runtime network remains."
   },
   "user": "10003:10003",
   "build_provenance": {
@@ -348,13 +354,13 @@
     "source_dockerfile": "backend/Dockerfile.worker-v3",
     "source_dockerfile_sha256": "e0f8978e3f0ef23a9498ec18b185eeb4def4f4bdc279872ed8e241638609281f",
     "build_context": "backend",
-    "source_revision": "b1959042814cc3978b8a563f5a63a3ddce0d11b6",
+    "source_revision": "243c21fefa989ef50dafab00975c6c6d30485069",
     "declared_base_image": "python:3.12.13-slim@sha256:64695412729fbe8cf054511723820c82bbe5a077d4a6b4070cd4a7225d3422ce",
     "official_base_index_digest": "sha256:64695412729fbe8cf054511723820c82bbe5a077d4a6b4070cd4a7225d3422ce",
     "official_arm64_manifest_digest": "sha256:55842c72c6b3584d06ec84c731fc516b30b8a53ad262ebd085e47ab568b3bfc1",
     "official_arm64_config_digest": "sha256:944a73bd27d7b5fad206369e77bb7a6da51e073236b9dece9ff387df433de7bb",
     "verified_local_oci_archive_sha256": null,
-    "recipe_transport_adaptation": "none; the tracked Dockerfile was built directly with docker build --no-cache on the native arm64 Docker Desktop engine",
+    "recipe_transport_adaptation": "docker build --no-cache --network=host on the native arm64 Docker Desktop engine; the tracked Dockerfile, official endpoints, dependency versions and hashes were unchanged",
     "package_transport": {
       "source": "https://deb.debian.org",
       "relay": null,

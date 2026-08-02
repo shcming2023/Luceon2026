@@ -1,0 +1,44 @@
+{
+  "schema_version": "luceon.worker-v3.qualification.visual-full-page-provider/v1",
+  "qualification_type": "visual_full_page_provider",
+  "status": "passed",
+  "evidence_id": "worker-v3-visual-provider-243c21f-pdf-642599641f3b15e1",
+  "qualified_at": "2026-08-02T10:23:38Z",
+  "identity": {
+    "runner": "worker-v3-runtime-rc-243c21f-clean",
+    "verifier": "worker-v3-independent-full-page-review-evaluator",
+    "run_id": "fedc2e9c-da41-5570-ba6b-772178174d29"
+  },
+  "release_binding": {
+    "release_id": "worker-v3-skill-source-audit-20260726",
+    "release_source_git_sha": "243c21fefa989ef50dafab00975c6c6d30485069",
+    "executable_baseline_hash_algorithm": "sha256-executable-baseline-file-records-v1",
+    "executable_baseline_sha256": "090ee4a71a89fbb91f5b085b384225f004c3e1203ffa73af62c1087a597af1e9",
+    "container_image_digest": "sha256:315d63da308c50f614a3e0117db9c7afe781f218b342205a3b234c94f62087ec"
+  },
+  "proof": {
+    "provider": {
+      "name": "dashscope",
+      "model": "qwen3.7-plus-2026-05-26",
+      "endpoint_origin_sha256": "ec1f29107de2c3a3df64b95fe366d7c640c5a610fdc5b6804611630835b4dafc"
+    },
+    "reviewer": {
+      "entrypoint_id": "worker-v3.independent-full-page-review.evaluate",
+      "prompt_sha256": "e1a3aed7b70805d6807dafcde41a16d40a932d5cc9b67649cc2602fa79fcb201",
+      "output_schema_sha256": "6b6fa96435441fec3791179bfec919fdc499d76f8203c88dae82f011d080d28c"
+    },
+    "coverage": {
+      "mode": "all_pages",
+      "source_page_count": 3,
+      "candidate_page_count": 4,
+      "reviewed_source_page_count": 3,
+      "reviewed_candidate_page_count": 4,
+      "failed_page_count": 0
+    },
+    "result": {
+      "decision": "passed",
+      "schema_valid": true,
+      "raw_response_hashes_bound": true
+    }
+  }
+}
