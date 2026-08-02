@@ -12,13 +12,13 @@
     }
   },
   "release": {
-    "release_id": "worker-v3-skill-source-audit-20260726",
-    "version": "3.0.0-rc.0",
+    "release_id": "worker-v3-skill-source-audit-20260802-39c9251",
+    "version": "3.0.0-rc.1",
     "channel": "rc",
     "requested_status": "rc",
-    "created_at": "2026-08-02T19:00:00+08:00",
+    "created_at": "2026-08-02T22:14:00+08:00",
     "source": {
-      "git_sha": "243c21fefa989ef50dafab00975c6c6d30485069",
+      "git_sha": "39c9251f5d54f67a26706d2b13a034d9a30d3ee5",
       "git_tag": null,
       "dirty": false
     },
@@ -335,7 +335,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-identity.json",
       "destination": "runtime/ordinary-runtime-identity.json",
-      "expected_sha256": "4ffa1fb0495f5785e4955291e6aac167ac041c601e9fa726a7eaeaa326b7dfaf"
+      "expected_sha256": "b677f173162662c9cc9a9ff850aedf722a776242cb810f7645da42f7803ff4c5"
     },
     {
       "id": "worker-v3-ordinary-runtime-build-proof",
@@ -344,7 +344,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-build-proof.json",
       "destination": "runtime/ordinary-runtime-build-proof.json",
-      "expected_sha256": "655b37b79daf31bd1e6223b237c05180c576507919c96d65a4a6a15195e67ce9"
+      "expected_sha256": "7cae3eb9858efc14da878b41e35481fe3a483d662684ece6eb97dbce4aa4ae6b"
     },
     {
       "id": "worker-v3-ordinary-runtime-sbom",
@@ -353,7 +353,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-sbom.cdx.json",
       "destination": "runtime/ordinary-runtime-sbom.cdx.json",
-      "expected_sha256": "e38e38602641845939aadeceb9527f854bb0e820a756889c907455d18d0cbc5e"
+      "expected_sha256": "9e203e893ab423da2104beb17a94810c401b860fffca3075e12f37e4c04cd569"
     },
     {
       "id": "worker-v3-overleaf-target-environment",
@@ -462,6 +462,33 @@
       "path": "docs/worker-v3/evidence/243c21f-qualification-ledger-20260802.json",
       "destination": "evals/qualification/243c21f-qualification-ledger-20260802.json",
       "expected_sha256": "cea9203d8746ee63886ed7647aaf848a517c73b755295fad36151f51760b0ccd"
+    },
+    {
+      "id": "worker-v3-visual-full-page-provider-qualification-39c9251",
+      "source_role": "runtime_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/visual-full-page-provider-qualification-39c9251-20260802.json",
+      "destination": "evals/qualification/visual-full-page-provider-qualification-39c9251-20260802.json",
+      "expected_sha256": "4bb48fd27ed25bf362db6316649910516b95279104df1e4679ef8c3acff1dcd6"
+    },
+    {
+      "id": "worker-v3-spec05-final-image-real-material-qualification-39c9251",
+      "source_role": "runtime_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/spec05-final-image-real-material-qualification-39c9251-20260802.json",
+      "destination": "evals/qualification/spec05-final-image-real-material-qualification-39c9251-20260802.json",
+      "expected_sha256": "f7d6422c7c69fdb8cf08516631c23c29af47535df7f25cb91543bf5c8298ab80"
+    },
+    {
+      "id": "worker-v3-39c9251-qualification-ledger",
+      "source_role": "supporting_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/39c9251-qualification-ledger-20260802.json",
+      "destination": "evals/qualification/39c9251-qualification-ledger-20260802.json",
+      "expected_sha256": "12f8ad22963bae59904b409e46a64c95fa91485200787ec173ae65a5da4ddd01"
     },
     {
       "id": "worker-v3-spec05-build-policy",
@@ -1008,7 +1035,7 @@
     "python": "CPython 3.12.13",
     "application_dependencies_path": "runtime/requirements-worker-v3.lock",
     "system_tools": {
-      "runtime_id": "worker-v3-runtime-rc-243c21f-clean",
+      "runtime_id": "worker-v3-runtime-rc-39c9251",
       "system_lock": "runtime/worker-v3-system-packages.lock",
       "identity": "runtime/ordinary-runtime-identity.json",
       "build_proof": "runtime/ordinary-runtime-build-proof.json",
@@ -1024,7 +1051,7 @@
     "fonts_identity_path": "runtime/ordinary-runtime-identity.json",
     "tex_identity_path": "runtime/ordinary-runtime-identity.json",
     "poppler_identity_path": "runtime/ordinary-runtime-identity.json",
-    "container_image_digest": "sha256:315d63da308c50f614a3e0117db9c7afe781f218b342205a3b234c94f62087ec",
+    "container_image_digest": "sha256:974eb15e2ce329950021724034dda56c731c1d054edf77fb89e505b7a08822f2",
     "sbom_path": "runtime/ordinary-runtime-sbom.cdx.json",
     "attestations": [
       "runtime/ordinary-runtime-identity.json",
@@ -1041,11 +1068,11 @@
   "qualification_evidence": {
     "visual_full_page_provider": {
       "required": true,
-      "source_id": "worker-v3-visual-full-page-provider-qualification-243c21f"
+      "source_id": "worker-v3-visual-full-page-provider-qualification-39c9251"
     },
     "spec05_final_image_real_material": {
       "required": true,
-      "source_id": "worker-v3-spec05-final-image-real-material-qualification-243c21f"
+      "source_id": "worker-v3-spec05-final-image-real-material-qualification-39c9251"
     }
   },
   "known_gaps": [],
