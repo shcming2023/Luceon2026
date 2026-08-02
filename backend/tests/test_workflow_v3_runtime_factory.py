@@ -568,6 +568,15 @@ def test_minio_roles_receive_only_their_required_capabilities(monkeypatch):
     assert isinstance(producer, MinioCandidateArtifactStore)
     assert hasattr(producer, "put_candidate")
     assert not hasattr(producer, "put_formal")
+    assert producer._reader._readable_buckets == frozenset(
+        {
+            "eduassets-input",
+            "eduassets-parsed",
+            "eduassets-mineru",
+            "eduassets-minerupopo",
+            "worker-v3-candidates",
+        }
+    )
     assert isinstance(evaluator, MinioReadonlyArtifactStore)
     assert isinstance(promoter, MinioReadonlyArtifactStore)
     assert not hasattr(evaluator, "put_candidate")

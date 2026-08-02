@@ -214,6 +214,7 @@ def load_runtime_binding_guard() -> RuntimeBindingGuard:
 _TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
 _DEFAULT_READABLE_BUCKETS = (
     "eduassets-input",
+    "eduassets-parsed",
     "eduassets-mineru",
     "eduassets-minerupopo",
     "worker-v3-candidates",
