@@ -1,4 +1,8 @@
 services:
+  backend:
+    environment:
+      - WORKFLOW_V3_ARTIFACT_BACKEND=minio
+
   workflow-v3-overleaf-compiler:
     image: ${LUCEON_WORKER_V3_OVERLEAF_ADAPTER_IMAGE:?set exact repository@sha256 or local sha256 Overleaf adapter image}
     environment:

@@ -133,6 +133,14 @@ def test_rc_overlay_requires_each_role_credential_and_distinct_matrix():
     ) == 4
 
 
+def test_rc_overlay_admits_minio_for_backend_control_plane():
+    assert (
+        "  backend:\n"
+        "    environment:\n"
+        "      - WORKFLOW_V3_ARTIFACT_BACKEND=minio"
+    ) in RC_COMPOSE
+
+
 def test_v3_minio_namespaces_are_isolated_from_v2_defaults():
     producer = _service("workflow-v3-executor")
     projector = _service("workflow-v3-projector")
