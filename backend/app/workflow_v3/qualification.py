@@ -492,11 +492,13 @@ def run_qualification(
                     int(produced["candidate_id"]),
                 )
             if (
-                contract.key == "independent_full_page_review"
-                and config.stop_after == "ready_for_user_acceptance"
-                and evaluated.get("ok") is True
+                evaluated.get("ok") is True
                 and evaluated.get("decision") == "needs_review"
                 and evaluated.get("spec_passed") is False
+                and not (
+                    contract.key == "deterministic_elegantbook"
+                    and warning_review_used
+                )
             ):
                 report_payload["stages"].append(
                     _stage_report(factory, job_id, contract.key)

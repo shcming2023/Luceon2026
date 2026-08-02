@@ -430,6 +430,57 @@ class QualificationFullPageNeedsReviewFixture(QualificationCommandFixture):
         super()._evaluate(cwd, request)
 
 
+class QualificationSpec03NeedsReviewFixture(QualificationCommandFixture):
+    @classmethod
+    def _evaluate(cls, cwd: Path, request: dict) -> None:
+        if request["stage_key"] == "canonical_block_ledger":
+            _write_json(
+                cwd / request["output_manifest"],
+                {
+                    "schema_version": (
+                        "luceon.worker-v3-stage-evaluation/v1"
+                    ),
+                    "job_id": request["job_id"],
+                    "stage_key": request["stage_key"],
+                    "attempt": request["attempt"],
+                    "candidate_sha256": request["candidate"]["sha256"],
+                    "release_manifest_sha256": request[
+                        "release_manifest_sha256"
+                    ],
+                    "policy_sha256": request["policy_sha256"],
+                    "decision": "needs_review",
+                    "gate_results": {
+                        gate: False for gate in request["required_gates"]
+                    },
+                    "findings": [
+                        {
+                            "code": "spec03_source_region_review_open",
+                            "blocking": True,
+                            "responsible_stage": "canonical_block_ledger",
+                            "recovery_stage": "canonical_block_ledger",
+                            "evidence_refs": [
+                                {
+                                    "path": "manifests/stage.json",
+                                    "sha256": "b" * 64,
+                                }
+                            ],
+                            "handoff": {
+                                "summary": (
+                                    "Source-region crops require review."
+                                ),
+                                "required_action": (
+                                    "Review the exact hash-bound crops."
+                                ),
+                                "resume_stage": "canonical_block_ledger",
+                            },
+                        }
+                    ],
+                },
+            )
+            return
+        super()._evaluate(cwd, request)
+
+
 def _qualification_inputs(tmp_path: Path):
     release_root = _incomplete_readonly_release(tmp_path)
     package_root, source_json, evidence = _frozen_source_package(tmp_path)
@@ -634,6 +685,57 @@ def test_full_page_needs_review_is_a_qualified_non_success_terminal(
     )
     assert payload["stages"][-1]["promotion"] is None
     assert len(payload["stages"]) == 10
+
+
+def test_spec03_needs_review_is_a_qualified_non_success_terminal(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("LUCEON_ENVIRONMENT", "qualification")
+    monkeypatch.delenv("WORKFLOW_V3_DATABASE_URL", raising=False)
+    release_root, package_root, source_json, _ = _qualification_inputs(
+        tmp_path
+    )
+    transport = QualificationSpec03NeedsReviewFixture()
+
+    result = run_qualification(
+        QualificationConfig(
+            release_root=release_root,
+            source_package_root=package_root,
+            source_evidence_json=source_json,
+            run_root=tmp_path / "run-spec03-needs-review",
+            stop_after="deterministic_elegantbook",
+        ),
+        command_transport=transport,
+    )
+
+    assert result.passed is True
+    assert transport.calls[-2:] == [
+        ("produce", "canonical_block_ledger"),
+        ("evaluate", "canonical_block_ledger"),
+    ]
+    payload = json.loads(
+        result.report_path.read_text(encoding="utf-8")
+    )["payload"]
+    assert payload["outcome"]["passed"] is True
+    assert payload["outcome"]["qualification_disposition"] == (
+        "evidence_closed_needs_review"
+    )
+    assert payload["outcome"]["actual_stop_stage"] == (
+        "canonical_block_ledger"
+    )
+    assert payload["outcome"]["machine_succeeded"] is False
+    assert payload["outcome"]["job"]["machine_status"] == (
+        "needs_review"
+    )
+    assert payload["stages"][-1]["stage"]["machine_status"] == (
+        "needs_review"
+    )
+    assert payload["stages"][-1]["evaluation"]["decision"] == (
+        "needs_review"
+    )
+    assert payload["stages"][-1]["promotion"] is None
+    assert len(payload["stages"]) == 3
 
 
 def test_qualification_closes_exact_spec05_warning_and_resumes_only_stage8(

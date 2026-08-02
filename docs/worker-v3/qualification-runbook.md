@@ -10,7 +10,9 @@ Producer、独立 Evaluator 和 PromotionController 可以按真实顺序执行�
 
 - 指定的只读候选发行目录能够在隔离控制平面内执行；
 - 指定的七件冻结输入与 `source_evidence` 绑定一致；
-- 每个已运行阶段都形成候选、独立评估和隔离晋升证据；
+- 每个通过阶段都形成候选、独立评估和隔离晋升证据；若任一阶段形成
+  证据闭环的 `needs_review`，则保留未晋升候选、独立评估与人工交接证据并
+  在该阶段终止；
 - 报告中的发行、输入、阶段、候选、评估、晋升和模型调用哈希可核验。
 
 它**不等于**发行登记、RC/Stable 封版、生产部署、真实样本 UAT 或人工验收。
@@ -206,7 +208,9 @@ LLM 或视觉审阅的候选发行不得省略。
 2. `payload_sha256` 等于规范化 `payload` 哈希；
 3. 每阶段 `candidate.sha256 == promotion.artifact_sha256`；
 4. 后继阶段输入 SHA 等于前一阶段已晋升候选 SHA；
-5. 所有已运行评估均 `decision=passed` 且全部 gate 为 `true`；
+5. 所有已通过评估均 `decision=passed` 且全部 gate 为 `true`；或最后一个
+   已运行阶段为经过正式 Evaluator 校验的 `decision=needs_review`，包含完整
+   evidence refs、handoff 与精确恢复阶段，且没有 Promotion；
 6. 七件源制品运行前后哈希、大小和只读权限不变；
 7. `production_state_written=false`、`release_promoted=false`；
 8. 使用模型时，fixture 声明与实际调用一一对应且
