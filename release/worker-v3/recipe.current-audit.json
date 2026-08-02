@@ -15,8 +15,8 @@
     "release_id": "worker-v3-skill-source-audit-20260726",
     "version": "3.0.0-rc.0",
     "channel": "rc",
-    "requested_status": "incomplete",
-    "created_at": "2026-08-02T18:24:00+08:00",
+    "requested_status": "rc",
+    "created_at": "2026-08-02T19:00:00+08:00",
     "source": {
       "git_sha": "243c21fefa989ef50dafab00975c6c6d30485069",
       "git_tag": null,
@@ -1048,15 +1048,9 @@
       "source_id": "worker-v3-spec05-final-image-real-material-qualification-243c21f"
     }
   },
-  "known_gaps": [
-    {
-      "code": "final_five_sample_no_change_smoke_pending",
-      "stage": "ready_for_user_acceptance",
-      "detail": "qualification image gates are closed; final five-sample no-code-change, no-rebuild, no-redeploy batch smoke and UI/DB/MinIO consistency audit remain pending"
-    }
-  ],
+  "known_gaps": [],
   "compatibility": {
-    "v2_3": "source audit only; V2.3 remains isolated and unchanged",
-    "rollback": "do not admit this incomplete release; delete only the newly assembled candidate directory"
+    "v2_3": "V2.3 remains isolated and unchanged; V3 uses distinct tables, queues and object prefixes",
+    "rollback": "disable Worker V3 admission and keep V2.3 as the unchanged active fallback; do not rewrite historical V2.3 state or objects"
   }
 }
