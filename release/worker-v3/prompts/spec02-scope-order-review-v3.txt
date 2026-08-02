@@ -5,6 +5,14 @@ Spec 01 candidate. It contains an immutable exhaustive baseline plus every
 physical page, compact Popo source-unit evidence, bounding boxes, tree evidence,
 and MinerU media atoms. Use only that evidence.
 
+The input uses the release-bound `luceon.worker-v3-spec02-model-evidence/v1`
+positional encoding. Decode every row strictly with the field arrays in
+`encoding`. Resolve each geometry index through `geometry_profiles`. Reconstruct
+every source or media identifier by concatenating its indexed prefix and suffix
+exactly; all identifiers in the output must be the reconstructed full values,
+never prefix indexes or suffixes. This encoding removes repetition only and
+does not authorize omitting any page or evidence row.
+
 Return exactly one JSON object conforming to the release-bound output schema.
 Classify every physical page exactly once in `pages`, using only
 `physical_page` and `baseline_disposition`. Use `accepted` when both the

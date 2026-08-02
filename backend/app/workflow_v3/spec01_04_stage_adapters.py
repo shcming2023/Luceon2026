@@ -12,6 +12,7 @@ try:
     from .spec01_03_atomic_kernel import (
         media_model_evidence,
         outline_model_evidence,
+        scope_model_evidence,
         semantic_model_evidence,
     )
     from .stage_entrypoint import (
@@ -28,6 +29,7 @@ except ImportError:  # Release-local scripts are imported outside the backend pa
     from spec01_03_atomic_kernel import (  # type: ignore[no-redef]
         media_model_evidence,
         outline_model_evidence,
+        scope_model_evidence,
         semantic_model_evidence,
     )
     from stage_entrypoint import (  # type: ignore[no-redef]
@@ -243,7 +245,9 @@ def _produce_scope_order(
         command="prepare-scope-review-task",
         filename="spec02-scope-order-review-task.json",
     )
-    task_hash = _canonical_hash(_read_json(task_path, "scope/order review task"))
+    task_hash = _canonical_hash(
+        scope_model_evidence(_read_json(task_path, "scope/order review task"))
+    )
     _verify_bounded_review(
         request,
         inputs,

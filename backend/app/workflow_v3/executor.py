@@ -49,6 +49,7 @@ from app.workflow_v3.service import runtime_identity_for_manifest
 from app.workflow_v3.spec01_03_atomic_kernel import (
     media_model_evidence,
     outline_model_evidence,
+    scope_model_evidence,
     semantic_model_evidence,
 )
 from app.workflow_v3.stage_entrypoint import (
@@ -1666,7 +1667,9 @@ class _StageRequestBuilder:
         primary: PreparedInputArtifact,
     ) -> dict[str, str]:
         evidence = self._review_input(prompt_id, primary)
-        if prompt_id == "worker-v3.spec03-media-review":
+        if prompt_id == "worker-v3.spec02-scope-order-review":
+            evidence = scope_model_evidence(evidence)
+        elif prompt_id == "worker-v3.spec03-media-review":
             evidence = media_model_evidence(evidence)
         elif prompt_id == "worker-v3.spec04a-outline-review":
             task_path = (

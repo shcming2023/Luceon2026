@@ -2024,6 +2024,182 @@ def _scope_review_task(parent: Path) -> dict[str, Any]:
     return task
 
 
+def _compact_identifier(value: str, delimiter: str) -> tuple[str, str]:
+    prefix, separator, suffix = value.rpartition(delimiter)
+    if not separator:
+        return "", value
+    return prefix + separator, suffix
+
+
+def scope_model_evidence(task: Mapping[str, Any]) -> dict[str, Any]:
+    """Project the exhaustive Spec 02 task without discarding evidence.
+
+    Large books repeat the same JSON field names and identifier prefixes many
+    thousands of times.  The release-bound model request has a hard byte
+    budget, so transmit a field table plus positional rows while retaining all
+    page, geometry, unit, excerpt, ordering, and media evidence.
+    """
+
+    pages = task.get("pages")
+    if not isinstance(pages, list) or not pages:
+        _fail("review_task_pages_invalid", "scope review task pages are invalid")
+
+    geometry_profiles: list[list[Any]] = []
+    geometry_indexes: dict[tuple[Any, Any, Any], int] = {}
+    source_prefixes: list[str] = []
+    source_prefix_indexes: dict[str, int] = {}
+    media_prefixes: list[str] = []
+    media_prefix_indexes: dict[str, int] = {}
+    compact_pages: list[list[Any]] = []
+
+    def prefix_index(
+        value: str,
+        delimiter: str,
+        rows: list[str],
+        indexes: dict[str, int],
+    ) -> tuple[int, str]:
+        prefix, suffix = _compact_identifier(value, delimiter)
+        if prefix not in indexes:
+            indexes[prefix] = len(rows)
+            rows.append(prefix)
+        return indexes[prefix], suffix
+
+    for page in pages:
+        if not isinstance(page, Mapping):
+            _fail("review_task_page_invalid", "scope review task page is invalid")
+        geometry = page.get("geometry")
+        units = page.get("source_units")
+        media_atoms = page.get("mineru_media_atoms")
+        if (
+            not isinstance(geometry, Mapping)
+            or not isinstance(units, list)
+            or not isinstance(media_atoms, list)
+        ):
+            _fail("review_task_page_invalid", "scope review task page evidence is invalid")
+        profile = (
+            geometry.get("width_points"),
+            geometry.get("height_points"),
+            geometry.get("rotation_degrees"),
+        )
+        if profile not in geometry_indexes:
+            geometry_indexes[profile] = len(geometry_profiles)
+            geometry_profiles.append(list(profile))
+        compact_units: list[list[Any]] = []
+        for unit in units:
+            if not isinstance(unit, Mapping) or not isinstance(
+                unit.get("source_id"), str
+            ):
+                _fail("review_task_source_invalid", "scope review source unit is invalid")
+            prefix, suffix = prefix_index(
+                unit["source_id"], ":", source_prefixes, source_prefix_indexes
+            )
+            compact_units.append(
+                [
+                    prefix,
+                    suffix,
+                    unit.get("source_label"),
+                    unit.get("bbox"),
+                    unit.get("content_excerpt"),
+                    unit.get("popo_tree_rank"),
+                    unit.get("baseline_scope_status"),
+                    unit.get("baseline_page_order"),
+                ]
+            )
+        compact_media: list[list[Any]] = []
+        for atom in media_atoms:
+            if not isinstance(atom, Mapping) or not isinstance(
+                atom.get("media_id"), str
+            ):
+                _fail("review_task_source_invalid", "scope review media atom is invalid")
+            prefix, suffix = prefix_index(
+                atom["media_id"], "-", media_prefixes, media_prefix_indexes
+            )
+            compact_media.append(
+                [
+                    prefix,
+                    suffix,
+                    atom.get("media_kind"),
+                    atom.get("bbox"),
+                ]
+            )
+        compact_pages.append(
+            [
+                page.get("physical_page"),
+                geometry_indexes[profile],
+                page.get("baseline_scope_status"),
+                page.get("baseline_page_category"),
+                page.get("complexity_flags"),
+                compact_units,
+                compact_media,
+            ]
+        )
+
+    projected = {
+        key: task[key]
+        for key in (
+            "stage_key",
+            "material_id",
+            "source_pdf_sha256",
+            "page_count",
+            "source_unit_count",
+            "bbox_basis",
+            "baseline_algorithm",
+            "baseline_sha256",
+            "required_output_schema",
+            "allowed_choices",
+            "constraints",
+            "capacity",
+        )
+    }
+    projected.update(
+        {
+            "schema_version": "luceon.worker-v3-spec02-model-evidence/v1",
+            "encoding": {
+                "geometry_profile_fields": [
+                    "width_points",
+                    "height_points",
+                    "rotation_degrees",
+                ],
+                "page_fields": [
+                    "physical_page",
+                    "geometry_profile_index",
+                    "baseline_scope_status",
+                    "baseline_page_category",
+                    "complexity_flags",
+                    "source_units",
+                    "mineru_media_atoms",
+                ],
+                "source_unit_fields": [
+                    "source_id_prefix_index",
+                    "source_id_suffix",
+                    "source_label",
+                    "bbox",
+                    "content_excerpt",
+                    "popo_tree_rank",
+                    "baseline_scope_status",
+                    "baseline_page_order",
+                ],
+                "media_atom_fields": [
+                    "media_id_prefix_index",
+                    "media_id_suffix",
+                    "media_kind",
+                    "bbox",
+                ],
+                "identifier_rule": (
+                    "Reconstruct every full identifier by concatenating the "
+                    "indexed prefix and suffix exactly. Return only full identifiers."
+                ),
+            },
+            "geometry_profiles": geometry_profiles,
+            "source_id_prefixes": source_prefixes,
+            "media_id_prefixes": media_prefixes,
+            "pages": compact_pages,
+        }
+    )
+    projected["task_id"] = "scope-model-" + _canonical_hash(projected)[:24]
+    return projected
+
+
 def prepare_scope_review_task(args: argparse.Namespace) -> dict[str, Any]:
     task = _scope_review_task(args.parent.resolve())
     output = args.output.resolve()

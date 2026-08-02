@@ -1526,6 +1526,107 @@ def test_compact_scope_review_expands_large_exhaustive_baseline() -> None:
     )
 
 
+def test_scope_model_evidence_is_lossless_and_fits_large_request_budget() -> None:
+    page_count = 350
+    pages = []
+    for page in range(1, page_count + 1):
+        units = []
+        for index in range(20):
+            units.append(
+                {
+                    "source_id": f"popo_generic_run:{(page - 1) * 20 + index}",
+                    "source_label": "text",
+                    "bbox": [0.1, index / 20, 0.9, (index + 1) / 20],
+                    "content_excerpt": (
+                        f"Source-supported excerpt for page {page}, unit {index}. "
+                        "Keep this evidence unchanged."
+                    ),
+                    "popo_tree_rank": (page - 1) * 20 + index,
+                    "baseline_scope_status": "included",
+                    "baseline_page_order": index + 1,
+                }
+            )
+        pages.append(
+            {
+                "physical_page": page,
+                "geometry": {
+                    "physical_page": page,
+                    "width_points": 612.0,
+                    "height_points": 792.0,
+                    "rotation_degrees": 0,
+                },
+                "baseline_scope_status": "included",
+                "baseline_page_category": "body",
+                "complexity_flags": ["dense_page"],
+                "source_units": units,
+                "mineru_media_atoms": [
+                    {
+                        "media_id": f"media-{page:024x}",
+                        "media_kind": "image",
+                        "bbox": [0.2, 0.2, 0.8, 0.8],
+                    }
+                ],
+            }
+        )
+    task = {
+        "schema_version": kernel.SCOPE_REVIEW_TASK_SCHEMA,
+        "stage_key": "source_scope_and_order",
+        "material_id": "pdf-large-generic",
+        "source_pdf_sha256": "a" * 64,
+        "page_count": page_count,
+        "source_unit_count": page_count * 20,
+        "bbox_basis": "pdf_cropbox_normalized_0_1_top_left",
+        "baseline_algorithm": kernel.SCOPE_BASELINE_ALGORITHM,
+        "baseline_sha256": "b" * 64,
+        "required_output_schema": kernel.SCOPE_REVIEW_SCHEMA,
+        "allowed_choices": {
+            "page_scope_status": ["included", "excluded"],
+            "unit_scope_status": ["included", "excluded"],
+            "relationship_type": ["semantic_group"],
+        },
+        "constraints": ["Use all evidence."],
+        "capacity": {"minimum_response_bytes": 20_000},
+        "task_id": "scope-review-large",
+        "pages": pages,
+    }
+
+    projected = kernel.scope_model_evidence(task)
+
+    assert len(kernel._canonical_bytes(task)) > 1_000_000  # noqa: SLF001
+    assert len(kernel._canonical_bytes(projected)) < 1_000_000  # noqa: SLF001
+    assert projected["page_count"] == page_count
+    assert len(projected["pages"]) == page_count
+    assert projected["geometry_profiles"] == [[612.0, 792.0, 0]]
+    assert projected["source_id_prefixes"] == ["popo_generic_run:"]
+    assert projected["media_id_prefixes"] == ["media-"]
+    for original_page, compact_page in zip(pages, projected["pages"], strict=True):
+        assert compact_page[:5] == [
+            original_page["physical_page"],
+            0,
+            original_page["baseline_scope_status"],
+            original_page["baseline_page_category"],
+            original_page["complexity_flags"],
+        ]
+        for original_unit, compact_unit in zip(
+            original_page["source_units"], compact_page[5], strict=True
+        ):
+            full_id = projected["source_id_prefixes"][compact_unit[0]] + compact_unit[1]
+            assert full_id == original_unit["source_id"]
+            assert compact_unit[2:] == [
+                original_unit["source_label"],
+                original_unit["bbox"],
+                original_unit["content_excerpt"],
+                original_unit["popo_tree_rank"],
+                original_unit["baseline_scope_status"],
+                original_unit["baseline_page_order"],
+            ]
+        compact_atom = compact_page[6][0]
+        full_media_id = (
+            projected["media_id_prefixes"][compact_atom[0]] + compact_atom[1]
+        )
+        assert full_media_id == original_page["mineru_media_atoms"][0]["media_id"]
+
+
 def test_compact_scope_review_projects_only_declared_page_override() -> None:
     source_units = [
         {
