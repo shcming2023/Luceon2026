@@ -16,9 +16,9 @@
     "version": "3.0.0-rc.0",
     "channel": "rc",
     "requested_status": "incomplete",
-    "created_at": "2026-08-02T06:40:00+08:00",
+    "created_at": "2026-08-02T12:10:21+08:00",
     "source": {
-      "git_sha": "15d88fcd10bb25194d23f29e183422c1ef014e63",
+      "git_sha": "ff8658317a55e963342574d53fb50bb755f68ca5",
       "git_tag": null,
       "dirty": false
     },
@@ -182,7 +182,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec01_04_stage_adapters.py",
       "destination": "scripts/worker-v3/spec01_04_stage_adapters.py",
-      "expected_sha256": "49ef90bdb6e5c449cad78a4a8c32954f17cd4b8982092689892d5b7828589061"
+      "expected_sha256": "2379b18b6f203c24011847cf9917ad4652da17e4277b1d1fad4cc9e6a6453947"
     },
     {
       "id": "worker-v3-spec05-06-adapters",
@@ -200,7 +200,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/stage_evaluators.py",
       "destination": "scripts/worker-v3/stage_evaluators.py",
-      "expected_sha256": "14d92cd6443928e5c85d809a280d030eb22b80f920a52d218dc409c144433630"
+      "expected_sha256": "0f64d7fbc462ee7627b62c302627a5273e1277eae52f994ef23125bb268d3f05"
     },
     {
       "id": "worker-v3-page-review-contract-runtime",
@@ -245,7 +245,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec01_03_atomic_kernel.py",
       "destination": "scripts/worker-v3/spec01_03_atomic_kernel.py",
-      "expected_sha256": "83f6bbae02a65f3fa6efee3fdf893f8f87ec657059f0cc103e6ce943d36fce0c"
+      "expected_sha256": "a7765e76a5bf2c1702fc13e003a0f9bd7547ca32bd7cc1d84d057b83bd13cb00"
     },
     {
       "id": "worker-v3-stage-producer-entrypoints",
@@ -281,7 +281,7 @@
       "include": [
         "spec*.txt"
       ],
-      "expected_tree_sha256": "8267d62842f5fd61f383b86d4c187355eaf0f11e6994ef86953c32c446a6b50e"
+      "expected_tree_sha256": "2841f941621366cb111032428cf9a2c65cbdb50fb912225125dc5fa94ebf4ad1"
     },
     {
       "id": "worker-v3-ordinary-schemas",
@@ -335,7 +335,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-identity.json",
       "destination": "runtime/ordinary-runtime-identity.json",
-      "expected_sha256": "9ced0dda8b57c29b64aad22d897f821f4fb202149015509629e120af2697214d"
+      "expected_sha256": "96c2f80bcbecf08c32b1cd3c845fbc5682aeb5286e1409549bb88c76b066365d"
     },
     {
       "id": "worker-v3-ordinary-runtime-build-proof",
@@ -344,7 +344,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-build-proof.json",
       "destination": "runtime/ordinary-runtime-build-proof.json",
-      "expected_sha256": "27c04a26d1b4d990ddd6d5aa5d1daabe557e9740b87539a9b3fdc1aef1cf6140"
+      "expected_sha256": "bd25995f391b1c2dfb1a93ecf17c6c86c77d67b7983657598ddee95cbf1f00ea"
     },
     {
       "id": "worker-v3-ordinary-runtime-sbom",
@@ -353,7 +353,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-sbom.cdx.json",
       "destination": "runtime/ordinary-runtime-sbom.cdx.json",
-      "expected_sha256": "283de94441bc6d6f7bc07d5964dce528b0f680cceac29355eda62d67c4926a9c"
+      "expected_sha256": "f61935397347890107202ec9f88f577e75fdfb705326a486bbca2583c85ef95f"
     },
     {
       "id": "worker-v3-overleaf-target-environment",
@@ -981,7 +981,7 @@
     "python": "CPython 3.12.13",
     "application_dependencies_path": "runtime/requirements-worker-v3.lock",
     "system_tools": {
-      "runtime_id": "worker-v3-runtime-rc-15d88fc-clean",
+      "runtime_id": "worker-v3-runtime-rc-ff86583-clean",
       "system_lock": "runtime/worker-v3-system-packages.lock",
       "identity": "runtime/ordinary-runtime-identity.json",
       "build_proof": "runtime/ordinary-runtime-build-proof.json",
@@ -997,7 +997,7 @@
     "fonts_identity_path": "runtime/ordinary-runtime-identity.json",
     "tex_identity_path": "runtime/ordinary-runtime-identity.json",
     "poppler_identity_path": "runtime/ordinary-runtime-identity.json",
-    "container_image_digest": "sha256:39e0195aa4c16fc31b990564e37c1c439fd0fcc9fcc7905b25d0692d174ce702",
+    "container_image_digest": "sha256:f898a37fb1fdb6065340e2eb06f9d3366059f96ecda44b1bc99f9cf1afef14ef",
     "sbom_path": "runtime/ordinary-runtime-sbom.cdx.json",
     "attestations": [
       "runtime/ordinary-runtime-identity.json",
@@ -1014,11 +1014,11 @@
   "qualification_evidence": {
     "visual_full_page_provider": {
       "required": true,
-      "source_id": "worker-v3-visual-full-page-provider-qualification-15d88fc"
+      "source_id": null
     },
     "spec05_final_image_real_material": {
       "required": true,
-      "source_id": "worker-v3-spec05-final-image-real-material-qualification-15d88fc"
+      "source_id": null
     }
   },
   "known_gaps": [
