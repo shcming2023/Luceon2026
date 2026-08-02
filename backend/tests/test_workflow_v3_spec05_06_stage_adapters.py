@@ -153,6 +153,7 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
     )
 
     review_mode = {"enabled": False}
+    blocking_review_mode = {"enabled": False}
     kernel_failure_mode = {"enabled": False}
 
     def run_kernel(*, args: list[str], **_kwargs: Any) -> SimpleNamespace:
@@ -177,6 +178,37 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
                 stdout="",
                 stderr="delivery ZIP member set differs from clean extraction",
             )
+        if blocking_review_mode["enabled"]:
+            warning_path = spec05 / "reports/compile_warnings.json"
+            _json(
+                warning_path,
+                {
+                    "schema_version": "compile-warnings/3.0",
+                    "status": "failed",
+                    "blocking_findings": ["missing_glyph"],
+                    "summary": {"C0_FATAL": 0, "C1_BLOCKING": 1},
+                    "events": [],
+                },
+            )
+            _json(
+                spec05 / "reports/needs_review.json",
+                {
+                    "schema_version": "spec05-review-state/1.0",
+                    "failure_code": "COMPILE_BLOCKING_WARNING",
+                    "spec_status": "failed",
+                    "warning_report": _artifact(spec05, warning_path),
+                },
+            )
+            _json(spec05 / "final_render_pack/manifest.json", {"pages": 3})
+            _json(spec05 / "reports/final_pdf_page_provenance.json", {"pages": 3})
+            build = spec05 / "build/final"
+            build.mkdir(parents=True, exist_ok=True)
+            (build / "main.log").write_text(
+                "Missing character: There is no glyph.\n",
+                encoding="utf-8",
+            )
+            (build / "main.pdf").write_bytes(b"%PDF-review-candidate")
+            return SimpleNamespace(returncode=1)
         if review_mode["enabled"]:
             warning_path = spec05 / "reports/compile_warnings.json"
             _json(
@@ -283,8 +315,30 @@ def test_spec05_consumes_explicit_promoted_template_capability_input(
     assert review.artifact_kind.endswith("review-candidate")
     assert review.metrics["native_kernel_returncode"] == 1
     assert review.metrics["open_compile_warnings"] == 1
+    assert review.metrics["blocking_compile_findings"] == 0
 
     review_mode["enabled"] = False
+    blocking_review_mode["enabled"] = True
+    blocking_review = adapters._produce_spec05(
+        request,
+        Inputs(),
+        tmp_path / "blocking-review-output",
+        tmp_path,
+    )
+    assert blocking_review.artifact_kind.endswith("review-candidate")
+    assert blocking_review.metrics == {
+        "native_kernel_returncode": 1,
+        "open_compile_warnings": 0,
+        "blocking_compile_findings": 1,
+        "review_class": "blocking_compile_findings",
+        "promotion_status": "not_evaluated",
+    }
+    assert (
+        blocking_review.artifact_roles["spec05/build/final/main.pdf"]
+        == "blocked_candidate_pdf"
+    )
+
+    blocking_review_mode["enabled"] = False
     kernel_failure_mode["enabled"] = True
     with pytest.raises(
         adapters.StageEntrypointError,
@@ -352,6 +406,66 @@ def test_spec05_warning_only_candidate_requires_evidence_bound_review(
     assert evaluation.findings[0]["warning_fingerprints"] == fingerprints
     assert evaluation.findings[0]["recovery_stage"] == "deterministic_elegantbook"
     assert len(evaluation.findings[0]["evidence_refs"]) == 5
+
+
+def test_spec05_blocking_candidate_is_evidence_bound_needs_review(
+    tmp_path: Path,
+) -> None:
+    bundle = tmp_path / "candidate"
+    spec05 = bundle / "spec05"
+    warning_path = spec05 / "reports/compile_warnings.json"
+    _json(
+        warning_path,
+        {
+            "schema_version": "compile-warnings/3.0",
+            "status": "failed",
+            "blocking_findings": ["missing_glyph"],
+            "summary": {"C0_FATAL": 0, "C1_BLOCKING": 1},
+            "events": [],
+        },
+    )
+    _json(
+        spec05 / "reports/needs_review.json",
+        {
+            "schema_version": "spec05-review-state/1.0",
+            "failure_code": "COMPILE_BLOCKING_WARNING",
+            "spec_status": "failed",
+            "warning_report": _artifact(spec05, warning_path),
+        },
+    )
+    _json(spec05 / "final_render_pack/manifest.json", {"pages": 3})
+    _json(spec05 / "reports/final_pdf_page_provenance.json", {"pages": 3})
+    build = spec05 / "build/final"
+    build.mkdir(parents=True, exist_ok=True)
+    (build / "main.log").write_text(
+        "Missing character: There is no glyph.\n",
+        encoding="utf-8",
+    )
+    (build / "main.pdf").write_bytes(b"%PDF-review-candidate")
+
+    evaluation = stage_evaluators._evaluate_spec05(
+        _request("deterministic_elegantbook", tmp_path),
+        EvaluationInput(bundle_root=bundle, content_manifest={}),
+        tmp_path,
+    )
+
+    assert evaluation.disposition == "needs_review"
+    assert evaluation.gate_results == {
+        "formal_native_renderer_used": False,
+        "protected_template_unchanged": False,
+        "delivery_limits_passed": False,
+        "xelatex_recompile_passed": False,
+    }
+    assert evaluation.findings[0]["code"] == (
+        "spec05_compile_blocking_review_open"
+    )
+    assert evaluation.findings[0]["blocking_compile_findings"] == [
+        "missing_glyph"
+    ]
+    assert evaluation.findings[0]["recovery_stage"] == (
+        "deterministic_elegantbook"
+    )
+    assert len(evaluation.findings[0]["evidence_refs"]) == 6
 
 
 def _readiness_fixture(

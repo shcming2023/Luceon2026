@@ -1573,6 +1573,8 @@ def _evaluate_spec05_review_candidate(root: Path) -> StageEvaluation:
     warnings = _read_json(warning_path, "Spec 05 compile warnings")
     bound_warning = _bound_file(root / "spec05", review, "warning_report")
     events = warnings.get("events")
+    blocking_findings = warnings.get("blocking_findings")
+    warning_summary = warnings.get("summary")
     open_events = [
         row
         for row in events
@@ -1580,29 +1582,60 @@ def _evaluate_spec05_review_candidate(root: Path) -> StageEvaluation:
         and row.get("classification") == "C2_REVIEW_REQUIRED_OPEN"
     ] if isinstance(events, list) else []
     open_fingerprints = [row.get("fingerprint") for row in open_events]
-    if (
-        bound_warning != warning_path
-        or review.get("schema_version") != "spec05-review-state/1.0"
-        or review.get("failure_code") != "COMPILE_REVIEW_OPEN"
-        or review.get("spec_status") != "needs_review"
-        or warnings.get("schema_version") != "compile-warnings/3.0"
-        or warnings.get("status") != "needs_review"
-        or warnings.get("blocking_findings") != []
-        or not open_events
-        or len(set(open_fingerprints)) != len(open_fingerprints)
-        or not all(_is_sha256(value) for value in open_fingerprints)
-    ):
+    fingerprints_valid = (
+        all(_is_sha256(value) for value in open_fingerprints)
+        and len(set(open_fingerprints)) == len(open_fingerprints)
+    )
+    common_valid = (
+        bound_warning == warning_path
+        and review.get("schema_version") == "spec05-review-state/1.0"
+        and warnings.get("schema_version") == "compile-warnings/3.0"
+        and fingerprints_valid
+    )
+    warning_only_review = (
+        common_valid
+        and review.get("failure_code") == "COMPILE_REVIEW_OPEN"
+        and review.get("spec_status") == "needs_review"
+        and warnings.get("status") == "needs_review"
+        and blocking_findings == []
+        and bool(open_events)
+    )
+    blocking_review = (
+        common_valid
+        and review.get("failure_code") == "COMPILE_BLOCKING_WARNING"
+        and review.get("spec_status") == "failed"
+        and warnings.get("status") == "failed"
+        and isinstance(blocking_findings, list)
+        and bool(blocking_findings)
+        and all(
+            isinstance(value, str) and bool(value)
+            for value in blocking_findings
+        )
+        and len(set(blocking_findings)) == len(blocking_findings)
+        and isinstance(warning_summary, dict)
+        and warning_summary.get("C0_FATAL") == 0
+        and warning_summary.get("C1_BLOCKING") == len(blocking_findings)
+    )
+    if not warning_only_review and not blocking_review:
         raise StageEntrypointError(
             "spec05_review_candidate_invalid",
-            "Spec 05 review candidate is not an evidence-bound warning-only handoff",
+            "Spec 05 review candidate is not an evidence-bound handoff",
         )
-    evidence_paths = (
+    evidence_paths: tuple[Path, ...] = (
         review_path,
         warning_path,
         render_path,
         provenance_path,
         compile_log,
     )
+    if blocking_review:
+        candidate_pdf = _required(root, "spec05/build/final/main.pdf")
+        if candidate_pdf.stat().st_size == 0:
+            raise StageEntrypointError(
+                "spec05_review_candidate_invalid",
+                "Spec 05 blocking review candidate PDF is empty",
+            )
+        evidence_paths += (candidate_pdf,)
     evidence_refs = [
         {
             "path": path.relative_to(root).as_posix(),
@@ -1610,35 +1643,60 @@ def _evaluate_spec05_review_candidate(root: Path) -> StageEvaluation:
         }
         for path in evidence_paths
     ]
+    finding_code = (
+        "spec05_compile_blocking_review_open"
+        if blocking_review
+        else "spec05_compile_warning_review_open"
+    )
+    handoff = (
+        {
+            "summary": (
+                "XeLaTeX produced a complete evidence-bound candidate, but "
+                "blocking compile findings prevent promotion."
+            ),
+            "required_action": (
+                "Inspect the hash-bound candidate pages and source provenance, "
+                "repair the responsible source or rendering input without "
+                "waiving the blocking gate, then resume only "
+                "deterministic_elegantbook."
+            ),
+            "resume_stage": "deterministic_elegantbook",
+        }
+        if blocking_review
+        else {
+            "summary": (
+                "XeLaTeX completed and produced a full render pack, but "
+                "non-blocking compile warnings require exact visual closure."
+            ),
+            "required_action": (
+                "Inspect the hash-bound rendered pages, submit an approved "
+                "spec05-warning-review/1.0 payload for every fingerprint, "
+                "then resume only deterministic_elegantbook."
+            ),
+            "resume_stage": "deterministic_elegantbook",
+        }
+    )
     return StageEvaluation(
         gate_results={
             "formal_native_renderer_used": False,
             "protected_template_unchanged": False,
             "delivery_limits_passed": False,
-            "xelatex_recompile_passed": True,
+            "xelatex_recompile_passed": not blocking_review,
         },
         findings=(
             {
-                "code": "spec05_compile_warning_review_open",
+                "code": finding_code,
                 "blocking": True,
                 "responsible_stage": "deterministic_elegantbook",
                 "recovery_stage": "deterministic_elegantbook",
+                "blocking_compile_findings": (
+                    list(blocking_findings) if blocking_review else []
+                ),
                 "warning_fingerprints": [
                     str(fingerprint) for fingerprint in open_fingerprints
                 ],
                 "evidence_refs": evidence_refs,
-                "handoff": {
-                    "summary": (
-                        "XeLaTeX completed and produced a full render pack, but "
-                        "non-blocking compile warnings require exact visual closure."
-                    ),
-                    "required_action": (
-                        "Inspect the hash-bound rendered pages, submit an approved "
-                        "spec05-warning-review/1.0 payload for every fingerprint, "
-                        "then resume only deterministic_elegantbook."
-                    ),
-                    "resume_stage": "deterministic_elegantbook",
-                },
+                "handoff": handoff,
             },
         ),
         disposition="needs_review",

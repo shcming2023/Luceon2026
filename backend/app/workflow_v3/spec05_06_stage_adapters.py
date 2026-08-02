@@ -306,25 +306,44 @@ def _produce_spec05(
         review_state = _read_json(review_state_path, "Spec 05 review state")
         warning_report = _read_json(warning_path, "Spec 05 compile warnings")
         warning_events = warning_report.get("events")
+        blocking_findings = warning_report.get("blocking_findings")
+        warning_summary = warning_report.get("summary")
         open_warning_fingerprints = [
             row.get("fingerprint")
             for row in warning_events
             if isinstance(row, dict)
             and row.get("classification") == "C2_REVIEW_REQUIRED_OPEN"
         ] if isinstance(warning_events, list) else []
-        if (
-            review_state.get("schema_version")
-            != "spec05-review-state/1.0"
-            or review_state.get("failure_code") != "COMPILE_REVIEW_OPEN"
-            or review_state.get("spec_status") != "needs_review"
-            or warning_report.get("schema_version") != "compile-warnings/3.0"
-            or warning_report.get("status") != "needs_review"
-            or warning_report.get("blocking_findings") != []
-            or not open_warning_fingerprints
-            or len(set(open_warning_fingerprints))
-            != len(open_warning_fingerprints)
-            or not all(_is_sha256(value) for value in open_warning_fingerprints)
-        ):
+        warning_only_review = (
+            review_state.get("schema_version") == "spec05-review-state/1.0"
+            and review_state.get("failure_code") == "COMPILE_REVIEW_OPEN"
+            and review_state.get("spec_status") == "needs_review"
+            and warning_report.get("schema_version") == "compile-warnings/3.0"
+            and warning_report.get("status") == "needs_review"
+            and blocking_findings == []
+            and bool(open_warning_fingerprints)
+            and all(_is_sha256(value) for value in open_warning_fingerprints)
+            and len(set(open_warning_fingerprints))
+            == len(open_warning_fingerprints)
+        )
+        blocking_review = (
+            review_state.get("schema_version") == "spec05-review-state/1.0"
+            and review_state.get("failure_code") == "COMPILE_BLOCKING_WARNING"
+            and review_state.get("spec_status") == "failed"
+            and warning_report.get("schema_version") == "compile-warnings/3.0"
+            and warning_report.get("status") == "failed"
+            and isinstance(blocking_findings, list)
+            and bool(blocking_findings)
+            and all(
+                isinstance(value, str) and bool(value)
+                for value in blocking_findings
+            )
+            and len(set(blocking_findings)) == len(blocking_findings)
+            and isinstance(warning_summary, dict)
+            and warning_summary.get("C0_FATAL") == 0
+            and warning_summary.get("C1_BLOCKING") == len(blocking_findings)
+        )
+        if not warning_only_review and not blocking_review:
             raise StageEntrypointError(
                 "kernel_failed",
                 "Spec 05 kernel exited nonzero without a valid review candidate",
@@ -333,11 +352,21 @@ def _produce_spec05(
         _required(run, "final_render_pack/manifest.json")
         _required(run, "reports/final_pdf_page_provenance.json")
         _required(run, "build/final/main.log")
+        if blocking_review:
+            _required(run, "build/final/main.pdf")
         return StageProduction(
             artifact_kind="worker-v3-deterministic-elegantbook-review-candidate",
             metrics={
                 "native_kernel_returncode": execution.returncode,
                 "open_compile_warnings": len(open_warning_fingerprints),
+                "blocking_compile_findings": (
+                    len(blocking_findings) if blocking_review else 0
+                ),
+                "review_class": (
+                    "blocking_compile_findings"
+                    if blocking_review
+                    else "open_compile_warnings"
+                ),
                 "promotion_status": "not_evaluated",
             },
             findings=(_candidate_only_finding(),),
@@ -347,6 +376,11 @@ def _produce_spec05(
                 "spec05/final_render_pack/manifest.json": "render_pack",
                 "spec05/reports/final_pdf_page_provenance.json": "page_provenance",
                 "spec05/build/final/main.log": "compile_log",
+                **(
+                    {"spec05/build/final/main.pdf": "blocked_candidate_pdf"}
+                    if blocking_review
+                    else {}
+                ),
             },
         )
     stage = _read_json(
