@@ -1,0 +1,3134 @@
+This is XeTeX, Version 3.141592653-2.6-0.999997 (TeX Live 2025) (preloaded format=xelatex 2025.5.30)  1 JAN 1970 00:00
+entering extended mode
+ \write18 enabled.
+ %&-line parsing enabled.
+**main.tex
+(./main.tex
+LaTeX2e <2024-11-01> patch level 2
+L3 programming layer <2025-04-29>
+(./elegantbook.cls
+Document Class: elegantbook 2022/04/09 v4.3 ElegantBook document class
+(/usr/local/texlive/2025/texmf-dist/tex/latex/kvoptions/kvoptions.sty
+Package: kvoptions 2022-06-15 v3.15 Key value format for package options (HO)
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/graphics/keyval.sty
+Package: keyval 2022/05/29 v1.15 key=value parser (DPC)
+\KV@toks@=\toks17
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/ltxcmds/ltxcmds.sty
+Package: ltxcmds 2023-12-04 v1.26 LaTeX kernel commands for general use (HO)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/kvsetkeys/kvsetkeys.sty
+Package: kvsetkeys 2022-10-05 v1.19 Key value parser (HO)
+))
+(/usr/local/texlive/2025/texmf-dist/tex/latex/etoolbox/etoolbox.sty
+Package: etoolbox 2025/02/11 v2.5l e-TeX tools for LaTeX (JAW)
+\etb@tempcnta=\count268
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/base/book.cls
+Document Class: book 2024/06/29 v1.4n Standard LaTeX document class
+(/usr/local/texlive/2025/texmf-dist/tex/latex/base/bk11.clo
+File: bk11.clo 2024/06/29 v1.4n Standard LaTeX file (size option)
+)
+\c@part=\count269
+\c@chapter=\count270
+\c@section=\count271
+\c@subsection=\count272
+\c@subsubsection=\count273
+\c@paragraph=\count274
+\c@subparagraph=\count275
+\c@figure=\count276
+\c@table=\count277
+\abovecaptionskip=\skip49
+\belowcaptionskip=\skip50
+\bibindent=\dimen146
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/setspace/setspace.sty
+Package: setspace 2022/12/04 v6.7b set line spacing
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/csquotes/csquotes.sty
+Package: csquotes 2024-04-04 v5.2o context-sensitive quotations (JAW)
+\csq@reset=\count278
+\csq@gtype=\count279
+\csq@glevel=\count280
+\csq@qlevel=\count281
+\csq@maxlvl=\count282
+\csq@tshold=\count283
+\csq@ltx@everypar=\toks18
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/csquotes/csquotes.def
+File: csquotes.def 2024-04-04 v5.2o csquotes generic definitions (JAW)
+)
+Package csquotes Info: Trying to load configuration file 'csquotes.cfg'...
+Package csquotes Info: ... configuration file loaded successfully.
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/csquotes/csquotes.cfg
+File: csquotes.cfg 
+))
+(/usr/local/texlive/2025/texmf-dist/tex/latex/hyperref/hyperref.sty
+Package: hyperref 2025-05-20 v7.01m Hypertext links for LaTeX
+
+(/usr/local/texlive/2025/texmf-dist/tex/generic/iftex/iftex.sty
+Package: iftex 2024/12/12 v1.0g TeX engine tests
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/kvdefinekeys/kvdefinekeys.sty
+Package: kvdefinekeys 2019-12-19 v1.6 Define keys (HO)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pdfescape/pdfescape.sty
+Package: pdfescape 2019/12/09 v1.15 Implements pdfTeX's escape features (HO)
+
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pdftexcmds/pdftexcmds.sty
+Package: pdftexcmds 2020-06-27 v0.33 Utility functions of pdfTeX for LuaTeX (HO
+)
+
+(/usr/local/texlive/2025/texmf-dist/tex/generic/infwarerr/infwarerr.sty
+Package: infwarerr 2019/12/03 v1.5 Providing info/warning/error messages (HO)
+)
+Package pdftexcmds Info: \pdf@primitive is available.
+Package pdftexcmds Info: \pdf@ifprimitive is available.
+Package pdftexcmds Info: \pdfdraftmode not found.
+))
+(/usr/local/texlive/2025/texmf-dist/tex/latex/hycolor/hycolor.sty
+Package: hycolor 2020-01-27 v1.10 Color options for hyperref/bookmark (HO)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/hyperref/nameref.sty
+Package: nameref 2023-11-26 v2.56 Cross-referencing by name of section
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/refcount/refcount.sty
+Package: refcount 2019/12/15 v3.6 Data extraction from label references (HO)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/gettitlestring/gettitlestring.s
+ty
+Package: gettitlestring 2019/12/15 v1.6 Cleanup title references (HO)
+)
+\c@section@level=\count284
+) (/usr/local/texlive/2025/texmf-dist/tex/generic/stringenc/stringenc.sty
+Package: stringenc 2019/11/29 v1.12 Convert strings between diff. encodings (HO
+)
+)
+\@linkdim=\dimen147
+\Hy@linkcounter=\count285
+\Hy@pagecounter=\count286
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/hyperref/pd1enc.def
+File: pd1enc.def 2025-05-20 v7.01m Hyperref: PDFDocEncoding definition (HO)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/intcalc/intcalc.sty
+Package: intcalc 2019/12/15 v1.3 Expandable calculations with integers (HO)
+)
+\Hy@SavedSpaceFactor=\count287
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/hyperref/puenc.def
+File: puenc.def 2025-05-20 v7.01m Hyperref: PDF Unicode definition (HO)
+)
+Package hyperref Info: Hyper figures OFF on input line 4157.
+Package hyperref Info: Link nesting OFF on input line 4162.
+Package hyperref Info: Hyper index ON on input line 4165.
+Package hyperref Info: Plain pages OFF on input line 4172.
+Package hyperref Info: Backreferencing OFF on input line 4177.
+Package hyperref Info: Implicit mode ON; LaTeX internals redefined.
+Package hyperref Info: Bookmarks ON on input line 4424.
+\c@Hy@tempcnt=\count288
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/url/url.sty
+\Urlmuskip=\muskip17
+Package: url 2013/09/16  ver 3.4  Verb mode for urls, etc.
+)
+LaTeX Info: Redefining \url on input line 4763.
+\XeTeXLinkMargin=\dimen148
+
+(/usr/local/texlive/2025/texmf-dist/tex/generic/bitset/bitset.sty
+Package: bitset 2019/12/09 v1.3 Handle bit-vector datatype (HO)
+
+(/usr/local/texlive/2025/texmf-dist/tex/generic/bigintcalc/bigintcalc.sty
+Package: bigintcalc 2019/12/15 v1.5 Expandable calculations on big integers (HO
+)
+))
+\Fld@menulength=\count289
+\Field@Width=\dimen149
+\Fld@charsize=\dimen150
+Package hyperref Info: Hyper figures OFF on input line 6042.
+Package hyperref Info: Link nesting OFF on input line 6047.
+Package hyperref Info: Hyper index ON on input line 6050.
+Package hyperref Info: backreferencing OFF on input line 6057.
+Package hyperref Info: Link coloring OFF on input line 6062.
+Package hyperref Info: Link coloring with OCG OFF on input line 6067.
+Package hyperref Info: PDF/A mode OFF on input line 6072.
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/base/atbegshi-ltx.sty
+Package: atbegshi-ltx 2021/01/10 v1.0c Emulation of the original atbegshi
+package with kernel methods
+)
+\Hy@abspage=\count290
+\c@Item=\count291
+\c@Hfootnote=\count292
+)
+Package hyperref Info: Driver (autodetected): hxetex.
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/hyperref/hxetex.def
+File: hxetex.def 2025-05-20 v7.01m Hyperref driver for XeTeX
+\pdfm@box=\box53
+\c@Hy@AnnotLevel=\count293
+\HyField@AnnotCount=\count294
+\Fld@listcount=\count295
+\c@bookmark@seq@number=\count296
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/rerunfilecheck/rerunfilecheck.sty
+Package: rerunfilecheck 2022-07-10 v1.10 Rerun checks for auxiliary files (HO)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/base/atveryend-ltx.sty
+Package: atveryend-ltx 2020/08/19 v1.0a Emulation of the original atveryend pac
+kage
+with kernel methods
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/uniquecounter/uniquecounter.sty
+Package: uniquecounter 2019/12/15 v1.4 Provide unlimited unique counter (HO)
+)
+Package uniquecounter Info: New unique counter `rerunfilecheck' on input line 2
+85.
+)
+\Hy@SectionHShift=\skip51
+)
+Package hyperref Info: Option `breaklinks' set `true' on input line 125.
+Package hyperref Info: Option `unicode' set `true' on input line 125.
+Package hyperref Info: Option `bookmarksnumbered' set `true' on input line 125.
+
+Package hyperref Info: Option `bookmarksopen' set `true' on input line 125.
+Package hyperref Info: Option `colorlinks' set `true' on input line 125.
+Package hyperref Info: Option `plainpages' set `false' on input line 125.
+Package hyperref Info: Option `linktocpage' set `true' on input line 125.
+ (/usr/local/texlive/2025/texmf-dist/tex/latex/geometry/geometry.sty
+Package: geometry 2020/01/02 v5.9 Page Geometry
+
+(/usr/local/texlive/2025/texmf-dist/tex/generic/iftex/ifvtex.sty
+Package: ifvtex 2019/10/25 v1.7 ifvtex legacy package. Use iftex instead.
+)
+\Gm@cnth=\count297
+\Gm@cntv=\count298
+\c@Gm@tempcnt=\count299
+\Gm@bindingoffset=\dimen151
+\Gm@wd@mp=\dimen152
+\Gm@odd@mp=\dimen153
+\Gm@even@mp=\dimen154
+\Gm@layoutwidth=\dimen155
+\Gm@layoutheight=\dimen156
+\Gm@layouthoffset=\dimen157
+\Gm@layoutvoffset=\dimen158
+\Gm@dimlist=\toks19
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/tools/indentfirst.sty
+Package: indentfirst 2023/07/02 v1.03 Indent first paragraph (DPC)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/comment/comment.sty
+\CommentStream=\write3
+
+Excluding comment 'comment')
+(/usr/local/texlive/2025/texmf-dist/tex/latex/fontspec/fontspec.sty
+(/usr/local/texlive/2025/texmf-dist/tex/latex/l3packages/xparse/xparse.sty
+(/usr/local/texlive/2025/texmf-dist/tex/latex/l3kernel/expl3.sty
+Package: expl3 2025-04-29 L3 programming layer (loader) 
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/l3backend/l3backend-xetex.def
+File: l3backend-xetex.def 2025-04-14 L3 backend support: XeTeX
+\g__graphics_track_int=\count300
+\g__pdfannot_backend_int=\count301
+\g__pdfannot_backend_link_int=\count302
+))
+Package: xparse 2024-08-16 L3 Experimental document command parser
+)
+Package: fontspec 2024/05/11 v2.9e Font selection for XeLaTeX and LuaLaTeX
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/fontspec/fontspec-xetex.sty
+Package: fontspec-xetex 2024/05/11 v2.9e Font selection for XeLaTeX and LuaLaTe
+X
+\l__fontspec_script_int=\count303
+\l__fontspec_language_int=\count304
+\l__fontspec_strnum_int=\count305
+\l__fontspec_tmp_int=\count306
+\l__fontspec_tmpa_int=\count307
+\l__fontspec_tmpb_int=\count308
+\l__fontspec_tmpc_int=\count309
+\l__fontspec_em_int=\count310
+\l__fontspec_emdef_int=\count311
+\l__fontspec_strong_int=\count312
+\l__fontspec_strongdef_int=\count313
+\l__fontspec_tmpa_dim=\dimen159
+\l__fontspec_tmpb_dim=\dimen160
+\l__fontspec_tmpc_dim=\dimen161
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/base/fontenc.sty
+Package: fontenc 2021/04/29 v2.0v Standard LaTeX package
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/fontspec/fontspec.cfg)))
+LaTeX Font Info:    Font shape `TU/texgyretermes(0)/m/n' will be
+(Font)              scaled to size 10.95pt on input line 176.
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/anyfontsize/anyfontsize.sty
+Invalid UTF-8 byte or sequence at line 3 replaced by U+FFFD.
+Invalid UTF-8 byte or sequence at line 3 replaced by U+FFFD.
+Package: anyfontsize 2007/11/22 anyfontsize.sty by pts
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/xcolor/xcolor.sty
+Package: xcolor 2024/09/29 v3.02 LaTeX color extensions (UK)
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/graphics-cfg/color.cfg
+File: color.cfg 2016/01/02 v1.6 sample color configuration
+)
+Package xcolor Info: Driver file: xetex.def on input line 274.
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/graphics-def/xetex.def
+File: xetex.def 2022/09/22 v5.0n Graphics/color driver for xetex
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/graphics/mathcolor.ltx)
+Package xcolor Info: Model `cmy' substituted by `cmy0' on input line 1349.
+Package xcolor Info: Model `RGB' extended on input line 1365.
+Package xcolor Info: Model `HTML' substituted by `rgb' on input line 1367.
+Package xcolor Info: Model `Hsb' substituted by `hsb' on input line 1368.
+Package xcolor Info: Model `tHsb' substituted by `hsb' on input line 1369.
+Package xcolor Info: Model `HSB' substituted by `hsb' on input line 1370.
+Package xcolor Info: Model `Gray' substituted by `gray' on input line 1371.
+Package xcolor Info: Model `wave' substituted by `hsb' on input line 1372.
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/colortbl/colortbl.sty
+Package: colortbl 2024/10/29 v1.0k Color table columns (DPC)
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/tools/array.sty
+Package: array 2024/10/17 v2.6g Tabular extension package (FMi)
+\col@sep=\dimen162
+\ar@mcellbox=\box54
+\extrarowheight=\dimen163
+\NC@list=\toks20
+\extratabsurround=\skip52
+\backup@length=\skip53
+\ar@cellbox=\box55
+)
+\everycr=\toks21
+\minrowclearance=\skip54
+\rownum=\count314
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/mwe/mwe.sty
+Package: mwe 2018/03/30 v0.5 Package to support minimal working examples (MWE)
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/graphics/graphicx.sty
+Package: graphicx 2021/09/16 v1.2d Enhanced LaTeX Graphics (DPC,SPQR)
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/graphics/graphics.sty
+Package: graphics 2024/08/06 v1.4g Standard LaTeX Graphics (DPC,SPQR)
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/graphics/trig.sty
+Package: trig 2023/12/02 v1.11 sin cos tan (DPC)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/graphics-cfg/graphics.cfg
+File: graphics.cfg 2016/06/04 v1.11 sample graphics configuration
+)
+Package graphics Info: Driver file: xetex.def on input line 106.
+)
+\Gin@req@height=\dimen164
+\Gin@req@width=\dimen165
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/lipsum/lipsum.sty
+(/usr/local/texlive/2025/texmf-dist/tex/latex/l3packages/l3keys2e/l3keys2e.sty
+Package: l3keys2e 2024-08-16 LaTeX2e option processing using LaTeX3 keys
+)
+Package: lipsum 2021-09-20 v2.7 150 paragraphs of Lorem Ipsum dummy text
+\g__lipsum_par_int=\count315
+\l__lipsum_a_int=\count316
+\l__lipsum_b_int=\count317
+(/usr/local/texlive/2025/texmf-dist/tex/latex/lipsum/lipsum.ltd.tex))
+(/usr/local/texlive/2025/texmf-dist/tex/latex/blindtext/blindtext.sty
+Package: blindtext 2012/01/06 V2.0 blindtext-Package
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/tools/xspace.sty
+Package: xspace 2014/10/28 v1.13 Space after command names (DPC,MH)
+)
+\c@blindtext=\count318
+\c@Blindtext=\count319
+\c@blind@countparstart=\count320
+\blind@countxx=\count321
+\blindtext@numBlindtext=\count322
+\blind@countyy=\count323
+\c@blindlist=\count324
+\c@blindlistlevel=\count325
+\c@blindlist@level=\count326
+\blind@listitem=\count327
+\c@blind@listcount=\count328
+\c@blind@levelcount=\count329
+\blind@mathformula=\count330
+\blind@Mathformula=\count331
+\c@blind@randomcount=\count332
+\c@blind@randommax=\count333
+\c@blind@pangramcount=\count334
+\c@blind@pangrammax=\count335
+))
+(/usr/local/texlive/2025/texmf-dist/tex/latex/tools/enumerate.sty
+Package: enumerate 2023/07/04 v3.00 enumerate extensions (DPC)
+\@enLab=\toks22
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/enumitem/enumitem.sty
+Package: enumitem 2025/02/06 v3.11 Customized lists
+\labelindent=\skip55
+\enit@outerparindent=\dimen166
+\enit@toks=\toks23
+\enit@inbox=\box56
+\enit@count@id=\count336
+\enitdp@description=\count337
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/caption/caption.sty
+Package: caption 2023/08/05 v3.6o Customizing captions (AR)
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/caption/caption3.sty
+Package: caption3 2023/07/31 v2.4d caption3 kernel (AR)
+\caption@tempdima=\dimen167
+\captionmargin=\dimen168
+\caption@leftmargin=\dimen169
+\caption@rightmargin=\dimen170
+\caption@width=\dimen171
+\caption@indent=\dimen172
+\caption@parindent=\dimen173
+\caption@hangindent=\dimen174
+Package caption Info: Standard document class detected.
+)
+\c@caption@flags=\count338
+\c@continuedfloat=\count339
+Package caption Info: hyperref package is loaded.
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/amsmath/amsmath.sty
+Package: amsmath 2024/11/05 v2.17t AMS math features
+\@mathmargin=\skip56
+
+For additional information on amsmath, use the `?' option.
+(/usr/local/texlive/2025/texmf-dist/tex/latex/amsmath/amstext.sty
+Package: amstext 2021/08/26 v2.01 AMS text
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/amsmath/amsgen.sty
+File: amsgen.sty 1999/11/30 v2.0 generic functions
+\@emptytoks=\toks24
+\ex@=\dimen175
+))
+(/usr/local/texlive/2025/texmf-dist/tex/latex/amsmath/amsbsy.sty
+Package: amsbsy 1999/11/29 v1.2d Bold Symbols
+\pmbraise@=\dimen176
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/amsmath/amsopn.sty
+Package: amsopn 2022/04/08 v2.04 operator names
+)
+\inf@bad=\count340
+LaTeX Info: Redefining \frac on input line 233.
+\uproot@=\count341
+\leftroot@=\count342
+LaTeX Info: Redefining \overline on input line 398.
+LaTeX Info: Redefining \colon on input line 409.
+\classnum@=\count343
+\DOTSCASE@=\count344
+LaTeX Info: Redefining \ldots on input line 495.
+LaTeX Info: Redefining \dots on input line 498.
+LaTeX Info: Redefining \cdots on input line 619.
+\Mathstrutbox@=\box57
+\strutbox@=\box58
+LaTeX Info: Redefining \big on input line 721.
+LaTeX Info: Redefining \Big on input line 722.
+LaTeX Info: Redefining \bigg on input line 723.
+LaTeX Info: Redefining \Bigg on input line 724.
+\big@size=\dimen177
+LaTeX Font Info:    Redeclaring font encoding OML on input line 742.
+LaTeX Font Info:    Redeclaring font encoding OMS on input line 743.
+\macc@depth=\count345
+LaTeX Info: Redefining \bmod on input line 904.
+LaTeX Info: Redefining \pmod on input line 909.
+LaTeX Info: Redefining \smash on input line 939.
+LaTeX Info: Redefining \relbar on input line 969.
+LaTeX Info: Redefining \Relbar on input line 970.
+\c@MaxMatrixCols=\count346
+\dotsspace@=\muskip18
+\c@parentequation=\count347
+\dspbrk@lvl=\count348
+\tag@help=\toks25
+\row@=\count349
+\column@=\count350
+\maxfields@=\count351
+\andhelp@=\toks26
+\eqnshift@=\dimen178
+\alignsep@=\dimen179
+\tagshift@=\dimen180
+\tagwidth@=\dimen181
+\totwidth@=\dimen182
+\lineht@=\dimen183
+\@envbody=\toks27
+\multlinegap=\skip57
+\multlinetaggap=\skip58
+\mathdisplay@stack=\toks28
+LaTeX Info: Redefining \[ on input line 2953.
+LaTeX Info: Redefining \] on input line 2954.
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/jknapltx/mathrsfs.sty
+Package: mathrsfs 1996/01/01 Math RSFS package v1.0 (jk)
+\symrsfs=\mathgroup4
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/amsfonts/amsfonts.sty
+Package: amsfonts 2013/01/14 v3.01 Basic AMSFonts support
+\symAMSa=\mathgroup5
+\symAMSb=\mathgroup6
+LaTeX Font Info:    Redeclaring math symbol \hbar on input line 98.
+LaTeX Font Info:    Overwriting math alphabet `\mathfrak' in version `bold'
+(Font)                  U/euf/m/n --> U/euf/b/n on input line 106.
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/amsfonts/amssymb.sty
+Package: amssymb 2013/01/14 v3.01 AMS font symbols
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/booktabs/booktabs.sty
+Package: booktabs 2020/01/12 v1.61803398 Publication quality tables
+\heavyrulewidth=\dimen184
+\lightrulewidth=\dimen185
+\cmidrulewidth=\dimen186
+\belowrulesep=\dimen187
+\belowbottomsep=\dimen188
+\aboverulesep=\dimen189
+\abovetopsep=\dimen190
+\cmidrulesep=\dimen191
+\cmidrulekern=\dimen192
+\defaultaddspace=\dimen193
+\@cmidla=\count352
+\@cmidlb=\count353
+\@aboverulesep=\dimen194
+\@belowrulesep=\dimen195
+\@thisruleclass=\count354
+\@lastruleclass=\count355
+\@thisrulewidth=\dimen196
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/tools/multicol.sty
+Package: multicol 2024/09/14 v1.9i multicolumn formatting (FMi)
+\c@tracingmulticols=\count356
+\mult@box=\box59
+\multicol@leftmargin=\dimen197
+\c@unbalance=\count357
+\c@collectmore=\count358
+\doublecol@number=\count359
+\multicoltolerance=\count360
+\multicolpretolerance=\count361
+\full@width=\dimen198
+\page@free=\dimen199
+\premulticols=\dimen256
+\postmulticols=\dimen257
+\multicolsep=\skip59
+\multicolbaselineskip=\skip60
+\partial@page=\box60
+\last@line=\box61
+\mc@boxedresult=\box62
+\maxbalancingoverflow=\dimen258
+\mult@rightbox=\box63
+\mult@grightbox=\box64
+\mult@firstbox=\box65
+\mult@gfirstbox=\box66
+\@tempa=\box67
+\@tempa=\box68
+\@tempa=\box69
+\@tempa=\box70
+\@tempa=\box71
+\@tempa=\box72
+\@tempa=\box73
+\@tempa=\box74
+\@tempa=\box75
+\@tempa=\box76
+\@tempa=\box77
+\@tempa=\box78
+\@tempa=\box79
+\@tempa=\box80
+\@tempa=\box81
+\@tempa=\box82
+\@tempa=\box83
+\@tempa=\box84
+\@tempa=\box85
+\@tempa=\box86
+\@tempa=\box87
+\@tempa=\box88
+\@tempa=\box89
+\@tempa=\box90
+\@tempa=\box91
+\@tempa=\box92
+\@tempa=\box93
+\@tempa=\box94
+\@tempa=\box95
+\@tempa=\box96
+\@tempa=\box97
+\@tempa=\box98
+\@tempa=\box99
+\@tempa=\box100
+\@tempa=\box101
+\@tempa=\box102
+\c@minrows=\count362
+\c@columnbadness=\count363
+\c@finalcolumnbadness=\count364
+\last@try=\dimen259
+\multicolovershoot=\dimen260
+\multicolundershoot=\dimen261
+\mult@nat@firstbox=\box103
+\colbreak@box=\box104
+\mc@col@check@num=\count365
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/multirow/multirow.sty
+Package: multirow 2024/11/12 v2.9 Span multiple rows of a table
+\multirow@colwidth=\skip61
+\multirow@cntb=\count366
+\multirow@dima=\skip62
+\bigstrutjot=\dimen262
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/fancyvrb/fancyvrb.sty
+Package: fancyvrb 2024/01/20 4.5c verbatim text (tvz,hv)
+\FV@CodeLineNo=\count367
+\FV@InFile=\read2
+\FV@TabBox=\box105
+\c@FancyVerbLine=\count368
+\FV@StepNumber=\count369
+\FV@OutFile=\write4
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/makecell/makecell.sty
+Package: makecell 2009/08/03 V0.1e Managing of Tab Column Heads and Cells
+\rotheadsize=\dimen263
+\c@nlinenum=\count370
+\TeXr@lab=\toks29
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/hologo/hologo.sty
+Package: hologo 2021-11-16 v1.15 A logo collection with bookmark support (HO)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/titlesec/titlesec.sty
+Package: titlesec 2025/01/04 v2.17 Sectioning titles
+\ttl@box=\box106
+\beforetitleunit=\skip63
+\aftertitleunit=\skip64
+\ttl@plus=\dimen264
+\ttl@minus=\dimen265
+\ttl@toksa=\toks30
+\titlewidth=\dimen266
+\titlewidthlast=\dimen267
+\titlewidthfirst=\dimen268
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/titlesec/titleps.sty))
+(/usr/local/texlive/2025/texmf-dist/tex/latex/appendix/appendix.sty
+Package: appendix 2020/02/08 v1.2c extra appendix facilities
+\c@@pps=\count371
+\c@@ppsavesec=\count372
+\c@@ppsaveapp=\count373
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/biblatex/biblatex.sty
+Package: biblatex 2024/03/21 v3.20 programmable bibliographies (PK/MW)
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/logreq/logreq.sty
+Package: logreq 2010/08/04 v1.0 xml request logger
+\lrq@indent=\count374
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/logreq/logreq.def
+File: logreq.def 2010/08/04 v1.0 logreq spec v1.0
+))
+(/usr/local/texlive/2025/texmf-dist/tex/latex/base/ifthen.sty
+Package: ifthen 2024/03/16 v1.1e Standard LaTeX ifthen package (DPC)
+)
+\c@tabx@nest=\count375
+\c@listtotal=\count376
+\c@listcount=\count377
+\c@liststart=\count378
+\c@liststop=\count379
+\c@citecount=\count380
+\c@citetotal=\count381
+\c@multicitecount=\count382
+\c@multicitetotal=\count383
+\c@instcount=\count384
+\c@maxnames=\count385
+\c@minnames=\count386
+\c@maxitems=\count387
+\c@minitems=\count388
+\c@citecounter=\count389
+\c@maxcitecounter=\count390
+\c@savedcitecounter=\count391
+\c@uniquelist=\count392
+\c@uniquename=\count393
+\c@refsection=\count394
+\c@refsegment=\count395
+\c@maxextratitle=\count396
+\c@maxextratitleyear=\count397
+\c@maxextraname=\count398
+\c@maxextradate=\count399
+\c@maxextraalpha=\count400
+\c@abbrvpenalty=\count401
+\c@highnamepenalty=\count402
+\c@lownamepenalty=\count403
+\c@maxparens=\count404
+\c@parenlevel=\count405
+\blx@tempcnta=\count406
+\blx@tempcntb=\count407
+\blx@tempcntc=\count408
+\c@blx@maxsection=\count409
+\blx@maxsegment@0=\count410
+\blx@notetype=\count411
+\blx@parenlevel@text=\count412
+\blx@parenlevel@foot=\count413
+\blx@sectionciteorder@0=\count414
+\blx@sectionciteorderinternal@0=\count415
+\blx@entrysetcounter=\count416
+\blx@biblioinstance=\count417
+\labelnumberwidth=\skip65
+\labelalphawidth=\skip66
+\biblabelsep=\skip67
+\bibitemsep=\skip68
+\bibnamesep=\skip69
+\bibinitsep=\skip70
+\bibparsep=\skip71
+\bibhang=\skip72
+\blx@bcfin=\read3
+\blx@bcfout=\write5
+\blx@langwohyphens=\language90
+\c@mincomprange=\count418
+\c@maxcomprange=\count419
+\c@mincompwidth=\count420
+Package biblatex Info: Trying to load biblatex default data model...
+Package biblatex Info: ... file 'blx-dm.def' found.
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/biblatex/blx-dm.def
+File: blx-dm.def 2024/03/21 v3.20 biblatex datamodel (PK/MW)
+)
+Package biblatex Info: Trying to load biblatex citestyle data model...
+Package biblatex Info: ... file 'numeric-comp.dbx' not found.
+Package biblatex Info: Trying to load biblatex bibstyle data model...
+Package biblatex Info: ... file 'numeric.dbx' not found.
+Package biblatex Info: Trying to load biblatex custom data model...
+Package biblatex Info: ... file 'biblatex-dm.cfg' not found.
+\c@afterword=\count421
+\c@savedafterword=\count422
+\c@annotator=\count423
+\c@savedannotator=\count424
+\c@author=\count425
+\c@savedauthor=\count426
+\c@bookauthor=\count427
+\c@savedbookauthor=\count428
+\c@commentator=\count429
+\c@savedcommentator=\count430
+\c@editor=\count431
+\c@savededitor=\count432
+\c@editora=\count433
+\c@savededitora=\count434
+\c@editorb=\count435
+\c@savededitorb=\count436
+\c@editorc=\count437
+\c@savededitorc=\count438
+\c@foreword=\count439
+\c@savedforeword=\count440
+\c@holder=\count441
+\c@savedholder=\count442
+\c@introduction=\count443
+\c@savedintroduction=\count444
+\c@namea=\count445
+\c@savednamea=\count446
+\c@nameb=\count447
+\c@savednameb=\count448
+\c@namec=\count449
+\c@savednamec=\count450
+\c@translator=\count451
+\c@savedtranslator=\count452
+\c@shortauthor=\count453
+\c@savedshortauthor=\count454
+\c@shorteditor=\count455
+\c@savedshorteditor=\count456
+\c@labelname=\count457
+\c@savedlabelname=\count458
+\c@institution=\count459
+\c@savedinstitution=\count460
+\c@lista=\count461
+\c@savedlista=\count462
+\c@listb=\count463
+\c@savedlistb=\count464
+\c@listc=\count465
+\c@savedlistc=\count466
+\c@listd=\count467
+\c@savedlistd=\count468
+\c@liste=\count469
+\c@savedliste=\count470
+\c@listf=\count471
+\c@savedlistf=\count472
+\c@location=\count473
+\c@savedlocation=\count474
+\c@organization=\count475
+\c@savedorganization=\count476
+\c@origlocation=\count477
+\c@savedoriglocation=\count478
+\c@origpublisher=\count479
+\c@savedorigpublisher=\count480
+\c@publisher=\count481
+\c@savedpublisher=\count482
+\c@language=\count483
+\c@savedlanguage=\count484
+\c@origlanguage=\count485
+\c@savedoriglanguage=\count486
+\c@pageref=\count487
+\c@savedpageref=\count488
+\shorthandwidth=\skip73
+\shortjournalwidth=\skip74
+\shortserieswidth=\skip75
+\shorttitlewidth=\skip76
+\shortauthorwidth=\skip77
+\shorteditorwidth=\skip78
+\locallabelnumberwidth=\skip79
+\locallabelalphawidth=\skip80
+\localshorthandwidth=\skip81
+\localshortjournalwidth=\skip82
+\localshortserieswidth=\skip83
+\localshorttitlewidth=\skip84
+\localshortauthorwidth=\skip85
+\localshorteditorwidth=\skip86
+Package biblatex Info: Trying to load enhanced support for Unicode engines...
+Package biblatex Info: ... file 'blx-unicode.def' found.
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/biblatex/blx-unicode.def)
+Package biblatex Info: Trying to load compatibility code...
+Package biblatex Info: ... file 'blx-compat.def' found.
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/biblatex/blx-compat.def
+File: blx-compat.def 2024/03/21 v3.20 biblatex compatibility (PK/MW)
+)
+Package biblatex Info: Trying to load generic definitions...
+Package biblatex Info: ... file 'biblatex.def' found.
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/biblatex/biblatex.def
+File: biblatex.def 2024/03/21 v3.20 biblatex compatibility (PK/MW)
+\c@textcitecount=\count489
+\c@textcitetotal=\count490
+\c@textcitemaxnames=\count491
+\c@biburlbigbreakpenalty=\count492
+\c@biburlbreakpenalty=\count493
+\c@biburlnumpenalty=\count494
+\c@biburlucpenalty=\count495
+\c@biburllcpenalty=\count496
+\biburlbigskip=\muskip19
+\biburlnumskip=\muskip20
+\biburlucskip=\muskip21
+\biburllcskip=\muskip22
+\c@smartand=\count497
+)
+Package biblatex Info: Trying to load bibliography style 'numeric'...
+Package biblatex Info: ... file 'numeric.bbx' found.
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/biblatex/bbx/numeric.bbx
+File: numeric.bbx 2024/03/21 v3.20 biblatex bibliography style (PK/MW)
+Package biblatex Info: Trying to load bibliography style 'standard'...
+Package biblatex Info: ... file 'standard.bbx' found.
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/biblatex/bbx/standard.bbx
+File: standard.bbx 2024/03/21 v3.20 biblatex bibliography style (PK/MW)
+\c@bbx:relatedcount=\count498
+\c@bbx:relatedtotal=\count499
+))
+Package biblatex Info: Trying to load citation style 'numeric-comp'...
+Package biblatex Info: ... file 'numeric-comp.cbx' found.
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/biblatex/cbx/numeric-comp.cbx
+File: numeric-comp.cbx 2024/03/21 v3.20 biblatex citation style (PK/MW)
+\c@cbx@tempcnta=\count500
+\c@cbx@tempcntb=\count501
+\c@cbx@tempcntc=\count502
+\c@cbx@tempcntd=\count503
+Package biblatex Info: Redefining '\cite'.
+Package biblatex Info: Redefining '\parencite'.
+Package biblatex Info: Redefining '\footcite'.
+Package biblatex Info: Redefining '\footcitetext'.
+Package biblatex Info: Redefining '\smartcite'.
+Package biblatex Info: Redefining '\supercite'.
+Package biblatex Info: Redefining '\textcite'.
+Package biblatex Info: Redefining '\textcites'.
+Package biblatex Info: Redefining '\cites'.
+Package biblatex Info: Redefining '\parencites'.
+Package biblatex Info: Redefining '\smartcites'.
+)
+Package biblatex Info: Trying to load configuration file...
+Package biblatex Info: ... file 'biblatex.cfg' found.
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/biblatex/biblatex.cfg
+File: biblatex.cfg 
+)
+Package biblatex Info: XeTeX detected.
+(biblatex)             Assuming input encoding 'utf8'.
+Package biblatex Info: Document encoding is UTF8 ....
+Package biblatex Info: ... and expl3
+(biblatex)             2025-04-29 L3 programming layer (loader) 
+(biblatex)             is new enough (at least 2020/04/06),
+(biblatex)             setting 'casechanger=expl3'.
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/biblatex/blx-case-expl3.sty
+Package: blx-case-expl3 2024/03/21 v3.20 expl3 case changing code for biblatex
+))
+(/usr/local/texlive/2025/texmf-dist/tex/latex/pgf/frontendlayer/tikz.sty
+(/usr/local/texlive/2025/texmf-dist/tex/latex/pgf/basiclayer/pgf.sty
+(/usr/local/texlive/2025/texmf-dist/tex/latex/pgf/utilities/pgfrcs.sty
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/utilities/pgfutil-common.te
+x
+\pgfutil@everybye=\toks31
+\pgfutil@tempdima=\dimen269
+\pgfutil@tempdimb=\dimen270
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/utilities/pgfutil-latex.def
+\pgfutil@abb=\box107
+) (/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/utilities/pgfrcs.code.tex
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/pgf.revision.tex)
+Package: pgfrcs 2023-01-15 v3.1.10 (3.1.10)
+))
+Package: pgf 2023-01-15 v3.1.10 (3.1.10)
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/pgf/basiclayer/pgfcore.sty
+(/usr/local/texlive/2025/texmf-dist/tex/latex/pgf/systemlayer/pgfsys.sty
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/systemlayer/pgfsys.code.tex
+Package: pgfsys 2023-01-15 v3.1.10 (3.1.10)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/utilities/pgfkeys.code.tex
+\pgfkeys@pathtoks=\toks32
+\pgfkeys@temptoks=\toks33
+
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/utilities/pgfkeyslibraryfil
+tered.code.tex
+\pgfkeys@tmptoks=\toks34
+))
+\pgf@x=\dimen271
+\pgf@y=\dimen272
+\pgf@xa=\dimen273
+\pgf@ya=\dimen274
+\pgf@xb=\dimen275
+\pgf@yb=\dimen276
+\pgf@xc=\dimen277
+\pgf@yc=\dimen278
+\pgf@xd=\dimen279
+\pgf@yd=\dimen280
+\w@pgf@writea=\write6
+\r@pgf@reada=\read4
+\c@pgf@counta=\count504
+\c@pgf@countb=\count505
+\c@pgf@countc=\count506
+\c@pgf@countd=\count507
+\t@pgf@toka=\toks35
+\t@pgf@tokb=\toks36
+\t@pgf@tokc=\toks37
+\pgf@sys@id@count=\count508
+
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/systemlayer/pgf.cfg
+File: pgf.cfg 2023-01-15 v3.1.10 (3.1.10)
+)
+Driver file for pgf: pgfsys-xetex.def
+
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/systemlayer/pgfsys-xetex.de
+f
+File: pgfsys-xetex.def 2023-01-15 v3.1.10 (3.1.10)
+
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/systemlayer/pgfsys-dvipdfmx
+.def
+File: pgfsys-dvipdfmx.def 2023-01-15 v3.1.10 (3.1.10)
+
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/systemlayer/pgfsys-common-p
+df.def
+File: pgfsys-common-pdf.def 2023-01-15 v3.1.10 (3.1.10)
+)
+\pgfsys@objnum=\count509
+)))
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/systemlayer/pgfsyssoftpath.
+code.tex
+File: pgfsyssoftpath.code.tex 2023-01-15 v3.1.10 (3.1.10)
+\pgfsyssoftpath@smallbuffer@items=\count510
+\pgfsyssoftpath@bigbuffer@items=\count511
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/systemlayer/pgfsysprotocol.
+code.tex
+File: pgfsysprotocol.code.tex 2023-01-15 v3.1.10 (3.1.10)
+))
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/basiclayer/pgfcore.code.tex
+Package: pgfcore 2023-01-15 v3.1.10 (3.1.10)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/math/pgfmath.code.tex
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/math/pgfmathutil.code.tex)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/math/pgfmathparser.code.tex
+\pgfmath@dimen=\dimen281
+\pgfmath@count=\count512
+\pgfmath@box=\box108
+\pgfmath@toks=\toks38
+\pgfmath@stack@operand=\toks39
+\pgfmath@stack@operation=\toks40
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.code.
+tex)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.basic
+.code.tex)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.trigo
+nometric.code.tex)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.rando
+m.code.tex)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.compa
+rison.code.tex)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.base.
+code.tex)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.round
+.code.tex)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.misc.
+code.tex)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.integ
+erarithmetics.code.tex)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/math/pgfmathcalc.code.tex)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/math/pgfmathfloat.code.tex
+\c@pgfmathroundto@lastzeros=\count513
+)) (/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/math/pgfint.code.tex)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/basiclayer/pgfcorepoints.co
+de.tex
+File: pgfcorepoints.code.tex 2023-01-15 v3.1.10 (3.1.10)
+\pgf@picminx=\dimen282
+\pgf@picmaxx=\dimen283
+\pgf@picminy=\dimen284
+\pgf@picmaxy=\dimen285
+\pgf@pathminx=\dimen286
+\pgf@pathmaxx=\dimen287
+\pgf@pathminy=\dimen288
+\pgf@pathmaxy=\dimen289
+\pgf@xx=\dimen290
+\pgf@xy=\dimen291
+\pgf@yx=\dimen292
+\pgf@yy=\dimen293
+\pgf@zx=\dimen294
+\pgf@zy=\dimen295
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/basiclayer/pgfcorepathconst
+ruct.code.tex
+File: pgfcorepathconstruct.code.tex 2023-01-15 v3.1.10 (3.1.10)
+\pgf@path@lastx=\dimen296
+\pgf@path@lasty=\dimen297
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/basiclayer/pgfcorepathusage
+.code.tex
+File: pgfcorepathusage.code.tex 2023-01-15 v3.1.10 (3.1.10)
+\pgf@shorten@end@additional=\dimen298
+\pgf@shorten@start@additional=\dimen299
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/basiclayer/pgfcorescopes.co
+de.tex
+File: pgfcorescopes.code.tex 2023-01-15 v3.1.10 (3.1.10)
+\pgfpic=\box109
+\pgf@hbox=\box110
+\pgf@layerbox@main=\box111
+\pgf@picture@serial@count=\count514
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/basiclayer/pgfcoregraphicst
+ate.code.tex
+File: pgfcoregraphicstate.code.tex 2023-01-15 v3.1.10 (3.1.10)
+\pgflinewidth=\dimen300
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/basiclayer/pgfcoretransform
+ations.code.tex
+File: pgfcoretransformations.code.tex 2023-01-15 v3.1.10 (3.1.10)
+\pgf@pt@x=\dimen301
+\pgf@pt@y=\dimen302
+\pgf@pt@temp=\dimen303
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/basiclayer/pgfcorequick.cod
+e.tex
+File: pgfcorequick.code.tex 2023-01-15 v3.1.10 (3.1.10)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/basiclayer/pgfcoreobjects.c
+ode.tex
+File: pgfcoreobjects.code.tex 2023-01-15 v3.1.10 (3.1.10)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/basiclayer/pgfcorepathproce
+ssing.code.tex
+File: pgfcorepathprocessing.code.tex 2023-01-15 v3.1.10 (3.1.10)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/basiclayer/pgfcorearrows.co
+de.tex
+File: pgfcorearrows.code.tex 2023-01-15 v3.1.10 (3.1.10)
+\pgfarrowsep=\dimen304
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/basiclayer/pgfcoreshade.cod
+e.tex
+File: pgfcoreshade.code.tex 2023-01-15 v3.1.10 (3.1.10)
+\pgf@max=\dimen305
+\pgf@sys@shading@range@num=\count515
+\pgf@shadingcount=\count516
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/basiclayer/pgfcoreimage.cod
+e.tex
+File: pgfcoreimage.code.tex 2023-01-15 v3.1.10 (3.1.10)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/basiclayer/pgfcoreexternal.
+code.tex
+File: pgfcoreexternal.code.tex 2023-01-15 v3.1.10 (3.1.10)
+\pgfexternal@startupbox=\box112
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/basiclayer/pgfcorelayers.co
+de.tex
+File: pgfcorelayers.code.tex 2023-01-15 v3.1.10 (3.1.10)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/basiclayer/pgfcoretranspare
+ncy.code.tex
+File: pgfcoretransparency.code.tex 2023-01-15 v3.1.10 (3.1.10)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/basiclayer/pgfcorepatterns.
+code.tex
+File: pgfcorepatterns.code.tex 2023-01-15 v3.1.10 (3.1.10)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/basiclayer/pgfcorerdf.code.
+tex
+File: pgfcorerdf.code.tex 2023-01-15 v3.1.10 (3.1.10)
+)))
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/modules/pgfmoduleshapes.cod
+e.tex
+File: pgfmoduleshapes.code.tex 2023-01-15 v3.1.10 (3.1.10)
+\pgfnodeparttextbox=\box113
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/modules/pgfmoduleplot.code.
+tex
+File: pgfmoduleplot.code.tex 2023-01-15 v3.1.10 (3.1.10)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/pgf/compatibility/pgfcomp-version
+-0-65.sty
+Package: pgfcomp-version-0-65 2023-01-15 v3.1.10 (3.1.10)
+\pgf@nodesepstart=\dimen306
+\pgf@nodesepend=\dimen307
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/pgf/compatibility/pgfcomp-version
+-1-18.sty
+Package: pgfcomp-version-1-18 2023-01-15 v3.1.10 (3.1.10)
+))
+(/usr/local/texlive/2025/texmf-dist/tex/latex/pgf/utilities/pgffor.sty
+(/usr/local/texlive/2025/texmf-dist/tex/latex/pgf/utilities/pgfkeys.sty
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/utilities/pgfkeys.code.tex)
+) (/usr/local/texlive/2025/texmf-dist/tex/latex/pgf/math/pgfmath.sty
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/math/pgfmath.code.tex))
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/utilities/pgffor.code.tex
+Package: pgffor 2023-01-15 v3.1.10 (3.1.10)
+\pgffor@iter=\dimen308
+\pgffor@skip=\dimen309
+\pgffor@stack=\toks41
+\pgffor@toks=\toks42
+))
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/tikz.cod
+e.tex
+Package: tikz 2023-01-15 v3.1.10 (3.1.10)
+
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/libraries/pgflibraryplothan
+dlers.code.tex
+File: pgflibraryplothandlers.code.tex 2023-01-15 v3.1.10 (3.1.10)
+\pgf@plot@mark@count=\count517
+\pgfplotmarksize=\dimen310
+)
+\tikz@lastx=\dimen311
+\tikz@lasty=\dimen312
+\tikz@lastxsaved=\dimen313
+\tikz@lastysaved=\dimen314
+\tikz@lastmovetox=\dimen315
+\tikz@lastmovetoy=\dimen316
+\tikzleveldistance=\dimen317
+\tikzsiblingdistance=\dimen318
+\tikz@figbox=\box114
+\tikz@figbox@bg=\box115
+\tikz@tempbox=\box116
+\tikz@tempbox@bg=\box117
+\tikztreelevel=\count518
+\tikznumberofchildren=\count519
+\tikznumberofcurrentchild=\count520
+\tikz@fig@count=\count521
+
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/modules/pgfmodulematrix.cod
+e.tex
+File: pgfmodulematrix.code.tex 2023-01-15 v3.1.10 (3.1.10)
+\pgfmatrixcurrentrow=\count522
+\pgfmatrixcurrentcolumn=\count523
+\pgf@matrix@numberofcolumns=\count524
+)
+\tikz@expandcount=\count525
+
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/librarie
+s/tikzlibrarytopaths.code.tex
+File: tikzlibrarytopaths.code.tex 2023-01-15 v3.1.10 (3.1.10)
+)))
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/librarie
+s/tikzlibrarybackgrounds.code.tex
+File: tikzlibrarybackgrounds.code.tex 2023-01-15 v3.1.10 (3.1.10)
+\pgf@layerbox@background=\box118
+\pgf@layerboxsaved@background=\box119
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/librarie
+s/tikzlibrarycalc.code.tex
+File: tikzlibrarycalc.code.tex 2023-01-15 v3.1.10 (3.1.10)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/librarie
+s/tikzlibraryshadows.code.tex
+File: tikzlibraryshadows.code.tex 2023-01-15 v3.1.10 (3.1.10)
+
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/librarie
+s/tikzlibraryfadings.code.tex
+File: tikzlibraryfadings.code.tex 2023-01-15 v3.1.10 (3.1.10)
+
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/libraries/pgflibraryfadings
+.code.tex
+File: pgflibraryfadings.code.tex 2023-01-15 v3.1.10 (3.1.10)
+)))
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/librarie
+s/tikzlibrarypositioning.code.tex
+File: tikzlibrarypositioning.code.tex 2023-01-15 v3.1.10 (3.1.10)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/librarie
+s/tikzlibraryfit.code.tex
+File: tikzlibraryfit.code.tex 2023-01-15 v3.1.10 (3.1.10)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/apptools/apptools.sty
+Package: apptools 2012/11/28 v1.0 Tools for customizing appendices
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/psnfss/pifont.sty
+Package: pifont 2020/03/25 PSNFSS-v9.3 Pi font support (SPQR) 
+LaTeX Font Info:    Trying to load font information for U+pzd on input line 63.
+
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/psnfss/upzd.fd
+File: upzd.fd 2001/06/04 font definitions for U/pzd.
+)
+LaTeX Font Info:    Trying to load font information for U+psy on input line 64.
+
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/psnfss/upsy.fd
+File: upsy.fd 2001/06/04 font definitions for U/psy.
+))
+(/usr/local/texlive/2025/texmf-dist/tex/latex/manfnt/manfnt.sty
+Package: manfnt 1999/07/010.2LaTeX2e manfnt package
+\dbend@height=\skip87
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/bbding/bbding.sty
+Package: bbding 1999/04/15 v1.01 Dingbats symbols
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/tcolorbox/tcolorbox.sty
+Package: tcolorbox 2025/05/20 version 6.5.0 text color boxes
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/tools/verbatim.sty
+Package: verbatim 2024-01-22 v1.5x LaTeX2e package for verbatim enhancements
+\every@verbatim=\toks43
+\verbatim@line=\toks44
+\verbatim@in@stream=\read5
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/environ/environ.sty
+Package: environ 2014/05/04 v0.3 A new way to define environments
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/trimspaces/trimspaces.sty
+Package: trimspaces 2009/09/17 v1.1 Trim spaces around a token list
+))
+\tcb@titlebox=\box120
+\tcb@upperbox=\box121
+\tcb@lowerbox=\box122
+\tcb@phantombox=\box123
+\c@tcbbreakpart=\count526
+\c@tcblayer=\count527
+\c@tcolorbox@number=\count528
+\l__tcobox_tmpa_box=\box124
+\l__tcobox_tmpa_dim=\dimen319
+\tcb@temp=\box125
+\tcb@temp=\box126
+\tcb@temp=\box127
+\tcb@temp=\box128
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/tcolorbox/tcbraster.code.tex
+Library (tcolorbox): 'tcbraster.code.tex' version '6.5.0'
+\c@tcbrastercolumn=\count529
+\c@tcbrasterrow=\count530
+\c@tcbrasternum=\count531
+\c@tcbraster=\count532
+) (/usr/local/texlive/2025/texmf-dist/tex/latex/tcolorbox/tcbskins.code.tex
+Library (tcolorbox): 'tcbskins.code.tex' version '6.5.0'
+(/usr/local/texlive/2025/texmf-dist/tex/latex/tikzfill/tikzfill.image.sty
+Package: tikzfill.image 2023/08/08 v1.0.1 Image filling library for TikZ
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/tikzfill/tikzfill-common.sty
+Package: tikzfill-common 2023/08/08 v1.0.1 Auxiliary code for tikzfill
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/tikzfill/tikzlibraryfill.image.co
+de.tex
+File: tikzlibraryfill.image.code.tex 2023/08/08 v1.0.1 Image filling library
+\l__tikzfill_img_box=\box129
+))
+(/usr/local/texlive/2025/texmf-dist/tex/latex/tcolorbox/tcbskinsjigsaw.code.tex
+Library (tcolorbox): 'tcbskinsjigsaw.code.tex' version '6.5.0'
+))
+(/usr/local/texlive/2025/texmf-dist/tex/latex/tcolorbox/tcbbreakable.code.tex
+Library (tcolorbox): 'tcbbreakable.code.tex' version '6.5.0'
+(/usr/local/texlive/2025/texmf-dist/tex/latex/pdfcol/pdfcol.sty
+Package: pdfcol 2022-09-21 v1.7 Handle new color stacks for pdfTeX (HO)
+Package pdfcol Info: Interface disabled because of missing PDF mode of pdfTeX.
+)
+Package pdfcol Info: pdfTeX's color stacks are not available.
+\tcb@testbox=\box130
+\tcb@totalupperbox=\box131
+\tcb@totallowerbox=\box132
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/tcolorbox/tcbhooks.code.tex
+Library (tcolorbox): 'tcbhooks.code.tex' version '6.5.0'
+) (/usr/local/texlive/2025/texmf-dist/tex/latex/tcolorbox/tcbtheorems.code.tex
+Library (tcolorbox): 'tcbtheorems.code.tex' version '6.5.0'
+) (/usr/local/texlive/2025/texmf-dist/tex/latex/tcolorbox/tcbfitting.code.tex
+Library (tcolorbox): 'tcbfitting.code.tex' version '6.5.0'
+\tcbfitdim=\dimen320
+\tcb@lowerfitdim=\dimen321
+\tcb@upperfitdim=\dimen322
+\tcb@cur@hbadness=\count533
+))
+\c@tcb@cnt@definition=\count534
+\c@tcb@cnt@theorem=\count535
+\c@tcb@cnt@postulate=\count536
+\c@tcb@cnt@axiom=\count537
+\c@tcb@cnt@corollary=\count538
+\c@tcb@cnt@lemma=\count539
+\c@tcb@cnt@proposition=\count540
+\c@exam=\count541
+\c@exer=\count542
+\c@prob=\count543
+ (/usr/local/texlive/2025/texmf-dist/tex/latex/adforn/adforn.sty
+(/usr/local/texlive/2025/texmf-dist/tex/latex/svn-prov/svn-prov.sty
+Package: svn-prov 2010/04/24 v3.1862 Package Date/Version from SVN Keywords
+)
+Package: adforn 2025/03/31 v1.3 (SVN Rev: 10986)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/fancyhdr/fancyhdr.sty
+Package: fancyhdr 2025/02/07 v5.2 Extensive control of page headers and footers
+
+\f@nch@headwidth=\skip88
+\f@nch@offset@elh=\skip89
+\f@nch@offset@erh=\skip90
+\f@nch@offset@olh=\skip91
+\f@nch@offset@orh=\skip92
+\f@nch@offset@elf=\skip93
+\f@nch@offset@erf=\skip94
+\f@nch@offset@olf=\skip95
+\f@nch@offset@orf=\skip96
+\f@nch@height=\skip97
+\f@nch@footalignment=\skip98
+\f@nch@widthL=\skip99
+\f@nch@widthC=\skip100
+\f@nch@widthR=\skip101
+\@temptokenb=\toks45
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/listings/listings.sty
+\lst@mode=\count544
+\lst@gtempboxa=\box133
+\lst@token=\toks46
+\lst@length=\count545
+\lst@currlwidth=\dimen323
+\lst@column=\count546
+\lst@pos=\count547
+\lst@lostspace=\dimen324
+\lst@width=\dimen325
+\lst@newlines=\count548
+\lst@lineno=\count549
+\lst@maxwidth=\dimen326
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/listings/lstpatch.sty
+File: lstpatch.sty 2024/09/23 1.10c (Carsten Heinz)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/listings/lstmisc.sty
+File: lstmisc.sty 2024/09/23 1.10c (Carsten Heinz)
+\c@lstnumber=\count550
+\lst@skipnumbers=\count551
+\lst@framebox=\box134
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/listings/listings.cfg
+File: listings.cfg 2024/09/23 1.10c listings configuration
+))
+Package: listings 2024/09/23 1.10c (Carsten Heinz)
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/listings/lstlang1.sty
+File: lstlang1.sty 2024/09/23 1.10c listings language file
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/listings/lstlang2.sty
+File: lstlang2.sty 2024/09/23 1.10c listings language file
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/listings/lstlang3.sty
+File: lstlang3.sty 2024/09/23 1.10c listings language file
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/listings/lstlang1.sty
+File: lstlang1.sty 2024/09/23 1.10c listings language file
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/listings/lstlang2.sty
+File: lstlang2.sty 2024/09/23 1.10c listings language file
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/listings/lstlang3.sty
+File: lstlang3.sty 2024/09/23 1.10c listings language file
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/listings/lstlang1.sty
+File: lstlang1.sty 2024/09/23 1.10c listings language file
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/listings/lstlang2.sty
+File: lstlang2.sty 2024/09/23 1.10c listings language file
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/listings/lstlang3.sty
+File: lstlang3.sty 2024/09/23 1.10c listings language file
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/listings/lstmisc.sty
+File: lstmisc.sty 2024/09/23 1.10c (Carsten Heinz)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/tools/bm.sty
+Package: bm 2023/12/19 v1.2f Bold Symbol Support (DPC/FMi)
+Package bm Info: No bold for \OMX/cmex/m/n, using \pmb.
+Package bm Info: No bold for \U/rsfs/m/n, using \pmb.
+Package bm Info: No bold for \U/msa/m/n, using \pmb.
+Package bm Info: No bold for \U/msb/m/n, using \pmb.
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/tools/calc.sty
+Package: calc 2023/07/08 v4.3 Infix arithmetic (KKT,FJ)
+\calc@Acount=\count552
+\calc@Bcount=\count553
+\calc@Adimen=\dimen327
+\calc@Bdimen=\dimen328
+\calc@Askip=\skip102
+\calc@Bskip=\skip103
+LaTeX Info: Redefining \setlength on input line 80.
+LaTeX Info: Redefining \addtolength on input line 81.
+\calc@Ccount=\count554
+\calc@Cskip=\skip104
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/tocloft/tocloft.sty
+Package: tocloft 2017/08/31 v2.3i parameterised ToC, etc., typesetting
+Package tocloft Info: The document has chapter divisions on input line 51.
+\cftparskip=\skip105
+\cftbeforetoctitleskip=\skip106
+\cftaftertoctitleskip=\skip107
+\cftbeforepartskip=\skip108
+\cftpartnumwidth=\skip109
+\cftpartindent=\skip110
+\cftbeforechapskip=\skip111
+\cftchapindent=\skip112
+\cftchapnumwidth=\skip113
+\cftbeforesecskip=\skip114
+\cftsecindent=\skip115
+\cftsecnumwidth=\skip116
+\cftbeforesubsecskip=\skip117
+\cftsubsecindent=\skip118
+\cftsubsecnumwidth=\skip119
+\cftbeforesubsubsecskip=\skip120
+\cftsubsubsecindent=\skip121
+\cftsubsubsecnumwidth=\skip122
+\cftbeforeparaskip=\skip123
+\cftparaindent=\skip124
+\cftparanumwidth=\skip125
+\cftbeforesubparaskip=\skip126
+\cftsubparaindent=\skip127
+\cftsubparanumwidth=\skip128
+\cftbeforeloftitleskip=\skip129
+\cftafterloftitleskip=\skip130
+\cftbeforefigskip=\skip131
+\cftfigindent=\skip132
+\cftfignumwidth=\skip133
+\c@lofdepth=\count555
+\c@lotdepth=\count556
+\cftbeforelottitleskip=\skip134
+\cftafterlottitleskip=\skip135
+\cftbeforetabskip=\skip136
+\cfttabindent=\skip137
+\cfttabnumwidth=\skip138
+)
+LaTeX Font Info:    Font shape `TU/texgyretermes(0)/b/n' will be
+(Font)              scaled to size 10.95pt on input line 1331.
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/gensymb/gensymb.sty
+Package: gensymb 2022/10/17 v1.0.2 (KJH)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/base/textcomp.sty
+Package: textcomp 2024/04/24 v2.1b Standard LaTeX package
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/tools/tabularx.sty
+Package: tabularx 2023/12/11 v2.12a `tabularx' package (DPC)
+\TX@col@width=\dimen329
+\TX@old@table=\dimen330
+\TX@old@col=\dimen331
+\TX@target=\dimen332
+\TX@delta=\dimen333
+\TX@cols=\count557
+\TX@ftn=\toks47
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/tools/longtable.sty
+Package: longtable 2024-10-27 v4.22 Multi-page Table package (DPC)
+\LTleft=\skip139
+\LTright=\skip140
+\LTpre=\skip141
+\LTpost=\skip142
+\LTchunksize=\count558
+\LTcapwidth=\dimen334
+\LT@head=\box135
+\LT@firsthead=\box136
+\LT@foot=\box137
+\LT@lastfoot=\box138
+\LT@gbox=\box139
+\LT@cols=\count559
+\LT@rows=\count560
+\c@LT@tables=\count561
+\c@LT@chunks=\count562
+\LT@p@ftn=\toks48
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/nicematrix/nicematrix.sty
+Package: nicematrix 2025/04/28 v7.1c Enhanced arrays with the help of PGF/TikZ
+\l__nicematrix_tmpc_dim=\dimen335
+\l__nicematrix_tmpd_dim=\dimen336
+\l__nicematrix_tmpe_dim=\dimen337
+\l__nicematrix_tmpf_dim=\dimen338
+\l__nicematrix_tmpc_int=\count563
+\g__nicematrix_env_int=\count564
+\g__nicematrix_NiceMatrixBlock_int=\count565
+\g__nicematrix_notes_caption_int=\count566
+\l__nicematrix_columns_width_dim=\dimen339
+\l__nicematrix_col_width_dim=\dimen340
+\g__nicematrix_row_total_int=\count567
+\g__nicematrix_col_total_int=\count568
+\g__nicematrix_last_row_node_int=\count569
+\l__nicematrix_key_nb_rows_int=\count570
+\g__nicematrix_blocks_wd_dim=\dimen341
+\g__nicematrix_blocks_ht_dim=\dimen342
+\g__nicematrix_blocks_dp_dim=\dimen343
+\l__nicematrix_width_dim=\dimen344
+\l__nicematrix_tabular_width_dim=\dimen345
+\l__nicematrix_rule_width_dim=\dimen346
+\l__nicematrix_old_iRow_int=\count571
+\l__nicematrix_old_jCol_int=\count572
+\l__nicematrix_X_columns_dim=\dimen347
+\l__nicematrix_x_initial_dim=\dimen348
+\l__nicematrix_y_initial_dim=\dimen349
+\l__nicematrix_x_final_dim=\dimen350
+\l__nicematrix_y_final_dim=\dimen351
+\g__nicematrix_dp_row_zero_dim=\dimen352
+\g__nicematrix_ht_row_zero_dim=\dimen353
+\g__nicematrix_ht_row_one_dim=\dimen354
+\g__nicematrix_dp_ante_last_row_dim=\dimen355
+\g__nicematrix_ht_last_row_dim=\dimen356
+\g__nicematrix_dp_last_row_dim=\dimen357
+\g__nicematrix_width_last_col_dim=\dimen358
+\g__nicematrix_width_first_col_dim=\dimen359
+\g__nicematrix_ddots_int=\count573
+\g__nicematrix_iddots_int=\count574
+\g__nicematrix_delta_x_one_dim=\dimen360
+\g__nicematrix_delta_y_one_dim=\dimen361
+\g__nicematrix_delta_x_two_dim=\dimen362
+\g__nicematrix_delta_y_two_dim=\dimen363
+\l__nicematrix_row_min_int=\count575
+\l__nicematrix_row_max_int=\count576
+\l__nicematrix_col_min_int=\count577
+\l__nicematrix_col_max_int=\count578
+\l__nicematrix_initial_i_int=\count579
+\l__nicematrix_initial_j_int=\count580
+\l__nicematrix_final_i_int=\count581
+\l__nicematrix_final_j_int=\count582
+\l__nicematrix_start_int=\count583
+\l__nicematrix_end_int=\count584
+\l__nicematrix_local_start_int=\count585
+\l__nicematrix_local_end_int=\count586
+\g__nicematrix_static_num_of_col_int=\count587
+\l__nicematrix_rounded_corners_dim=\dimen364
+\l__nicematrix_tab_rounded_corners_dim=\dimen365
+\l__nicematrix_offset_dim=\dimen366
+\l__nicematrix_line_width_dim=\dimen367
+\g__nicematrix_block_box_int=\count588
+\l__nicematrix_submatrix_extra_height_dim=\dimen368
+\l__nicematrix_submatrix_left_xshift_dim=\dimen369
+\l__nicematrix_submatrix_right_xshift_dim=\dimen370
+\l__nicematrix_first_row_int=\count589
+\l__nicematrix_first_col_int=\count590
+\l__nicematrix_last_row_int=\count591
+\l__nicematrix_last_col_int=\count592
+\c@tabularnote=\count593
+\g__nicematrix_tabularnote_int=\count594
+\c@nicematrix_draft=\count595
+\l__nicematrix_cell_space_top_limit_dim=\dimen371
+\l__nicematrix_cell_space_bottom_limit_dim=\dimen372
+\l__nicematrix_xdots_inter_dim=\dimen373
+\l__nicematrix_xdots_shorten_start_dim=\dimen374
+\l__nicematrix_xdots_shorten_end_dim=\dimen375
+\l__nicematrix_xdots_radius_dim=\dimen376
+\l__nicematrix_left_margin_dim=\dimen377
+\l__nicematrix_right_margin_dim=\dimen378
+\l__nicematrix_extra_left_margin_dim=\dimen379
+\l__nicematrix_extra_right_margin_dim=\dimen380
+\c__nicematrix_max_l_dim=\dimen381
+\l__nicematrix_position_int=\count596
+\l__nicematrix_multiplicity_int=\count597
+\l__nicematrix_brace_yshift_dim=\dimen382
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/float/float.sty
+Package: float 2001/11/08 v1.3d Float enhancements (AL)
+\c@float@type=\count598
+\float@exts=\toks49
+\float@box=\box140
+\@float@everytoks=\toks50
+\@floatcapt=\box141
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/librarie
+s/tikzlibraryangles.code.tex
+File: tikzlibraryangles.code.tex 2023-01-15 v3.1.10 (3.1.10)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/librarie
+s/tikzlibraryquotes.code.tex
+File: tikzlibraryquotes.code.tex 2023-01-15 v3.1.10 (3.1.10)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/librarie
+s/tikzlibrarydecorations.pathreplacing.code.tex
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/librarie
+s/tikzlibrarydecorations.code.tex
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/modules/pgfmoduledecoration
+s.code.tex
+\pgfdecoratedcompleteddistance=\dimen383
+\pgfdecoratedremainingdistance=\dimen384
+\pgfdecoratedinputsegmentcompleteddistance=\dimen385
+\pgfdecoratedinputsegmentremainingdistance=\dimen386
+\pgf@decorate@distancetomove=\dimen387
+\pgf@decorate@repeatstate=\count599
+\pgfdecorationsegmentamplitude=\dimen388
+\pgfdecorationsegmentlength=\dimen389
+)
+\tikz@lib@dec@box=\box142
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/libraries/decorations/pgfli
+brarydecorations.pathreplacing.code.tex))
+(/usr/local/texlive/2025/texmf-dist/tex/latex/pgfplots/pgfplots.sty
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/pgfplots.revision.tex)
+Package: pgfplots 2021/05/15 v1.18.1 Data Visualization (1.18.1)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/pgfplots.code.tex
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/pgfplotscore.code.tex
+\t@pgfplots@toka=\toks51
+\t@pgfplots@tokb=\toks52
+\t@pgfplots@tokc=\toks53
+\pgfplots@tmpa=\dimen390
+\c@pgfplots@coordindex=\count600
+\c@pgfplots@scanlineindex=\count601
+
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/sys/pgfplotssysgeneric
+.code.tex))
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/libs/pgfplotslibrary.c
+ode.tex)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/oldpgfcompatib/pgfplot
+soldpgfsupp_loader.code.tex
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/libraries/pgflibraryfpu.cod
+e.tex)
+Package pgfplots: loading complementary utilities for your pgf version...
+\t@pgf@toka=\toks54
+\t@pgf@tokb=\toks55
+\t@pgf@tokc=\toks56
+
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/oldpgfcompatib/pgfplot
+soldpgfsupp_pgfutil-common-lists.tex))
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/util/pgfplotsutil.code
+.tex
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/liststructure/pgfplots
+liststructure.code.tex)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/liststructure/pgfplots
+liststructureext.code.tex)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/liststructure/pgfplots
+array.code.tex
+\c@pgfplotsarray@tmp=\count602
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/liststructure/pgfplots
+matrix.code.tex)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/numtable/pgfplotstable
+shared.code.tex
+\c@pgfplotstable@counta=\count603
+\t@pgfplotstable@a=\toks57
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/liststructure/pgfplots
+deque.code.tex)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/util/pgfplotsbinary.co
+de.tex
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/util/pgfplotsbinary.da
+ta.code.tex))
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/util/pgfplotsutil.verb
+.code.tex)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/libs/pgflibrarypgfplot
+s.surfshading.code.tex
+\c@pgfplotslibrarysurf@no=\count604
+
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/sys/pgflibrarypgfplots
+.surfshading.pgfsys-xetex.def
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/sys/pgflibrarypgfplots
+.surfshading.pgfsys-dvipdfmx.def
+\c@pgfplotslibrarysurf@streamlen=\count605
+))))
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/util/pgfplotscolormap.
+code.tex
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/util/pgfplotscolor.cod
+e.tex))
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/pgfplotsstackedplots.c
+ode.tex)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/pgfplotsplothandlers.c
+ode.tex
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/pgfplotsmeshplothandle
+r.code.tex
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/pgfplotsmeshplotimage.
+code.tex)))
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/pgfplots.scaling.code.
+tex)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/pgfplotscoordprocessin
+g.code.tex)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/pgfplots.errorbars.cod
+e.tex)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/pgfplots.markers.code.
+tex)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/pgfplotsticks.code.tex
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/pgfplots.paths.code.te
+x)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/librarie
+s/tikzlibrarydecorations.pathmorphing.code.tex
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/libraries/decorations/pgfli
+brarydecorations.pathmorphing.code.tex))
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgfplots/libs/tikzlibrarypgfplo
+ts.contourlua.code.tex)
+\pgfplots@numplots=\count606
+\pgfplots@xmin@reg=\dimen391
+\pgfplots@xmax@reg=\dimen392
+\pgfplots@ymin@reg=\dimen393
+\pgfplots@ymax@reg=\dimen394
+\pgfplots@zmin@reg=\dimen395
+\pgfplots@zmax@reg=\dimen396
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/frontendlayer/tikz/librarie
+s/tikzlibraryplotmarks.code.tex
+File: tikzlibraryplotmarks.code.tex 2023-01-15 v3.1.10 (3.1.10)
+
+(/usr/local/texlive/2025/texmf-dist/tex/generic/pgf/libraries/pgflibraryplotmar
+ks.code.tex
+File: pgflibraryplotmarks.code.tex 2023-01-15 v3.1.10 (3.1.10)
+)))
+(/usr/local/texlive/2025/texmf-dist/tex/latex/pgf-pie/pgf-pie.sty
+Package: pgf-pie 2022/06/14 v0.7 Some LaTeX macros for pie chart by using PGF/T
+ikz package.
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/pgf-pie/tikzlibrarypie.code.tex
+(/usr/local/texlive/2025/texmf-dist/tex/latex/carlisle/scalefnt.sty)
+\pgfpie@angleEnd=\dimen397
+\pgfpie@explodeLength=\count607
+\pgfpie@colorLength=\count608
+\pgfpie@sliceLength=\count609
+))
+(/usr/local/texlive/2025/texmf-dist/tex/latex/longdivision/longdivision.sty
+Package: longdivision 
+\l__longdiv_quotient_int=\count610
+\l__longdiv_position_int=\count611
+\l__longdiv_point_digit_dividend_int=\count612
+\l__longdiv_point_digit_quotient_int=\count613
+\l__longdiv_repeat_digit_int=\count614
+\l__longdiv_digit_group_length=\count615
+\g__longdiv_temp_dim=\dimen398
+\l__longdiv_extra_digits_int=\count616
+\l__longdiv_max_extra_digits_int=\count617
+\l__longdiv_digits_requested_int=\count618
+\l__longdiv_display_divisions_int=\count619
+\longdiv@tempcount=\count620
+\l__longdiv_temp_int=\count621
+\l__longdiv_temp_length_int=\count622
+\l__longdiv_tempwidth_dim=\dimen399
+\l__longdiv_rulethickness_dim=\dimen400
+\longdiv@dividendlength=\skip143
+\longdiv@dividendheight=\skip144
+\longdiv@divisorheight=\skip145
+\longdiv@maxheight=\skip146
+)
+(/usr/local/texlive/2025/texmf-dist/tex/generic/xlop/xlop.sty
+Package: xlop 2020/04/26 package wrapper for xlop.tex
+
+(/usr/local/texlive/2025/texmf-dist/tex/generic/xlop/xlop.tex
+\op@count@z=\count623
+\op@count@i=\count624
+\op@count@ii=\count625
+\op@count@iii=\count626
+\op@count@iv=\count627
+\op@count@v=\count628
+\op@count@vi=\count629
+\op@nbop=\count630
+\op@currentstyle=\toks58
+
+`xlop' v0.28  <2020/11/11> (jcc)
+\opcolumnwidth=\dimen401
+\oplineheight=\dimen402
+\op@strutbox=\box143
+\op@decimalsepwidth=\dimen403
+\op@decimalsepoffset=\dimen404
+\op@hrulewidth=\dimen405
+\op@vrulewidth=\dimen406
+\op@parenthesis=\count631
+\op@token=\count632
+\op@stack=\count633
+\op@stackb=\count634
+)) (/usr/local/texlive/2025/texmf-dist/tex/latex/marginnote/marginnote.sty
+Package: marginnote 2018/08/09 1.4b non floating margin notes for LaTeX
+\c@mn@abspage=\count635
+)
+Excluding comment 'answershow'
+(/usr/local/texlive/2025/texmf-dist/tex/xelatex/xecjk/xeCJK.sty
+Package: xeCJK 2022/08/05 v3.9.1 Typesetting CJK scripts with XeLaTeX
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/ctex/ctexhook.sty
+Package: ctexhook 2022/07/14 v2.5.10 Document and package hooks (CTEX)
+)
+(/usr/local/texlive/2025/texmf-dist/tex/latex/l3packages/xtemplate/xtemplate.st
+y
+Package: xtemplate 2024-08-16 L3 Experimental prototype document functions
+)
+\l__xeCJK_tmp_int=\count636
+\l__xeCJK_tmp_box=\box144
+\l__xeCJK_tmp_dim=\dimen407
+\l__xeCJK_tmp_skip=\skip147
+\g__xeCJK_space_factor_int=\count637
+\l__xeCJK_begin_int=\count638
+\l__xeCJK_end_int=\count639
+\c__xeCJK_CJK_class_int=\XeTeXcharclass1
+\c__xeCJK_FullLeft_class_int=\XeTeXcharclass2
+\c__xeCJK_FullRight_class_int=\XeTeXcharclass3
+\c__xeCJK_HalfLeft_class_int=\XeTeXcharclass4
+\c__xeCJK_HalfRight_class_int=\XeTeXcharclass5
+\c__xeCJK_NormalSpace_class_int=\XeTeXcharclass6
+\c__xeCJK_CM_class_int=\XeTeXcharclass7
+\c__xeCJK_HangulJamo_class_int=\XeTeXcharclass8
+\l__xeCJK_last_skip=\skip148
+\c__xeCJK_none_node=\count640
+\g__xeCJK_node_int=\count641
+\c__xeCJK_CJK_node_dim=\dimen408
+\c__xeCJK_CJK-space_node_dim=\dimen409
+\c__xeCJK_default_node_dim=\dimen410
+\c__xeCJK_CJK-widow_node_dim=\dimen411
+\c__xeCJK_normalspace_node_dim=\dimen412
+\c__xeCJK_default-space_node_skip=\skip149
+\l__xeCJK_ccglue_skip=\skip150
+\l__xeCJK_ecglue_skip=\skip151
+\l__xeCJK_punct_kern_skip=\skip152
+\l__xeCJK_indent_box=\box145
+\l__xeCJK_last_penalty_int=\count642
+\l__xeCJK_last_bound_dim=\dimen413
+\l__xeCJK_last_kern_dim=\dimen414
+\l__xeCJK_widow_penalty_int=\count643
+
+LaTeX template Info: Declaring template type 'xeCJK/punctuation' taking 0
+(template)           argument(s) on line 2396.
+
+\l__xeCJK_fixed_punct_width_dim=\dimen415
+\l__xeCJK_mixed_punct_width_dim=\dimen416
+\l__xeCJK_middle_punct_width_dim=\dimen417
+\l__xeCJK_fixed_margin_width_dim=\dimen418
+\l__xeCJK_mixed_margin_width_dim=\dimen419
+\l__xeCJK_middle_margin_width_dim=\dimen420
+\l__xeCJK_bound_punct_width_dim=\dimen421
+\l__xeCJK_bound_margin_width_dim=\dimen422
+\l__xeCJK_margin_minimum_dim=\dimen423
+\l__xeCJK_kerning_total_width_dim=\dimen424
+\l__xeCJK_same_align_margin_dim=\dimen425
+\l__xeCJK_different_align_margin_dim=\dimen426
+\l__xeCJK_kerning_margin_width_dim=\dimen427
+\l__xeCJK_kerning_margin_minimum_dim=\dimen428
+\l__xeCJK_bound_dim=\dimen429
+\l__xeCJK_reverse_bound_dim=\dimen430
+\l__xeCJK_margin_dim=\dimen431
+\l__xeCJK_minimum_bound_dim=\dimen432
+\l__xeCJK_kerning_margin_dim=\dimen433
+\g__xeCJK_family_int=\count644
+\l__xeCJK_fam_int=\count645
+\g__xeCJK_fam_allocation_int=\count646
+\l__xeCJK_verb_case_int=\count647
+\l__xeCJK_verb_exspace_skip=\skip153
+ (/usr/local/texlive/2025/texmf-dist/tex/xelatex/xecjk/xeCJK-listings.sty
+Package: xeCJK-listings 2022/08/05 v3.9.1 xeCJK patch file for listings
+\l__xeCJK_listings_max_char_int=\count648
+\l__xeCJK_listings_flag_int=\count649
+)
+(/usr/local/texlive/2025/texmf-dist/tex/xelatex/xecjk/xeCJK.cfg
+File: xeCJK.cfg 2022/08/05 v3.9.1 Configuration file for xeCJK package
+))
+Package csquotes Info: Checking for multilingual support...
+Package csquotes Info: ... none found.
+
+
+Package xeCJK Warning: Fandol is being set as the default font for CJK text.
+(xeCJK)                Please make sure it has been properly installed.
+
+(./main.aux)
+\openout1 = `main.aux'.
+
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 145.
+LaTeX Font Info:    ... okay on input line 145.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 145.
+LaTeX Font Info:    ... okay on input line 145.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 145.
+LaTeX Font Info:    ... okay on input line 145.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 145.
+LaTeX Font Info:    ... okay on input line 145.
+LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 145.
+LaTeX Font Info:    ... okay on input line 145.
+LaTeX Font Info:    Checking defaults for TU/lmr/m/n on input line 145.
+LaTeX Font Info:    ... okay on input line 145.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 145.
+LaTeX Font Info:    ... okay on input line 145.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 145.
+LaTeX Font Info:    ... okay on input line 145.
+LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 145.
+LaTeX Font Info:    ... okay on input line 145.
+LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 145.
+LaTeX Font Info:    ... okay on input line 145.
+Package hyperref Info: Link coloring ON on input line 145.
+ (./main.out) (./main.out)
+\@outlinefile=\write7
+\openout7 = `main.out'.
+
+
+*geometry* driver: auto-detecting
+*geometry* detected driver: xetex
+*geometry* verbose mode - [ preamble ] result:
+* driver: xetex
+* paper: a4paper
+* layout: <same size as paper>
+* layoutoffset:(h,v)=(0.0pt,0.0pt)
+* modes: 
+* h-part:(L,W,R)=(56.9055pt, 483.69687pt, 56.9055pt)
+* v-part:(T,H,B)=(72.26997pt, 700.5069pt, 72.26997pt)
+* \paperwidth=597.50787pt
+* \paperheight=845.04684pt
+* \textwidth=483.69687pt
+* \textheight=700.5069pt
+* \oddsidemargin=-15.36449pt
+* \evensidemargin=-15.36449pt
+* \topmargin=-73.12352pt
+* \headheight=61.74242pt
+* \headsep=11.38109pt
+* \topskip=11.0pt
+* \footskip=34.1433pt
+* \marginparwidth=85.35826pt
+* \marginparsep=14.22636pt
+* \columnsep=10.0pt
+* \skip\footins=10.0pt plus 4.0pt minus 2.0pt
+* \hoffset=0.0pt
+* \voffset=0.0pt
+* \mag=1000
+* \@twocolumnfalse
+* \@twosidefalse
+* \@mparswitchfalse
+* \@reversemarginfalse
+* (1in=72.27pt=25.4mm, 1cm=28.453pt)
+
+Package caption Info: Begin \AtBeginDocument code.
+Package caption Info: float package is loaded.
+Package caption Info: listings package is loaded.
+Package caption Info: longtable package is loaded.
+(/usr/local/texlive/2025/texmf-dist/tex/latex/caption/ltcaption.sty
+Package: ltcaption 2021/01/08 v1.4c longtable captions (AR)
+)
+Package caption Info: End \AtBeginDocument code.
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/footmisc/footmisc.sty
+Package: footmisc 2025/05/09 v7.0b a miscellany of footnote facilities
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/footmisc/footmisc-2022-02-14.sty
+Package: footmisc 2024/12/24 v6.0g a miscellany of footnote facilities
+\FN@temptoken=\toks59
+\footnotemargin=\dimen434
+\@outputbox@depth=\dimen435
+Package footmisc Info: Declaring symbol style bringhurst on input line 699.
+Package footmisc Info: Declaring symbol style chicago on input line 707.
+Package footmisc Info: Declaring symbol style wiley on input line 716.
+Package footmisc Info: Declaring symbol style lamport-robust on input line 727.
+
+Package footmisc Info: Declaring symbol style lamport* on input line 747.
+Package footmisc Info: Declaring symbol style lamport*-robust on input line 768
+.
+))
+Package biblatex Info: Trying to load language 'english'...
+Package biblatex Info: ... file 'english.lbx' found.
+ (/usr/local/texlive/2025/texmf-dist/tex/latex/biblatex/lbx/english.lbx
+File: english.lbx 2024/03/21 v3.20 biblatex localization (PK/MW)
+)
+Package biblatex Info: XeTeX detected.
+(biblatex)             Assuming input encoding 'utf8'.
+Package biblatex Info: Automatic encoding selection.
+(biblatex)             Assuming data encoding 'utf8'.
+\openout5 = `main.bcf'.
+
+Package biblatex Info: Trying to load bibliographic data...
+Package biblatex Info: ... file 'main.bbl' not found.
+
+No file main.bbl.
+Package biblatex Info: Reference section=0 on input line 145.
+Package biblatex Info: Reference segment=0 on input line 145.
+\c@lstlisting=\count650
+\symgns@font=\mathgroup7
+LaTeX Font Info:    Overwriting symbol font `gns@font' in version `bold'
+(Font)                  TS1/texgyretermes(0)/m/n --> TS1/texgyretermes(0)/b/n o
+n input line 145.
+Package gensymb Info: Math companion symbols declared on input line 145.
+LaTeX Info: Redefining \degree on input line 145.
+LaTeX Info: Redefining \celsius on input line 145.
+Package gensymb Info: Using text companion symbols for \degree, \celsius and \p
+erthousand on input line 145.
+LaTeX Info: Redefining \ohm on input line 145.
+Package gensymb Info: Using \textohm for \ohm on input line 145.
+Package gensymb Info: Using \textmu for \micro on input line 145.
+\c__nicematrix_shift_Ldots_last_row_dim=\dimen436
+\c__nicematrix_shift_exterior_Vdots_dim=\dimen437
+\c__nicematrix_innersep_middle_dim=\dimen438
+\c@tabularnotesi=\count651
+\enitdp@tabularnotes=\count652
+\c@tabularnotes*i=\count653
+\enitdp@tabularnotes*=\count654
+Package pgfplots notification 'compat/show suggested version=true': document ha
+s been generated with the most recent feature set (\pgfplotsset{compat=1.18}).
+
+Package hyperref Info: Option `pageanchor' set `false' on input line 168.
+*geometry* verbose mode - [ newgeometry ] result:
+* driver: xetex
+* paper: a4paper
+* layout: <same size as paper>
+* layoutoffset:(h,v)=(0.0pt,0.0pt)
+* modes: 
+* h-part:(L,W,R)=(0.0pt, 597.50787pt, 0.0pt)
+* v-part:(T,H,B)=(0.0pt, 845.04684pt, 0.0pt)
+* \paperwidth=597.50787pt
+* \paperheight=845.04684pt
+* \textwidth=597.50787pt
+* \textheight=845.04684pt
+* \oddsidemargin=-72.26999pt
+* \evensidemargin=-72.26999pt
+* \topmargin=-145.3935pt
+* \headheight=61.74242pt
+* \headsep=11.38109pt
+* \topskip=11.0pt
+* \footskip=34.1433pt
+* \marginparwidth=85.35826pt
+* \marginparsep=14.22636pt
+* \columnsep=10.0pt
+* \skip\footins=10.0pt plus 4.0pt minus 2.0pt
+* \hoffset=0.0pt
+* \voffset=0.0pt
+* \mag=1000
+* \@twocolumnfalse
+* \@twosidefalse
+* \@mparswitchfalse
+* \@reversemarginfalse
+* (1in=72.27pt=25.4mm, 1cm=28.453pt)
+
+File: ./figure/cover.jpg Graphic file (type bmp)
+<./figure/cover.jpg>
+LaTeX Font Info:    Font shape `TU/texgyretermes(0)/b/n' will be
+(Font)              scaled to size 24.88pt on input line 168.
+LaTeX Font Info:    Trying to load font information for U+rsfs on input line 16
+8.
+(/usr/local/texlive/2025/texmf-dist/tex/latex/jknapltx/ursfs.fd
+File: ursfs.fd 1998/03/24 rsfs font definition file (jk)
+)
+LaTeX Font Info:    Trying to load font information for U+msa on input line 168
+.
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/amsfonts/umsa.fd
+File: umsa.fd 2013/01/14 v3.01 AMS symbols A
+)
+LaTeX Font Info:    Trying to load font information for U+msb on input line 168
+.
+
+(/usr/local/texlive/2025/texmf-dist/tex/latex/amsfonts/umsb.fd
+File: umsb.fd 2013/01/14 v3.01 AMS symbols B
+)
+LaTeX Font Info:    Trying to load font information for TS1+texgyretermes(0) on
+ input line 168.
+LaTeX Font Info:    No file TS1texgyretermes(0).fd. on input line 168.
+
+
+LaTeX Font Warning: Font shape `TS1/texgyretermes(0)/m/n' undefined
+(Font)              using `TS1/cmr/m/n' instead on input line 168.
+
+LaTeX Font Info:    Font shape `TU/texgyretermes(0)/b/n' will be
+(Font)              scaled to size 14.4pt on input line 168.
+File: ./figure/logo.jpg Graphic file (type bmp)
+<./figure/logo.jpg>
+LaTeX Font Info:    Font shape `TU/texgyretermes(0)/m/it' will be
+(Font)              scaled to size 10.95pt on input line 168.
+
+
+[1
+
+
+
+]
+LaTeX Font Info:    Font shape `TU/texgyretermes(0)/b/n' will be
+(Font)              scaled to size 17.28pt on input line 171.
+ (./main.toc
+
+[1
+
+
+]
+Package marginnote Info: Using workaround for absolute page number on input lin
+e 38.
+)
+\tf@toc=\write8
+\openout8 = `main.toc'.
+
+
+
+[2]
+Chapter 1.
+LaTeX Font Info:    Font shape `TU/texgyretermes(0)/m/n' will be
+(Font)              scaled to size 14.4pt on input line 186.
+File: images/2f24b09d83526defc2c7e36b150c7a24d3cbb73a378f5f63b78c749c163ed377.j
+pg Graphic file (type bmp)
+<images/2f24b09d83526defc2c7e36b150c7a24d3cbb73a378f5f63b78c749c163ed377.jpg>
+File: images/3bbdc4e06f1ad8c4b2ad70f82e2832f6e8a0738201055af78784a7d2bde02d26.j
+pg Graphic file (type bmp)
+<images/3bbdc4e06f1ad8c4b2ad70f82e2832f6e8a0738201055af78784a7d2bde02d26.jpg>
+File: images/b81a0771578797023cd6e29adf7909643e1e22aa8043f01915b91280ccadfb5d.j
+pg Graphic file (type bmp)
+<images/b81a0771578797023cd6e29adf7909643e1e22aa8043f01915b91280ccadfb5d.jpg>
+
+
+[1
+
+
+]
+File: images/3fd9f3578d5cc92b4a5b20015b5777d37270a8bed16f6301f0e66ff477a614e8.j
+pg Graphic file (type bmp)
+<images/3fd9f3578d5cc92b4a5b20015b5777d37270a8bed16f6301f0e66ff477a614e8.jpg>
+File: images/99d32cb70cb73ad14d7164361834048bdf0074061f2604303ca1f628aca62e5a.j
+pg Graphic file (type bmp)
+<images/99d32cb70cb73ad14d7164361834048bdf0074061f2604303ca1f628aca62e5a.jpg>
+
+
+[2]
+File: images/5d0509397333c22bf1917090dfcf93cffd80b9ceb0f50f964140a801e04daf85.j
+pg Graphic file (type bmp)
+<images/5d0509397333c22bf1917090dfcf93cffd80b9ceb0f50f964140a801e04daf85.jpg>
+File: images/171b118430a21e9fc75e7c17d9e7dc0a0229c1223d810638cb82a2a88cca65c8.j
+pg Graphic file (type bmp)
+<images/171b118430a21e9fc75e7c17d9e7dc0a0229c1223d810638cb82a2a88cca65c8.jpg>
+
+
+[3]
+File: images/2fb3c54fd157d8d00f898778ae76f6a7c03a48df9e873b70a657809c6771587a.j
+pg Graphic file (type bmp)
+<images/2fb3c54fd157d8d00f898778ae76f6a7c03a48df9e873b70a657809c6771587a.jpg>
+
+
+[4]
+File: images/f6b8b4ebd5c033fb02a22deadb4edf18a9538326aab5ed0ecf08251fa351a36a.j
+pg Graphic file (type bmp)
+<images/f6b8b4ebd5c033fb02a22deadb4edf18a9538326aab5ed0ecf08251fa351a36a.jpg>
+File: images/efb3fb264fbfcc47187ce6b987659bcbac06ebb424629a6e0eb807fdcdcacf49.j
+pg Graphic file (type bmp)
+<images/efb3fb264fbfcc47187ce6b987659bcbac06ebb424629a6e0eb807fdcdcacf49.jpg>
+
+
+[5]
+File: images/655a23ae517b554e5f1f9edca84ea212efc4cc35960135487442823e2bdc46ed.j
+pg Graphic file (type bmp)
+<images/655a23ae517b554e5f1f9edca84ea212efc4cc35960135487442823e2bdc46ed.jpg>
+File: images/b7c30b71c206dce8e33f547f585bb75cb78e000bfb0cd2c203611bb4ea7cea82.j
+pg Graphic file (type bmp)
+<images/b7c30b71c206dce8e33f547f585bb75cb78e000bfb0cd2c203611bb4ea7cea82.jpg>
+File: images/98749a640a03623f929fa8bc790bf8661e501458a89d6dc3a15bbce106dd57b8.j
+pg Graphic file (type bmp)
+<images/98749a640a03623f929fa8bc790bf8661e501458a89d6dc3a15bbce106dd57b8.jpg>
+File: images/79ade3769c77b40080b185bd596a9e96f232e9d0594692ccd3f973b93aece10d.j
+pg Graphic file (type bmp)
+<images/79ade3769c77b40080b185bd596a9e96f232e9d0594692ccd3f973b93aece10d.jpg>
+
+
+[6]
+File: images/60bf1c0889ec7dfb9057e68ff64bd32de829f0923f79f6cc6f50cf448a61941c.j
+pg Graphic file (type bmp)
+<images/60bf1c0889ec7dfb9057e68ff64bd32de829f0923f79f6cc6f50cf448a61941c.jpg>
+File: images/897edae6800e8c0726b973e9e5ce6dff151a60ac8a85b358254d4ca521c5c97f.j
+pg Graphic file (type bmp)
+<images/897edae6800e8c0726b973e9e5ce6dff151a60ac8a85b358254d4ca521c5c97f.jpg>
+File: images/92e23b53a20227eb068c9d97dde1729c1d2990fcefbfad63a2fa556474007eac.j
+pg Graphic file (type bmp)
+<images/92e23b53a20227eb068c9d97dde1729c1d2990fcefbfad63a2fa556474007eac.jpg>
+
+
+[7]
+LaTeX Font Info:    Font shape `TU/texgyretermes(0)/m/n' will be
+(Font)              scaled to size 10.0pt on input line 457.
+
+Underfull \hbox (badness 10000) in paragraph at lines 460--469
+
+ []
+
+File: images/ad7918911121555698f1779e8884a27813c12acab7975aee540ace392c754120.j
+pg Graphic file (type bmp)
+<images/ad7918911121555698f1779e8884a27813c12acab7975aee540ace392c754120.jpg>
+
+
+[8]
+File: images/a5fbd1957730298f88717a41d22bc3da0dd8de1f5fc4892dd5026bc765716607.j
+pg Graphic file (type bmp)
+<images/a5fbd1957730298f88717a41d22bc3da0dd8de1f5fc4892dd5026bc765716607.jpg>
+File: images/3b45154fa04e13c365db1dc6d9bcb3734c88883b8c2bc9cd4d5de64662dfe44d.j
+pg Graphic file (type bmp)
+<images/3b45154fa04e13c365db1dc6d9bcb3734c88883b8c2bc9cd4d5de64662dfe44d.jpg>
+
+
+[9]
+
+[10]
+Chapter 2.
+File: images/d473c090825f20d63931596811d6662a6f26c38289c0e006c62bd9b5a1e7dd69.j
+pg Graphic file (type bmp)
+<images/d473c090825f20d63931596811d6662a6f26c38289c0e006c62bd9b5a1e7dd69.jpg>
+
+Underfull \hbox (badness 10000) in paragraph at lines 551--556
+
+ []
+
+File: images/65a61ae48cdfa4379c7896c26730fb2884e5dc073f371872ac4a8e25af0e257d.j
+pg Graphic file (type bmp)
+<images/65a61ae48cdfa4379c7896c26730fb2884e5dc073f371872ac4a8e25af0e257d.jpg>
+
+Underfull \hbox (badness 10000) in paragraph at lines 581--591
+
+ []
+
+
+
+[11
+
+
+]
+File: images/5cda3ccac18d3ec56bbe2ad8c341bb9c8f2d6197ef5d42fdc3cc568363abaf1c.j
+pg Graphic file (type bmp)
+<images/5cda3ccac18d3ec56bbe2ad8c341bb9c8f2d6197ef5d42fdc3cc568363abaf1c.jpg>
+File: images/adca520ab2cb55dc7a4cfa134c4bec261906e2a56a850058f39a06b9ca63b0cb.j
+pg Graphic file (type bmp)
+<images/adca520ab2cb55dc7a4cfa134c4bec261906e2a56a850058f39a06b9ca63b0cb.jpg>
+
+
+[12]
+File: images/bc5a696af772729692aaf47478eefed79786dc685c2ed4b914a2e7ef0e190785.j
+pg Graphic file (type bmp)
+<images/bc5a696af772729692aaf47478eefed79786dc685c2ed4b914a2e7ef0e190785.jpg>
+File: images/d3ad9bad756c840884156f92a77833e0abc96dd721df3d7877fffb5ed64afea9.j
+pg Graphic file (type bmp)
+<images/d3ad9bad756c840884156f92a77833e0abc96dd721df3d7877fffb5ed64afea9.jpg>
+
+
+[13]
+File: images/153573c3c4dd097672888cda390847dc25aed64ce620bea4f582a8487161d82c.j
+pg Graphic file (type bmp)
+<images/153573c3c4dd097672888cda390847dc25aed64ce620bea4f582a8487161d82c.jpg>
+File: images/3bfce321221fdb1e0a375bc3d4849ad17dabab536bc9bc7e73d033657dba3704.j
+pg Graphic file (type bmp)
+<images/3bfce321221fdb1e0a375bc3d4849ad17dabab536bc9bc7e73d033657dba3704.jpg>
+
+
+[14]
+File: images/91fd6bf384ad351813246922bc160f1fa208652b6ffbe74f3ba53128462172af.j
+pg Graphic file (type bmp)
+<images/91fd6bf384ad351813246922bc160f1fa208652b6ffbe74f3ba53128462172af.jpg>
+
+
+[15]
+File: images/6edaa14fa2e4c04a09b7391fc080db0118ad59120a8582a0a3fff07a1dbcc2dc.j
+pg Graphic file (type bmp)
+<images/6edaa14fa2e4c04a09b7391fc080db0118ad59120a8582a0a3fff07a1dbcc2dc.jpg>
+
+Underfull \hbox (badness 10000) in paragraph at lines 762--767
+
+ []
+
+File: images/18787581314e45b24ec191e95d39feaa2a8d76cc9e7dceda00833dcaa4415bdd.j
+pg Graphic file (type bmp)
+<images/18787581314e45b24ec191e95d39feaa2a8d76cc9e7dceda00833dcaa4415bdd.jpg>
+
+
+[16]
+File: images/6c7a769ab52c6d6b58a59fe4de0d26720eb38e75a6f991a5cfc7268f6551a063.j
+pg Graphic file (type bmp)
+<images/6c7a769ab52c6d6b58a59fe4de0d26720eb38e75a6f991a5cfc7268f6551a063.jpg>
+
+
+[17]
+File: images/b6829aaec904dad9bc41b71131fd1a52d51bbd649581d5dee21a39e678f1a289.j
+pg Graphic file (type bmp)
+<images/b6829aaec904dad9bc41b71131fd1a52d51bbd649581d5dee21a39e678f1a289.jpg>
+
+
+[18]
+File: images/48b2ce5813c5bab03ec40f958006013ba219452ba23682159a240877adde59a7.j
+pg Graphic file (type bmp)
+<images/48b2ce5813c5bab03ec40f958006013ba219452ba23682159a240877adde59a7.jpg>
+File: images/e24e5bbfecaa1d59eb4ecd731d58e65d0e1eff166517abda68664c7eb7a5baf6.j
+pg Graphic file (type bmp)
+<images/e24e5bbfecaa1d59eb4ecd731d58e65d0e1eff166517abda68664c7eb7a5baf6.jpg>
+
+
+[19]
+File: images/8ef0da7054b6c26ffed793d1cb525a17ce809b2edc983bdb8a404c948c79cc63.j
+pg Graphic file (type bmp)
+<images/8ef0da7054b6c26ffed793d1cb525a17ce809b2edc983bdb8a404c948c79cc63.jpg>
+File: images/a57a9c0242110a76153c5c8b8e13f5474409a69a95afff04b6e1322f2f1e4796.j
+pg Graphic file (type bmp)
+<images/a57a9c0242110a76153c5c8b8e13f5474409a69a95afff04b6e1322f2f1e4796.jpg>
+File: images/184b22093d4d598c3f537b95a997f8b6379581bee6af99f7903eb9c829626b53.j
+pg Graphic file (type bmp)
+<images/184b22093d4d598c3f537b95a997f8b6379581bee6af99f7903eb9c829626b53.jpg>
+
+Underfull \hbox (badness 10000) in paragraph at lines 1007--1017
+
+ []
+
+
+
+[20]
+File: images/4abd197b3f6bf466889a3ae7c27ac4b8390de1da715605aa659112d4437b6a41.j
+pg Graphic file (type bmp)
+<images/4abd197b3f6bf466889a3ae7c27ac4b8390de1da715605aa659112d4437b6a41.jpg>
+File: images/2bc7cc7651de295d5fcc3139298a4d2286e4c277ec7cbac806c21e7ce1ab8108.j
+pg Graphic file (type bmp)
+<images/2bc7cc7651de295d5fcc3139298a4d2286e4c277ec7cbac806c21e7ce1ab8108.jpg>
+File: images/04b9e6fb0e1c293c5a87a16ee9cdb613eb6aa58942e2a7444d43fe4e0ab4cfd8.j
+pg Graphic file (type bmp)
+<images/04b9e6fb0e1c293c5a87a16ee9cdb613eb6aa58942e2a7444d43fe4e0ab4cfd8.jpg>
+File: images/3c71b8983eb8b569e2eefb418c48d7c9e36aab7326be344b2764b024b5339a48.j
+pg Graphic file (type bmp)
+<images/3c71b8983eb8b569e2eefb418c48d7c9e36aab7326be344b2764b024b5339a48.jpg>
+
+
+[21]
+File: images/2b1261b597934c076543e8a6af1599b29372a8ae789ed52fb2370f6389cad22b.j
+pg Graphic file (type bmp)
+<images/2b1261b597934c076543e8a6af1599b29372a8ae789ed52fb2370f6389cad22b.jpg>
+File: images/c45da14f085e7a154ef7c144bc582655376eabc264641811440a91f4e3572a6c.j
+pg Graphic file (type bmp)
+<images/c45da14f085e7a154ef7c144bc582655376eabc264641811440a91f4e3572a6c.jpg>
+File: images/ec4adbcd6915be89895c159a98e919eed20963638a155f6065438ee1dee72adb.j
+pg Graphic file (type bmp)
+<images/ec4adbcd6915be89895c159a98e919eed20963638a155f6065438ee1dee72adb.jpg>
+File: images/e21af6ce48b91fc639e3f6d4375da3fe84cf42ccfcaa875abbc9293c7e022c0c.j
+pg Graphic file (type bmp)
+<images/e21af6ce48b91fc639e3f6d4375da3fe84cf42ccfcaa875abbc9293c7e022c0c.jpg>
+File: images/a955753acbfa9446bf62ca1ed9edb1c405e9db17852ee118a56cdd946a211cc6.j
+pg Graphic file (type bmp)
+<images/a955753acbfa9446bf62ca1ed9edb1c405e9db17852ee118a56cdd946a211cc6.jpg>
+File: images/4004ac894b93507f326af8080541c0b5faa03e151d9f832a5c11c61b7070e627.j
+pg Graphic file (type bmp)
+<images/4004ac894b93507f326af8080541c0b5faa03e151d9f832a5c11c61b7070e627.jpg>
+
+
+[22]
+
+[23]
+Chapter 3.
+LaTeX Font Info:    Font shape `TU/texgyretermes(0)/m/n' will be
+(Font)              scaled to size 8.0pt on input line 1200.
+LaTeX Font Info:    Font shape `TU/texgyretermes(0)/m/n' will be
+(Font)              scaled to size 6.0pt on input line 1200.
+File: images/37afff1d6df44557c09de9f0bd344eecad52b837c2ba8813976491e95c15db64.j
+pg Graphic file (type bmp)
+<images/37afff1d6df44557c09de9f0bd344eecad52b837c2ba8813976491e95c15db64.jpg>
+File: images/5db3b28dc05d8562ea3f28dd7a92db21ad0c01f708967647f3f7584805007f95.j
+pg Graphic file (type bmp)
+<images/5db3b28dc05d8562ea3f28dd7a92db21ad0c01f708967647f3f7584805007f95.jpg>
+File: images/2470dd4398ea74529e0f6f8e1700e1b744407ce51863dd165b42383c1db8c22f.j
+pg Graphic file (type bmp)
+<images/2470dd4398ea74529e0f6f8e1700e1b744407ce51863dd165b42383c1db8c22f.jpg>
+File: images/d4ed86fd64aad58653c72aa2b47f79b1f07af46e92519819330df10ba9fc0b59.j
+pg Graphic file (type bmp)
+<images/d4ed86fd64aad58653c72aa2b47f79b1f07af46e92519819330df10ba9fc0b59.jpg>
+
+Underfull \hbox (badness 10000) in paragraph at lines 1225--1235
+
+ []
+
+
+
+[24
+
+
+]
+File: images/8214b574fafd828eca19ec3a7e1356ebb24fd66468be3c2c7eeb6282f9ec50e2.j
+pg Graphic file (type bmp)
+<images/8214b574fafd828eca19ec3a7e1356ebb24fd66468be3c2c7eeb6282f9ec50e2.jpg>
+
+
+[25]
+File: images/458f97cbf793d69dac5ff5508b150b1f86b1f87e2d38c85e0ef438c634a020c8.j
+pg Graphic file (type bmp)
+<images/458f97cbf793d69dac5ff5508b150b1f86b1f87e2d38c85e0ef438c634a020c8.jpg>
+
+Underfull \hbox (badness 10000) in paragraph at lines 1315--1330
+
+ []
+
+File: images/5a114b45d1cadac7e35214d1d449e524247d8e238f9cb9e3e450d42f4f5ae306.j
+pg Graphic file (type bmp)
+<images/5a114b45d1cadac7e35214d1d449e524247d8e238f9cb9e3e450d42f4f5ae306.jpg>
+
+
+[26]
+File: images/3c421dd96d45c5634cdf4379905ab1e0f46d59eb09ffeccb6583f5d8b5dd639e.j
+pg Graphic file (type bmp)
+<images/3c421dd96d45c5634cdf4379905ab1e0f46d59eb09ffeccb6583f5d8b5dd639e.jpg>
+File: images/6c195040b6ec020528af4a30c3286d72a3ebf7a3f4dcec5b5edeeec1a0c2a7b6.j
+pg Graphic file (type bmp)
+<images/6c195040b6ec020528af4a30c3286d72a3ebf7a3f4dcec5b5edeeec1a0c2a7b6.jpg>
+
+
+[27]
+File: images/694c4914dcf62c7940f535b9459f524994b4c33530c8664d3c0def79a37268e9.j
+pg Graphic file (type bmp)
+<images/694c4914dcf62c7940f535b9459f524994b4c33530c8664d3c0def79a37268e9.jpg>
+File: images/2ef569eb1df31fa75824954eca9c5a7e48ccf17466313b5245e0a05d20c7af45.j
+pg Graphic file (type bmp)
+<images/2ef569eb1df31fa75824954eca9c5a7e48ccf17466313b5245e0a05d20c7af45.jpg>
+File: images/58a0d345afc6a954fb2da06c11387415c8cd65c1f44798614483c804786691f8.j
+pg Graphic file (type bmp)
+<images/58a0d345afc6a954fb2da06c11387415c8cd65c1f44798614483c804786691f8.jpg>
+
+
+[28]
+File: images/d35bdc0e6c1bd747e9242d2647aceff93218d2e5209fefcaf364cd57d91f019b.j
+pg Graphic file (type bmp)
+<images/d35bdc0e6c1bd747e9242d2647aceff93218d2e5209fefcaf364cd57d91f019b.jpg>
+File: images/4e49d11ffa065c66aaa83d5f5ee3c801ff55b225b7ab661c2ac041a45676f646.j
+pg Graphic file (type bmp)
+<images/4e49d11ffa065c66aaa83d5f5ee3c801ff55b225b7ab661c2ac041a45676f646.jpg>
+
+
+[29]
+File: images/04ea0a778226a51fbd9ccf03f142d1f60b898f5b286add62e5d96dc4128ec3ce.j
+pg Graphic file (type bmp)
+<images/04ea0a778226a51fbd9ccf03f142d1f60b898f5b286add62e5d96dc4128ec3ce.jpg>
+
+
+[30]
+File: images/b9920dd1a9738b541a2519062552b98352f47621973e1e03ae44331b6b0328f1.j
+pg Graphic file (type bmp)
+<images/b9920dd1a9738b541a2519062552b98352f47621973e1e03ae44331b6b0328f1.jpg>
+File: images/7293840dc4fc44e01e16e8055691d5f30c0f67b73aad069953fbe1c959b682cd.j
+pg Graphic file (type bmp)
+<images/7293840dc4fc44e01e16e8055691d5f30c0f67b73aad069953fbe1c959b682cd.jpg>
+
+
+[31]
+File: images/0db828c4f3b75c9e97ec0c113a24f73cb1ba6bc03c5ed82471ac6420d0071cad.j
+pg Graphic file (type bmp)
+<images/0db828c4f3b75c9e97ec0c113a24f73cb1ba6bc03c5ed82471ac6420d0071cad.jpg>
+
+
+[32]
+File: images/f523215b214a3030fd58f1a1b40c54363aa6cb1130efc584711d45397f7fa9d0.j
+pg Graphic file (type bmp)
+<images/f523215b214a3030fd58f1a1b40c54363aa6cb1130efc584711d45397f7fa9d0.jpg>
+
+
+[33]
+File: images/5bbc89d0dda18e654e64dad741c93244047d51710166e588ec1be84f966cf0ec.j
+pg Graphic file (type bmp)
+<images/5bbc89d0dda18e654e64dad741c93244047d51710166e588ec1be84f966cf0ec.jpg>
+File: images/2e1bb66f805b617de7eed8b0708c43a706fea6cd4b87134af6a83b000dfcd454.j
+pg Graphic file (type bmp)
+<images/2e1bb66f805b617de7eed8b0708c43a706fea6cd4b87134af6a83b000dfcd454.jpg>
+
+
+[34]
+Underfull \hbox (badness 10000) in paragraph at lines 1791--1802
+
+ []
+
+
+
+[35]
+File: images/7c525fc48ee689feb970497d08e2d507d57d1b02423f240211f6488ac2d0b5dc.j
+pg Graphic file (type bmp)
+<images/7c525fc48ee689feb970497d08e2d507d57d1b02423f240211f6488ac2d0b5dc.jpg>
+File: images/c57f77bcf76b353aef143e89f29259a122ddfb0060e34249ad843ac78530e0f9.j
+pg Graphic file (type bmp)
+<images/c57f77bcf76b353aef143e89f29259a122ddfb0060e34249ad843ac78530e0f9.jpg>
+
+
+[36]
+File: images/ae933bb0666ed1fe7ff2f5b8f63f988294e0dab5ba87b21ba6a73d1fdd530fa6.j
+pg Graphic file (type bmp)
+<images/ae933bb0666ed1fe7ff2f5b8f63f988294e0dab5ba87b21ba6a73d1fdd530fa6.jpg>
+File: images/d55191fd60a4714eb6c5490c523e0d231b7bf8c25aacb082f79b6eb1a49e142e.j
+pg Graphic file (type bmp)
+<images/d55191fd60a4714eb6c5490c523e0d231b7bf8c25aacb082f79b6eb1a49e142e.jpg>
+
+
+[37]
+File: images/cd63e6bd68f562ce5e66d0c317836ddf597b78a8532a43c3be816ceab9ce0a18.j
+pg Graphic file (type bmp)
+<images/cd63e6bd68f562ce5e66d0c317836ddf597b78a8532a43c3be816ceab9ce0a18.jpg>
+File: images/82688b02c33858e17fab34bedff4a01574169e62000126e3b26dd128520f30b2.j
+pg Graphic file (type bmp)
+<images/82688b02c33858e17fab34bedff4a01574169e62000126e3b26dd128520f30b2.jpg>
+
+
+[38]
+Underfull \hbox (badness 10000) in paragraph at lines 1955--1975
+
+ []
+
+
+
+[39]
+
+[40]
+
+[41]
+Chapter 4.
+File: images/a14440773efa3d5ab05395a5e6e0774628d3b71ca712cebf18c0576eb70164bc.j
+pg Graphic file (type bmp)
+<images/a14440773efa3d5ab05395a5e6e0774628d3b71ca712cebf18c0576eb70164bc.jpg>
+File: images/dd061561f94f02cbdc7ed2a2fd0489081bee26effb86e6b58777bd89ffbdde2d.j
+pg Graphic file (type bmp)
+<images/dd061561f94f02cbdc7ed2a2fd0489081bee26effb86e6b58777bd89ffbdde2d.jpg>
+
+
+[42
+
+
+]
+Underfull \hbox (badness 10000) in paragraph at lines 2140--2158
+
+ []
+
+
+
+[43]
+
+[44]
+File: images/945a19d4b7349e7058522413b47e7f8964d035f6906d904959691fcbf7e91a27.j
+pg Graphic file (type bmp)
+<images/945a19d4b7349e7058522413b47e7f8964d035f6906d904959691fcbf7e91a27.jpg>
+
+
+[45]
+File: images/2a3698512c2a4381e7967c0de37e013e75b849450c138a2108c69ebc9512e702.j
+pg Graphic file (type bmp)
+<images/2a3698512c2a4381e7967c0de37e013e75b849450c138a2108c69ebc9512e702.jpg>
+File: images/c30fd4547387d4035aa89103cf5dc1c0087b71b18685dd959d0614e62f6e4514.j
+pg Graphic file (type bmp)
+<images/c30fd4547387d4035aa89103cf5dc1c0087b71b18685dd959d0614e62f6e4514.jpg>
+
+
+[46]
+File: images/227ec00fe8353f4998457611ca45deeff816a006bc625992fcbf6e6457708a06.j
+pg Graphic file (type bmp)
+<images/227ec00fe8353f4998457611ca45deeff816a006bc625992fcbf6e6457708a06.jpg>
+
+
+[47]
+File: images/e3f9a6cce2d3636f793a224aa4b10fcb3acf31ae617d9274bd390b863ba79b29.j
+pg Graphic file (type bmp)
+<images/e3f9a6cce2d3636f793a224aa4b10fcb3acf31ae617d9274bd390b863ba79b29.jpg>
+File: images/d4c15d4fd6b5f5b70187d6b3fd6122510f44f7a16cd7ce4f53f7f1516f08dd5c.j
+pg Graphic file (type bmp)
+<images/d4c15d4fd6b5f5b70187d6b3fd6122510f44f7a16cd7ce4f53f7f1516f08dd5c.jpg>
+File: images/240f46455b12140101e3a28633c302900b29d2e8119bb6a81bc8ddc34fbd611b.j
+pg Graphic file (type bmp)
+<images/240f46455b12140101e3a28633c302900b29d2e8119bb6a81bc8ddc34fbd611b.jpg>
+File: images/95ae328dd4c0d33473ad1c6d241b3940afad5e1181b281bc745115561a08ea61.j
+pg Graphic file (type bmp)
+<images/95ae328dd4c0d33473ad1c6d241b3940afad5e1181b281bc745115561a08ea61.jpg>
+
+
+[48]
+File: images/0a1a9e73ac8729f18b78972e0bf62af48b9b52bc8ab948d790c2c6e8e663de9e.j
+pg Graphic file (type bmp)
+<images/0a1a9e73ac8729f18b78972e0bf62af48b9b52bc8ab948d790c2c6e8e663de9e.jpg>
+File: images/6ebb00d894bfc4b6adda765097426cd59756c9b4354e5988eb4b37d6b2eaf313.j
+pg Graphic file (type bmp)
+<images/6ebb00d894bfc4b6adda765097426cd59756c9b4354e5988eb4b37d6b2eaf313.jpg>
+File: images/add94d6a0a2f7aa74117a5e1f07f8c7e63f03ae976d9d50b8383e26b8a0c6775.j
+pg Graphic file (type bmp)
+<images/add94d6a0a2f7aa74117a5e1f07f8c7e63f03ae976d9d50b8383e26b8a0c6775.jpg>
+
+
+[49]
+File: images/09ea8077c9a1d8b5aeedf34617bb70d46f75305c3a1260e19023ed0e4580c5eb.j
+pg Graphic file (type bmp)
+<images/09ea8077c9a1d8b5aeedf34617bb70d46f75305c3a1260e19023ed0e4580c5eb.jpg>
+File: images/ff726bc5c3e0b2d289fa1f6481f5dee4f13712bc7cceb196ff415122483c7c96.j
+pg Graphic file (type bmp)
+<images/ff726bc5c3e0b2d289fa1f6481f5dee4f13712bc7cceb196ff415122483c7c96.jpg>
+
+
+[50]
+File: images/d847a8c2a87f27d6817bb130e8afbc8086103629c72d76809429a1628c1e70a8.j
+pg Graphic file (type bmp)
+<images/d847a8c2a87f27d6817bb130e8afbc8086103629c72d76809429a1628c1e70a8.jpg>
+File: images/468cf65ec1d3317f590e7ee4d73c7b9f60e59ec7852d6f4f3ee72c4ebb46a977.j
+pg Graphic file (type bmp)
+<images/468cf65ec1d3317f590e7ee4d73c7b9f60e59ec7852d6f4f3ee72c4ebb46a977.jpg>
+
+
+[51]
+File: images/8937c99d62016e6c10733536965542397f29c8f479fa58677fa6ddffa84497a7.j
+pg Graphic file (type bmp)
+<images/8937c99d62016e6c10733536965542397f29c8f479fa58677fa6ddffa84497a7.jpg>
+File: images/807b242986d6b729d86c3942f2a6ab85df22424fbb52e6780a4b6d163b492368.j
+pg Graphic file (type bmp)
+<images/807b242986d6b729d86c3942f2a6ab85df22424fbb52e6780a4b6d163b492368.jpg>
+File: images/1e69adc7fdafced3682b9cea93231556ab6ca2ad72fd671bfc600811b47f0d81.j
+pg Graphic file (type bmp)
+<images/1e69adc7fdafced3682b9cea93231556ab6ca2ad72fd671bfc600811b47f0d81.jpg>
+
+
+[52]
+
+[53]
+Chapter 5.
+File: images/1008155e9fccd00bd09607595e6bdace6ce04fa0d700a35c5bd98c9ab9705e5b.j
+pg Graphic file (type bmp)
+<images/1008155e9fccd00bd09607595e6bdace6ce04fa0d700a35c5bd98c9ab9705e5b.jpg>
+
+Underfull \hbox (badness 10000) in paragraph at lines 2603--2621
+
+ []
+
+
+
+[54
+
+
+]
+Underfull \hbox (badness 10000) in paragraph at lines 2645--2658
+
+ []
+
+
+
+[55]
+File: images/6136b4597e5d1a4d43b8b9e99f561574e0df20ae012b30835d3377ce80d03fcf.j
+pg Graphic file (type bmp)
+<images/6136b4597e5d1a4d43b8b9e99f561574e0df20ae012b30835d3377ce80d03fcf.jpg>
+File: images/97e0aff3ebf6119dbd06c54ddbba14da83d33dae9aaa735b149c00cbb0e8dde5.j
+pg Graphic file (type bmp)
+<images/97e0aff3ebf6119dbd06c54ddbba14da83d33dae9aaa735b149c00cbb0e8dde5.jpg>
+
+
+[56]
+Underfull \hbox (badness 10000) in paragraph at lines 2703--2713
+
+ []
+
+
+
+[57]
+File: images/617eeea2a30bfef291f03ada8c780e371b3370cbc0d31d6f96bbc2deacaeef4a.j
+pg Graphic file (type bmp)
+<images/617eeea2a30bfef291f03ada8c780e371b3370cbc0d31d6f96bbc2deacaeef4a.jpg>
+
+
+[58]
+File: images/6604ea85f89f36ab6f78426705a06c77f2fe0b078eb858384b9fdc40072d6963.j
+pg Graphic file (type bmp)
+<images/6604ea85f89f36ab6f78426705a06c77f2fe0b078eb858384b9fdc40072d6963.jpg>
+File: images/916f60ec3175c3b09400678a304d4e5c88e312e31857813d474f91145affb0bd.j
+pg Graphic file (type bmp)
+<images/916f60ec3175c3b09400678a304d4e5c88e312e31857813d474f91145affb0bd.jpg>
+
+
+[59]
+Underfull \hbox (badness 10000) in paragraph at lines 2876--2881
+
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 2893--2898
+
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 2906--2916
+
+ []
+
+
+
+[60]
+Underfull \hbox (badness 10000) in paragraph at lines 2935--2945
+
+ []
+
+File: images/0b8c782c8c00d7cf0acf516ab23e6772bb42bb8bb59d98eac57d0aa66876af70.j
+pg Graphic file (type bmp)
+<images/0b8c782c8c00d7cf0acf516ab23e6772bb42bb8bb59d98eac57d0aa66876af70.jpg>
+File: images/91a08479b792c026d54729c1f8e0dbbeb45b15aa6548b8b634d098f6b9a85f83.j
+pg Graphic file (type bmp)
+<images/91a08479b792c026d54729c1f8e0dbbeb45b15aa6548b8b634d098f6b9a85f83.jpg>
+File: images/497ce1c9dd57316a2f2efb61fd497201a9a3b9934ad911c4d01a3431f2358404.j
+pg Graphic file (type bmp)
+<images/497ce1c9dd57316a2f2efb61fd497201a9a3b9934ad911c4d01a3431f2358404.jpg>
+File: images/a2c12904a5fa14aec812ff24c1d7e2b751aca2a9599e140940e3bb3c4bbcd34b.j
+pg Graphic file (type bmp)
+<images/a2c12904a5fa14aec812ff24c1d7e2b751aca2a9599e140940e3bb3c4bbcd34b.jpg>
+
+
+[61]
+Underfull \hbox (badness 10000) in paragraph at lines 3000--3008
+
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 3014--3021
+
+ []
+
+
+
+[62]
+Chapter 6.
+File: images/356906be1ad88279cddeaa1afe71b262e733377645c0d64452d606b9b650bce4.j
+pg Graphic file (type bmp)
+<images/356906be1ad88279cddeaa1afe71b262e733377645c0d64452d606b9b650bce4.jpg>
+File: images/81b0769737c0f7bc346ba96ba02e282244f677c9cb4bff5fa289c5e5c3c21f9b.j
+pg Graphic file (type bmp)
+<images/81b0769737c0f7bc346ba96ba02e282244f677c9cb4bff5fa289c5e5c3c21f9b.jpg>
+
+
+[63
+
+
+]
+File: images/6a00a43343edbb0b9ba9b4eee832783b2c723d56d98f38a6eff2faa88b9d283e.j
+pg Graphic file (type bmp)
+<images/6a00a43343edbb0b9ba9b4eee832783b2c723d56d98f38a6eff2faa88b9d283e.jpg>
+
+
+[64]
+Underfull \hbox (badness 10000) in paragraph at lines 3153--3161
+
+ []
+
+File: images/333c225a50c8a10571d1d9d56428de592aec520b7b0952ab8a61a0609f28c0a8.j
+pg Graphic file (type bmp)
+<images/333c225a50c8a10571d1d9d56428de592aec520b7b0952ab8a61a0609f28c0a8.jpg>
+File: images/6b9f7ff92e8bc9836594207bd02154fddbd84096441ac6be1497b6b1b52ad3b9.j
+pg Graphic file (type bmp)
+<images/6b9f7ff92e8bc9836594207bd02154fddbd84096441ac6be1497b6b1b52ad3b9.jpg>
+
+
+[65]
+File: images/eee2fd9f78d1298eca44d522b7e6a91ccd33b6fdad06fec023affa9f852dcfbd.j
+pg Graphic file (type bmp)
+<images/eee2fd9f78d1298eca44d522b7e6a91ccd33b6fdad06fec023affa9f852dcfbd.jpg>
+File: images/b11028e22cbb03d09c7297cd5584f8030943447926ed3c935b843507025a3ccf.j
+pg Graphic file (type bmp)
+<images/b11028e22cbb03d09c7297cd5584f8030943447926ed3c935b843507025a3ccf.jpg>
+
+
+[66]
+File: images/b5485faae95148d5e86e4fd76a72f9138d18374ad27cc5addebe74ddc45df18c.j
+pg Graphic file (type bmp)
+<images/b5485faae95148d5e86e4fd76a72f9138d18374ad27cc5addebe74ddc45df18c.jpg>
+File: images/cd437de49f57feeb91f811dab77324692478d8b602f2ec6cf6fc2a8acfac3305.j
+pg Graphic file (type bmp)
+<images/cd437de49f57feeb91f811dab77324692478d8b602f2ec6cf6fc2a8acfac3305.jpg>
+
+
+[67]
+File: images/8351660e137a5d7589a691b34237e9de465604d33c015837da6dce6ebe6eff4b.j
+pg Graphic file (type bmp)
+<images/8351660e137a5d7589a691b34237e9de465604d33c015837da6dce6ebe6eff4b.jpg>
+
+
+[68]
+File: images/c9b6d23d449a4f6755872ec52db49835ebd6012895965737f6092262f0d9b802.j
+pg Graphic file (type bmp)
+<images/c9b6d23d449a4f6755872ec52db49835ebd6012895965737f6092262f0d9b802.jpg>
+
+
+[69]
+File: images/736f62dea05766db0e1b9c50333cfbf75324e0cfa8accb2d5f325b75792bf0a9.j
+pg Graphic file (type bmp)
+<images/736f62dea05766db0e1b9c50333cfbf75324e0cfa8accb2d5f325b75792bf0a9.jpg>
+File: images/ee9931323e7c2beb1c1e0478e15a8c5f03294cafa568b3b5dafebeb9cabb29e1.j
+pg Graphic file (type bmp)
+<images/ee9931323e7c2beb1c1e0478e15a8c5f03294cafa568b3b5dafebeb9cabb29e1.jpg>
+
+
+[70]
+
+[71]
+Chapter 7.
+LaTeX Font Info:    Trying to load font information for OMS+texgyretermes(0) on
+ input line 3495.
+LaTeX Font Info:    No file OMStexgyretermes(0).fd. on input line 3495.
+
+LaTeX Font Warning: Font shape `OMS/texgyretermes(0)/m/n' undefined
+(Font)              using `OMS/cmsy/m/n' instead on input line 3495.
+
+File: images/022f2bc8638daa47b608aaa896167cd368a25f0f5e6b8fbf4b16c3e08f308b7f.j
+pg Graphic file (type bmp)
+<images/022f2bc8638daa47b608aaa896167cd368a25f0f5e6b8fbf4b16c3e08f308b7f.jpg>
+File: images/67d5fd1704605dea175937995296c303a54b693c5e13a4070d5165bdbddc538c.j
+pg Graphic file (type bmp)
+<images/67d5fd1704605dea175937995296c303a54b693c5e13a4070d5165bdbddc538c.jpg>
+File: images/3459af1480bf7d5a9bd50a571803ecb249bd012d9565b35bff3d52ae5c809ba8.j
+pg Graphic file (type bmp)
+<images/3459af1480bf7d5a9bd50a571803ecb249bd012d9565b35bff3d52ae5c809ba8.jpg>
+File: images/a3bf9ba2675b3212861651c4eac9870a64172cd0be44aae6efb2a60a020f98d9.j
+pg Graphic file (type bmp)
+<images/a3bf9ba2675b3212861651c4eac9870a64172cd0be44aae6efb2a60a020f98d9.jpg>
+
+
+[72
+
+
+]
+File: images/31d044067995c43ff49c843b6663d9eb11ec7f8da45bd2473a8744f22c3d1066.j
+pg Graphic file (type bmp)
+<images/31d044067995c43ff49c843b6663d9eb11ec7f8da45bd2473a8744f22c3d1066.jpg>
+File: images/f12bc1b46052122e75229571ae48359a3a9365da6fc28f772cdb446c14b2ba16.j
+pg Graphic file (type bmp)
+<images/f12bc1b46052122e75229571ae48359a3a9365da6fc28f772cdb446c14b2ba16.jpg>
+File: images/c98cb052a5bec0fdab9216b0802de3f9913380950cb2fc78191780836338d0df.j
+pg Graphic file (type bmp)
+<images/c98cb052a5bec0fdab9216b0802de3f9913380950cb2fc78191780836338d0df.jpg>
+File: images/485f023ea61bddd112385878fe1ef88d886d03849885c7abe97a78e9beac4c15.j
+pg Graphic file (type bmp)
+<images/485f023ea61bddd112385878fe1ef88d886d03849885c7abe97a78e9beac4c15.jpg>
+File: images/48d808323256687c80e94be1c1e19582c7ba6e5dda4ff7f0793048471c8e8f07.j
+pg Graphic file (type bmp)
+<images/48d808323256687c80e94be1c1e19582c7ba6e5dda4ff7f0793048471c8e8f07.jpg>
+File: images/9426a0b22fdf3c3a48fa33529c86a6aa5a16159d463d7e6f5ad8f27a968927ef.j
+pg Graphic file (type bmp)
+<images/9426a0b22fdf3c3a48fa33529c86a6aa5a16159d463d7e6f5ad8f27a968927ef.jpg>
+File: images/e4804be59d46590ea111cebfa2d3cf3c9b49514ad7a59b44db3d0a2988578a74.j
+pg Graphic file (type bmp)
+<images/e4804be59d46590ea111cebfa2d3cf3c9b49514ad7a59b44db3d0a2988578a74.jpg>
+
+
+[73]
+File: images/89f2c26b842fc1dbd66550ad81a087d81c439db890eb0125e8e2d738737da1dc.j
+pg Graphic file (type bmp)
+<images/89f2c26b842fc1dbd66550ad81a087d81c439db890eb0125e8e2d738737da1dc.jpg>
+File: images/d413ddfada386cd380f9e7e812c731f2b7b591c2dec14980a99841c9f141f158.j
+pg Graphic file (type bmp)
+<images/d413ddfada386cd380f9e7e812c731f2b7b591c2dec14980a99841c9f141f158.jpg>
+File: images/f3dd41e69c1e2e64ef16848de5c4ffca5d203c3d1c205afa9626eab817b04a58.j
+pg Graphic file (type bmp)
+<images/f3dd41e69c1e2e64ef16848de5c4ffca5d203c3d1c205afa9626eab817b04a58.jpg>
+File: images/b983facbd6eb4923572368995469213e8614dc6e4e15233b8b6f30c150a0e298.j
+pg Graphic file (type bmp)
+<images/b983facbd6eb4923572368995469213e8614dc6e4e15233b8b6f30c150a0e298.jpg>
+File: images/4c5b869db7bc8581a950b38a24edd243ab3254eacf3672fab82ae24c15e5cd12.j
+pg Graphic file (type bmp)
+<images/4c5b869db7bc8581a950b38a24edd243ab3254eacf3672fab82ae24c15e5cd12.jpg>
+
+
+[74]
+File: images/83a884f7462e144687b2a552a1614c83891b553e25985081ab37c83d415449af.j
+pg Graphic file (type bmp)
+<images/83a884f7462e144687b2a552a1614c83891b553e25985081ab37c83d415449af.jpg>
+File: images/aebeb2b460f43c99dc7b98bf36d494e89d99bdf785b604c1f59755813132e157.j
+pg Graphic file (type bmp)
+<images/aebeb2b460f43c99dc7b98bf36d494e89d99bdf785b604c1f59755813132e157.jpg>
+File: images/17fe438724ae2b90dcb3a8e3467a940c4ed6762c20754cc96ebc615fc33157ff.j
+pg Graphic file (type bmp)
+<images/17fe438724ae2b90dcb3a8e3467a940c4ed6762c20754cc96ebc615fc33157ff.jpg>
+
+
+[75]
+File: images/0fcb9d2de48a56032215a5a3bcbfa0f8f4a75306c2d09168cab9a39348620ef3.j
+pg Graphic file (type bmp)
+<images/0fcb9d2de48a56032215a5a3bcbfa0f8f4a75306c2d09168cab9a39348620ef3.jpg>
+
+
+[76]
+File: images/be3f5d9155fcadefa0f2742b7577b8a38a5e14daa1ae73f5373676f6d42d2a94.j
+pg Graphic file (type bmp)
+<images/be3f5d9155fcadefa0f2742b7577b8a38a5e14daa1ae73f5373676f6d42d2a94.jpg>
+File: images/3341aa035b86d45858c78adaf1372649e15156a76ecf97827b536fe570182868.j
+pg Graphic file (type bmp)
+<images/3341aa035b86d45858c78adaf1372649e15156a76ecf97827b536fe570182868.jpg>
+
+
+[77]
+File: images/16697f6b2b27058e77356d70fc37c1e2c31756f00ee4f06e27153e1ca331eb4f.j
+pg Graphic file (type bmp)
+<images/16697f6b2b27058e77356d70fc37c1e2c31756f00ee4f06e27153e1ca331eb4f.jpg>
+File: images/aa03711fc6b6b03823dde960dbe8b73816baf2171121196026a1f46a9bff81dd.j
+pg Graphic file (type bmp)
+<images/aa03711fc6b6b03823dde960dbe8b73816baf2171121196026a1f46a9bff81dd.jpg>
+
+
+[78]
+File: images/c61268f192b4bc66bcdce9b2a575f81947ca3a3d1aa7650fa8ba10451d852bf1.j
+pg Graphic file (type bmp)
+<images/c61268f192b4bc66bcdce9b2a575f81947ca3a3d1aa7650fa8ba10451d852bf1.jpg>
+
+Underfull \hbox (badness 10000) in paragraph at lines 3840--3851
+
+ []
+
+
+
+[79]
+File: images/352c2fa44fe0dbc22ad1d824fcaeed92ebcdb35bd8289974917f7adef8b697fb.j
+pg Graphic file (type bmp)
+<images/352c2fa44fe0dbc22ad1d824fcaeed92ebcdb35bd8289974917f7adef8b697fb.jpg>
+
+
+[80]
+File: images/120bc43742d868f601dd8d94e3a44e1a7f256bfd82af7751f451eaa7c7e07b19.j
+pg Graphic file (type bmp)
+<images/120bc43742d868f601dd8d94e3a44e1a7f256bfd82af7751f451eaa7c7e07b19.jpg>
+
+
+[81]
+Chapter 8.
+File: images/7879d0aec98b1827695eb6ad7ef5e2e61aa95996126b4c34a614de264942a297.j
+pg Graphic file (type bmp)
+<images/7879d0aec98b1827695eb6ad7ef5e2e61aa95996126b4c34a614de264942a297.jpg>
+File: images/e677fd79a9e97e07ae5e9d78ff5f91419498ca626e32fa32e9fa0e7852ae42e6.j
+pg Graphic file (type bmp)
+<images/e677fd79a9e97e07ae5e9d78ff5f91419498ca626e32fa32e9fa0e7852ae42e6.jpg>
+
+
+[82
+
+
+]
+File: images/c7d0e6fd10d4966075aa55e0f4b64010210ed8b6bd6590b33c2f5e14e01a7822.j
+pg Graphic file (type bmp)
+<images/c7d0e6fd10d4966075aa55e0f4b64010210ed8b6bd6590b33c2f5e14e01a7822.jpg>
+
+Underfull \hbox (badness 10000) in paragraph at lines 4041--4056
+
+ []
+
+File: images/19aef45496e5922cb93cfb5048111c1ed61e82e22b338313de76d02e493de9c3.j
+pg Graphic file (type bmp)
+<images/19aef45496e5922cb93cfb5048111c1ed61e82e22b338313de76d02e493de9c3.jpg>
+
+
+[83]
+File: images/dfb4bfea489aa26e9efa4f899f3035832abd9277273e72312aae294a644992ab.j
+pg Graphic file (type bmp)
+<images/dfb4bfea489aa26e9efa4f899f3035832abd9277273e72312aae294a644992ab.jpg>
+
+
+[84]
+File: images/f72d2bc9216822645fec2c5d74216ee10b83a9eb77ad7cc94b574af4d200ee5e.j
+pg Graphic file (type bmp)
+<images/f72d2bc9216822645fec2c5d74216ee10b83a9eb77ad7cc94b574af4d200ee5e.jpg>
+File: images/b5451b32ba465b5854007063c83186b17f87075db2c974f74de1f8b3a007a3bf.j
+pg Graphic file (type bmp)
+<images/b5451b32ba465b5854007063c83186b17f87075db2c974f74de1f8b3a007a3bf.jpg>
+
+
+[85]
+File: images/cab69c1ccffc2d05174e2c415879997574c886fa9ec6506d5dce22fb75ad8f91.j
+pg Graphic file (type bmp)
+<images/cab69c1ccffc2d05174e2c415879997574c886fa9ec6506d5dce22fb75ad8f91.jpg>
+File: images/a078fb4b2628bc211e77ff16f1c93689c0281f1786bb10d3034a64c917de88f6.j
+pg Graphic file (type bmp)
+<images/a078fb4b2628bc211e77ff16f1c93689c0281f1786bb10d3034a64c917de88f6.jpg>
+
+
+[86]
+File: images/fb44679741e7ebb73310366c6ddc9393cef1d7bdf41e9988a8c6efc650852990.j
+pg Graphic file (type bmp)
+<images/fb44679741e7ebb73310366c6ddc9393cef1d7bdf41e9988a8c6efc650852990.jpg>
+
+
+[87]
+File: images/4a21fc2d6da04f0cdf4751454eb7c62e51321cb0d1cf71983a8c8f52ce3e4480.j
+pg Graphic file (type bmp)
+<images/4a21fc2d6da04f0cdf4751454eb7c62e51321cb0d1cf71983a8c8f52ce3e4480.jpg>
+File: images/c5024e4c466642200726f09055dce3eebc8e18ce95cd5564218a6003982600f8.j
+pg Graphic file (type bmp)
+<images/c5024e4c466642200726f09055dce3eebc8e18ce95cd5564218a6003982600f8.jpg>
+File: images/24b84c266e46c0cedf29e41dfdafd16e52da966819cae1534f4fe1d9ee11aacf.j
+pg Graphic file (type bmp)
+<images/24b84c266e46c0cedf29e41dfdafd16e52da966819cae1534f4fe1d9ee11aacf.jpg>
+
+
+[88]
+File: images/9cf3e5ca8a24fd499fbcb8cd9623060413b62d711ab7be632320517d571e1f48.j
+pg Graphic file (type bmp)
+<images/9cf3e5ca8a24fd499fbcb8cd9623060413b62d711ab7be632320517d571e1f48.jpg>
+File: images/5004301b230ef61e9d0809400bfd69320b7e30629fc9705ef0abe02fb5ff39bf.j
+pg Graphic file (type bmp)
+<images/5004301b230ef61e9d0809400bfd69320b7e30629fc9705ef0abe02fb5ff39bf.jpg>
+
+
+[89]
+File: images/e6c1d340f53ed75f8f0c8b4d6398a923ec15d2f380b351d0b6ad466e0779104d.j
+pg Graphic file (type bmp)
+<images/e6c1d340f53ed75f8f0c8b4d6398a923ec15d2f380b351d0b6ad466e0779104d.jpg>
+File: images/2159a01b792a6e2381b6718dd88cca20cd939f2de9d47bce2b86718b4fd5d064.j
+pg Graphic file (type bmp)
+<images/2159a01b792a6e2381b6718dd88cca20cd939f2de9d47bce2b86718b4fd5d064.jpg>
+File: images/319f1d5c7664f75ad2d260e7773dca3350a1e0d3f569a52cfaba6d1f73015975.j
+pg Graphic file (type bmp)
+<images/319f1d5c7664f75ad2d260e7773dca3350a1e0d3f569a52cfaba6d1f73015975.jpg>
+
+
+[90]
+File: images/4c7847d829df1dda962c2a3e826e165db35458f74bd570231e7f0a51d0745070.j
+pg Graphic file (type bmp)
+<images/4c7847d829df1dda962c2a3e826e165db35458f74bd570231e7f0a51d0745070.jpg>
+File: images/3bd4cee23a989bac1a87d75d8099f74661b50fdb3eac3139637d1a8b8c9d0ce4.j
+pg Graphic file (type bmp)
+<images/3bd4cee23a989bac1a87d75d8099f74661b50fdb3eac3139637d1a8b8c9d0ce4.jpg>
+
+
+[91]
+File: images/335e67914fbfa32c5bce3f90874ee284749afef25cc715fb3d12643df53ca0be.j
+pg Graphic file (type bmp)
+<images/335e67914fbfa32c5bce3f90874ee284749afef25cc715fb3d12643df53ca0be.jpg>
+File: images/cf40d641c56016daeb0f38f253ff92d67c10c11ace2a2df8d9595c45fbefdf1f.j
+pg Graphic file (type bmp)
+<images/cf40d641c56016daeb0f38f253ff92d67c10c11ace2a2df8d9595c45fbefdf1f.jpg>
+
+
+[92]
+Underfull \hbox (badness 10000) in paragraph at lines 4294--4302
+
+ []
+
+File: images/2c1cea9102f5a4b2c262c1dd47cb6ccf6dc0b74c88ee3d2224a04d1eaade12c7.j
+pg Graphic file (type bmp)
+<images/2c1cea9102f5a4b2c262c1dd47cb6ccf6dc0b74c88ee3d2224a04d1eaade12c7.jpg>
+File: images/2443dd79d47a4202ebd7006aa7ef65171ed74044cb875b2e4b0f91e065c1fcb1.j
+pg Graphic file (type bmp)
+<images/2443dd79d47a4202ebd7006aa7ef65171ed74044cb875b2e4b0f91e065c1fcb1.jpg>
+
+
+[93]
+File: images/7f83480bc839423e0a6578b4f127ecd17341027ca17018a3cd02ab3ce75ae35b.j
+pg Graphic file (type bmp)
+<images/7f83480bc839423e0a6578b4f127ecd17341027ca17018a3cd02ab3ce75ae35b.jpg>
+File: images/34cb37826f95effdf56aef69a127c1fe39298bd2ff9bc9fb2dac890a7279fab1.j
+pg Graphic file (type bmp)
+<images/34cb37826f95effdf56aef69a127c1fe39298bd2ff9bc9fb2dac890a7279fab1.jpg>
+File: images/2102fa59b531feb97a965db11b7d9ec4d2d3a5f8d0370b3abc18928ce97b2296.j
+pg Graphic file (type bmp)
+<images/2102fa59b531feb97a965db11b7d9ec4d2d3a5f8d0370b3abc18928ce97b2296.jpg>
+File: images/5505407ec9c16b4389233745c4d0cb7181b8151f5af53cefd3770a2a7ad1baa1.j
+pg Graphic file (type bmp)
+<images/5505407ec9c16b4389233745c4d0cb7181b8151f5af53cefd3770a2a7ad1baa1.jpg>
+
+
+[94]
+File: images/2033cf7a9c2f7bcd8796df02118ee2c7c9e5f6617c58072e7206a98cd4ab46b1.j
+pg Graphic file (type bmp)
+<images/2033cf7a9c2f7bcd8796df02118ee2c7c9e5f6617c58072e7206a98cd4ab46b1.jpg>
+File: images/395f255a95b26a2577df847f54bb00c6bb5620afcb9dd0306ec59c93353e2ed4.j
+pg Graphic file (type bmp)
+<images/395f255a95b26a2577df847f54bb00c6bb5620afcb9dd0306ec59c93353e2ed4.jpg>
+File: images/efc085b72657c614c9ca45c894ba863a4fe7886e7ab1c0c2ae2516e9c376a892.j
+pg Graphic file (type bmp)
+<images/efc085b72657c614c9ca45c894ba863a4fe7886e7ab1c0c2ae2516e9c376a892.jpg>
+
+
+[95]
+Underfull \hbox (badness 10000) in paragraph at lines 4414--4423
+
+ []
+
+File: images/7eafe02af4fdec8ae6a3069d14eca5569c158bc8c1765e43395670309da8bb3c.j
+pg Graphic file (type bmp)
+<images/7eafe02af4fdec8ae6a3069d14eca5569c158bc8c1765e43395670309da8bb3c.jpg>
+
+
+[96]
+File: images/5d2ccd900cc95f2092d5781ad24f5bdb9d73ae09486f9b96ae527f2bcbef43ec.j
+pg Graphic file (type bmp)
+<images/5d2ccd900cc95f2092d5781ad24f5bdb9d73ae09486f9b96ae527f2bcbef43ec.jpg>
+
+Underfull \hbox (badness 10000) in paragraph at lines 4453--4459
+
+ []
+
+File: images/9bff28115598f1f97b7b1dceabde9aae4683b84e16c88191c067fdf1853d9504.j
+pg Graphic file (type bmp)
+<images/9bff28115598f1f97b7b1dceabde9aae4683b84e16c88191c067fdf1853d9504.jpg>
+
+
+[97]
+
+[98]
+
+[99]
+Chapter 9.
+File: images/c6098c85e496924a9c78fd076d18af15d049214a61b2b8d79718e29142de274d.j
+pg Graphic file (type bmp)
+<images/c6098c85e496924a9c78fd076d18af15d049214a61b2b8d79718e29142de274d.jpg>
+
+
+[100
+
+
+]
+File: images/f1e2b86524318fce576dd1feef51d9fb4bd465418561e01ae5585b29bfb73437.j
+pg Graphic file (type bmp)
+<images/f1e2b86524318fce576dd1feef51d9fb4bd465418561e01ae5585b29bfb73437.jpg>
+File: images/b252796d51e2cf341d099b96dfcbdd19cf67bf139b9294cc12c229c05cbced48.j
+pg Graphic file (type bmp)
+<images/b252796d51e2cf341d099b96dfcbdd19cf67bf139b9294cc12c229c05cbced48.jpg>
+File: images/ae8bb8b15330f7516998f5657278ed505e00f9d3c944de067711ba86ca300910.j
+pg Graphic file (type bmp)
+<images/ae8bb8b15330f7516998f5657278ed505e00f9d3c944de067711ba86ca300910.jpg>
+
+
+[101]
+File: images/ca00152c66a97522809b18eac6fa70019273e7284b31809cbf4076355399937b.j
+pg Graphic file (type bmp)
+<images/ca00152c66a97522809b18eac6fa70019273e7284b31809cbf4076355399937b.jpg>
+
+
+[102]
+File: images/04770b66d2c57a4233781c604f761a3303ca14b8c080e2e6c0fe30cc7497acc6.j
+pg Graphic file (type bmp)
+<images/04770b66d2c57a4233781c604f761a3303ca14b8c080e2e6c0fe30cc7497acc6.jpg>
+File: images/a549ee41fcbf6c58369d2a0d4a06b0c212954b7387d2ced143ee816bbdf9370a.j
+pg Graphic file (type bmp)
+<images/a549ee41fcbf6c58369d2a0d4a06b0c212954b7387d2ced143ee816bbdf9370a.jpg>
+File: images/d39a2669124d856d5f0f3c565297f44797f1671da0b07b583b8c9007de22f0fa.j
+pg Graphic file (type bmp)
+<images/d39a2669124d856d5f0f3c565297f44797f1671da0b07b583b8c9007de22f0fa.jpg>
+
+
+[103]
+Underfull \hbox (badness 10000) in paragraph at lines 4801--4809
+
+ []
+
+File: images/da086a2cc2f4126c9d98a3e23b5735f8e7e70839f6f3fa5796b15f6459687578.j
+pg Graphic file (type bmp)
+<images/da086a2cc2f4126c9d98a3e23b5735f8e7e70839f6f3fa5796b15f6459687578.jpg>
+
+
+[104]
+Underfull \hbox (badness 10000) in paragraph at lines 4826--4834
+
+ []
+
+File: images/eccd10a838f469052cf5f227c37859d2732e0dee27bba6780f222acd79cb02ee.j
+pg Graphic file (type bmp)
+<images/eccd10a838f469052cf5f227c37859d2732e0dee27bba6780f222acd79cb02ee.jpg>
+File: images/2a1b391de465a1f4441a66809c7029751fcfadeefd60fcd5ba274e854a7d4315.j
+pg Graphic file (type bmp)
+<images/2a1b391de465a1f4441a66809c7029751fcfadeefd60fcd5ba274e854a7d4315.jpg>
+
+
+[105]
+File: images/f83de56ef558f022c825beaed7d6cca56b3b6ad4128853a1c833f46121e303d9.j
+pg Graphic file (type bmp)
+<images/f83de56ef558f022c825beaed7d6cca56b3b6ad4128853a1c833f46121e303d9.jpg>
+
+
+[106] (./main.aux)
+ ***********
+LaTeX2e <2024-11-01> patch level 2
+L3 programming layer <2022/08/05>
+ ***********
+
+
+LaTeX Font Warning: Some font shapes were not available, defaults substituted.
+
+Package rerunfilecheck Info: File `main.out' has not changed.
+(rerunfilecheck)             Checksum: 3B50D2F2340312A042500BCD824A076D;11549.
+Package logreq Info: Writing requests to 'main.run.xml'.
+\openout1 = `main.run.xml'.
+
+ ) 
+Here is how much of TeX's memory you used:
+ 59318 strings out of 470231
+ 1509020 string characters out of 5484001
+ 2512504 words of memory out of 5000000
+ 84875 multiletter control sequences out of 15000+600000
+ 639882 words of font info for 123 fonts, out of 8000000 for 9000
+ 1348 hyphenation exceptions out of 8191
+ 99i,12n,107p,1181b,841s stack positions out of 10000i,1000n,20000p,200000b,200000s
+
+Output written on main.pdf (109 pages).
