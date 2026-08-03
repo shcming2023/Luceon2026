@@ -19,10 +19,14 @@ def _sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _request(tmp_path: Path) -> StageEvaluationRequest:
+def _request(
+    tmp_path: Path,
+    *,
+    stage_key: str = "outline_reconstruction",
+) -> StageEvaluationRequest:
     return StageEvaluationRequest(
         job_id="job-portable-1",
-        stage_key="outline_reconstruction",
+        stage_key=stage_key,
         stage_version="1.0.0",
         attempt=1,
         candidate=EvaluationCandidate(
@@ -33,7 +37,7 @@ def _request(tmp_path: Path) -> StageEvaluationRequest:
         ),
         release_manifest_sha256="b" * 64,
         policy_sha256="c" * 64,
-        required_gates=stage_evaluators.STAGE_GATES["outline_reconstruction"],
+        required_gates=stage_evaluators.STAGE_GATES[stage_key],
         output_manifest="evaluation-manifest.json",
         workdir=tmp_path / "evaluation-work",
     )
@@ -44,15 +48,18 @@ def _candidate(
     *,
     producer_root: Path,
     target_override: Path | None = None,
+    stage_key: str = "outline_reconstruction",
+    filename: str = "spec04a-outline-review-bundle.json",
+    resource_role: str = "book_configuration",
 ) -> tuple[EvaluationInput, Path]:
     root = tmp_path / "candidate"
-    portable = root / "reviews/spec04a-outline-review-bundle.json"
+    portable = root / "reviews" / filename
     portable.parent.mkdir(parents=True)
     portable.write_text('{"review":"frozen"}\n', encoding="utf-8")
     target = target_override or (
         producer_root
         / "job-portable-1"
-        / "outline_reconstruction"
+        / stage_key
         / "attempt-1"
         / "projected-reviews"
         / portable.name
@@ -64,7 +71,7 @@ def _candidate(
             {
                 "resources": [
                     {
-                        "role": "book_configuration",
+                        "role": resource_role,
                         "path": str(target),
                         "sha256": _sha(portable),
                         "size_bytes": portable.stat().st_size,
@@ -75,6 +82,32 @@ def _candidate(
         encoding="utf-8",
     )
     return EvaluationInput(bundle_root=root, content_manifest={}), target
+
+
+def test_frozen_render_plan_hydrates_its_render_policy_role(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    producer_root = tmp_path / "isolated-producer-work"
+    monkeypatch.setenv("WORKFLOW_V3_PRODUCER_WORK_ROOT", str(producer_root))
+    candidate, target = _candidate(
+        tmp_path,
+        producer_root=producer_root,
+        stage_key="frozen_render_plan",
+        filename="spec04d-render-policy.json",
+        resource_role="render_policy",
+    )
+
+    hydrated, created = stage_evaluators._hydrate_portable_execution_configuration(
+        _request(tmp_path, stage_key="frozen_render_plan"),
+        candidate,
+    )
+
+    assert hydrated == target
+    assert created is True
+    assert hydrated.read_bytes() == (
+        candidate.bundle_root / "reviews/spec04d-render-policy.json"
+    ).read_bytes()
 
 
 def test_portable_spec04_configuration_is_hydrated_and_removed(

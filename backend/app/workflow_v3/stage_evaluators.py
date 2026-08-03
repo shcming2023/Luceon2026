@@ -1319,10 +1319,22 @@ def _evaluate_native_spec04(
 
 
 _PORTABLE_SPEC04_CONFIGURATION = {
-    "outline_reconstruction": "spec04a-outline-review-bundle.json",
-    "semantic_annotation": "spec04b-native-review-bundle.json",
-    "template_construct_binding": "spec04c-native-review-bundle.json",
-    "frozen_render_plan": "spec04d-render-policy.json",
+    "outline_reconstruction": (
+        "spec04a-outline-review-bundle.json",
+        "book_configuration",
+    ),
+    "semantic_annotation": (
+        "spec04b-native-review-bundle.json",
+        "book_configuration",
+    ),
+    "template_construct_binding": (
+        "spec04c-native-review-bundle.json",
+        "book_configuration",
+    ),
+    "frozen_render_plan": (
+        "spec04d-render-policy.json",
+        "render_policy",
+    ),
 }
 
 
@@ -1338,7 +1350,7 @@ def _hydrate_portable_execution_configuration(
     to the release-configured producer work root for validation.
     """
 
-    filename = _PORTABLE_SPEC04_CONFIGURATION[request.stage_key]
+    filename, resource_role = _PORTABLE_SPEC04_CONFIGURATION[request.stage_key]
     portable = _required(
         candidate.bundle_root,
         f"reviews/{filename}",
@@ -1351,12 +1363,12 @@ def _hydrate_portable_execution_configuration(
     resources = [
         item
         for item in capability.get("resources", [])
-        if isinstance(item, dict) and item.get("role") == "book_configuration"
+        if isinstance(item, dict) and item.get("role") == resource_role
     ]
     if len(resources) != 1:
         raise StageEntrypointError(
             "portable_execution_configuration_binding_invalid",
-            "native capability manifest must bind exactly one book configuration",
+            f"native capability manifest must bind exactly one {resource_role}",
             exit_code=3,
         )
     resource = resources[0]
