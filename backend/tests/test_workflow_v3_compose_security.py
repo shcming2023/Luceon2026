@@ -84,6 +84,8 @@ def test_producer_evaluator_and_promoter_have_distinct_identities_and_work_roots
     assert "qwen3.7-plus-2026-05-26" in producer
     assert "worker-v3-independent-evaluator-local" in evaluator
     assert "work/evaluator:/worker-v3/evaluation-work" in evaluator
+    assert "work/producer:/worker-v3/work:ro" in evaluator
+    assert "work/producer:/worker-v3/work\n" not in evaluator
     assert "WORKFLOW_V3_ARTIFACT_BACKEND=minio" in evaluator
     assert "WORKFLOW_V3_EVALUATOR_MINIO_ACCESS_KEY" in evaluator
     assert "WORKFLOW_V3_EVALUATOR_MINIO_SECRET_KEY" in evaluator

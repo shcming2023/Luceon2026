@@ -306,6 +306,7 @@ services:
       - ${LUCEON_RUNTIME_ROOT:-./runtime}/backend:/data
       - ${LUCEON_RUNTIME_ROOT:-./runtime}/worker-v3/releases:/worker-v3/releases:ro
       - ${LUCEON_RUNTIME_ROOT:-./runtime}/worker-v3/work/evaluator:/worker-v3/evaluation-work
+      - ${LUCEON_RUNTIME_ROOT:-./runtime}/worker-v3/work/producer:/worker-v3/work:ro
     depends_on:
       - backend
     networks:
