@@ -1,0 +1,33 @@
+{
+  "schema": "luceon.worker-v3-exact-image-regression/v1",
+  "captured_at": "2026-08-03T10:43:00Z",
+  "source_revision": "5d315142fdfd6eebaffe1dfe4ebb9e0fc51e2a76",
+  "runtime_image_digest": "sha256:4b3894462fef3f3333dcc1d1ec1b4accea8b9e4922a3a5716eec3f9e585722d7",
+  "runtime_identity_sha256": "9260368b83c45e805e7b9b10861d6126ed1661108469d04a1bb6b33263e5685a",
+  "effective_uid": 10003,
+  "network": "none",
+  "read_only_evidence_mounts": [
+    "/release",
+    "/backend",
+    "/docker-compose.luceon-review.yml",
+    "/docker-compose.worker-v3-rc.yml"
+  ],
+  "selection": "tests/test_workflow_v3*.py",
+  "result": {
+    "passed": 426,
+    "skipped": 2,
+    "failed": 0,
+    "duration_seconds": 38.86
+  },
+  "warnings": {
+    "blocking": 0,
+    "classification": "existing SQLAlchemy deprecations, legacy SyntaxWarning output, and a non-writable pytest cache warning under the immutable non-root image"
+  },
+  "mutation": {
+    "source_changed": false,
+    "image_rebuilt": false,
+    "release_reassembled": false,
+    "deployment_changed": false
+  },
+  "verdict": "passed"
+}

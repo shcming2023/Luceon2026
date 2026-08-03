@@ -1,14 +1,14 @@
 {
   "architecture": "arm64",
   "build_status": "cache_assisted_source_rebuild_succeeded",
-  "built_at": "2026-08-03T05:43:06Z",
-  "image_id": "sha256:dfe2c8e6d625dc535077fde2dec78ce8f784699b658112749f59a3a296fa592d",
-  "image_size_bytes": 1457104064,
-  "local_manifest_digest": "sha256:dfe2c8e6d625dc535077fde2dec78ce8f784699b658112749f59a3a296fa592d",
+  "built_at": "2026-08-03T09:13:00Z",
+  "image_id": "sha256:4b3894462fef3f3333dcc1d1ec1b4accea8b9e4922a3a5716eec3f9e585722d7",
+  "image_size_bytes": 1457106450,
+  "local_manifest_digest": "sha256:4b3894462fef3f3333dcc1d1ec1b4accea8b9e4922a3a5716eec3f9e585722d7",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
     "pages": 2,
-    "pdf_sha256": "1b7c46620bb59ccf6d539c5c3834715a3993735e3c660b08124bc8b0a08d9dae",
+    "pdf_sha256": "5ad6f5885f7b274f16a88bc98faaf4da7587af83b209c2f99f1e70b88e59ec90",
     "pdfinfo": "passed",
     "qpdf_check": "passed",
     "status": "passed"
@@ -16,6 +16,12 @@
   "registry_digest": null,
   "registry_status": "pending_until_push",
   "superseded_builds": [
+    {
+      "image_digest": "sha256:dfe2c8e6d625dc535077fde2dec78ce8f784699b658112749f59a3a296fa592d",
+      "reason": "the RC.4 five-material data path reached five evidence-complete needs_review terminals, but the canonical UAT collector treated every non-succeeded terminal as job_terminal_not_ready; the replacement preserves the formal stage executable baseline and quality gates while requiring immutable candidate, independent evaluation, hash-bound findings, complete handoff, exact recovery stage and untouched downstream stages before needs_review can qualify",
+      "source_revision": "780bcc40ea20cc10092c159eeeed5dc53ef8094d",
+      "status": "superseded_after_canonical_evidence_failure"
+    },
     {
       "image_digest": "sha256:0fba4f46ee25322f2050843e1b2a2bd9571528526cae9faa277b0e8ba3584ea3",
       "reason": "the RC.3 public-page sealed smoke registered five jobs but the executor resolved only the release-version directory while the verified installer and registry used release-id; all five stayed queued and the executor restarted 27 times, so the replacement resolves the immutable manifest release-id with a compatibility fallback and records later binding failures after claim",
@@ -340,31 +346,31 @@
       "status": "rejected_before_qualification"
     }
   ],
-  "runtime_id": "worker-v3-runtime-rc-780bcc4",
+  "runtime_id": "worker-v3-runtime-rc-5d31514",
   "runtime_identity": {
-    "control_plane_tree_sha256": "fd5cee9f384730b9e265699cd04af3de07b2f7ed81630eb40489e33eab0e6c6a",
+    "control_plane_tree_sha256": "3c9f06e725ad08dbbcc9b4d1f379baea17d3d8e5550bc1fae60333a363dcb93e",
     "effective_uid": 10003,
-    "evidence_sha256": "37c22b5acbdb72307cef3ead2af4fa07c185a68d156f343010ea2517f8b49b40",
+    "evidence_sha256": "9260368b83c45e805e7b9b10861d6126ed1661108469d04a1bb6b33263e5685a",
     "status": "passed",
     "system_lock_entries": 19
   },
   "sbom": {
     "component_count": 422,
-    "evidence_sha256": "69c5b6e21a7be1ccdfaa9ed9cefb83588a686892bfbcd16cfc107d2d3b333a94",
+    "evidence_sha256": "b35a98b91649a3f8a215e8e434bbe07e2c9b214fed05e9f10e6054fdf9eb9047",
     "format": "CycloneDX",
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "780bcc40ea20cc10092c159eeeed5dc53ef8094d",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-780bcc4",
+  "source_revision": "5d315142fdfd6eebaffe1dfe4ebb9e0fc51e2a76",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-5d31514",
   "tests": {
-    "targeted_repository_regression": "59 release resolver, failure-loop, API and RC Compose regression tests passed before the ordinary Worker image rebuild",
+    "targeted_repository_regression": "12 canonical UAT collector tests passed in the exact RC.5 image, including evidence-complete needs_review and fail-closed incomplete handoff cases",
     "runtime_identity_gate": "passed with no network and digest-pinned reference: non-root UID 10003, exact control-plane tree and 19 locked system packages",
-    "repository_static_tests": "424 passed and 2 skipped across the complete Worker V3 repository suite before the replacement image build",
-    "exact_image_regression": "400 passed and 1 skipped in the exact digest-pinned RC.4 image with network disabled, a read-only root filesystem, executable bounded tmpfs workspaces, and read-only release/runtime evidence mounts; repository-only Compose and Overleaf-adapter source tests remained in the 424-test host suite",
-    "locked_template_smoke": "passed twice with no network: frozen template class SHA-256 048c3b90da41be64f4744da3bff6ae8c5ea7abd30a5f3e2a6ad1a98f3b0d71fe, 2 pages, byte-identical deterministic PDF SHA-256 1b7c46620bb59ccf6d539c5c3834715a3993735e3c660b08124bc8b0a08d9dae",
+    "repository_static_tests": "1067 passed and 2 skipped across the complete repository suite; the single non-root image-user config-path probe was rerun under its required root test identity and passed",
+    "exact_image_regression": "12 canonical collector tests passed in the exact RC.5 image with network disabled; the broader exact-image suite is rerun after the RC.5 recipe and read-only release evidence are assembled",
+    "locked_template_smoke": "passed with no network: frozen template, XeLaTeX, qpdf and pdfinfo, 2 pages, deterministic PDF SHA-256 5ad6f5885f7b274f16a88bc98faaf4da7587af83b209c2f99f1e70b88e59ec90",
     "production_boundary": "Expert Broker, Codex App Server, Codex SDK adapter, cross-UID runner, Codex expert runtime entrypoints, Codex binary and Codex/OpenAI credentials are absent",
-    "warnings": "Existing Python, SQLAlchemy and legacy SyntaxWarning output remains non-blocking. The successful build reused only previously qualified dependency layers; source COPY, control-plane baseline and image identity were rebuilt against revision 780bcc4."
+    "warnings": "Existing Python, SQLAlchemy and legacy SyntaxWarning output remains non-blocking. The successful build reused only previously qualified dependency layers; source COPY, control-plane baseline and image identity were rebuilt against revision 5d31514."
   },
   "user": "10003:10003",
   "build_provenance": {
@@ -372,13 +378,13 @@
     "source_dockerfile": "backend/Dockerfile.worker-v3",
     "source_dockerfile_sha256": "e0f8978e3f0ef23a9498ec18b185eeb4def4f4bdc279872ed8e241638609281f",
     "build_context": "backend",
-    "source_revision": "780bcc40ea20cc10092c159eeeed5dc53ef8094d",
+    "source_revision": "5d315142fdfd6eebaffe1dfe4ebb9e0fc51e2a76",
     "declared_base_image": "python:3.12.13-slim@sha256:64695412729fbe8cf054511723820c82bbe5a077d4a6b4070cd4a7225d3422ce",
     "official_base_index_digest": "sha256:64695412729fbe8cf054511723820c82bbe5a077d4a6b4070cd4a7225d3422ce",
     "official_arm64_manifest_digest": "sha256:55842c72c6b3584d06ec84c731fc516b30b8a53ad262ebd085e47ab568b3bfc1",
     "official_arm64_config_digest": "sha256:944a73bd27d7b5fad206369e77bb7a6da51e073236b9dece9ff387df433de7bb",
     "verified_local_oci_archive_sha256": null,
-    "recipe_transport_adaptation": "docker build on the native arm64 Docker Desktop engine with exact cache hits for the previously clean-built base, system-lock and Python-lock layers; source and control-plane identity layers were rebuilt from revision 780bcc4 and all exact-image gates were rerun before admission",
+    "recipe_transport_adaptation": "docker build on the native arm64 Docker Desktop engine with exact cache hits for the previously clean-built base, system-lock and Python-lock layers; source and control-plane identity layers were rebuilt from revision 5d31514 and all admission gates are rerun before sealed smoke",
     "package_transport": {
       "source": "https://deb.debian.org",
       "relay": null,

@@ -1,0 +1,56 @@
+{
+  "schema_version": "luceon.worker-v3-qualification-ledger/v1",
+  "status": "passed_by_unchanged_executable_baseline_pending_sealed_smoke",
+  "qualified_at": "2026-08-03T09:27:50Z",
+  "release_binding": {
+    "release_id": "worker-v3-skill-source-audit-20260803-5d31514",
+    "release_source_git_sha": "5d315142fdfd6eebaffe1dfe4ebb9e0fc51e2a76",
+    "executable_baseline_sha256": "ea86a92f3b2cf2747be4c490abdbe713cf71c0ec1ee2dd759636b92235e2cad0",
+    "runtime_image_digest": "sha256:4b3894462fef3f3333dcc1d1ec1b4accea8b9e4922a3a5716eec3f9e585722d7",
+    "runtime_identity_sha256": "9260368b83c45e805e7b9b10861d6126ed1661108469d04a1bb6b33263e5685a",
+    "runtime_sbom_sha256": "b35a98b91649a3f8a215e8e434bbe07e2c9b214fed05e9f10e6054fdf9eb9047",
+    "template_tree_sha256": "777d871d2c832734ea1aea0434fb9e5dcae1ac354e39b245ed82943fcceb4932"
+  },
+  "qualification_basis": {
+    "prior_exact_release_id": "worker-v3-skill-source-audit-20260803-780bcc4",
+    "prior_exact_runtime_image_digest": "sha256:dfe2c8e6d625dc535077fde2dec78ce8f784699b658112749f59a3a296fa592d",
+    "prior_qualification_job_id": "cd80454d-4688-505e-92f7-815806ec74dc",
+    "prior_spec05_evidence_sha256": "a4c23cd02999f8c0b1d71b5fc23e92198ef4e3725b3435ea317d7000d91184df",
+    "prior_visual_evidence_sha256": "31af4af5cc3f3333f173896ef42c75f09bae2a03e036c32725ea92875c953c4b",
+    "source_diff_scope": [
+      "backend/app/workflow_v3/uat_evidence.py",
+      "backend/tests/test_workflow_v3_uat_evidence.py",
+      "release evidence files"
+    ],
+    "formal_stage_entrypoints_changed": false,
+    "skill_sources_changed": false,
+    "template_changed": false,
+    "model_policy_changed": false,
+    "executable_baseline_unchanged": true
+  },
+  "exact_image_checks": {
+    "runtime_identity": "passed",
+    "runtime_effective_uid": 10003,
+    "runtime_control_plane_sha256": "3c9f06e725ad08dbbcc9b4d1f379baea17d3d8e5550bc1fae60333a363dcb93e",
+    "collector_regression_tests_passed": 12,
+    "repository_tests_passed": 1067,
+    "repository_tests_skipped": 2,
+    "locked_template_xelatex": "passed",
+    "locked_template_qpdf": "passed",
+    "locked_template_pages": 2,
+    "locked_template_pdf_sha256": "5ad6f5885f7b274f16a88bc98faaf4da7587af83b209c2f99f1e70b88e59ec90"
+  },
+  "admission_condition": {
+    "sealed_five_material_smoke_required": true,
+    "no_code_change_after_deploy": true,
+    "no_rebuild_after_deploy": true,
+    "no_redeploy_after_smoke_start": true,
+    "canonical_collector_must_pass": true,
+    "failure_action": "supersede RC.5 and do not publish it"
+  },
+  "isolation": {
+    "codex_expert_lane_present": false,
+    "expert_broker_present": false,
+    "production_credentials_in_image": false
+  }
+}

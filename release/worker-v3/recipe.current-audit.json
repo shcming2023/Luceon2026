@@ -12,13 +12,13 @@
     }
   },
   "release": {
-    "release_id": "worker-v3-skill-source-audit-20260803-780bcc4",
-    "version": "3.0.0-rc.4",
+    "release_id": "worker-v3-skill-source-audit-20260803-5d31514",
+    "version": "3.0.0-rc.5",
     "channel": "rc",
     "requested_status": "rc",
-    "created_at": "2026-08-03T15:00:00+08:00",
+    "created_at": "2026-08-03T17:30:00+08:00",
     "source": {
-      "git_sha": "780bcc40ea20cc10092c159eeeed5dc53ef8094d",
+      "git_sha": "5d315142fdfd6eebaffe1dfe4ebb9e0fc51e2a76",
       "git_tag": null,
       "dirty": false
     },
@@ -335,7 +335,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-identity.json",
       "destination": "runtime/ordinary-runtime-identity.json",
-      "expected_sha256": "37c22b5acbdb72307cef3ead2af4fa07c185a68d156f343010ea2517f8b49b40"
+      "expected_sha256": "9260368b83c45e805e7b9b10861d6126ed1661108469d04a1bb6b33263e5685a"
     },
     {
       "id": "worker-v3-ordinary-runtime-build-proof",
@@ -344,7 +344,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-build-proof.json",
       "destination": "runtime/ordinary-runtime-build-proof.json",
-      "expected_sha256": "e3828fcf105cd3f96be29fcba312cf8f8c43031b3d123a9224f7954f16176a7d"
+      "expected_sha256": "65810441cbbf334570ef451d49b719fd4fe2df1557f07e9aac0dd64a09c3e9bb"
     },
     {
       "id": "worker-v3-ordinary-runtime-sbom",
@@ -353,7 +353,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-sbom.cdx.json",
       "destination": "runtime/ordinary-runtime-sbom.cdx.json",
-      "expected_sha256": "69c5b6e21a7be1ccdfaa9ed9cefb83588a686892bfbcd16cfc107d2d3b333a94"
+      "expected_sha256": "b35a98b91649a3f8a215e8e434bbe07e2c9b214fed05e9f10e6054fdf9eb9047"
     },
     {
       "id": "worker-v3-overleaf-target-environment",
@@ -545,31 +545,31 @@
       "expected_sha256": "136c5bd35bc4d513a9017bf9f2a9cb777aa9b1f5d9aae7d47e6f5e04a3ff91f3"
     },
     {
-      "id": "worker-v3-visual-full-page-provider-qualification-780bcc4",
+      "id": "worker-v3-visual-full-page-provider-qualification-5d31514",
       "source_role": "runtime_evidence",
       "kind": "file",
       "root": "worker_v3",
-      "path": "docs/worker-v3/evidence/visual-full-page-provider-qualification-780bcc4-20260803.json",
-      "destination": "evals/qualification/visual-full-page-provider-qualification-780bcc4-20260803.json",
-      "expected_sha256": "31af4af5cc3f3333f173896ef42c75f09bae2a03e036c32725ea92875c953c4b"
+      "path": "docs/worker-v3/evidence/visual-full-page-provider-qualification-5d31514-20260803.json",
+      "destination": "evals/qualification/visual-full-page-provider-qualification-5d31514-20260803.json",
+      "expected_sha256": "5dce387c3495690c08a8b21ec51db7f4cb4320f7e58c623725541ec97a107c97"
     },
     {
-      "id": "worker-v3-spec05-final-image-real-material-qualification-780bcc4",
+      "id": "worker-v3-spec05-final-image-real-material-qualification-5d31514",
       "source_role": "runtime_evidence",
       "kind": "file",
       "root": "worker_v3",
-      "path": "docs/worker-v3/evidence/spec05-final-image-real-material-qualification-780bcc4-20260803.json",
-      "destination": "evals/qualification/spec05-final-image-real-material-qualification-780bcc4-20260803.json",
-      "expected_sha256": "a4c23cd02999f8c0b1d71b5fc23e92198ef4e3725b3435ea317d7000d91184df"
+      "path": "docs/worker-v3/evidence/spec05-final-image-real-material-qualification-5d31514-20260803.json",
+      "destination": "evals/qualification/spec05-final-image-real-material-qualification-5d31514-20260803.json",
+      "expected_sha256": "6703dc43f01f8a3b85f2453a39d5ed76da254a0a9bf519a7a964c579a4d01657"
     },
     {
-      "id": "worker-v3-780bcc4-qualification-ledger",
+      "id": "worker-v3-5d31514-qualification-ledger",
       "source_role": "supporting_evidence",
       "kind": "file",
       "root": "worker_v3",
-      "path": "docs/worker-v3/evidence/780bcc4-qualification-ledger-20260803.json",
-      "destination": "evals/qualification/780bcc4-qualification-ledger-20260803.json",
-      "expected_sha256": "2d254c7d85f3b41b2f6b90be68c00318097e0c03a7788460303b5ce64c5d7506"
+      "path": "docs/worker-v3/evidence/5d31514-qualification-ledger-20260803.json",
+      "destination": "evals/qualification/5d31514-qualification-ledger-20260803.json",
+      "expected_sha256": "1a2b95895f92e4255a00785d3bed1d1632d11aed198dab1cb47fcc847f779b66"
     },
     {
       "id": "worker-v3-spec05-build-policy",
@@ -1116,7 +1116,7 @@
     "python": "CPython 3.12.13",
     "application_dependencies_path": "runtime/requirements-worker-v3.lock",
     "system_tools": {
-      "runtime_id": "worker-v3-runtime-rc-780bcc4",
+      "runtime_id": "worker-v3-runtime-rc-5d31514",
       "system_lock": "runtime/worker-v3-system-packages.lock",
       "identity": "runtime/ordinary-runtime-identity.json",
       "build_proof": "runtime/ordinary-runtime-build-proof.json",
@@ -1132,7 +1132,7 @@
     "fonts_identity_path": "runtime/ordinary-runtime-identity.json",
     "tex_identity_path": "runtime/ordinary-runtime-identity.json",
     "poppler_identity_path": "runtime/ordinary-runtime-identity.json",
-    "container_image_digest": "sha256:dfe2c8e6d625dc535077fde2dec78ce8f784699b658112749f59a3a296fa592d",
+    "container_image_digest": "sha256:4b3894462fef3f3333dcc1d1ec1b4accea8b9e4922a3a5716eec3f9e585722d7",
     "sbom_path": "runtime/ordinary-runtime-sbom.cdx.json",
     "attestations": [
       "runtime/ordinary-runtime-identity.json",
@@ -1149,11 +1149,11 @@
   "qualification_evidence": {
     "visual_full_page_provider": {
       "required": true,
-      "source_id": "worker-v3-visual-full-page-provider-qualification-780bcc4"
+      "source_id": "worker-v3-visual-full-page-provider-qualification-5d31514"
     },
     "spec05_final_image_real_material": {
       "required": true,
-      "source_id": "worker-v3-spec05-final-image-real-material-qualification-780bcc4"
+      "source_id": "worker-v3-spec05-final-image-real-material-qualification-5d31514"
     }
   },
   "known_gaps": [],
