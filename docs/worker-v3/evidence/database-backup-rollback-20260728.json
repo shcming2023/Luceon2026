@@ -1,0 +1,63 @@
+{
+  "schema_version": "luceon.worker-v3-database-recovery-evidence/v1",
+  "captured_at": "2026-07-28T00:28:32Z",
+  "status": "passed",
+  "scope": {
+    "environment": "current-development",
+    "database_kind": "dedicated-sqlite",
+    "database_path": "runtime/backend/workflow-v3.db",
+    "legacy_database_modified": false,
+    "development_database_restored": false,
+    "website_interrupted": false
+  },
+  "runtime": {
+    "source_revision": "90ccb9a32bebbb714920abb5d73fc0a4226d28d4",
+    "runtime_id": "worker-v3-runtime-rc-90ccb9a",
+    "image_digest": "sha256:93f477eb3a6d7ad406fae371d40ed3e20a23effa14bf43f60f803fb8880211a9",
+    "network_mode": "none"
+  },
+  "preflight": {
+    "ready": true,
+    "detail": "ok",
+    "foreign_table_count": 0,
+    "workflow_v3_table_count": 14,
+    "tables": [
+      "workflow_v3_candidates",
+      "workflow_v3_evaluations",
+      "workflow_v3_events",
+      "workflow_v3_executions",
+      "workflow_v3_jobs",
+      "workflow_v3_model_calls",
+      "workflow_v3_operation_attempts",
+      "workflow_v3_projection_outbox",
+      "workflow_v3_promotions",
+      "workflow_v3_review_resolutions",
+      "workflow_v3_schema_revisions",
+      "workflow_v3_skill_releases",
+      "workflow_v3_stage_runs",
+      "workflow_v3_worker_heartbeats"
+    ]
+  },
+  "backup": {
+    "schema": "luceon.worker-v3-sqlite-backup/v1",
+    "created_at": "2026-07-28T00:28:11.361942+00:00",
+    "relative_path": "runtime/backups/worker-v3-rc-20260728/workflow-v3-manual-20260728T002811Z.db",
+    "manifest_relative_path": "runtime/backups/worker-v3-rc-20260728/workflow-v3-manual-20260728T002811Z.manifest.json",
+    "mode": "0600",
+    "manifest_mode": "0600",
+    "size_bytes": 499712,
+    "sha256": "1fc98f325f92d21be1a3caab2c1f704c6537316d1582c6e07de1be6e18fbce32",
+    "integrity_check": "ok"
+  },
+  "isolated_rollback_drill": {
+    "target": "private temporary copy",
+    "services_stopped_assertion": true,
+    "pre_rollback_safety_backup_created": true,
+    "restored_sha256": "1fc98f325f92d21be1a3caab2c1f704c6537316d1582c6e07de1be6e18fbce32",
+    "expected_sha256": "1fc98f325f92d21be1a3caab2c1f704c6537316d1582c6e07de1be6e18fbce32",
+    "hash_match": true,
+    "post_restore_ready": true,
+    "post_restore_detail": "ok",
+    "development_database_untouched": true
+  }
+}

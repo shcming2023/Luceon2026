@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Teaching material section",
+  "type": "object",
+  "required": ["id", "title", "level", "source_span"],
+  "properties": {
+    "id": {"type": "string"},
+    "parent_id": {"type": ["string", "null"]},
+    "title": {"type": "string"},
+    "level": {"type": "integer"},
+    "role": {"type": "string"},
+    "section_type": {"type": "string"},
+    "path": {"type": "array", "items": {"type": "string"}},
+    "source_span": {"type": "object"},
+    "page_span": {"type": "object"}
+  }
+}

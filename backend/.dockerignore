@@ -1,6 +1,10 @@
 __pycache__/
+**/__pycache__/
 *.py[cod]
+**/*.pyc
+**/*.pyo
 .pytest_cache/
+**/.pytest_cache/
 .coverage
 .venv/
 venv/
@@ -10,3 +14,27 @@ venv/
 runtime/
 .git
 .DS_Store
+
+# Architecture experiment only. The production Worker V3 image is Worker-only
+# and must not contain Codex/App Server/broker/runner code or credentials.
+Dockerfile.codex-expert
+requirements-codex-expert.txt
+app/workflow_v3/codex_app_server_broker.py
+app/workflow_v3/codex_sdk_adapter.py
+app/workflow_v3/expert.py
+app/workflow_v3/expert_broker.py
+app/workflow_v3/expert_capability.py
+app/workflow_v3/expert_control.py
+app/workflow_v3/expert_spool.py
+app/workflow_v3/expert_models.py
+app/workflow_v3/schemas/expert-*.json
+scripts/workflow_v3_codex_expert.py
+scripts/workflow_v3_expert_*.py
+tests/test_workflow_v3_codex_*.py
+tests/test_workflow_v3_expert_*.py
+tests/test_workflow_v3_llm_expert.py
+
+# Historical Codex V1/V2 remains readable in the application backend, but its
+# executable workers and tests are not part of the dedicated Worker V3 image.
+scripts/codex_*.py
+tests/test_codex_*.py

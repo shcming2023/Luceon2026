@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "spec05-native-delivery-set-stage-manifest.schema.json",
+  "title": "Formal-native Spec 05 delivery-set stage manifest",
+  "type": "object",
+  "required": [
+    "schema_version", "run_id", "stage_kind", "status", "spec_status",
+    "promotion_class", "producer", "commit_order", "parent_spec04d",
+    "execution_capability_E", "decision_index_D", "delivery_set_manifest_M",
+    "volume_partition_plan", "volumes", "hard_gates", "scope_limit"
+  ],
+  "properties": {
+    "schema_version": {"const": "spec05-native-delivery-set-stage-manifest/1.1"},
+    "stage_kind": {"const": "spec05_native_delivery_set"},
+    "status": {"const": "passed"},
+    "spec_status": {"const": "passed"},
+    "promotion_class": {"const": "formal_native"},
+    "volumes": {"type": "array", "minItems": 2, "maxItems": 2}
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,409 @@
+{
+  "architecture": "arm64",
+  "build_status": "cache_assisted_source_rebuild_succeeded",
+  "built_at": "2026-08-03T09:13:00Z",
+  "image_id": "sha256:4b3894462fef3f3333dcc1d1ec1b4accea8b9e4922a3a5716eec3f9e585722d7",
+  "image_size_bytes": 1457106450,
+  "local_manifest_digest": "sha256:4b3894462fef3f3333dcc1d1ec1b4accea8b9e4922a3a5716eec3f9e585722d7",
+  "locked_template_smoke": {
+    "compiler": "latexmk -xelatex",
+    "pages": 2,
+    "pdf_sha256": "5ad6f5885f7b274f16a88bc98faaf4da7587af83b209c2f99f1e70b88e59ec90",
+    "pdfinfo": "passed",
+    "qpdf_check": "passed",
+    "status": "passed"
+  },
+  "registry_digest": null,
+  "registry_status": "pending_until_push",
+  "superseded_builds": [
+    {
+      "image_digest": "sha256:dfe2c8e6d625dc535077fde2dec78ce8f784699b658112749f59a3a296fa592d",
+      "reason": "the RC.4 five-material data path reached five evidence-complete needs_review terminals, but the canonical UAT collector treated every non-succeeded terminal as job_terminal_not_ready; the replacement preserves the formal stage executable baseline and quality gates while requiring immutable candidate, independent evaluation, hash-bound findings, complete handoff, exact recovery stage and untouched downstream stages before needs_review can qualify",
+      "source_revision": "780bcc40ea20cc10092c159eeeed5dc53ef8094d",
+      "status": "superseded_after_canonical_evidence_failure"
+    },
+    {
+      "image_digest": "sha256:0fba4f46ee25322f2050843e1b2a2bd9571528526cae9faa277b0e8ba3584ea3",
+      "reason": "the RC.3 public-page sealed smoke registered five jobs but the executor resolved only the release-version directory while the verified installer and registry used release-id; all five stayed queued and the executor restarted 27 times, so the replacement resolves the immutable manifest release-id with a compatibility fallback and records later binding failures after claim",
+      "source_revision": "da3a4ba067c3d03015dc7fdaf4bdaa7dbec44afa",
+      "status": "superseded_after_fail_closed_smoke"
+    },
+    {
+      "image_digest": "sha256:649cb182f3016e5f618a42733b55d3d15d56e6fb4d4c34237ebc4951ee0906e2",
+      "reason": "the first five-material RC.2 smoke proved that the independent evaluator could not read the Producer-native lineage bridge; the replacement keeps the qualified application code and hard gates unchanged while binding the corrected read-only Producer evidence mount into the deployment source revision",
+      "source_revision": "b9c412cd333489f7db7088107f7ca72ea78f44ea",
+      "status": "superseded_after_fail_closed_smoke"
+    },
+    {
+      "image_digest": "sha256:315d63da308c50f614a3e0117db9c7afe781f218b342205a3b234c94f62087ec",
+      "reason": "the first public-page smoke proved that the RC.0 ordinary Worker image did not contain the eduassets-parsed application allowlist required by the already-authorized Producer MinIO policy; the replacement changes only that generic source-bucket admission, preserves the frozen upstream assets, and receives a new runtime and release identity",
+      "source_revision": "243c21fefa989ef50dafab00975c6c6d30485069",
+      "status": "superseded_after_fail_closed_smoke"
+    },
+    {
+      "image_digest": "sha256:59dcab576361ac0614a57bb5ef3a5d3107b8ba46a3d183833cea67045e82e772",
+      "reason": "material 1340 produced a real XeLaTeX candidate PDF, render pack, provenance and compile log with C1 blocking missing-glyph findings and no C0 fatal error, but the Stage 8 adapter collapsed that evidence-complete repair handoff into kernel_failed; the replacement keeps the hard quality gates false while preserving an independently validated needs_review terminal and exact Stage 8 recovery evidence",
+      "source_revision": "b1959042814cc3978b8a563f5a63a3ddce0d11b6",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:f898a37fb1fdb6065340e2eb06f9d3366059f96ecda44b1bc99f9cf1afef14ef",
+      "reason": "material 1339 real qualification produced a formally validated, evidence-closed needs_review at Spec 03, but the qualification harness incorrectly reserved that terminal for independent_full_page_review; the replacement accepts a validated needs_review at any stage without promotion while preserving the one-retry fail-closed rule for deterministic_elegantbook",
+      "source_revision": "ff8658317a55e963342574d53fb50bb755f68ca5",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:c87627fcfc91a356653083eab92b0f0a803086c4f1069a43776808e6f747ae7a",
+      "reason": "real-material Spec 03 qualification produced valid source_region_image candidates, but the ordinary evaluator only accepted source_asset_image and falsely rejected exact page-region media; the replacement materializes hash-named source-PDF crops and returns an evidence-complete needs_review handoff bound to every crop hash",
+      "source_revision": "9d9264a95143870cada639cf8a35b4b25ac275e2",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:f052c0b3178043ffdfd2de4cb7dc1b9ce511d4b64805493a1e85a9624180a62b",
+      "reason": "five-sample qualification transmitted the compacted 344-page Spec 02 request successfully, then proved the exhaustive Spec 03 task exceeded the unchanged one-million-byte ordinary request budget before transport; the replacement adds a lossless positional Spec 03 projection while retaining the full frozen audit task as authority",
+      "source_revision": "cf6da84053007e54bce8cd48fdc7bfd11255264c",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:39e0195aa4c16fc31b990564e37c1c439fd0fcc9fcc7905b25d0692d174ce702",
+      "reason": "five-sample qualification exposed that a 344-page exhaustive Spec 02 scope task exceeded the unchanged one-million-byte ordinary request budget before transport; the replacement uses a lossless positional evidence projection while the full frozen audit task remains authoritative",
+      "source_revision": "15d88fcd10bb25194d23f29e183422c1ef014e63",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:4db069c78adf92a12b24f6e0cd312e8cc8ced4415f730ad2d5a957e7c8a19f75",
+      "reason": "real-material qualification reached independent full-page review and correctly produced an evidence-bound needs_review, but the qualification harness treated that legitimate product terminal as a fatal infrastructure error; the replacement preserves needs_review as a qualified non-success terminal without promotion or Stage 11/12 execution",
+      "source_revision": "98462ce8c7e57981937404ec5ad03ef041fe37b7",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:f6d0515f597e55229500473d8a90686559b54a8ecce96246c60f24d15b800d23",
+      "reason": "real-material qualification on a valid media-less render plan proved that Spec 05 ignored the frozen top-level media plan binding and required a nonexistent per-node media binding; the replacement accepts the exact top-level binding while still rejecting top-level drift and inconsistent nonempty node bindings",
+      "source_revision": "2c9ad0298ff708a2323d195eec5ba60364695bb2",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:bd822c7533de1df8d898a5ce4aad4b7d83068db2a146e344f4a30fd703f7e0bd",
+      "reason": "real-material qualification produced a fully hash-bound empty Spec 03 media contract, but the independent evaluator still rejected the empty evidence inventory before checking closure; the replacement accepts the empty set only after the same cross-hash, summary, fragile-source ownership and decision-index gates pass",
+      "source_revision": "eb719b55724910e35a3b3b470860229499f4dae7",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:8212aed6327ab96b23287ac8d3fc276a9be21e20ed2cc2d6e2bbcf1265e80a35",
+      "reason": "real-material qualification on a legitimate media-less PDF reached Spec 03 and proved that the output schema still required at least one media decision even though intake and the deterministic kernel accepted an empty media inventory; the replacement closes that exact empty review contract without relaxing any other field",
+      "source_revision": "115d40c104aaa9ef0054ddb650f602f0b975abb8",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:a359ecfacb0b2d994d45c4138f0d7ee7bf566997b80ab84fb605369449a0ff96",
+      "reason": "real-material full-page visual qualification returned an advisory finding with blocking=false even though the frozen schema admits only machine-gate findings; the replacement prompt requires blocking=true for every emitted finding and omits advisory observations",
+      "source_revision": "b72fb544e0f6e19df491e0c1b6aa17e949fc9102",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:28b9f3f37cc73637301ce10a305b07b40215e28e2005099a2ef4bed3e01b507f",
+      "reason": "real-material Spec 03 qualification exposed an empty media ownership false-success path and incomplete evidence closure; the replacement requires exact source ownership, hash-verified source assets, a formal representation contract and an independent evaluator that recomputes closure",
+      "source_revision": "7a4f627a2db9214d104cbe5882487460fdcabecc",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:1ca895e7fdf149dce963883171275e1e1a57a65b1d7aac609b6a6c791b4fb2cb",
+      "reason": "real-material Spec 04-B qualification on material 1343 returned all 277 decisions but invented semantic role challenge for 41 candidates and selected an unavailable local disposition for candidate 226; the replacement removes free-form disposition and role strings and binds a total integer option protocol",
+      "source_revision": "57792aa83f5325cb8a91567dec0df78c0528126d",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:34ee2a0f57f51c257700599ad0f651fd3864e415ab8138a5b219907a403e787e",
+      "reason": "the Spec 04-B prompt content declared version 2.1.0 while the release recipe and recorded request binding still declared 2.0.0; the replacement validates prompt identity headers against the release recipe and binds the corrected prompt version before qualification",
+      "source_revision": "8b1d2c0001b19cd9c570c59647ec246771579b17",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:e5a3b87e82331c9273d4caa7cf86c08969ed164d43926bd7103337008f4ebdf8",
+      "reason": "real-material Spec 04-B qualification returned a schema-valid teaching_group choice for a candidate whose frozen allowed_dispositions excluded teaching_group; the replacement binds candidate-local disposition and semantic-role choices before a model call can be recorded as succeeded",
+      "source_revision": "28d2801aa618f3d75e78318ad096cb1af378320a",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:fc7937b022ecfe68b8233abe83e38264e5776fab0813c2d094c21c87e71c28f4",
+      "reason": "real-material semantic qualification proved that the compact review protocol still let the model restate a deterministic contiguous body boundary; the replacement mechanically consumes every exact body option and limits the model to disposition and semantic role",
+      "source_revision": "67f19f49cd35fa0a0de48f954518e14f79f5ed78",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:f985fad359d639543d7c60a472af54d55ab6f0991b5d6701ac29c7ee8901b7d5",
+      "reason": "real-material qualification proved that the stage adapter still compared the full promotion audit envelope hash with the stable model-evidence hash; the replacement uses the same release-local stable projection at request generation and stage verification while preserving the full task for audit",
+      "source_revision": "aa47e2f28ece26470a4917db2a20e63474e9bd3f",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:63f009d11c986a76695d385b957545d9258052c11acf8a73ba75fa2f2a2b7873",
+      "reason": "fresh-root qualification proved that the Spec 04-A model request inherited volatile promotion audit envelope hashes and therefore changed across semantically identical runs; the replacement retains the full promotion binding for audit while projecting only stable model evidence into the constrained-LLM request identity",
+      "source_revision": "06c2291136425a3735c05eaa4e682a2eddc6cf3b",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:3ab2b3f25a87197e98ecb6a9819dec09043c0c2a9dc96d83e0541054f7ad234b",
+      "reason": "qualification replay evidence proved that a random job UUID and an absolute source PDF path contaminated otherwise identical model requests across fresh run roots; the replacement binds qualification identity to the immutable release and frozen input set and projects a stable release-relative source reference",
+      "source_revision": "03505d49ccd531829621881d6b47901840ae5061",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:190e9c05a13c467756866671eac858b22b27d7aa364755f5bafb01b7a62a8e33",
+      "reason": "release-bound material 1343 proved that the formal Spec 04-A response shape could require the model to repeat hundreds of source-evidence records and exhaust the provider output limit; the replacement keeps the full formal bundle authoritative while using a strict compact decision schema and deterministic release-local expansion",
+      "source_revision": "6ff731b412c88da1df92bf19661bffcc621c9052",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:212e0cefb8ee4d70ba83b6ce6d22018045fff00f268c5932de6aee73d5bf4532",
+      "reason": "qualification reached Spec 04-A and failed closed because the generic request materialized the full canonical ledger beyond the release-bound one-million-byte request budget; the replacement keeps the full ledger authoritative while projecting an exhaustive bounded review task",
+      "source_revision": "3ae7f70bd79ceaaae846b9464d94854d85e8ef06",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:e35e466e0e7b1f7a82404b577683617d264aba7b23bf8d6fbaea92fe407fa9a9",
+      "reason": "the release-bound real-material Spec 03 v1 call failed closed at the 16000-token output ceiling because the contract repeated long media, candidate, source and evidence identifiers for all 255 atoms",
+      "source_revision": "9447aedb688dd7d0f4c78978a4e5d95892554675",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:dbb0f435e5b921047b6e745c1e15782ae3703c39777592f3d710fb84cf844031",
+      "reason": "qualification exposed that the first schema-hash separation changed non-LLM stage manifest bindings from release file hashes to canonical JSON hashes",
+      "source_revision": "38e8a602895d5e6c710d567f7cf14b63998bd589",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:d8415bc04c645bd94979ed228f9ded1a38bedafc12c4143ecae8e0176711986a",
+      "reason": "real-material Spec 03 qualification proved that the complete frozen audit task exceeded the unchanged one-million-byte model request gate before transport; the replacement preserves the full audit task while projecting exhaustive stable model evidence to 577170 bytes",
+      "source_revision": "ee8a65264ff1297c2bda6a1a245162ab6a3aba55",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:d2dabd7dc425cbf3b7bf2203eb0c6c88fa18f7d3028d3b2b49de10989b0bdb12",
+      "reason": "real-material qualification reached Spec 04-D and failed closed because the render-plan compact-input gate read an obsolete media_plan.summary.open field instead of the frozen Spec 03 top-level open_reviews contract; the replacement uses the production media-review contract and adds a regression fixture with the real frozen shape",
+      "source_revision": "1f336cdb687c9db4d71c3536afc6200abe7ff217",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:ea77e86c4fbed2dc6010bb23c853a5a66516849b29b9a7e4d14f77fffe363fb3",
+      "reason": "host-side deterministic archive qualification exposed Python 3.9 incompatibility in the no-follow regular-file gate; the replacement uses portable os.lstat semantics and carries an image-level regression test",
+      "source_revision": "7970c455f509c234c2964efb7d0179827802e8e3",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:f481032e9ac91bc68c402282d59473f49ca8b21e3d89910adfa8e3bf5a52f940",
+      "reason": "the exact-source cached candidate passed content qualification, but final admission requires the same source revision rebuilt with --no-cache; the strict replacement installed all locked system and Python dependencies from scratch and is the only image bound into release evidence",
+      "source_revision": "a2ae258ef109ceacd2da950e6b67c550c1692a3a",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:3fc9034ab730825290a0235cb266802145f1c493b4c85f6f995cbbc03f65f51c",
+      "reason": "real-material frozen render-plan qualification exposed double ownership when a source block retained compatibility source_type text while carrying a frozen media contract; the replacement derives effective media semantics from the frozen label and media contract and prevents media from entering teaching groups",
+      "source_revision": "a2ae258ef109ceacd2da950e6b67c550c1692a3a",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:81513117600d2078dc4207f44d0d937cb7beb68a760a363ab97271932e543e95",
+      "reason": "the exact-source cached candidate passed content qualification, but final admission requires the same source revision rebuilt with --no-cache; the replacement completed a full locked system and Python dependency build after bounded Debian network retries",
+      "source_revision": "30ae6e07cfaad72c6d06714182bd84189f505876",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:2a07858ce03d930a669e26a0946142a295deb87e1a591f71244210357fc7f895",
+      "reason": "subsequent real-material qualification exposed additional Stage 04/05 lineage and delivery-binding defects; later revisions preserved the valid dependency baseline while replacing the affected application layer",
+      "source_revision": "efc630b9bc78be1826780e65021ecbb2e94db919",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:743d1af3e4619f02e01429d158fe531292f96d2e0a4d7604519d9e2cf35abefd",
+      "reason": "real-material Spec 05 produced a complete 123-page render candidate with review-only compile warnings, but the Worker mapped the evidence-bound review handoff to failed; the replacement preserves needs_review and supports exact Stage 8-only recovery",
+      "source_revision": "c9379bf405e4daff3b3bb24e89a10e07a26e0cbd",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:bf5c27fe724a6b89ba126ebd0fd66981a91b32deea4cadaa49044e671849f6d2",
+      "reason": "real-material Stage 8 recovery closed all evidence-bound compile warnings, then exposed that final integrity compared the delivery ZIP with the XeLaTeX-mutated compile directory; the replacement preserves the strict precompile ZIP comparison and verifies immutable ZIP content after compilation",
+      "source_revision": "c4fc461c1ed61252ca16574ebc6d02eb65e09e7f",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:768ce0b38fa4182c880f06980ce14345ddf2a8a0e351f67bc6e12623407ca346",
+      "reason": "real-material Stage 8 retry compiled successfully but the independent evaluator rejected candidate paths that escaped the candidate tree; the replacement freezes the exact template-capability and metadata inputs inside the candidate contracts directory before build-manifest publication",
+      "source_revision": "549946247aee843effad4222fafe816b2ec94b06",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:08cf27e398b9e6dc0544a836111b41e96efd40552168cfcb1a1dd3ffc79d78ea",
+      "reason": "real-material Stage 8 warning closure passed, then Stage 9 correctly rejected a review_resolution_manifest that the control plane leaked beyond the exact recovery stage; the replacement limits the immutable resolution payload to deterministic_elegantbook while retaining recovery lineage in database records",
+      "source_revision": "821235f673b5be12a3ba1b670db1013590218dc7",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:80f2380a9f4aa3a05599bd9b1f3050b5fdcd8e5756299610d767f91f94567905",
+      "reason": "real-material Stage 10 qualification proved that Stage 5 page provenance bound canonical ledger and render-plan parents that the Stage 8 candidate omitted from its downstream bundle; the replacement carries the exact hash-bound parents without changing their bytes or relaxing visual review",
+      "source_revision": "18fe6671a5c063ebbfa077c907fb172c32b2fa82",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:25c3a6d274268b69ec58f105c272bc0555fd35ce124fac88e041514bd626fe45",
+      "reason": "real-material Stage 10 reached the first DashScope multimodal response and proved that assistant JSON was wrapped as one content text block; the previous transport passed the outer array to the root-object schema and failed before accepting any page result",
+      "source_revision": "6190fd3fc29ffa8d6b1c082b8990170387feb73d",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:6e043090b0443c7ccdf4c8881d52f49b5d725a0b313f16b4a484371a12bd7d86",
+      "reason": "real-material Stage 10 reached DashScope with the release-bound prompt and hash-bound page manifest, but the transport omitted the already-bound output JSON Schema from the provider message; the replacement sends that exact schema while retaining strict downstream validation and refusing array coercion",
+      "source_revision": "26cf8e03ee86da8aabbdbc863edc4705ef191f00",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:dad89fac86290176bd9d9cb42561874f55b4202e93680e0ba1aaae53f84d1619",
+      "reason": "real-material Stage 10 proved that deterministic candidate-to-source page provenance was incorrectly delegated to the visual model as a copied response field; the replacement removes that non-model responsibility and attaches the exact frozen Stage 5 mapping in code while retaining the raw provider audit",
+      "source_revision": "ad89b2825881c16db205193e3d3ee36636525c93",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "image_digest": "sha256:51b6d26505e089903c77b80a78cb2beaf42d1fcb47f1d487c049c2340426da0a",
+      "reason": "real-material Spec 05 produced review-only warnings and exposed that the isolated qualification CLI could not consume an exact immutable review resolution and resume only Stage 8; the replacement adds qualification-only, fail-closed warning review recovery without changing ordinary API, MinIO or production control-plane behavior",
+      "source_revision": "179da09a7ab2f9c366e07c60add6559e3c1dc65a",
+      "status": "superseded_before_release_admission"
+    },
+    {
+      "source_revision": "534a589bebaf7b8527d4c4f1845a10e2cb4d6d2c",
+      "image_digest": "sha256:3e5536314f02790d9dc87b65e19baaea0e193ec872900234ba64162567ca3841",
+      "status": "superseded_before_release_admission",
+      "reason": "real-material Stage 8 qualification proved that Stage 7 omitted the exact active Spec 03 media evidence and representation-plan hashes from the frozen render plan; the replacement binds both top-level hashes for every plan, including media-less plans, and independently rejects top-level or per-node drift"
+    },
+    {
+      "source_revision": "8ff9881504e2438331140f56e0644009350832e3",
+      "image_digest": "sha256:00dbaf8a605ddc76a8e21a9010004b2ea4ecdd6e21f32c8c9a264379922c0b4c",
+      "status": "superseded_before_release_admission",
+      "reason": "fresh-root Stage 10 qualification proved that XeLaTeX creation timestamps changed the hash-bound candidate PDF and visual request across otherwise identical runs, while fresh deployment defaults still selected a mutable DashScope model alias; the replacement freezes the compile epoch and aligns Compose and migration defaults with the exact release model"
+    },
+    {
+      "source_revision": "713e33e1a3ccbe3ede184ea86b98cf98b10ea7ce",
+      "image_digest": "sha256:42485624ad320ebc625fcf9af153aa482e84a566c054ad80dc28b6f94e3a854e",
+      "status": "superseded_before_release_admission",
+      "reason": "real-material Stage 8 qualification proved that release assembly accepted stale build-policy, runtime and image bindings; the replacement cross-validates every runtime profile plus identity and build proof before assembly"
+    },
+    {
+      "source_revision": "866fbda75eec6229b86dabb798e137b100dda105",
+      "image_digest": "sha256:aa9f2a64688ce8f2ed7cf9b152d624902f2ddad17f7381edc0c81c9313c34850",
+      "status": "superseded_before_release_admission",
+      "reason": "real-material Stage 10 qualification proved that Spec05 pdftoppm PNG file hashes were incorrectly compared with independently re-rendered PyMuPDF pixel hashes; the replacement keeps both format-specific identities separately bound while preserving exact PDF, page-order and source-lineage gates"
+    },
+    {
+      "source_revision": "92a8c2c475279e02d0249f2f99e19407e5c6f9cf",
+      "image_digest": "sha256:5042c094d9288a0a1a843415baf02e1ee183ef9919a6ce2b3604c8078e22f4db",
+      "status": "superseded_before_release_admission",
+      "reason": "real-material Stage 10 qualification proved that the visual Producer included raster dimensions and channel metadata in source-page identities while the contract duplicate hashed pixel bytes only; the replacement uses the same frozen identity algorithm and carries an inter-module equality regression"
+    }
+  ],
+  "rejected_build_attempts": [
+    {
+      "image_digest": "sha256:785a0bd95a3cd643d2760d13cfd1d1c988b3953aef23d4ffb6b70959b7bbd1e9",
+      "reason": "the Docker build context contained untracked qualification-only request-capture and orchestration helpers; the image was rejected before evidence binding and rebuilt from a clean tracked context",
+      "status": "rejected_before_qualification"
+    },
+    {
+      "image_digest": "sha256:e76244d9d159d36d71ad035a8d7b7446217fd38de21a501988ac2ef323804b63",
+      "reason": "the OCI revision label did not equal the exact full source revision 115d40c104aaa9ef0054ddb650f602f0b975abb8; the image was rejected before qualification",
+      "status": "rejected_before_qualification"
+    },
+    {
+      "image_digest": "sha256:57464e291fa75eb4a9a0686c1ff1d2cc1ce874a02e5c9f038de6afd5b4931c27",
+      "reason": "OCI revision label used the short source revision 7970c45 instead of the exact full revision 7970c455f509c234c2964efb7d0179827802e8e3; content tests and clean dependency installation passed, but the image was rejected before release evidence binding",
+      "status": "rejected_before_qualification"
+    },
+    {
+      "image_digest": "sha256:37c1f8617d3d90c6fab460ef4450695ac09c54db8832467a5fbd6b8ed98a18ab",
+      "reason": "OCI revision label was manually transcribed and did not equal the actual full source revision 7a4f627a2db9214d104cbe5882487460fdcabecc; the image was overwritten before qualification",
+      "status": "rejected_before_qualification"
+    },
+    {
+      "image_digest": "sha256:59eeccf861bf3427f6f59f4e55d7c0ae3fd0ffb976eb3a55b3bff1f19559c5d4",
+      "reason": "the clean dependency-cache build completed with an incorrectly transcribed full OCI revision label; the dependency layers were retained, but the image was overwritten before qualification by the correctly bound source revision",
+      "status": "rejected_before_qualification"
+    },
+    {
+      "image_digest": "sha256:b3d177510184f687f8f1632e5a780813786a29b28d99600fbc1c9634f3712075",
+      "reason": "OCI revision label was manually supplied and did not equal the actual full source revision 38e8a602895d5e6c710d567f7cf14b63998bd589",
+      "status": "rejected_before_qualification"
+    },
+    {
+      "image_digest": "sha256:e0b2074a3de7ea7c3f18982d03f18c9eb87aa27dc30f31ad6fd17288c3363cd9",
+      "reason": "OCI revision label did not equal the actual full source revision",
+      "status": "rejected_before_qualification"
+    },
+    {
+      "image_digest": "sha256:5742c537a8a7d09f7bd8b1c78783bf5635412d34ce08516f0d894afd060a3c60",
+      "reason": "OCI revision label was not the actual full source revision 521fee15ee857cf07115eb77d369c7597c2887ab",
+      "status": "rejected_before_qualification"
+    },
+    {
+      "image_digest": "sha256:5bbeac8d5141bf686edd41820094b412eb3b0a5400867f245c22e01a5fc1110f",
+      "reason": "OCI revision label used the short source revision 179da09 instead of the exact full source revision 179da09a7ab2f9c366e07c60add6559e3c1dc65a; its content tests passed, but the image was rejected before release evidence binding",
+      "status": "rejected_before_qualification"
+    }
+  ],
+  "runtime_id": "worker-v3-runtime-rc-5d31514",
+  "runtime_identity": {
+    "control_plane_tree_sha256": "3c9f06e725ad08dbbcc9b4d1f379baea17d3d8e5550bc1fae60333a363dcb93e",
+    "effective_uid": 10003,
+    "evidence_sha256": "9260368b83c45e805e7b9b10861d6126ed1661108469d04a1bb6b33263e5685a",
+    "status": "passed",
+    "system_lock_entries": 19
+  },
+  "sbom": {
+    "component_count": 422,
+    "evidence_sha256": "b35a98b91649a3f8a215e8e434bbe07e2c9b214fed05e9f10e6054fdf9eb9047",
+    "format": "CycloneDX",
+    "spec_version": "1.5"
+  },
+  "schema": "luceon.worker-v3-runtime-build-proof/v1",
+  "source_revision": "5d315142fdfd6eebaffe1dfe4ebb9e0fc51e2a76",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-5d31514",
+  "tests": {
+    "targeted_repository_regression": "12 canonical UAT collector tests passed in the exact RC.5 image, including evidence-complete needs_review and fail-closed incomplete handoff cases",
+    "runtime_identity_gate": "passed with no network and digest-pinned reference: non-root UID 10003, exact control-plane tree and 19 locked system packages",
+    "repository_static_tests": "1067 passed and 2 skipped across the complete repository suite; the single non-root image-user config-path probe was rerun under its required root test identity and passed",
+    "exact_image_regression": "12 canonical collector tests passed in the exact RC.5 image with network disabled; the broader exact-image suite is rerun after the RC.5 recipe and read-only release evidence are assembled",
+    "locked_template_smoke": "passed with no network: frozen template, XeLaTeX, qpdf and pdfinfo, 2 pages, deterministic PDF SHA-256 5ad6f5885f7b274f16a88bc98faaf4da7587af83b209c2f99f1e70b88e59ec90",
+    "production_boundary": "Expert Broker, Codex App Server, Codex SDK adapter, cross-UID runner, Codex expert runtime entrypoints, Codex binary and Codex/OpenAI credentials are absent",
+    "warnings": "Existing Python, SQLAlchemy and legacy SyntaxWarning output remains non-blocking. The successful build reused only previously qualified dependency layers; source COPY, control-plane baseline and image identity were rebuilt against revision 5d31514."
+  },
+  "user": "10003:10003",
+  "build_provenance": {
+    "build_mode": "docker build using the previously qualified clean dependency layers; only the source COPY and control-plane baseline layers were rebuilt",
+    "source_dockerfile": "backend/Dockerfile.worker-v3",
+    "source_dockerfile_sha256": "e0f8978e3f0ef23a9498ec18b185eeb4def4f4bdc279872ed8e241638609281f",
+    "build_context": "backend",
+    "source_revision": "5d315142fdfd6eebaffe1dfe4ebb9e0fc51e2a76",
+    "declared_base_image": "python:3.12.13-slim@sha256:64695412729fbe8cf054511723820c82bbe5a077d4a6b4070cd4a7225d3422ce",
+    "official_base_index_digest": "sha256:64695412729fbe8cf054511723820c82bbe5a077d4a6b4070cd4a7225d3422ce",
+    "official_arm64_manifest_digest": "sha256:55842c72c6b3584d06ec84c731fc516b30b8a53ad262ebd085e47ab568b3bfc1",
+    "official_arm64_config_digest": "sha256:944a73bd27d7b5fad206369e77bb7a6da51e073236b9dece9ff387df433de7bb",
+    "verified_local_oci_archive_sha256": null,
+    "recipe_transport_adaptation": "docker build on the native arm64 Docker Desktop engine with exact cache hits for the previously clean-built base, system-lock and Python-lock layers; source and control-plane identity layers were rebuilt from revision 5d31514 and all admission gates are rerun before sealed smoke",
+    "package_transport": {
+      "source": "https://deb.debian.org",
+      "relay": null,
+      "source_rewrite": false,
+      "package_version_rewrite": false,
+      "relay_removed_after_build": true,
+      "buildkit_builder_removed_after_build": false,
+      "temporary_network_removed_after_build": true
+    },
+    "python_package_transport": {
+      "sources": [
+        "https://pypi.org",
+        "https://files.pythonhosted.org"
+      ],
+      "relay": null,
+      "source_rewrite": false,
+      "requirement_or_hash_rewrite": false,
+      "hash_rejection_exercised": false,
+      "relay_removed_after_build": true
+    }
+  }
+}

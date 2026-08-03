@@ -1,0 +1,29 @@
+{
+  "schema": "luceon.worker-v3-development-api-authorization/v1",
+  "recorded_at": "2026-07-29T02:10:00Z",
+  "authorization_source": "interactive user instruction in the active LuceonWeb2026 Worker V3 goal",
+  "scope": {
+    "project": "LuceonWeb2026",
+    "environment": "current development and qualification environment",
+    "credentials": "third-party API credentials already preconfigured for this project",
+    "allowed_uses": [
+      "release-bound ordinary LLM qualification calls",
+      "release-bound visual-review provider qualification calls",
+      "development regression and UAT calls required by the active Worker V3 goal"
+    ],
+    "per_request_human_reauthorization_required": false
+  },
+  "continuing_controls": [
+    "use the minimum necessary calls",
+    "persist exact request hashes, response hashes, provider and model identity, attempts, latency, token usage and cost evidence",
+    "fail closed on schema, transport, release-binding or deterministic validation errors",
+    "never persist or print credential values",
+    "never place credentials in Git, release archives, images, fixtures or reports",
+    "never treat this authorization as MinIO publication, human acceptance, template modification, destructive data access or a Codex production fallback"
+  ],
+  "architecture_boundary": {
+    "codex_expert_lane_in_production": false,
+    "expert_broker_in_release": false,
+    "ordinary_worker_only": true
+  }
+}

@@ -1,0 +1,22 @@
+# Debian 13 (trixie) packages required by the ordinary Worker V3 runtime.
+# Keep one exact package=version pair per line; Dockerfile.worker-v3 installs
+# this file verbatim with --no-install-recommends.
+ca-certificates=20250419
+fontconfig=2.15.0-2.3
+fonts-noto-core=20201225-2
+fonts-noto-cjk=1:20240730+repack1-1
+fonts-texgyre=20180621-6
+poppler-utils=25.03.0-5+deb13u4
+qpdf=12.2.0-1
+ghostscript=10.05.1~dfsg-1+deb13u1
+texlive-xetex=2024.20250309-1
+texlive-bibtex-extra=2024.20250309-2
+latexmk=1:4.86~ds-1
+texlive-latex-extra=2024.20250309-2
+texlive-fonts-recommended=2024.20250309-1
+texlive-fonts-extra=2024.20250309-2
+texlive-lang-chinese=2024.20250309-1
+texlive-science=2024.20250309-2
+texlive-pictures=2024.20250309-1
+texlive-plain-generic=2024.20250309-2
+biber=2.20-2

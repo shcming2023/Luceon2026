@@ -1,0 +1,98 @@
+{
+  "schema_version": "luceon.worker-v3-live-provider-request-evidence/v1",
+  "qualification_id": "deepseek-1343-spec02-v3-compact-requalification-20260728",
+  "status": "exact_request_captured_offline_live_call_not_started",
+  "scope": {
+    "material_pk": 1343,
+    "material_id": "pdf-8e5464971a3e1d6b",
+    "stage_key": "source_scope_and_order",
+    "task_schema": "luceon.worker-v3-spec02-review-task/v2",
+    "response_schema": "luceon.worker-v3-spec02-scope-order-review/v3",
+    "physical_pages": 200,
+    "source_units": 2859
+  },
+  "runtime": {
+    "source_revision": "e51dab320db3ac1ccabe11e090ee1a4843e714f9",
+    "runtime_id": "worker-v3-runtime-rc-e51dab3",
+    "image_digest": "sha256:6b88bc6a79827ce7a50e1ed1826efb3f44692d2b09bea9ae21c2da3eb78097fe",
+    "identity_sha256": "1a58897483623de6b26d5dca933f964d2de3f842a18209e041cf64f13b9f1a20"
+  },
+  "release": {
+    "archive_sha256": "2b703c8b6ffe7774799ce469a051b649e6b9a2f96c790bed3da82ef14a987feb",
+    "tree_sha256": "f5bb8051b74ca8d31aa104f919d82bfd7e39a617b969c1481aefbafc213d9646",
+    "manifest_sha256": "cf6e4e24da5e256c752c8a4f3b1dfe419fa1389f60d92328f7075c9eda7f53cd",
+    "status": "incomplete",
+    "file_count": 215,
+    "known_gap_count": 4
+  },
+  "request": {
+    "call_id": "d374750866a5d475093efbb1dc848e22b04d2bf45d9a57d18c1b19320a416cf0",
+    "file_sha256": "5361193f5e8543d19905c564c11b9064ac76e356f52318caf680b9ae505abb46",
+    "canonical_sha256": "907c4dac467cf112731d8a05a581d3d778631060690aeb4db2129b693196d350",
+    "canonical_bytes": 821677,
+    "input_sha256": "3a76d9443d11befcf5835079fa9a04cdb8a01d11f4b8e6b18504af33ad0a187b",
+    "prompt_sha256": "ebc12fb658c781ca24bba0f2b10ab8f92cc7c75ec48514707677ced4e7861761",
+    "schema_sha256": "604cb52a1cae2662513068feb8327b97c8d3ab0d94ba750e9097dcfb96021e10",
+    "baseline_sha256": "59328c2b001774d717eda43720fa57bd4658fe84fac3f6a2f2cc046e4cd541e0",
+    "minimum_complete_response_bytes": 11530,
+    "maximum_admitted_response_bytes": 256000
+  },
+  "provider_contract": {
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "temperature": 0,
+    "thinking": {
+      "type": "disabled"
+    },
+    "max_output_tokens": 16000,
+    "timeout_seconds": 600,
+    "max_stage_calls": 1,
+    "provider_visible_payload": [
+      "input",
+      "output_schema"
+    ],
+    "strict_local_validation_retained": true
+  },
+  "cost_bound": {
+    "currency": "CNY",
+    "pricing_snapshot_sha256": "be481c936ec3f89adee98f390d0b2a94bef0a4b79fc82e5741e4e6cc69278b45",
+    "policy_hard_max_input_tokens": 500000,
+    "policy_hard_max_output_tokens": 16000,
+    "policy_hard_max_amount": "0.532000",
+    "basis": "all input charged at cache-miss rate plus maximum output at the release-bound public list rate"
+  },
+  "offline_capture": {
+    "captured_at": "2026-07-28T01:51:25Z",
+    "network_used": false,
+    "provider_call_started": false,
+    "expected_terminal_error": "qualification_fixture_missing",
+    "qualification_report_sha256": "00abc510c547cd82477538cfab96a32b3779b9cdcaea9f2308fc0a64f9a4ec71",
+    "qualification_payload_sha256": "84451288a98ee889fc66f6a1c372aa6676a4f14d6e85712bcddcfe75ab7ee6fb"
+  },
+  "execution_preflight": {
+    "verified_at": "2026-07-28T02:09:37Z",
+    "network_used": false,
+    "provider_call_started": false,
+    "exact_runtime_image_used": true,
+    "request_file_and_canonical_hashes_verified": true,
+    "release_model_policy_verified": true,
+    "runtime_provider_model_endpoint_and_credential_verified": true,
+    "replay_guard": "output directory must not already exist and execute-confirm-sha must equal the exact canonical request SHA-256",
+    "one_shot_wrapper_sha256": "f63d2c8ce2506d88d8970c60ff485294df478335fd07a449f6f256a079ba9dd2"
+  },
+  "authorization": {
+    "previous_live_call_consumed": true,
+    "additional_live_call_authorized": false
+  },
+  "overleaf": {
+    "real_worker_zip_exists": false,
+    "temporary_network_created": false,
+    "adapter_image_digest_present": true,
+    "temporary_network_baseline_absent": true,
+    "compile_remains_conditional_on_strict_spec02_success_and_a_real_worker_zip": true,
+    "one_shot_client_sha256": "28c988684234fab7b0f05e646c920200ad4cba43c5731871e96972ff6a5dc9ce",
+    "one_shot_lifecycle_wrapper_sha256": "5224907f1eff909c44a3861a01878f4e777d9ec1bc59836f921016715620ba5a",
+    "missing_zip_guard_verified": true,
+    "guard_test_created_network_container_or_volume": false
+  }
+}

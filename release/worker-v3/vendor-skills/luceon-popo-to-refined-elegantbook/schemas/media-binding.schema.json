@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luceon.local/schemas/media-binding.schema.json",
+  "title": "Spec 04 media binding",
+  "type": "object",
+  "required": ["media_id", "representation_id", "representation_type", "selected_candidate_id", "artifact_sha256", "media_representation_plan_sha256"],
+  "properties": {
+    "media_id": {"type": "string", "minLength": 1},
+    "representation_id": {"type": "string", "minLength": 1},
+    "representation_type": {"enum": ["source_asset_image", "source_region_image", "structured_formula", "structured_table", "structured_chart", "vector_reconstruction"]},
+    "selected_candidate_id": {"type": "string", "minLength": 1},
+    "artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "media_representation_plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "additionalProperties": false
+}

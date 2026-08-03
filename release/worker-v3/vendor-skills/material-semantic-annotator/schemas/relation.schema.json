@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Teaching material relation",
+  "type": "object",
+  "required": ["id", "relation_type", "from_id", "to_id"],
+  "properties": {
+    "id": {"type": "string"},
+    "relation_type": {"type": "string"},
+    "from_id": {"type": "string"},
+    "to_id": {"type": "string"},
+    "confidence": {"type": "number"},
+    "metadata": {"type": "object"}
+  }
+}

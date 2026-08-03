@@ -1,0 +1,99 @@
+{
+  "schema_version": "luceon.worker-v3-live-provider-qualification-evidence/v1",
+  "qualification_id": "deepseek-1343-spec02-v2-nonthinking-live-20260728",
+  "executed_at": "2026-07-28T01:24:25Z",
+  "scope": {
+    "material_pk": 1343,
+    "material_id": "pdf-8e5464971a3e1d6b",
+    "stage_key": "source_scope_and_order",
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "attempts": 1,
+    "retry_count": 0
+  },
+  "runtime": {
+    "source_revision": "ab9806ead64e7441b0425eeca6ab98ddd9868f53",
+    "runtime_id": "worker-v3-runtime-rc-ab9806e",
+    "image_digest": "sha256:deb794e8b0f575367696b885c626e12c2cb90279e82c618e485e41f9c28dd0d4",
+    "identity_sha256": "4efff01f64c1b8590a2dff8ea0ececd54fc8728407b644c2e252e0288b91344f"
+  },
+  "release": {
+    "archive_sha256": "bc0f1ea76d4cc402b708a2b6b464396b7184b59f5fe6b8767df6172b4ed5bcda",
+    "tree_sha256": "3b265a83a55e3442153c13ce50a97254e6c2302d02e8a3d0b5ca60bbc7de47a3",
+    "materialized_manifest_sha256": "d822406223ff3e3ba78cf4d2aff184cc2ac2dfabd2e73f78dae5d72765bbbf63",
+    "status": "incomplete"
+  },
+  "request": {
+    "call_id": "58da84f9651b82a23c0c1aa7f999ff2d10f28bf9aec9793ea1af7673838a1a10",
+    "canonical_sha256": "f3d45d43c8d4c57d542f97b1b49e0540d907d8058b34c3f0c433759bdf874b1f",
+    "file_sha256": "128ded490434bd07727664712cab3041cd72e0aec0b38ffb6d2f1b37c25b9fc4",
+    "canonical_bytes": 820858,
+    "physical_pages": 200,
+    "source_units": 2859,
+    "temperature": 0,
+    "max_output_tokens": 16000,
+    "thinking": {
+      "type": "disabled"
+    },
+    "timeout_seconds": 600
+  },
+  "provider_response": {
+    "http_status": 200,
+    "response_id": "0092439f-8bcf-4670-bc97-3d097eb4884a",
+    "latency_ms": 78095,
+    "finish_reason": "length",
+    "raw_response_sha256": "e919af6862154a25fede8aee1c146aec0f48064be7ebbb11b729d363fbf93780",
+    "content_sha256": "2abdffcec563d4e72327709822084670bab4d5bae614ab7038921e9758d7d552",
+    "content_chars": 52230,
+    "content_started_as_json_object": true,
+    "content_ended_as_json_object": false,
+    "last_complete_physical_page_observed": 185,
+    "reasoning_tokens_reported": false,
+    "usage": {
+      "input_tokens": 285713,
+      "cache_hit_input_tokens": 285696,
+      "cache_miss_input_tokens": 17,
+      "output_tokens": 16000,
+      "total_tokens": 301713
+    },
+    "cost": {
+      "currency": "CNY",
+      "micro_units": 37731,
+      "amount": "0.037731",
+      "pricing_snapshot_sha256": "be481c936ec3f89adee98f390d0b2a94bef0a4b79fc82e5741e4e6cc69278b45",
+      "cache_attribution": "actual_provider_cache_breakdown"
+    }
+  },
+  "strict_gateway_result": {
+    "status": "rejected",
+    "error_code": "output_truncated",
+    "retryable": false,
+    "call_count": 1,
+    "fixture_created": false,
+    "candidate_created": false,
+    "promotion_created": false,
+    "qualification_passed": false,
+    "production_state_written": false,
+    "release_promoted": false,
+    "private_failure_evidence_sha256": "7f34faaf6648a9718066bfeaa6789132d0a3227af5b499e98f3805e42bf368fc"
+  },
+  "root_cause": {
+    "classification": "production_blocker",
+    "responsibility": "worker-v3-spec02-response-contract-capacity",
+    "detail": "Non-thinking mode removed reasoning-token consumption, but the strict 200-page response itself still exceeded the release-bound 16000-token output limit. The response repeated closed page decisions and was truncated after physical page 185."
+  },
+  "next_action": {
+    "status": "offline_contract_remediation_required",
+    "constraints": [
+      "Do not reuse or repair the truncated provider response.",
+      "Do not relax exhaustive physical-page coverage or strict schema validation.",
+      "Do not issue another live provider call without a new exact-request authorization.",
+      "Keep deterministic baseline projection separate from model-authored overrides."
+    ]
+  },
+  "overleaf": {
+    "real_worker_zip_exists": false,
+    "temporary_network_created": false,
+    "reason": "The authorized compile network is conditional on a real Worker ZIP; strict Spec 02 rejection produced none."
+  }
+}

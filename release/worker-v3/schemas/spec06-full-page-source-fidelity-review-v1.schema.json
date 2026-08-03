@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "luceon.worker-v3.spec06-full-page-source-fidelity-review/v1",
+  "title": "Worker V3 full-page source-fidelity visual findings",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "pages"
+  ],
+  "properties": {
+    "pages": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "page_key",
+          "page",
+          "status",
+          "findings"
+        ],
+        "properties": {
+          "page_key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "^[A-Za-z0-9._-]+:[1-9][0-9]*$"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "failed"
+            ]
+          },
+          "findings": {
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "code",
+                "detail",
+                "blocking",
+                "responsibility_stage"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "enum": [
+                    "MISSING_SOURCE_CONTENT",
+                    "EXTRA_UNSOURCED_CONTENT",
+                    "WRONG_FORMULA",
+                    "WRONG_TABLE_OR_IMAGE",
+                    "ORDER_OR_DUPLICATION",
+                    "CLIPPING",
+                    "OVERLAP",
+                    "BROKEN_GLYPHS",
+                    "UNREADABLE_MEDIA",
+                    "EXCESSIVE_BLANK_OR_ORPHAN",
+                    "MAPPING_UNCERTAIN"
+                  ]
+                },
+                "detail": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                },
+                "blocking": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "responsibility_stage": {
+                  "type": "string",
+                  "enum": [
+                    "source_scope_and_order",
+                    "canonical_block_ledger",
+                    "outline_reconstruction",
+                    "semantic_annotation",
+                    "template_construct_binding",
+                    "frozen_render_plan",
+                    "deterministic_elegantbook",
+                    "independent_full_page_review"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

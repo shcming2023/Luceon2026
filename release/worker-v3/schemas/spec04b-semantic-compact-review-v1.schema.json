@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "worker-v3-spec04b-semantic-compact-review-v1.schema.json",
+  "title": "Worker V3 Spec 04-B compact semantic decisions",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "task_id",
+    "review_status",
+    "decisions",
+    "open_reviews"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "luceon.worker-v3-spec04b-compact-review/v2"
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "review_status": {
+      "const": "closed"
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "candidate_index",
+          "option_index"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "candidate_index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "option_index": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 36
+          }
+        }
+      }
+    },
+    "open_reviews": {
+      "const": []
+    }
+  }
+}

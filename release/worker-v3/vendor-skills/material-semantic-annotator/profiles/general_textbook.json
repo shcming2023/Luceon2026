@@ -1,0 +1,54 @@
+{
+  "id": "general_textbook",
+  "description": "General chapter-based textbook or coursebook profile. Use for materials with Chapter/Unit sections and broad reading, writing, speaking, listening, practice, review, or coursework headings when a more specific workbook profile does not fit.",
+  "auto_detect_rules": [
+    {"pattern": "^(Chapter|CHAPTER|SECTION|Section|Part|P\\d+\\b|Integrated Learning)", "weight": 4},
+    {"pattern": "\\b(Reading|Writing|Speaking|Listening|Coursework|Comprehension|Summary|Knowledge Check|Making measurements|measurement|Science|Physics)\\b", "weight": 3},
+    {"pattern": "^(Unit|UNIT)\\s+\\d+\\b", "weight": 1}
+  ],
+  "heading_patterns": {
+    "chapter": "^(Chapter|CHAPTER)\\s+\\d+\\b",
+    "unit": "^(Unit|UNIT)\\s+\\d+\\b",
+    "practice": ".*\\b(Practise|Practice|Task|Assignment|Questions|Checklist)\\b.*"
+  },
+  "section_role_rules": [
+    {"pattern": "^(About this book|How to use this book|for Cambridge\\b)", "role": "source_note", "section_type": "front_matter"},
+    {"pattern": "^(Chapter|CHAPTER)\\s+\\d+\\b", "role": "chapter", "section_type": "chapter"},
+    {"pattern": "^(Unit|UNIT)\\s+\\d+\\b", "role": "unit", "section_type": "unit"},
+    {"pattern": "^Project\\s+\\d+\\b", "role": "project_activity", "section_type": "activity"},
+    {"pattern": "^\\d+\\s+\\S", "role": "unit_lesson", "section_type": "lesson"},
+    {"pattern": ".*\\b(Reading|reader|Skimming|Scanning|Comprehension|Summaris|Summary)\\b.*", "role": "reading_section", "section_type": "lesson_part"},
+    {"pattern": ".*\\b(Writing|Composition|Coursework|Draft|Directed writing)\\b.*", "role": "writing_section", "section_type": "lesson_part"},
+    {"pattern": ".*\\b(Speaking|Listening|Discussion|Individual task)\\b.*", "role": "speaking_listening_section", "section_type": "lesson_part"},
+    {"pattern": ".*\\b(Practise|Practice|Task|Assignment|Questions|Checklist|Review)\\b.*", "role": "practice_section", "section_type": "practice"},
+    {"pattern": ".+", "role": "learning_section", "section_type": "lesson_part"}
+  ],
+  "asset_role_rules": [
+    {"section_role": "source_note", "asset_type": "note", "role": "source_note"},
+    {"section_role": "chapter", "asset_type": "note", "role": "chapter_intro"},
+    {"section_role": "unit", "asset_type": "note", "role": "unit_intro"},
+    {"section_role": "unit_lesson", "asset_type": "lesson", "role": "unit_lesson"},
+    {"section_role": "project_activity", "asset_type": "activity", "role": "project_activity"},
+    {"section_role": "reading_section", "asset_type": "reading", "role": "reading_instruction"},
+    {"section_role": "writing_section", "asset_type": "activity", "role": "writing_instruction"},
+    {"section_role": "speaking_listening_section", "asset_type": "activity", "role": "speaking_listening_instruction"},
+    {"section_role": "practice_section", "asset_type": "exercise", "role": "practice"},
+    {"section_role": "learning_section", "asset_type": "lesson", "role": "learning_content"}
+  ],
+  "segmentation": {
+    "item_start_pattern": "^\\d+[\\.．]\\s+",
+    "choice_pattern": "^\\(?[A-Da-d]\\)?[\\.．、)]\\s+",
+    "subitem_pattern": "^\\([0-9]+\\)\\s*"
+  },
+  "task_type_rules": [
+    {"pattern": "choose|circle|select", "task_type": "choose_inline_option"},
+    {"pattern": "complete|fill|blank", "task_type": "fill_blank"},
+    {"pattern": "match\\s+the|match\\s+.*\\s+with", "task_type": "matching"},
+    {"pattern": "summari[sz]e|summary", "task_type": "summary_writing"},
+    {"pattern": "write|draft|composition|coursework", "task_type": "writing_task"},
+    {"pattern": "discuss|speaking|listening|presentation", "task_type": "speaking_listening_task"},
+    {"pattern": "answer|question|explain|identify", "task_type": "short_answer"},
+    {"pattern": "read|skim|scan|comprehension", "task_type": "reading_task"}
+  ],
+  "answer_policy": "no_answer_in_source"
+}

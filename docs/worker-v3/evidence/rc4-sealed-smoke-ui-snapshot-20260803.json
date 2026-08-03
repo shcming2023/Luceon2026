@@ -1,0 +1,72 @@
+{
+  "schema": "luceon.worker-v3-ui-snapshot/v1",
+  "captured_at": "2026-08-03T16:33:00+08:00",
+  "source": "authenticated public browser at http://152.136.183.144:15000/workflow-v3/runs",
+  "jobs": [
+    {
+      "id": "a96f48de-da64-4e7a-af42-e89ec47026ab",
+      "material_pk": "1339",
+      "material_id": "pdf-de6b27db13aeb80d",
+      "filename": "Cambridge Lower Secondary Science Learners Book 7 (Cambridge University Press)(Second Edition).pdf",
+      "popo_run_id": "popo-20260724032035-staged_popo_20260724031739-93376d38--003-popo_de6b27db13aeb80d_003",
+      "skill_release_version": "3.0.0-rc.4",
+      "machine_status": "needs_review",
+      "spec_status": "needs_review",
+      "readiness_status": "not_ready",
+      "human_acceptance_status": "pending",
+      "current_stage_key": "canonical_block_ledger"
+    },
+    {
+      "id": "a0e903d0-260e-4ca8-8a90-5df4517a05de",
+      "material_pk": "1340",
+      "material_id": "pdf-2e57426befa155be",
+      "filename": "Cambridge Lower Secondary Science Learners Book 8 (Cambridge University Press)(Second Edition).pdf",
+      "popo_run_id": "popo-20260724032035-staged_popo_20260724031739-93376d38--004-popo_2e57426befa155be_004",
+      "skill_release_version": "3.0.0-rc.4",
+      "machine_status": "needs_review",
+      "spec_status": "needs_review",
+      "readiness_status": "not_ready",
+      "human_acceptance_status": "pending",
+      "current_stage_key": "deterministic_elegantbook"
+    },
+    {
+      "id": "524731fd-0791-4edb-bb24-b8c96856fc24",
+      "material_pk": "1341",
+      "material_id": "pdf-ac357479938bb9b5",
+      "filename": "Cambridge Lower Secondary Science Learners Book 9 (Cambridge University Press)(Second Edition).pdf",
+      "popo_run_id": "popo-20260724032035-staged_popo_20260724031739-93376d38--005-popo_ac357479938bb9b5_005",
+      "skill_release_version": "3.0.0-rc.4",
+      "machine_status": "needs_review",
+      "spec_status": "needs_review",
+      "readiness_status": "not_ready",
+      "human_acceptance_status": "pending",
+      "current_stage_key": "canonical_block_ledger"
+    },
+    {
+      "id": "2de1aa8c-60e5-4950-93d7-94b18b6bf0e4",
+      "material_pk": "1342",
+      "material_id": "pdf-ffaf7e6e6dd3b32d",
+      "filename": "Cambridge Lower Secondary Science Workbook 7 (Cambridge University Press)(Second Edition).pdf",
+      "popo_run_id": "popo-20260724032035-staged_popo_20260724031739-93376d38--002-popo_ffaf7e6e6dd3b32d_002",
+      "skill_release_version": "3.0.0-rc.4",
+      "machine_status": "needs_review",
+      "spec_status": "needs_review",
+      "readiness_status": "not_ready",
+      "human_acceptance_status": "pending",
+      "current_stage_key": "deterministic_elegantbook"
+    },
+    {
+      "id": "2c442f63-18b3-410e-b6dc-85272164c254",
+      "material_pk": "1343",
+      "material_id": "pdf-8e5464971a3e1d6b",
+      "filename": "Cambridge Lower Secondary Science Workbook 9 (Cambridge University Press)(Second Edition).pdf",
+      "popo_run_id": "popo-20260724032035-staged_popo_20260724031739-93376d38--001-popo_8e5464971a3e1d6b_001",
+      "skill_release_version": "3.0.0-rc.4",
+      "machine_status": "needs_review",
+      "spec_status": "needs_review",
+      "readiness_status": "not_ready",
+      "human_acceptance_status": "pending",
+      "current_stage_key": "deterministic_elegantbook"
+    }
+  ]
+}

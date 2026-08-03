@@ -1,0 +1,173 @@
+{
+  "architecture": "aarch64",
+  "base_image": "python:3.12.13-slim@sha256:64695412729fbe8cf054511723820c82bbe5a077d4a6b4070cd4a7225d3422ce",
+  "control_plane": {
+    "actual_tree_sha256": "3c9f06e725ad08dbbcc9b4d1f379baea17d3d8e5550bc1fae60333a363dcb93e",
+    "expected_tree_sha256": "3c9f06e725ad08dbbcc9b4d1f379baea17d3d8e5550bc1fae60333a363dcb93e",
+    "manifest_path": "/opt/worker-v3/control-plane-baseline.json",
+    "manifest_sha256": "495134976cd4947c975e9007b034f4f628b51160ea6bea81d5c0dab050c40e2f",
+    "matches": true
+  },
+  "effective_uid": 10003,
+  "image_digest": "sha256:4b3894462fef3f3333dcc1d1ec1b4accea8b9e4922a3a5716eec3f9e585722d7",
+  "image_reference_pinned": true,
+  "locks": {
+    "python": {
+      "expected_sha256": "be52a2e7be1cf8e4ad27d93606f9970bc9420b7a449df208bca3d0a4f4643cba",
+      "path": "/app/requirements-worker-v3.lock",
+      "sha256": "be52a2e7be1cf8e4ad27d93606f9970bc9420b7a449df208bca3d0a4f4643cba"
+    },
+    "system": {
+      "expected_sha256": "91da4a53924104e8b81b0e86a36fd0856fa0d95be25df26ac3de1eda905b7342",
+      "path": "/app/worker-v3-system-packages.lock",
+      "sha256": "91da4a53924104e8b81b0e86a36fd0856fa0d95be25df26ac3de1eda905b7342"
+    }
+  },
+  "non_root": true,
+  "python": "3.12.13",
+  "runtime_id": "worker-v3-runtime-rc-5d31514",
+  "schema": "luceon.worker-v3-runtime-identity/v1",
+  "system_packages": {
+    "biber": {
+      "installed": "2.20-2",
+      "locked": "2.20-2",
+      "matches": true
+    },
+    "ca-certificates": {
+      "installed": "20250419",
+      "locked": "20250419",
+      "matches": true
+    },
+    "fontconfig": {
+      "installed": "2.15.0-2.3",
+      "locked": "2.15.0-2.3",
+      "matches": true
+    },
+    "fonts-noto-cjk": {
+      "installed": "1:20240730+repack1-1",
+      "locked": "1:20240730+repack1-1",
+      "matches": true
+    },
+    "fonts-noto-core": {
+      "installed": "20201225-2",
+      "locked": "20201225-2",
+      "matches": true
+    },
+    "fonts-texgyre": {
+      "installed": "20180621-6",
+      "locked": "20180621-6",
+      "matches": true
+    },
+    "ghostscript": {
+      "installed": "10.05.1~dfsg-1+deb13u1",
+      "locked": "10.05.1~dfsg-1+deb13u1",
+      "matches": true
+    },
+    "latexmk": {
+      "installed": "1:4.86~ds-1",
+      "locked": "1:4.86~ds-1",
+      "matches": true
+    },
+    "poppler-utils": {
+      "installed": "25.03.0-5+deb13u4",
+      "locked": "25.03.0-5+deb13u4",
+      "matches": true
+    },
+    "qpdf": {
+      "installed": "12.2.0-1",
+      "locked": "12.2.0-1",
+      "matches": true
+    },
+    "texlive-bibtex-extra": {
+      "installed": "2024.20250309-2",
+      "locked": "2024.20250309-2",
+      "matches": true
+    },
+    "texlive-fonts-extra": {
+      "installed": "2024.20250309-2",
+      "locked": "2024.20250309-2",
+      "matches": true
+    },
+    "texlive-fonts-recommended": {
+      "installed": "2024.20250309-1",
+      "locked": "2024.20250309-1",
+      "matches": true
+    },
+    "texlive-lang-chinese": {
+      "installed": "2024.20250309-1",
+      "locked": "2024.20250309-1",
+      "matches": true
+    },
+    "texlive-latex-extra": {
+      "installed": "2024.20250309-2",
+      "locked": "2024.20250309-2",
+      "matches": true
+    },
+    "texlive-pictures": {
+      "installed": "2024.20250309-1",
+      "locked": "2024.20250309-1",
+      "matches": true
+    },
+    "texlive-plain-generic": {
+      "installed": "2024.20250309-2",
+      "locked": "2024.20250309-2",
+      "matches": true
+    },
+    "texlive-science": {
+      "installed": "2024.20250309-2",
+      "locked": "2024.20250309-2",
+      "matches": true
+    },
+    "texlive-xetex": {
+      "installed": "2024.20250309-1",
+      "locked": "2024.20250309-1",
+      "matches": true
+    }
+  },
+  "tools": {
+    "biber": {
+      "available": true,
+      "path": "/usr/bin/biber",
+      "version": "biber version: 2.20"
+    },
+    "fontconfig": {
+      "available": true,
+      "path": "/usr/bin/fc-list",
+      "version": "fontconfig version 2.15.0"
+    },
+    "ghostscript": {
+      "available": true,
+      "path": "/usr/bin/gs",
+      "version": "10.05.1"
+    },
+    "latexmk": {
+      "available": true,
+      "path": "/usr/bin/latexmk",
+      "version": "Latexmk, John Collins, 11 Dec. 2024. Version 4.86"
+    },
+    "pdfinfo": {
+      "available": true,
+      "path": "/usr/bin/pdfinfo",
+      "version": "pdfinfo version 25.03.0"
+    },
+    "pdftoppm": {
+      "available": true,
+      "path": "/usr/bin/pdftoppm",
+      "version": "pdftoppm version 25.03.0"
+    },
+    "qpdf": {
+      "available": true,
+      "path": "/usr/bin/qpdf",
+      "version": "qpdf version 12.2.0"
+    },
+    "xelatex": {
+      "available": true,
+      "path": "/usr/bin/xelatex",
+      "version": "XeTeX 3.141592653-2.6-0.999996 (TeX Live 2025/dev/Debian)"
+    }
+  },
+  "validation": {
+    "errors": [],
+    "status": "passed"
+  }
+}

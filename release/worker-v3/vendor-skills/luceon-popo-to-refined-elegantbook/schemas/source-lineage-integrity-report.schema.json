@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luceon.local/schemas/source-lineage-integrity-report.schema.json",
+  "title": "Source order and cross-stage lineage integrity report",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "report_id",
+    "status",
+    "scope_mode",
+    "source_parent_ledger",
+    "source_parent_decision_index",
+    "normalized_media_candidates",
+    "source_order_audit",
+    "source_review_closure",
+    "ledger_identity",
+    "decision_inheritance",
+    "media_fragment_binding",
+    "review_queue_precision",
+    "gates",
+    "summary"
+  ],
+  "properties": {
+    "schema_version": {"enum": ["source-lineage-integrity-report/1.0", "source-lineage-integrity-report/1.1"]},
+    "report_id": {"type": "string", "minLength": 1},
+    "status": {"const": "passed"},
+    "scope_mode": {"enum": ["formal_full_source", "bounded_media_regression"]},
+    "source_parent_ledger": {"$ref": "#/$defs/ledgerArtifact"},
+    "source_parent_decision_index": {"$ref": "#/$defs/artifact"},
+    "normalized_media_candidates": {"$ref": "#/$defs/artifact"},
+    "source_order_audit": {"$ref": "#/$defs/artifact"},
+    "source_review_closure": {"$ref": "#/$defs/artifact"},
+    "ledger_identity": {
+      "type": "object",
+      "required": ["record_type", "hash_scope", "record_count", "unique_block_ids", "payload_hash_valid"],
+      "properties": {
+        "record_type": {"const": "ledger_header"},
+        "hash_scope": {"const": "canonical JSON hash of ordered source_block records"},
+        "record_count": {"type": "integer", "minimum": 1},
+        "unique_block_ids": {"const": true},
+        "payload_hash_valid": {"const": true}
+      },
+      "additionalProperties": true
+    },
+    "decision_inheritance": {
+      "type": "object",
+      "required": ["mode", "current_decisions", "inherited_decisions", "missing_parent_decisions", "changed_parent_decisions", "unresolved_decisions"],
+      "properties": {
+        "mode": {"enum": ["root_snapshot", "cumulative_child_snapshot"]},
+        "current_decisions": {"type": "integer", "minimum": 1},
+        "inherited_decisions": {"type": "integer", "minimum": 0},
+        "missing_parent_decisions": {"const": 0},
+        "changed_parent_decisions": {"const": 0},
+        "unresolved_decisions": {"const": 0}
+      },
+      "additionalProperties": true
+    },
+    "media_fragment_binding": {
+      "type": "object",
+      "required": ["schema_version", "media_atoms", "canonical_media_blocks", "unbound_canonical_media_blocks", "duplicate_fragment_assignments", "invalid_source_block_refs", "multi_fragment_atoms"],
+      "properties": {
+        "schema_version": {"const": "source-ledger-media-fragment-binding/1.0"},
+        "media_atoms": {"type": "integer", "minimum": 1},
+        "canonical_media_blocks": {"type": "integer", "minimum": 1},
+        "unbound_canonical_media_blocks": {"const": 0},
+        "duplicate_fragment_assignments": {"const": 0},
+        "invalid_source_block_refs": {"const": 0},
+        "multi_fragment_atoms": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "review_queue_precision": {
+      "type": "object",
+      "required": ["reviewed_pages", "risk_pages", "risk_events", "signal_only_events", "unresolved_events", "risk_pages_missing_review", "risk_events_missing_evidence"],
+      "properties": {
+        "reviewed_pages": {"type": "integer", "minimum": 1},
+        "risk_pages": {"type": "integer", "minimum": 0},
+        "risk_events": {"type": "integer", "minimum": 0},
+        "signal_only_events": {"const": 0},
+        "unresolved_events": {"const": 0},
+        "risk_pages_missing_review": {"const": 0},
+        "risk_events_missing_evidence": {"const": 0}
+      },
+      "additionalProperties": true
+    },
+    "gates": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "object",
+        "required": ["gate_id", "status", "evidence"],
+        "properties": {
+          "gate_id": {"type": "string", "minLength": 1},
+          "status": {"const": "passed"},
+          "evidence": {"type": "object"}
+        }
+      }
+    },
+    "visual_region_integrity": {"$ref": "#/$defs/artifact"},
+    "summary": {"type": "object"}
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": true
+    },
+    "ledgerArtifact": {
+      "type": "object",
+      "required": ["path", "sha256", "snapshot_id", "payload_hash"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "snapshot_id": {"type": "string", "minLength": 1},
+        "payload_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,3 @@
+display_name: Material Semantic Annotator
+short_description: Annotate clean teaching materials.
+default_prompt: Annotate this clean teaching-material Markdown into reusable semantic assets with sections, exercises, media links, and review items.

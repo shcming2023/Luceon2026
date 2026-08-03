@@ -1,0 +1,84 @@
+{
+  "schema_version": "luceon.worker-v3-minio-role-probe-evidence/v1",
+  "captured_at": "2026-07-28T00:29:00Z",
+  "status": "passed",
+  "scope": {
+    "environment": "current-development",
+    "mode": "verify-only",
+    "iam_mutated": false,
+    "bucket_configuration_mutated": false,
+    "historical_object_deleted_or_overwritten": false
+  },
+  "runtime": {
+    "source_revision": "90ccb9a32bebbb714920abb5d73fc0a4226d28d4",
+    "runtime_id": "worker-v3-runtime-rc-90ccb9a",
+    "worker_image_digest": "sha256:93f477eb3a6d7ad406fae371d40ed3e20a23effa14bf43f60f803fb8880211a9",
+    "minio_release": "RELEASE.2024-12-18T13-15-44Z",
+    "minio_image_digest": "sha256:1dce27c494a16bae114774f1cec295493f3613142713130c2d22dd5696be6ad3"
+  },
+  "roles": [
+    "producer",
+    "evaluator",
+    "promoter",
+    "projector"
+  ],
+  "credential_contract": {
+    "runtime_env_mode": "0600",
+    "secret_values_recorded": false,
+    "policy_sha256": {
+      "producer": "eabd61f9578c1f9d877758a96644110fa1f63cf896b2c8f760339124752ab9d9",
+      "evaluator": "fabce61c19b51906acb04d28470892edd71b498ffaad7364a15e3ba53f85ecd8",
+      "promoter": "fabce61c19b51906acb04d28470892edd71b498ffaad7364a15e3ba53f85ecd8",
+      "projector": "20a7fb6f413e5efa93adf6a3b286156576041034bf7e8c352574cb755af0938e"
+    }
+  },
+  "source_probe": {
+    "bucket": "eduassets-minerupopo",
+    "object": "minerupopo/pdf-01ae095f5a0f2dc7/popo-20260617014256-staged_popo_20260617_batch07_sma-1369cfec--005-popo_01ae095f5a0f2dc7_005/manifest.json",
+    "size_bytes": 314460,
+    "etag": "7951a724fea3a63d8fc2d7e530b45bf1",
+    "last_modified": "2026-06-17T03:04:55Z"
+  },
+  "bucket_protection": {
+    "worker-v3-candidates": {
+      "versioning": "enabled",
+      "default_object_lock": "not_configured_or_unsupported"
+    },
+    "eduassets-elegantbook": {
+      "versioning": "enabled",
+      "default_object_lock": "not_configured_or_unsupported"
+    }
+  },
+  "content_addressed_probe_objects": {
+    "candidate": "v3/candidates/_policy-probes/producer/5fc1c950a3789fc76596a43499851d361e1190aba83e52ba65fe9b4c68a24769/object.bin",
+    "formal": "elegantbook/v3/_policy-probes/projector/44870c8efede831832b8ba0a095f4350867a76f4d53a2ba41833f40d35a8f503/object.bin"
+  },
+  "checks": [
+    {"name": "producer_get_frozen_source", "observed": "allowed", "status": "passed"},
+    {"name": "producer_put_candidate", "observed": "allowed", "status": "passed"},
+    {"name": "producer_overwrite_candidate", "observed": "conditional_write_rejected", "status": "passed"},
+    {"name": "evaluator_get_candidate", "observed": "allowed", "status": "passed"},
+    {"name": "evaluator_get_source", "observed": "denied", "status": "passed"},
+    {"name": "evaluator_put_candidate", "observed": "denied", "status": "passed"},
+    {"name": "promoter_get_candidate", "observed": "allowed", "status": "passed"},
+    {"name": "promoter_get_source", "observed": "denied", "status": "passed"},
+    {"name": "promoter_put_candidate", "observed": "denied", "status": "passed"},
+    {"name": "projector_get_candidate", "observed": "allowed", "status": "passed"},
+    {"name": "projector_put_formal", "observed": "allowed", "status": "passed"},
+    {"name": "projector_overwrite_formal", "observed": "conditional_write_rejected", "status": "passed"},
+    {"name": "projector_get_source", "observed": "denied", "status": "passed"},
+    {"name": "projector_put_candidate", "observed": "denied", "status": "passed"},
+    {"name": "producer_put_formal", "observed": "denied", "status": "passed"},
+    {"name": "producer_delete_object", "observed": "denied", "status": "passed"},
+    {"name": "evaluator_delete_object", "observed": "denied", "status": "passed"},
+    {"name": "promoter_delete_object", "observed": "denied", "status": "passed"},
+    {"name": "projector_delete_object", "observed": "denied", "status": "passed"}
+  ],
+  "gate_result": {
+    "required_versioning": "passed",
+    "least_privilege_matrix": "passed",
+    "conditional_create": "passed",
+    "delete_denial": "passed",
+    "object_lock_claimed": false
+  }
+}

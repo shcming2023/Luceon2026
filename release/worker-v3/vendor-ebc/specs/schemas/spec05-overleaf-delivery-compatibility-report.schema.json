@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luceon.local/schemas/spec05-overleaf-delivery-compatibility-report.schema.json",
+  "title": "Controlled semantic body transport and 900K leaf-part capacity report",
+  "type": "object",
+  "required": ["schema_version", "spec_status", "gate", "capacity_gate", "delivery_zip", "root_main", "generated_body", "rendered_body", "capacity", "checks"],
+  "properties": {
+    "schema_version": {"const": "spec05-overleaf-delivery-compatibility-report/3.0"},
+    "spec_status": {"enum": ["passed", "failed"]},
+    "gate": {"type": "object", "properties": {"gate_id": {"const": "CP-H25"}}, "required": ["gate_id", "status"]},
+    "capacity_gate": {"type": "object", "properties": {"gate_id": {"const": "CP-H27"}}, "required": ["gate_id", "status"]},
+    "generated_body": {
+      "type": "object",
+      "required": ["path", "sha256", "bytes", "transport_mode", "parts"],
+      "properties": {
+        "path": {"const": "body/generated-body.tex"},
+        "transport_mode": {"const": "semantic_unit_payload"},
+        "parts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["path", "sha256", "bytes"],
+            "properties": {
+              "path": {"type": "string", "pattern": "^body/units/unit-[0-9]{4}/part-[0-9]{4}\\.tex$"},
+              "bytes": {"type": "integer", "minimum": 0, "maximum": 899999}
+            }
+          }
+        }
+      }
+    },
+    "capacity": {
+      "type": "object",
+      "required": ["max_body_transport_tex_bytes_exclusive", "tex_members", "oversized_tex_members", "editable_text_members", "editable_text_bytes"],
+      "properties": {
+        "max_body_transport_tex_bytes_exclusive": {"const": 900000},
+        "editable_text_bytes": {"type": "integer", "minimum": 0}
+      }
+    },
+    "checks": {
+      "type": "object",
+      "required": ["root_main_tex_present_once", "generated_body_present_once", "root_main_uses_exact_generated_body_input_once", "generated_body_reconstructs_rendered_body", "generated_body_transport_is_controlled", "no_additional_tex_payloads", "each_body_transport_tex_strictly_under_900k", "regular_file_modes"]
+    }
+  },
+  "additionalProperties": true
+}

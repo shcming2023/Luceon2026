@@ -1,0 +1,61 @@
+{
+  "schema_version": "luceon.worker-v3-qualification-ledger/v1",
+  "status": "passed_with_material_review_terminal",
+  "qualified_at": "2026-08-03T00:41:00Z",
+  "release_binding": {
+    "release_id": "worker-v3-skill-source-audit-20260803-b9c412c",
+    "release_source_git_sha": "b9c412cd333489f7db7088107f7ca72ea78f44ea",
+    "executable_baseline_sha256": "ea86a92f3b2cf2747be4c490abdbe713cf71c0ec1ee2dd759636b92235e2cad0",
+    "runtime_image_digest": "sha256:649cb182f3016e5f618a42733b55d3d15d56e6fb4d4c34237ebc4951ee0906e2",
+    "runtime_identity_sha256": "89f679b68e0abf340bcbe38d760b4f1d159f0eeb652e1c1d0180d92545d7f370",
+    "runtime_sbom_sha256": "86d8e05ed73556ad05efde1b8278e10061a00ccbcd23704f9eec160c4c47db5d",
+    "template_tree_sha256": "777d871d2c832734ea1aea0434fb9e5dcae1ac354e39b245ed82943fcceb4932"
+  },
+  "qualification_run": {
+    "material_id": "pdf-642599641f3b15e1",
+    "source_pdf_sha256": "642599641f3b15e11b19f383379864081464be1f9c79bdd4f1e9334489c4b1ad",
+    "popo_manifest_sha256": "9692ebe5f64b4426a2eef16e08be21906648a3b3781b30d0b494505579b88a09",
+    "job_id": "c2904c65-ece2-5f6d-9512-c7078850d3d9",
+    "actual_stop_stage": "independent_full_page_review",
+    "terminal": "evidence_closed_needs_review",
+    "model_call_count": 8,
+    "visual_provider_call_count": 2,
+    "live_cost_micro_cny": 36054,
+    "live_report_sha256": "b2214d9dee3b6c4900ed246f3a3d8287773bf5e0ee3a6d0710106764bc90b509",
+    "live_payload_sha256": "50e4d505cd39a93e424eba1c33f8622fc64c479e978a82d8667986c62bc2fba3",
+    "replay_report_sha256": "efa85882bdd82a264d0902af6ef1be11cccdec35b72957b63ba472b4f074a7e5",
+    "replay_payload_sha256": "d4dd768e5bcb7edcc01ad88f2976b9fbf0839b62f4c0ed776354a773bbcab001",
+    "normalized_fixture_sha256": "6b1e1df093a7d61c05b506d41211d64477516d7201fee950c9f191ee60e543bf",
+    "source_page_count": 3,
+    "candidate_page_count": 4,
+    "technical_provider_failure_count": 0,
+    "blocking_material_finding_count": 3,
+    "worker_zip_sha256": "81394b387817e53ac4fa0bf9bba9338b958efa9028e8abbf18b03b0bc8684378",
+    "worker_pdf_sha256": "3a606c94f2203fc16f6f259e89ba05fa0832d0f093d5e974ae21d86752a87f49",
+    "worker_pdf_page_count": 4,
+    "overleaf_compiled_pdf_sha256": "7f2e9bf147615e8e8f3dad22ee518bf6c76d825476d5642163cadad2871906ad",
+    "overleaf_compiled_page_count": 4,
+    "overleaf_compile_log_sha256": "8828b8e734578784a03efd7404312bec539415922918975d9d36dd42fcabf84e",
+    "overleaf_producer_result_manifest_sha256": "294283ce3394366f3314f9eb0c424f376d77840af97aaf8f74b7ca65a635976b",
+    "overleaf_evaluator_result_manifest_sha256": "a3164f831971df676c584b015055862f2bb34a8601de71698d606b03e83566a6",
+    "overleaf_dual_role_pdf_equal": true,
+    "release_promoted": false,
+    "production_state_written": false
+  },
+  "isolation": {
+    "production_minio_written": false,
+    "live_capture_network_used": true,
+    "qualification_replay_network_used": false,
+    "temporary_overleaf_connection_removed": true,
+    "temporary_worker_container_removed": true,
+    "codex_expert_lane_present": false
+  },
+  "configuration_findings": [],
+  "infrastructure_events": [],
+  "interpretation": {
+    "provider_and_runtime_qualification_passed": true,
+    "material_content_accepted": false,
+    "needs_review_is_not_succeeded": true,
+    "final_five_sample_no_change_smoke_pending": true
+  }
+}

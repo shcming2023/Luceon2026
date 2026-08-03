@@ -1,0 +1,40 @@
+{
+  "schema_version": "luceon.worker-v3-overleaf-target-environment/v1",
+  "status": "approved",
+  "provider": "luceon-overleaf-compiler-adapter",
+  "protocol": "luceon.worker-v3-overleaf-compiler/v1",
+  "engine": "xelatex",
+  "endpoint": "http://workflow-v3-overleaf-compiler:8080/compile",
+  "base_image": "ghcr.io/lcpu-club/sharelatex@sha256:633e180fa9357c2b00e2fa9234b63460033fd2d4e4c441a5bb91c9697a08e145",
+  "adapter_image_digest": "sha256:6ab47323c6377557428502bfb8b0fbd9a9c6bbb93304684ab572961ec79aa6d1",
+  "adapter_runtime_identity_sha256": "e7a4799c79e582d098c3c4506760267e0ac3bbd4ada506a7bb9cacc3d139f6b9",
+  "adapter_source_sha256": "20653f73a648ac94b2e3d2102d8496ffa5ad9372f31be0b8f616b6c70b4120bc",
+  "compiler_command": [
+    "latexmk",
+    "-xelatex",
+    "-interaction=nonstopmode",
+    "-halt-on-error",
+    "-file-line-error",
+    "-no-shell-escape",
+    "main.tex"
+  ],
+  "limits": {
+    "max_zip_bytes": 50000000,
+    "max_image_bytes": 1000000,
+    "allowed_root_files": [
+      "main.tex",
+      "elegantbook.cls",
+      "reference.bib"
+    ],
+    "allowed_asset_directories": [
+      "figure",
+      "images"
+    ],
+    "allowed_body_files": [
+      "body/generated-body.tex"
+    ],
+    "allowed_body_directories": [
+      "body/units"
+    ]
+  }
+}

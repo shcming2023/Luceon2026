@@ -1,0 +1,96 @@
+{
+  "schema_version": "luceon.worker-v3-v2-isolation-baseline/v1",
+  "observed_at": "2026-07-29T00:36:44Z",
+  "scope": {
+    "material_pk_first": 1339,
+    "material_pk_last": 1343,
+    "material_count": 5,
+    "source_database": "runtime/backend/mineru.db",
+    "read_only_database_audit": true,
+    "minio_read_only_audit": true
+  },
+  "development_runtime_before_v3_deployment": {
+    "workflow_v3_enabled": false,
+    "workflow_v3_database_url_configured": false,
+    "backend_container_healthy": true,
+    "backend_restart_count": 0,
+    "backend_oom_killed": false,
+    "workflow_v2_worker_restart_count": 0,
+    "workflow_v2_worker_oom_killed": false
+  },
+  "worker_v2_formal_outputs": [
+    {
+      "material_pk": 1339,
+      "material_id": "pdf-de6b27db13aeb80d",
+      "material_output_id": 566,
+      "review_asset_id": 2433,
+      "output_run_id": "3464d644-f5ca-43cb-a4a0-b50411ba2f86",
+      "origin": "worker_v2",
+      "status": "promoted",
+      "quality_status": "passed",
+      "is_current": true,
+      "manifest": "s3://eduassets-elegantbook/worker-v2/pdf-de6b27db13aeb80d/3464d644-f5ca-43cb-a4a0-b50411ba2f86/bounded_deepseek_polish_qa/attempt-6/f6d8d5a35bffd029d5370f0dbc85f23336c2e38a83f145cf4341eb1ec08c0c86/manifest.json",
+      "manifest_sha256": "f6d8d5a35bffd029d5370f0dbc85f23336c2e38a83f145cf4341eb1ec08c0c86"
+    },
+    {
+      "material_pk": 1340,
+      "material_id": "pdf-2e57426befa155be",
+      "material_output_id": 565,
+      "review_asset_id": 2432,
+      "output_run_id": "6d40aa7b-e61d-49b4-9479-4ada8377fbf1",
+      "origin": "worker_v2",
+      "status": "promoted",
+      "quality_status": "passed",
+      "is_current": true,
+      "manifest": "s3://eduassets-elegantbook/worker-v2/pdf-2e57426befa155be/6d40aa7b-e61d-49b4-9479-4ada8377fbf1/bounded_deepseek_polish_qa/attempt-5/2a2cbc29141b33d54d8cc22afeb0efb14bb81c6bc49ee3040b00986e26bd0bff/manifest.json",
+      "manifest_sha256": "2a2cbc29141b33d54d8cc22afeb0efb14bb81c6bc49ee3040b00986e26bd0bff"
+    },
+    {
+      "material_pk": 1341,
+      "material_id": "pdf-ac357479938bb9b5",
+      "material_output_id": 564,
+      "review_asset_id": 2431,
+      "output_run_id": "c75e6a5f-712e-4833-9420-a16f126ae2af",
+      "origin": "worker_v2",
+      "status": "promoted",
+      "quality_status": "passed",
+      "is_current": true,
+      "manifest": "s3://eduassets-elegantbook/worker-v2/pdf-ac357479938bb9b5/c75e6a5f-712e-4833-9420-a16f126ae2af/bounded_deepseek_polish_qa/attempt-3/aca28c9b3e9519c699f8a72bf60023520f94ba56a1346c5bed1bffb7625b7578/manifest.json",
+      "manifest_sha256": "aca28c9b3e9519c699f8a72bf60023520f94ba56a1346c5bed1bffb7625b7578"
+    },
+    {
+      "material_pk": 1342,
+      "material_id": "pdf-ffaf7e6e6dd3b32d",
+      "material_output_id": 567,
+      "review_asset_id": 2430,
+      "output_run_id": "3df58f4c-841e-4b6d-b217-58556c5a56b8",
+      "origin": "worker_v2",
+      "status": "promoted",
+      "quality_status": "passed",
+      "is_current": true,
+      "manifest": "s3://eduassets-elegantbook/worker-v2/pdf-ffaf7e6e6dd3b32d/3df58f4c-841e-4b6d-b217-58556c5a56b8/bounded_deepseek_polish_qa/attempt-6/22adfd5a34b4a72d7892769cf22ed89fe79ecc3e961eec03f7dda21ee1d2d411/manifest.json",
+      "manifest_sha256": "22adfd5a34b4a72d7892769cf22ed89fe79ecc3e961eec03f7dda21ee1d2d411"
+    },
+    {
+      "material_pk": 1343,
+      "material_id": "pdf-8e5464971a3e1d6b",
+      "material_output_id": 563,
+      "review_asset_id": 2429,
+      "output_run_id": "1e257693-6539-4d99-bb09-b004bef12218",
+      "origin": "worker_v2",
+      "status": "promoted",
+      "quality_status": "passed",
+      "is_current": true,
+      "manifest": "s3://eduassets-elegantbook/worker-v2/pdf-8e5464971a3e1d6b/1e257693-6539-4d99-bb09-b004bef12218/bounded_deepseek_polish_qa/attempt-3/e26c99d1d3e6e69bce0c796b6c389328e7ae6fcdc4722c126eef04a75471d27f/manifest.json",
+      "manifest_sha256": "e26c99d1d3e6e69bce0c796b6c389328e7ae6fcdc4722c126eef04a75471d27f"
+    }
+  ],
+  "post_smoke_invariants": {
+    "existing_material_output_rows_must_remain_identical": true,
+    "existing_worker_v2_manifests_must_remain_hash_identical": true,
+    "worker_v3_must_use_separate_database_tables": true,
+    "worker_v3_must_use_separate_minio_prefixes": true,
+    "worker_v3_shadow_outputs_must_not_replace_is_current_worker_v2_rows": true,
+    "human_accepted_must_not_be_synthesized": true
+  }
+}

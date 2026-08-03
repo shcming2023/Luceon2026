@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luceon.local/schemas/canonical-media-atom.schema.json",
+  "title": "Canonical native media atom",
+  "type": "object",
+  "required": [
+    "media_contract_schema_version",
+    "media_id",
+    "source_block_ids",
+    "source_page",
+    "media_kind",
+    "inclusion_status",
+    "candidates",
+    "frozen_representation",
+    "contract_decision_refs",
+    "precommit_evidence"
+  ],
+  "properties": {
+    "media_contract_schema_version": {"const": "canonical-media-atom/1.1"},
+    "media_id": {"type": "string", "minLength": 1},
+    "source_block_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "source_page": {"type": "integer", "minimum": 1},
+    "media_kind": {"enum": ["image", "formula", "table", "chart", "diagram", "visual_region", "other", "unknown"]},
+    "inclusion_status": {"enum": ["included", "excluded", "needs_review"]},
+    "requested_candidate_id": {"type": ["string", "null"]},
+    "candidates": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+    "frozen_representation": {
+      "type": "object",
+      "required": ["representation_id", "media_id", "status", "selected_candidate_id", "representation_type", "rule_id", "decision_refs"],
+      "properties": {
+        "representation_id": {"type": "string", "minLength": 1},
+        "media_id": {"type": "string", "minLength": 1},
+        "status": {"enum": ["closed", "excluded"]},
+        "selected_candidate_id": {"type": ["string", "null"]},
+        "representation_type": {"enum": ["source_asset_image", "source_region_image", "structured_formula", "structured_table", "structured_chart", "vector_reconstruction", null]},
+        "artifact_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "rule_id": {"type": "string", "minLength": 1},
+        "decision_refs": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "contract_decision_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+    "precommit_evidence": {
+      "type": "object",
+      "required": ["media_evidence_ledger_sha256", "media_representation_plan_sha256", "media_validation_sha256"],
+      "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    }
+  },
+  "additionalProperties": true
+}

@@ -43,6 +43,11 @@ const router = createRouter({
       component: () => import('../views/RefinementTasks.vue')
     },
     {
+      path: '/workflow-v3/runs',
+      name: 'WorkflowV3Runs',
+      component: () => import('../views/WorkflowV3Runs.vue')
+    },
+    {
       path: '/files/preview/:id',
       name: 'FilePreview',
       component: () => import('../views/FilePreview.vue'),

@@ -1,0 +1,70 @@
+{
+  "id": "math_workbook",
+  "description": "Chinese math workbook with chapters, lessons, key points, worked examples, basic/extended practice, stage tests, and chapter reviews.",
+  "auto_detect_rules": [
+    {"pattern": "^第\\s*\\d+\\s*章", "weight": 8},
+    {"pattern": "^(要点归纳|疑难分析|基础训练|拓展训练|本章复习题|阶段训练\\d*)$", "weight": 7},
+    {"pattern": "^(例\\s*\\d+|选择题|填空题|证明|作图)", "scope": "all", "weight": 3},
+    {"pattern": "^\\d+\\.\\d+\\s+.*\\b(numbers|factors|prime|indices|algebra|angles|triangles|fractions|equations|graphs|probability|statistics|geometry)\\b", "weight": 2}
+  ],
+  "heading_patterns": {
+    "chapter": "^第\\s*\\d+\\s*章",
+    "lesson": "^\\d+\\.\\d+",
+    "stage_test": "^阶段训练\\d*",
+    "chapter_review": "^本章复习题$"
+  },
+  "section_role_rules": [
+    {"pattern": "^(Mathematics|Maths|Math)$", "role": "subject_container", "section_type": "container"},
+    {"pattern": "^(About this book|How to use this book|for Cambridge\\b)", "role": "source_note", "section_type": "front_matter"},
+    {"pattern": "^Project\\s+\\d+\\b", "role": "project_activity", "section_type": "activity"},
+    {"pattern": "^\\d+\\s+\\S", "role": "unit_lesson", "section_type": "lesson"},
+    {"pattern": "^第\\s*\\d+\\s*章", "role": "chapter", "section_type": "chapter"},
+    {"pattern": "^\\d+\\.\\d+", "role": "lesson", "section_type": "lesson"},
+    {"pattern": "^阶段训练\\d*", "role": "stage_test", "section_type": "assessment"},
+    {"pattern": "^本章复习题$", "role": "chapter_review", "section_type": "assessment"},
+    {"pattern": "^要点归纳$", "role": "key_points", "section_type": "teaching_column"},
+    {"pattern": "^疑难分析$", "role": "worked_examples", "section_type": "teaching_column"},
+    {"pattern": "^基础训练$", "role": "basic_practice", "section_type": "problem_group"},
+    {"pattern": "^拓展训练$", "role": "extended_practice", "section_type": "problem_group"},
+    {"pattern": "^习题\\s*\\d+", "role": "exercise_set", "section_type": "problem_group"},
+    {"pattern": "^(挑战压轴题|名校考题精选|各区考题精选)", "role": "challenge_practice", "section_type": "problem_group"},
+    {"pattern": "^[一二三四五六七八九十]+、", "role": "problem_group", "section_type": "problem_group"}
+  ],
+  "asset_role_rules": [
+    {"section_role": "subject_container", "asset_type": "note", "role": "subject_intro"},
+    {"section_role": "source_note", "asset_type": "note", "role": "source_note"},
+    {"section_role": "unit_lesson", "asset_type": "lesson", "role": "unit_lesson"},
+    {"section_role": "project_activity", "asset_type": "activity", "role": "project_activity"},
+    {"section_role": "key_points", "asset_type": "concept", "role": "key_points"},
+    {"section_role": "worked_examples", "asset_type": "example", "role": "worked_example"},
+    {"section_role": "basic_practice", "asset_type": "exercise", "role": "basic_practice"},
+    {"section_role": "extended_practice", "asset_type": "exercise", "role": "extended_practice"},
+    {"section_role": "exercise_set", "asset_type": "exercise", "role": "exercise_set"},
+    {"section_role": "challenge_practice", "asset_type": "exercise", "role": "challenge_practice"},
+    {"section_role": "problem_group", "asset_type": "exercise", "role": "problem_group"},
+    {"section_role": "stage_test", "asset_type": "assessment", "role": "stage_test"},
+    {"section_role": "chapter_review", "asset_type": "assessment", "role": "chapter_review"}
+  ],
+  "segmentation": {
+    "item_start_pattern": "^\\d+[\\.．、]\\s*",
+    "choice_pattern": "^[A-D][\\.．、]\\s+",
+    "subitem_pattern": "^（[0-9]+）|^\\([0-9]+\\)"
+  },
+  "example_start_pattern": "^例\\s*\\d+",
+  "example_part_patterns": {
+    "analysis": "^分析\\s*",
+    "solution": "^解\\s*",
+    "note": "^说明\\s*"
+  },
+  "task_type_rules": [
+    {"pattern": "选择题|（ ）|\\( \\)", "task_type": "multiple_choice"},
+    {"pattern": "填空题|____|_______|_", "task_type": "fill_blank"},
+    {"pattern": "证明", "task_type": "proof"},
+    {"pattern": "作图", "task_type": "construction"},
+    {"pattern": "如图|图像|图象", "task_type": "figure_based_problem"},
+    {"pattern": "函数|解析式|坐标", "task_type": "function_problem"},
+    {"pattern": "方程|方程组", "task_type": "equation_problem"},
+    {"pattern": "面积|角|三角形|四边形|梯形|平行四边形", "task_type": "geometry_problem"}
+  ],
+  "answer_policy": "answer_section_excluded"
+}

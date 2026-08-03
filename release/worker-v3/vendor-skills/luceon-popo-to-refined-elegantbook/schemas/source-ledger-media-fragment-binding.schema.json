@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luceon.local/schemas/source-ledger-media-fragment-binding.schema.json",
+  "title": "Exact one-media-atom to one-or-more source-fragment binding summary",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "inventory_rule",
+    "media_atoms",
+    "canonical_media_blocks",
+    "fragment_assignments",
+    "multi_fragment_atoms",
+    "unbound_canonical_media_blocks",
+    "duplicate_fragment_assignments",
+    "fragment_block_ids_hash"
+  ],
+  "properties": {
+    "schema_version": {"const": "source-ledger-media-fragment-binding/1.0"},
+    "inventory_rule": {"enum": ["source_label_compatible", "all_source_blocks"]},
+    "media_atoms": {"type": "integer", "minimum": 1},
+    "canonical_media_blocks": {"type": "integer", "minimum": 1},
+    "fragment_assignments": {"type": "integer", "minimum": 1},
+    "multi_fragment_atoms": {"type": "integer", "minimum": 0},
+    "unbound_canonical_media_blocks": {"const": 0},
+    "duplicate_fragment_assignments": {"const": 0},
+    "fragment_block_ids_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "additionalProperties": true
+}

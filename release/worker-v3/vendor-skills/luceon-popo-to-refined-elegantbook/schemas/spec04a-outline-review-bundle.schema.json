@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "spec04a-outline-review-bundle.schema.json",
+  "title": "Spec 04-A reviewed outline decision bundle",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "review_id",
+    "parent_binding",
+    "source_outline_evidence",
+    "source_toc_entries",
+    "nodes",
+    "title_candidate_disposition",
+    "review"
+  ],
+  "properties": {
+    "schema_version": {"const": "spec04a-outline-review-bundle/1.0"},
+    "review_id": {"type": "string", "minLength": 1},
+    "parent_binding": {
+      "type": "object",
+      "required": ["ledger_snapshot_id", "ledger_payload_hash", "source_pdf_sha256", "promotion_id", "promotion_manifest_sha256"],
+      "additionalProperties": true
+    },
+    "source_outline_evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["evidence_id", "kind", "pdf_physical_page", "path", "sha256"],
+        "additionalProperties": true
+      }
+    },
+    "source_toc_entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["entry_id", "title", "source_order", "scope_status", "source_outline_evidence_ids", "target_node_id"],
+        "properties": {
+          "scope_status": {"enum": ["included", "excluded"]},
+          "match_status": {"enum": ["exact", "approved_normalization", "source_supported_structural_title", null]}
+        },
+        "additionalProperties": true
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "node_id", "title", "role", "parent_node_id", "level", "anchor_block_id",
+          "heading_evidence_block_ids", "source_outline_evidence_ids", "source_toc_entry_ids",
+          "final_toc", "review_status"
+        ],
+        "properties": {
+          "level": {"type": "integer", "minimum": 0},
+          "review_status": {"const": "closed"},
+          "final_toc": {
+            "type": "object",
+            "required": ["include", "level", "title"],
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "title_candidate_disposition": {
+      "type": "object",
+      "required": ["candidate_inventory_payload_hash", "all_unassigned", "review_status"],
+      "properties": {
+        "all_unassigned": {"const": "local_heading"},
+        "review_status": {"const": "closed"}
+      },
+      "additionalProperties": true
+    },
+    "review": {
+      "type": "object",
+      "required": ["status", "open_items", "decision_refs"],
+      "properties": {
+        "status": {"const": "closed"},
+        "open_items": {"const": 0}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

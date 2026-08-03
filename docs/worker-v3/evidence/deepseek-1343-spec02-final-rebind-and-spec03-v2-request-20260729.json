@@ -1,0 +1,139 @@
+{
+  "schema_version": "luceon.worker-v3-spec02-final-rebind-spec03-v2-request-evidence/v1",
+  "observed_at": "2026-07-29T01:11:30Z",
+  "material": {
+    "database_id": 1343,
+    "material_id": "pdf-8e5464971a3e1d6b",
+    "source_pdf_sha256": "8e5464971a3e1d6b40f5afc996dba67efc9af60e29d73ce10730e91c4fa12fad",
+    "page_count": 200
+  },
+  "runtime": {
+    "source_revision": "3ae7f70bd79ceaaae846b9464d94854d85e8ef06",
+    "image": "luceonweb2026-worker-v3-runtime:rc-3ae7f70",
+    "image_digest": "sha256:212e0cefb8ee4d70ba83b6ce6d22018045fff00f268c5932de6aee73d5bf4532",
+    "runtime_identity_sha256": "fe3298c60bf60d81728be51d01ae544838505f30bce9e371f758cb329eefaa2a"
+  },
+  "release": {
+    "release_id": "worker-v3-skill-source-audit-20260726",
+    "version": "3.0.0-rc.0",
+    "archive_sha256": "7fe749f6418ff10111d229a4c127c1a68ca046f3bf289bd4f198c0d9c3a9bd92",
+    "manifest_sha256": "a9a378533562b08c007294fe7b74c92c4fb9ce2f3eecb1637d4e67b61843e1df",
+    "tree_sha256": "f1c46544a0168422733838d7d83bae0e41fc379aa5e3c5b9c4243d5beac9c696",
+    "status": "incomplete"
+  },
+  "authorization": {
+    "request_sha256": "2494782037f71ec2e9aaa01b54dc084838fa91d2d0daef4fa9a88483ac4a18b2",
+    "scope": "exactly one provider call",
+    "consumed": true,
+    "attempts": 1,
+    "retries": 0,
+    "attempt_marker_sha256": "ae5fccf8929c8914b660af7ab543fe69f8cfad279fb59c6081ffbce7afa0380a",
+    "one_shot_runner_sha256": "df37c3c342c6cebb9966a07fa04800f2cd8514ea267945ad4fa2948c6b250fd3"
+  },
+  "provider_call": {
+    "status": "succeeded",
+    "http_status": 200,
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "call_id": "1d1e34a51be17b4c6a44f301a64b2805e278072a946947b78f19af380dea402d",
+    "response_id": "6e6ac282-88aa-48c1-9a21-d7d3c929b081",
+    "finish_reason": "stop",
+    "latency_ms_wall": 22830,
+    "raw_response_sha256": "5df7e0f804090b9930b82372230a93b31306134c8d55c877fcbc6d5526a09ead",
+    "parsed_result_sha256": "6934b38a57afb48021dcfeba28ffe2dc3264f02180bedc980203e79cb980652b",
+    "usage": {
+      "input_tokens": 285898,
+      "output_tokens": 3817,
+      "total_tokens": 289715,
+      "cache_hit_input_tokens": 285824,
+      "cache_miss_input_tokens": 74
+    },
+    "actual_provider_cost": {
+      "currency": "CNY",
+      "micro_units": 13425,
+      "cache_attribution": "actual_provider_cache_breakdown",
+      "pricing_snapshot_sha256": "be481c936ec3f89adee98f390d0b2a94bef0a4b79fc82e5741e4e6cc69278b45"
+    },
+    "live_evidence_sha256": "e1a37393942a9a27aca680875ebdff24aa32c71924ce09009febd29532588427",
+    "fixture_sha256": "ae4da4f57aadab69e1540d8699122b05e95988517b95735ada6fa784656431dc"
+  },
+  "offline_exact_image_replay": {
+    "network_used": false,
+    "report_sha256": "ca0fa2b167580e4e1a12e95711f38146d8942470f73b139fa4889fdf03aae556",
+    "report_payload_sha256": "945b4648e15468e6f74ee1eff248e8bfed77cc83be4aa110b67a7922908bf3c3",
+    "production_state_written": false,
+    "release_promoted": false,
+    "fixture_observed_calls": 1,
+    "fixture_unused_responses": 0,
+    "intake_snapshot": {
+      "producer": "succeeded",
+      "evaluator": "passed",
+      "promotion_id": "1",
+      "candidate_sha256": "52236dec80cf133daa55e03564030a788c568d8edcf9b7f1078fea8ff9e611dd"
+    },
+    "source_scope_and_order": {
+      "producer": "succeeded",
+      "evaluator": "passed",
+      "promotion_id": "2",
+      "candidate_sha256": "ce4ee946b2c3ad199a88d9200d0dbd634c9fc4c703608ec914283bb71b1344b9",
+      "gate_results": {
+        "body_scope_closed": true,
+        "every_source_page_accounted_for": true,
+        "open_source_ambiguities_zero": true,
+        "reading_order_closed": true
+      }
+    },
+    "next_failure": {
+      "stage": "canonical_block_ledger",
+      "error_code": "qualification_fixture_missing",
+      "provider_call_started": false,
+      "reason": "The next exact request has no separately authorized response."
+    },
+    "cost_replay_note": {
+      "reported_micro_units": 293532,
+      "cache_attribution": "conservative_all_input_at_cache_miss_rate",
+      "reason": "The immutable qualification fixture protocol preserves total token usage but not the provider cache split; live call evidence above is the authority for actual cost."
+    }
+  },
+  "next_exact_request": {
+    "stage": "canonical_block_ledger",
+    "request_sha256": "fe6febe7f17823f843f73f9eabde84efa93288a86746e727f07668eff6ba48b3",
+    "call_id": "2056111c850e26d40e90c59be0c9ac573e1cec58b135616b7b98659849ec4d51",
+    "input_sha256": "35196a243d6a1454a6e704791f40430b173ca5f65d144c05997194a4a4a665e2",
+    "request_file_sha256": "fe6febe7f17823f843f73f9eabde84efa93288a86746e727f07668eff6ba48b3",
+    "request_bytes": 524624,
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "prompt": {
+      "id": "worker-v3.spec03-media-review",
+      "version": "2.0.0",
+      "sha256": "50bef191fdbce37f07743187bc5c2af5755b35832298d618c1a9c460ee6a4373"
+    },
+    "schema": {
+      "id": "worker-v3.spec03-media-review",
+      "version": "2.0.0",
+      "canonical_sha256": "350d7f00f671011e79d58319f40e7d2c24847d6c53bcfc3325003e30d4d73579"
+    },
+    "capacity": {
+      "media_atoms": 255,
+      "page_source_units": 127,
+      "minimum_response_bytes": 14021,
+      "maximum_response_bytes": 256000,
+      "request_within_release_limit": true,
+      "minimum_response_within_release_limit": true
+    },
+    "parameters": {
+      "max_output_tokens": 16000,
+      "temperature": 0,
+      "thinking": {
+        "type": "disabled"
+      }
+    },
+    "authorization_required": true,
+    "provider_calls_so_far": 0,
+    "one_shot_runner_sha256": "3979ca99f13d207efd5304b1f13d741db122ee177619b2cf1decf838a04863ef",
+    "preflight_status": "passed",
+    "preflight_network_used": false
+  },
+  "verdict": "The release-bound Spec 02 request was separately authorized, called exactly once, and passed Producer, Evaluator, and Promotion in the exact image. The chain then failed closed before any Spec 03 provider call. The compact Spec 03 v2 request is frozen and capacity-safe but requires its own exact-hash authorization."
+}

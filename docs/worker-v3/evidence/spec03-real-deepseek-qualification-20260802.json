@@ -1,0 +1,72 @@
+{
+  "schema_version": "luceon.worker-v3.supporting-evidence.spec03-real-deepseek/v1",
+  "status": "passed",
+  "evidence_id": "worker-v3-spec03-real-deepseek-15d88fc-pdf-642599641f3b15e1",
+  "qualified_at": "2026-08-02T06:34:00+08:00",
+  "release_binding": {
+    "release_id": "worker-v3-skill-source-audit-20260726",
+    "release_source_git_sha": "15d88fcd10bb25194d23f29e183422c1ef014e63",
+    "release_archive_sha256": "870e2ba16f424bd444215644ed6031d09ef25dd3726cd71ab92c6f8c03318170",
+    "release_manifest_sha256": "ddb7f528aef9580ce0d5acb44b3454bc7e7ab5aaf4f4e4df3da1081240ea93e",
+    "release_tree_sha256": "762e2a79edb713d28d48b213329cbbd02ec1e49ae1b7582acda5231e9980db09",
+    "container_image_digest": "sha256:39e0195aa4c16fc31b990564e37c1c439fd0fcc9fcc7905b25d0692d174ce702"
+  },
+  "material": {
+    "material_id": "pdf-642599641f3b15e1",
+    "material_identity_sha256": "aeaed116fd177cc73c7139f3de41c126230b35b8c1a15c251d73e25f961841a2",
+    "source_pdf_sha256": "642599641f3b15e11b19f383379864081464be1f9c79bdd4f1e9334489c4b1ad",
+    "popo_manifest_sha256": "9692ebe5f64b4426a2eef16e08be21906648a3b3781b30d0b494505579b88a09",
+    "input_set_sha256": "1d3bf2f8de5804e6a459726515a242744fe5f70b5e74624f1fe1ec800ba95ea5"
+  },
+  "provider_calls": {
+    "unique_request_count": 8,
+    "deepseek_call_count": 6,
+    "dashscope_visual_call_count": 2,
+    "all_successful_responses_schema_valid": true,
+    "successful_run_observed_request_count": 8,
+    "successful_run_unused_fixture_count": 0,
+    "total_cost_micro_cny": 27459,
+    "fixture_sha256": "0e6100ad08d87c9f4d1f349629e79e7845033082b0e88a3cc7ca8a3c01bf297b",
+    "qualification_report_sha256": "34015aab0c1fa42dc98656a078c4279bfcd3da24d0b2eb8b9e94c06ee0b6e195"
+  },
+  "retry_recovery": {
+    "initial_successful_response_count": 2,
+    "failed_request_sha256": "274445c45d105b39582857ef9c79109a49a902b99816f98d8acdb15d8312325f",
+    "failure_code": "transport_error",
+    "failure_latency_ms": 150026,
+    "retryable": true,
+    "failed_call_cost_status": "failed_no_attributable_usage",
+    "replayed_successful_response_count": 2,
+    "new_successful_response_count": 6,
+    "previous_successes_not_recalled": true
+  },
+  "spec03": {
+    "request_sha256": "379c050781309d2bc1c19d56aa88b03e6e3b9986d4143eba255cff2e7cb1bfa8",
+    "response_id": "e878157f-73b5-4083-b8f2-3757843eaca3",
+    "raw_response_sha256": "d74b46719a2e7505a70b11a5fafe775d1c359d90b988a53e94ed0b338d4739db",
+    "output_sha256": "e97249f20e79aaae420e72bf840f46f529d7867e117cec61ff2381654e26f134",
+    "input_tokens": 1326,
+    "output_tokens": 167,
+    "schema_valid": true,
+    "deterministic_evaluator_passed": true,
+    "promotion_succeeded": true
+  },
+  "no_network_replay": {
+    "fixture_sha256": "6ac71ff963bb23df15a34566e601944e85cb2a75e1c9b0ff5b4410f094543ea9",
+    "qualification_report_sha256": "ad38967b29d3691b7d34fc942b58e9ab0a3fe44e1d3d7be086f05ca4a0388dd4",
+    "network_used": false,
+    "observed_request_count": 8,
+    "unused_request_count": 0,
+    "model_output_hashes_equal": true,
+    "terminal_disposition_equal": true
+  },
+  "formal_terminal": {
+    "actual_stop_stage": "independent_full_page_review",
+    "qualification_disposition": "evidence_closed_needs_review",
+    "machine_succeeded": false,
+    "release_promoted": false,
+    "production_state_written": false,
+    "stage_11_executed": false,
+    "stage_12_executed": false
+  }
+}

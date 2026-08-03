@@ -196,7 +196,7 @@ const defaultRuntime = (): RuntimeConfig => ({
   gpu: { mode: 'on_demand', wrapper_url: '', api_key: '' },
   models: {
     llm: { enabled: true, provider: 'deepseek', default_model: 'deepseek-v4-flash', reasoning_model: 'deepseek-v4-pro', deepseek: { base_url: 'https://api.deepseek.com', api_key: '' }, outline_decision_max_tokens: 16000, outline_global_max_candidates: 500, outline_max_risk_candidates: 120 },
-    vision: { enabled: false, provider: 'dashscope', model: 'qwen3.7-plus', dashscope: { base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1', api_key: '' }, outline_visual_max_candidates: 40 }
+    vision: { enabled: false, provider: 'dashscope', model: 'qwen3.7-plus-2026-05-26', dashscope: { base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1', api_key: '' }, outline_visual_max_candidates: 40 }
   },
   backup: { enabled: false, mode: 'manifest', schedule_enabled: false, interval_hours: 24, include_legacy: true, max_objects: 2000000, targets: [] }
 })

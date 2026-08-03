@@ -1,0 +1,68 @@
+{
+  "schema_version": "luceon.worker-v3-qualification-ledger/v1",
+  "status": "passed_with_material_review_terminal",
+  "qualified_at": "2026-08-03T03:05:00Z",
+  "release_binding": {
+    "release_id": "worker-v3-skill-source-audit-20260803-da3a4ba",
+    "release_source_git_sha": "da3a4ba067c3d03015dc7fdaf4bdaa7dbec44afa",
+    "executable_baseline_sha256": "ea86a92f3b2cf2747be4c490abdbe713cf71c0ec1ee2dd759636b92235e2cad0",
+    "runtime_image_digest": "sha256:0fba4f46ee25322f2050843e1b2a2bd9571528526cae9faa277b0e8ba3584ea3",
+    "runtime_identity_sha256": "502d6d9df43a1c97c4eec77c77a438ff8209a9ca819471d7c2c46b4250cd0d8c",
+    "runtime_sbom_sha256": "6f9f17ce48b7f9a103764a48cd500ea67c2824565de419b799c1f34be431d9a9",
+    "template_tree_sha256": "777d871d2c832734ea1aea0434fb9e5dcae1ac354e39b245ed82943fcceb4932"
+  },
+  "qualification_run": {
+    "material_id": "pdf-642599641f3b15e1",
+    "source_pdf_sha256": "642599641f3b15e11b19f383379864081464be1f9c79bdd4f1e9334489c4b1ad",
+    "popo_manifest_sha256": "9692ebe5f64b4426a2eef16e08be21906648a3b3781b30d0b494505579b88a09",
+    "job_id": "c5498a50-7e88-58d1-ae97-629f703b4528",
+    "actual_stop_stage": "independent_full_page_review",
+    "terminal": "evidence_closed_needs_review",
+    "model_call_count": 8,
+    "visual_provider_call_count": 2,
+    "live_cost_micro_cny": 27635,
+    "live_report_sha256": "498fdbbf2ead79546e5e318888b9842f030dcfb23ac8fcd7bf5f00ef91b9aef2",
+    "live_payload_sha256": "f13d194b7850c7b61f524e30405881789a7a31259416c897f5deb7740a22af96",
+    "replay_report_sha256": "0e46706f663209572608085192f0d8245c3e58ee9d24a8c5aca2ea0f91403b4b",
+    "replay_payload_sha256": "38022febe00beb75330a903191eaa3720b3d301def234157faaf3771fbe491a8",
+    "normalized_fixture_sha256": "d6c0eb1a0f589d82211abe28f380fe0efd1d6b84c1b288c790d0ce83803cd6a3",
+    "source_page_count": 3,
+    "candidate_page_count": 4,
+    "technical_provider_failure_count": 0,
+    "blocking_material_finding_count": 4,
+    "worker_zip_sha256": "81394b387817e53ac4fa0bf9bba9338b958efa9028e8abbf18b03b0bc8684378",
+    "worker_pdf_sha256": "3a606c94f2203fc16f6f259e89ba05fa0832d0f093d5e974ae21d86752a87f49",
+    "worker_pdf_page_count": 4,
+    "overleaf_compiled_pdf_sha256": "7f2e9bf147615e8e8f3dad22ee518bf6c76d825476d5642163cadad2871906ad",
+    "overleaf_compiled_page_count": 4,
+    "overleaf_compile_log_sha256": "8828b8e734578784a03efd7404312bec539415922918975d9d36dd42fcabf84e",
+    "overleaf_producer_result_manifest_sha256": "7652d3058dbcf24c145ef177a251807af0d2d1ba33ff8c34384c846a877728dc",
+    "overleaf_evaluator_result_manifest_sha256": "6258292747d7ac9d29e44312f746d370102579107bd818b0fbbc23c697fe94b3",
+    "overleaf_dual_role_pdf_equal": true,
+    "release_promoted": false,
+    "production_state_written": false
+  },
+  "isolation": {
+    "production_minio_written": false,
+    "live_capture_network_used": true,
+    "qualification_replay_network_used": false,
+    "temporary_overleaf_connection_removed": true,
+    "temporary_worker_container_removed": true,
+    "codex_expert_lane_present": false
+  },
+  "configuration_findings": [],
+  "infrastructure_events": [
+    {
+      "code": "docker_none_network_is_private",
+      "scope": "qualification_harness",
+      "impact": "no qualification request sent; retried with one isolated compiler network",
+      "product_impact": false
+    }
+  ],
+  "interpretation": {
+    "provider_and_runtime_qualification_passed": true,
+    "material_content_accepted": false,
+    "needs_review_is_not_succeeded": true,
+    "final_five_sample_no_change_smoke_pending": true
+  }
+}

@@ -302,6 +302,84 @@ def test_compare_reads_worker_v2_immutable_artifact_manifest(monkeypatch):
     assert artifact.content == b"%PDF-worker-v2\n"
 
 
+def test_compare_preserves_worker_v3_identity_and_exposes_both_delivery_volumes(
+    monkeypatch,
+):
+    prefix = "elegantbook/pdf-demo/popo-run/worker-v3-job"
+    manifest = {
+        "schema": "luceon.workflow.artifact-manifest/v1",
+        "origin": "worker_v3",
+        "workflow_version": "worker-v3.0.0-rc1",
+        "workflow_job_id": "worker-v3-job",
+        "material_id": "pdf-demo",
+        "popo_run_id": "popo-run",
+        "objects": {
+            "compiled_pdf": "files/volume-1/main.pdf",
+            "package_zip": "files/volume-1/latex-project.zip",
+            "compile_report": "files/volume-1/compile-report.json",
+        },
+        "volumes": [
+            {
+                "volume_id": "volume-1",
+                "label": "第 1 卷",
+                "objects": {
+                    "compiled_pdf": "files/volume-1/main.pdf",
+                    "package_zip": "files/volume-1/latex-project.zip",
+                    "compile_report": "files/volume-1/compile-report.json",
+                },
+            },
+            {
+                "volume_id": "volume-2",
+                "label": "第 2 卷",
+                "objects": {
+                    "compiled_pdf": "files/volume-2/main.pdf",
+                    "package_zip": "files/volume-2/latex-project.zip",
+                    "compile_report": "files/volume-2/compile-report.json",
+                },
+            },
+        ],
+        "files": [
+            {"path": "files/volume-1/main.pdf", "sha256": "1" * 64},
+            {"path": "files/volume-1/latex-project.zip", "sha256": "2" * 64},
+            {"path": "files/volume-1/compile-report.json", "sha256": "3" * 64},
+            {"path": "files/volume-2/main.pdf", "sha256": "4" * 64},
+            {"path": "files/volume-2/latex-project.zip", "sha256": "5" * 64},
+            {"path": "files/volume-2/compile-report.json", "sha256": "6" * 64},
+        ],
+    }
+    objects = {
+        ("eduassets-input", "Demo.pdf"): b"%PDF-source\n",
+        ("eduassets-elegantbook", f"{prefix}/manifest.json"): json.dumps(manifest).encode(),
+        ("eduassets-elegantbook", f"{prefix}/files/volume-1/main.pdf"): b"%PDF-v3-1\n",
+        ("eduassets-elegantbook", f"{prefix}/files/volume-1/latex-project.zip"): b"PK-v3-1",
+        ("eduassets-elegantbook", f"{prefix}/files/volume-1/compile-report.json"): b'{"status":"succeeded"}',
+        ("eduassets-elegantbook", f"{prefix}/files/volume-2/main.pdf"): b"%PDF-v3-2\n",
+        ("eduassets-elegantbook", f"{prefix}/files/volume-2/latex-project.zip"): b"PK-v3-2",
+        ("eduassets-elegantbook", f"{prefix}/files/volume-2/compile-report.json"): b'{"status":"succeeded"}',
+    }
+    client, asset_id = make_client(monkeypatch, objects)
+
+    response = client.get(f"/api/review/assets/{asset_id}/latex_compare")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["output_origin"] == "worker_v3"
+    assert body["output_run_id"] == "worker-v3-job"
+    assert [row["volume_id"] for row in body["volumes"]] == [
+        "volume-1",
+        "volume-2",
+    ]
+    second = body["volumes"][1]
+    assert "path=files/volume-2/main.pdf" in second["latex_pdf_url"]
+    assert "path=files/volume-2/latex-project.zip" in second["download_urls"]["package_zip"]
+    rendered = client.get(second["latex_pdf_url"], headers={"Range": "bytes=0-3"})
+    assert rendered.status_code == 206
+    assert rendered.content == b"%PDF"
+    archive = client.get(second["download_urls"]["package_zip"])
+    assert archive.status_code == 200
+    assert archive.content == b"PK-v3-2"
+
+
 def test_pdf_content_supports_range_and_conditional_cache(monkeypatch):
     objects = {("eduassets-input", "Demo.pdf"): b"%PDF-source-cache-test\n"}
     client, asset_id = make_client(monkeypatch, objects)

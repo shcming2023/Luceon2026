@@ -70,6 +70,15 @@ export interface LatexCompareResponse {
   source_pdf_original_url?: string
   latex_pdf_url: string
   download_urls: Record<string, string>
+  volumes?: Array<{
+    volume_id: string
+    label: string
+    compiled_pdf: string
+    package_zip: string
+    compile_report: string
+    latex_pdf_url: string
+    download_urls: Record<string, string>
+  }>
 }
 
 export const reviewApi = {

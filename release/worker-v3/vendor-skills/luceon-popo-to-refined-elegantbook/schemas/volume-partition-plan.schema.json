@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luceon.local/schemas/volume-partition-plan.schema.json",
+  "title": "Frozen one-or-two-volume plan with semantic body units and delivery capacity preflight",
+  "type": "object",
+  "required": ["schema_version", "status", "mode", "max_volumes", "body_transport_contract", "volumes", "cross_volume_contract", "deterministic_payload_hash"],
+  "properties": {
+    "schema_version": {"const": "volume-partition-plan/1.2"},
+    "status": {"const": "passed"},
+    "mode": {"enum": ["single_volume", "two_volume"]},
+    "max_volumes": {"const": 2},
+    "body_transport_contract": {
+      "type": "object",
+      "required": ["root_entry", "loader", "leaf_pattern", "body_part_byte_limit_exclusive", "semantic_unit_authority"],
+      "properties": {
+        "root_entry": {"const": "main.tex"},
+        "loader": {"const": "body/generated-body.tex"},
+        "leaf_pattern": {"const": "body/units/unit-NNNN/part-NNNN.tex"},
+        "body_part_byte_limit_exclusive": {"const": 900000},
+        "semantic_unit_authority": {"const": "source_supported_top_level_structure"}
+      },
+      "additionalProperties": false
+    },
+    "volumes": {
+      "type": "array", "minItems": 1, "maxItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["volume_id", "ordinal", "render_node_ids", "source_block_ids", "body_units", "budget_estimate"],
+        "properties": {
+          "body_units": {
+            "type": "array", "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["unit_id", "ordinal", "boundary_kind", "render_order_start", "render_order_end", "render_node_ids", "source_block_ids"],
+              "properties": {
+                "unit_id": {"type": "string", "pattern": "^unit-[0-9]{4}$"},
+                "ordinal": {"type": "integer", "minimum": 1},
+                "boundary_kind": {"enum": ["source_top_level_structure", "leading_body"]},
+                "source_anchor_id": {"type": ["string", "null"]},
+                "render_order_start": {"type": "integer", "minimum": 1},
+                "render_order_end": {"type": "integer", "minimum": 1},
+                "render_node_ids": {"type": "array", "minItems": 1, "items": {"type": "string"}, "uniqueItems": true},
+                "source_block_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+              },
+              "additionalProperties": false
+            }
+          },
+          "budget_estimate": {
+            "type": "object",
+            "required": ["capacity_preflight_status", "estimated_max_body_part_bytes_after_sharding", "largest_atomic_tex_line_bytes_upper_bound", "largest_raster_image_bytes", "estimated_file_entities", "estimated_zip_bytes_upper_bound", "body_part_byte_limit_exclusive", "raster_image_byte_limit_exclusive", "file_entity_limit_exclusive", "zip_byte_limit_exclusive"],
+            "properties": {
+              "capacity_preflight_status": {"enum": ["measured", "deferred_to_spec05_exact"]},
+              "estimated_max_body_part_bytes_after_sharding": {"type": ["integer", "null"], "maximum": 899999},
+              "estimated_editable_text_bytes_upper_bound": {"type": ["integer", "null"], "minimum": 0},
+              "largest_atomic_tex_line_bytes_upper_bound": {"type": ["integer", "null"], "maximum": 899999},
+              "largest_raster_image_bytes": {"type": "integer", "maximum": 999999},
+              "estimated_file_entities": {"type": "integer", "maximum": 1999},
+              "estimated_zip_bytes_upper_bound": {"type": "integer", "maximum": 49999999},
+              "body_part_byte_limit_exclusive": {"const": 900000},
+              "raster_image_byte_limit_exclusive": {"const": 1000000},
+              "file_entity_limit_exclusive": {"const": 2000},
+              "zip_byte_limit_exclusive": {"const": 50000000}
+            }
+          }
+        }
+      }
+    },
+    "deterministic_payload_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "additionalProperties": true
+}

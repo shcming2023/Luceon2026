@@ -195,7 +195,7 @@ def _ensure_single_current(db: Session, user_id: str, material: Material, _rows:
 
 
 def _registry_sort_key(row: MaterialOutput) -> tuple[int, int, str, str]:
-    origin_rank = {"worker_v2": 40, "codex_refined": 30, "codex_skill": 25, "codex_elegantbook": 20, "legacy_selfloop": 10}.get(row.origin, 0)
+    origin_rank = {"worker_v3": 50, "worker_v2": 40, "codex_refined": 30, "codex_skill": 25, "codex_elegantbook": 20, "legacy_selfloop": 10}.get(row.origin, 0)
     status_rank = {"promoted": 30, "published": 20, "candidate": 10}.get(row.status, 0)
     created = row.created_at.isoformat() if row.created_at else ""
     return (status_rank, origin_rank, created, row.manifest_object)
@@ -210,6 +210,8 @@ def _default_quality_status(origin: str) -> str:
 
 
 def _infer_skill_name(output: ElegantBookOutput) -> str:
+    if output.origin == "worker_v3":
+        return "luceon-popo-to-refined-elegantbook"
     if output.origin == "worker_v2":
         return "worker-v2-core-production"
     if output.origin == "legacy_selfloop":
@@ -221,6 +223,8 @@ def _infer_skill_name(output: ElegantBookOutput) -> str:
 
 
 def _version_label(output: ElegantBookOutput) -> str:
+    if output.origin == "worker_v3":
+        return f"Worker V3 · {output.output_run_id}"
     if output.origin == "worker_v2":
         return f"Worker V2.3 · {output.output_run_id}"
     if output.origin == "legacy_selfloop":

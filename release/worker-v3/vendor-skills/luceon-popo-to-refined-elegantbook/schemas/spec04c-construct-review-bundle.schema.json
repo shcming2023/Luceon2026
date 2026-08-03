@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luceon.local/schemas/spec04c-construct-review-bundle.schema.json",
+  "title": "Closed Spec 04-C construct review bundle",
+  "type": "object",
+  "required": ["schema_version", "review_id", "parent_binding", "semantic_object_inventory_hash", "construct_rules", "review"],
+  "properties": {
+    "schema_version": {"const": "spec04c-construct-review-bundle/1.0"},
+    "review_id": {"type": "string", "minLength": 1},
+    "semantic_object_inventory_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "parent_binding": {
+      "type": "object",
+      "required": ["ledger_snapshot_id", "ledger_payload_hash", "source_pdf_sha256", "promotion_id", "promotion_manifest_sha256", "semantic_span_ledger_sha256", "teaching_column_group_ledger_sha256", "template_intake_sha256", "template_zip_sha256"],
+      "additionalProperties": false
+    },
+    "construct_rules": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "required": ["rule_id", "rule_version", "object_kind", "semantic_role", "target_construct", "construct_parameters", "layer", "selection_reason", "why_box_or_not"],
+        "properties": {
+          "object_kind": {"enum": ["teaching_group", "standalone_label"]},
+          "target_construct": {"type": "string", "minLength": 1},
+          "layer": {"enum": ["core", "profile", "book_config"]},
+          "construct_parameters": {"type": "object"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "review": {
+      "type": "object",
+      "required": ["status", "open_items", "decision_refs"],
+      "properties": {
+        "status": {"const": "closed"},
+        "open_items": {"const": 0},
+        "decision_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

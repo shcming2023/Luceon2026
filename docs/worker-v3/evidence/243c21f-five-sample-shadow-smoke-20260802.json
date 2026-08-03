@@ -1,0 +1,129 @@
+{
+  "schema_version": "luceon.worker-v3-five-sample-shadow-smoke/v1",
+  "recorded_at": "2026-08-02T18:55:00+08:00",
+  "status": "passed_with_evidence_closed_needs_review",
+  "scope": {
+    "materials": [1339, 1340, 1341, 1342, 1343],
+    "execution_mode": "isolated_qualification_shadow",
+    "production_state_written": false,
+    "gpu_used": false,
+    "code_changed_during_smoke": false,
+    "image_rebuilt_during_smoke": false,
+    "runtime_redeployed_during_smoke": false
+  },
+  "runtime": {
+    "source_revision": "243c21fefa989ef50dafab00975c6c6d30485069",
+    "image": "luceonweb2026-worker-v3-runtime:rc-243c21f-clean",
+    "image_digest": "sha256:315d63da308c50f614a3e0117db9c7afe781f218b342205a3b234c94f62087ec",
+    "runtime_identity_sha256": "4ffa1fb0495f5785e4955291e6aac167ac041c601e9fa726a7eaeaa326b7dfaf",
+    "effective_uid": "10003:10003"
+  },
+  "release_candidate": {
+    "archive_sha256": "738a458c6aaaffa644fe15c443a07e93b4f80a304dfbe4346044afce8ac3c392",
+    "manifest_sha256": "2de377bfc89b6d987513ad81cb933358773a30fb503675c376a1b5627b09e736",
+    "tree_sha256": "0a2bd5b73e05f0f3d13a721342d1dba61b1b52361e6d5887f4ba2363a468234e",
+    "double_assembly_byte_identical": true,
+    "status_during_qualification": "incomplete"
+  },
+  "results": [
+    {
+      "material_pk": 1339,
+      "material_id": "pdf-de6b27db13aeb80d",
+      "job_id": "a7ba3949-925f-5b38-b4b2-796726530e25",
+      "terminal_stage": "canonical_block_ledger",
+      "terminal_status": "needs_review",
+      "qualification_disposition": "evidence_closed_needs_review",
+      "finding_code": "spec03_source_region_review_open",
+      "open_media_reviews": 16,
+      "candidate_sha256": "ecbf3938a819b98f2e0ad395788087eefc12f211d5c62f876b34963806c88f29",
+      "recovery_stage": "canonical_block_ledger",
+      "model_calls": 2,
+      "cost_micro_cny": 46051,
+      "report_sha256": "ecd47142aeb42380eb33a3b467ee33c4ef64f27381bee98a666f713a5a55641f"
+    },
+    {
+      "material_pk": 1340,
+      "material_id": "pdf-2e57426befa155be",
+      "job_id": "a8f4713b-d9f7-5da8-9fb0-6cd74e3b4d9d",
+      "terminal_stage": "deterministic_elegantbook",
+      "terminal_status": "needs_review",
+      "qualification_disposition": "evidence_closed_needs_review",
+      "finding_code": "spec05_compile_blocking_review_open",
+      "blocking_compile_findings": ["missing_glyph"],
+      "candidate_sha256": "882ed6e4827b07284af670453e223fcaa6c3b750a7f93c45c59408da8805f267",
+      "candidate_pdf_sha256": "bd76c7250109a13a470bb28aeebcaf6dff57fe59539120c6ab9736c4764b07ff",
+      "recovery_stage": "deterministic_elegantbook",
+      "model_calls": 6,
+      "cost_micro_cny": 39539,
+      "report_sha256": "13f0475f6e6f478e97f69289b304463cbb7f488a37cc7e5788a5d217296da9c9"
+    },
+    {
+      "material_pk": 1341,
+      "material_id": "pdf-ac357479938bb9b5",
+      "job_id": "ee119345-25f5-512c-8190-7237b8157233",
+      "terminal_stage": "canonical_block_ledger",
+      "terminal_status": "needs_review",
+      "qualification_disposition": "evidence_closed_needs_review",
+      "finding_code": "spec03_source_region_review_open",
+      "open_media_reviews": 5,
+      "candidate_sha256": "f3693e127d4ce0750e9cae54b49d2545489dc04dee9dc31ef1e73c40d40fb21c",
+      "recovery_stage": "canonical_block_ledger",
+      "model_calls": 2,
+      "cost_micro_cny": 655747,
+      "report_sha256": "58710dd09492a027b158b4cf55039545753c70c476252a2b66001c6e85a7cb8b"
+    },
+    {
+      "material_pk": 1342,
+      "material_id": "pdf-ffaf7e6e6dd3b32d",
+      "job_id": "4725317e-3817-527c-bb9c-05f6cf74d520",
+      "terminal_stage": "deterministic_elegantbook",
+      "terminal_status": "needs_review",
+      "qualification_disposition": "evidence_closed_needs_review",
+      "finding_code": "spec05_compile_blocking_review_open",
+      "blocking_compile_findings": ["missing_glyph"],
+      "candidate_sha256": "3b059770be2e13c46afb66ec31fed9087f634376dbeca3715cb9ee3f0f13d56c",
+      "candidate_pdf_sha256": "96b5b3115304c0e352daa5276c41e7b1f5856701e5c564d121d5886cd0ff8f26",
+      "recovery_stage": "deterministic_elegantbook",
+      "model_calls": 6,
+      "cost_micro_cny": 597187,
+      "report_sha256": "41c39245fc9e3a78d0bc5ba2befcc85860575e9ed9255fa5ce73dac805bafb19"
+    },
+    {
+      "material_pk": 1343,
+      "material_id": "pdf-8e5464971a3e1d6b",
+      "job_id": "bd13114d-fdd3-5eaf-91e1-d1c15b014236",
+      "terminal_stage": "deterministic_elegantbook",
+      "terminal_status": "needs_review",
+      "qualification_disposition": "evidence_closed_needs_review",
+      "finding_code": "spec05_compile_warning_review_open",
+      "blocking_compile_findings": [],
+      "candidate_sha256": "10063904997b30d8778887ea1ec6a4c8bcd6b0a55c1472310c5b7ae759fbc4b2",
+      "recovery_stage": "deterministic_elegantbook",
+      "model_calls": 6,
+      "cost_micro_cny": 175078,
+      "report_sha256": "b190fde7d902daf9ec05358853bc1e2f3c1aecf7622ce9d552d211a233a6a7e8"
+    }
+  ],
+  "aggregate": {
+    "sample_count": 5,
+    "succeeded": 0,
+    "evidence_closed_needs_review": 5,
+    "kernel_failed": 0,
+    "false_success": 0,
+    "cross_sample_failure_contamination": 0,
+    "model_calls": 22,
+    "model_call_failures": 0,
+    "cost_micro_cny": 1513602
+  },
+  "temporary_network": {
+    "name": "worker-v3-five-smoke-243c21f",
+    "removed_after_last_call": true,
+    "remaining_containers": 0
+  },
+  "admission_interpretation": {
+    "passed": true,
+    "machine_success_claimed": false,
+    "reason": "All five immutable inputs reached an independently evaluated, evidence-complete terminal without a kernel failure. Every needs_review retains an immutable candidate, blocking evidence, responsible stage and exact minimum-stage recovery instruction. The run therefore proves fail-closed isolation and handoff robustness; it does not claim content acceptance or human acceptance.",
+    "post_rc_requirement": "Deploy the exact admitted RC image and release to the current development environment, then repeat the browser-visible page, database, MinIO, download and independent-recompile consistency smoke without code change, image rebuild or redeploy."
+  }
+}

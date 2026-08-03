@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "spec05-delivery-set-manifest.schema.json",
+  "title": "Spec 05 one-or-two-volume delivery set",
+  "type": "object",
+  "required": [
+    "schema_version", "spec_status", "delivery_set_id", "mode", "volume_count",
+    "parent", "volume_partition_plan", "volumes", "cross_volume_coverage",
+    "hard_gates", "deterministic_payload_hash", "scope_limit"
+  ],
+  "properties": {
+    "schema_version": {"const": "spec05-delivery-set-manifest/1.2"},
+    "spec_status": {"const": "passed"},
+    "mode": {"enum": ["single_volume", "two_volume"]},
+    "volume_count": {"enum": [1, 2]},
+    "volumes": {
+      "type": "array", "minItems": 1, "maxItems": 2,
+      "items": {
+        "type": "object",
+        "required": [
+          "volume_id", "ordinal", "delivery_zip", "final_pdf", "render_pack",
+          "delivery_size_report", "delivery_asset_report",
+          "overleaf_delivery_compatibility_report", "delivery_naming_report", "render_node_ids",
+          "source_block_ids", "measurements", "hard_gates"
+        ],
+        "properties": {
+          "volume_id": {"pattern": "^volume-0[12]$"},
+          "ordinal": {"enum": [1, 2]},
+          "render_node_ids": {"type": "array", "minItems": 1, "uniqueItems": true},
+          "source_block_ids": {"type": "array", "uniqueItems": true},
+          "measurements": {
+            "type": "object",
+            "required": ["zip_bytes", "file_entities", "pdf_pages"],
+            "properties": {
+              "zip_bytes": {"type": "integer", "maximum": 49999999},
+              "file_entities": {"type": "integer", "maximum": 1999},
+              "pdf_pages": {"type": "integer", "minimum": 1}
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "cross_volume_coverage": {
+      "type": "object",
+      "required": ["status", "render_nodes_exactly_once", "source_atoms_exactly_once", "source_order_contiguous", "spec05_repartitioned"],
+      "properties": {
+        "status": {"const": "passed"},
+        "render_nodes_exactly_once": {"const": true},
+        "source_atoms_exactly_once": {"const": true},
+        "source_order_contiguous": {"const": true},
+        "spec05_repartitioned": {"const": false}
+      }
+    },
+    "hard_gates": {
+      "type": "object",
+      "required": ["CP-H21", "CP-H22", "CP-H23", "CP-H24", "CP-H25", "CP-H26", "CP-H27", "CP-H28"],
+      "properties": {
+        "CP-H21": {"const": true}, "CP-H22": {"const": true},
+        "CP-H23": {"const": true}, "CP-H24": {"const": true},
+        "CP-H25": {"const": true}, "CP-H26": {"const": true},
+        "CP-H27": {"const": true}, "CP-H28": {"const": true}
+      },
+      "additionalProperties": false
+    },
+    "deterministic_payload_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "additionalProperties": true
+}

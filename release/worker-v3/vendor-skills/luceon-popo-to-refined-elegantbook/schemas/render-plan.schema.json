@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "render-plan.schema.json",
+  "title": "Frozen render plan",
+  "type": "object",
+  "required": ["schema_version", "source_ledger_snapshot_id", "source_ledger_payload_hash", "profile", "book_config_sha256", "planning_only", "latex_generated", "capability_manifest_sha256", "toc_capability_binding", "decision_index_sha256", "nodes", "deterministic_payload_hash", "spec_status", "open_reviews"],
+  "properties": {
+    "schema_version": {"pattern": "^render-plan/"},
+    "planning_only": {"const": true},
+    "latex_generated": {"const": false},
+    "spec_status": {"enum": ["blocked", "failed", "needs_review", "passed"]},
+    "open_reviews": {"type": "integer", "minimum": 0},
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["render_node_id", "source_block_ids", "target_construct", "construct_parameters", "payload", "payload_hash", "capability_manifest_sha256", "review_status", "render_order"],
+        "properties": {
+          "render_node_id": {"type": "string", "minLength": 1},
+          "source_block_ids": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "target_construct": {"type": "string", "minLength": 1},
+          "construct_parameters": {"type": "object"},
+          "payload": {"type": "object"},
+          "payload_hash": {"pattern": "^[0-9a-f]{64}$"},
+          "review_status": {"const": "closed"},
+          "render_order": {"type": "integer", "minimum": 1},
+          "virtual_source_supported": {"type": "boolean"}
+        },
+        "allOf": [
+          {
+            "if": {"properties": {"node_kind": {"const": "book_structure"}}},
+            "then": {"properties": {"source_block_ids": {"minItems": 0}}},
+            "else": {"properties": {"source_block_ids": {"minItems": 1}}}
+          }
+        ]
+      }
+    }
+  }
+}

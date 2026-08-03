@@ -1,0 +1,4 @@
+interface:
+  display_name: "Luceon Popo to ElegantBook"
+  short_description: "Evidence-first frozen-plan ElegantBook orchestration"
+  default_prompt: "Use $luceon-popo-to-refined-elegantbook to validate the immutable contracts and orchestrate a source-faithful frozen-plan ElegantBook build."

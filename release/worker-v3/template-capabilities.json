@@ -1,0 +1,320 @@
+{
+  "archive_sha256": "ebc5d6575153239552785265d2765de03b76c27d0532137712952f20ad0a9d4d",
+  "capabilities": {
+    "body_insertion": {
+      "after_exact_marker": "% ———————————————————— 正文内容从这里开始 ————————————————————",
+      "before_exact_token": "\\end{document}"
+    },
+    "body_insertion_candidate": "between the source body marker and end{document}; pending Spec 05 freeze",
+    "class": {
+      "member": "elegantbook.cls",
+      "sha256": "048c3b90da41be64f4744da3bff6ae8c5ea7abd30a5f3e2a6ad1a98f3b0d71fe"
+    },
+    "constructs": {
+      "custom_commands": [
+        "activitynum"
+      ],
+      "custom_environments": [
+        "answershow",
+        "internalanswerbox"
+      ],
+      "generic_environments": [
+        "tcolorbox"
+      ],
+      "sectioning": [
+        "chapter",
+        "chapter*",
+        "section",
+        "section*",
+        "subsection",
+        "subsection*",
+        "subsubsection",
+        "subsubsection*",
+        "paragraph",
+        "paragraph*"
+      ],
+      "standard_serialization": {
+        "display_math": {
+          "evidence": "declared math capability",
+          "requirements": [
+            "amsmath_or_class_math_support"
+          ]
+        },
+        "paragraph": {
+          "evidence": "TeX document body primitive",
+          "requirements": [
+            "documentclass"
+          ]
+        },
+        "response_list": {
+          "contract": "frozen source-bound items with one_or_two_columns_and_explicit_answer_space",
+          "evidence": "multicol package declaration plus TeX body primitives",
+          "requirements": [
+            "multicol",
+            "paragraph",
+            "rule",
+            "vspace"
+          ]
+        },
+        "source_asset_image": {
+          "evidence": "graphicx package declaration",
+          "requirements": [
+            "graphicx"
+          ]
+        },
+        "source_region_image": {
+          "evidence": "graphicx package declaration",
+          "requirements": [
+            "graphicx"
+          ]
+        }
+      },
+      "tcolorbox_styles": {
+        "featurebox": {
+          "default_breakable": false,
+          "default_title": null,
+          "definition_sha256": "f6d9952d5889186698528314cb9ed20186b1db4d27f888c87cac04bc1ea089fb",
+          "title_override_supported": true
+        },
+        "grammarbox": {
+          "default_breakable": false,
+          "default_title": null,
+          "definition_sha256": "cf7de2b86ad731d57054a86e8213e4a42d9ef63c1881276db231e5f756fd89a9",
+          "title_override_supported": true
+        },
+        "notebox": {
+          "default_breakable": false,
+          "default_title": null,
+          "definition_sha256": "894895e0dcbb0740f3ef6084055a29658d03c7f5f5987dbad67ce4ca444932c3",
+          "title_override_supported": true
+        },
+        "objectivebox": {
+          "default_breakable": false,
+          "default_title": "OBJECTIVES",
+          "definition_sha256": "024173a68a7612de6d5577664fd7ebfabb2213018de551c00e65a1eb2c4f2424",
+          "title_override_supported": true
+        },
+        "paragraphbox": {
+          "default_breakable": false,
+          "default_title": null,
+          "definition_sha256": "6f2f1523ad7736e1940c1c07641f25dc91331c1f917494b8eed04f79bec439d5",
+          "title_override_supported": true
+        },
+        "vocabbox": {
+          "default_breakable": false,
+          "default_title": null,
+          "definition_sha256": "caca143da02695ad48616043e4fa9dc1c1f468e2fd94005700e6e1b279c3a4df",
+          "title_override_supported": true
+        },
+        "writingbox": {
+          "default_breakable": false,
+          "default_title": null,
+          "definition_sha256": "538375ce0e21a9d74c3d5a6c42dba331d22d64fc8974482e44b736975e8412c5",
+          "title_override_supported": true
+        }
+      }
+    },
+    "declared_packages": [
+      "adforn",
+      "amsfonts",
+      "amsmath",
+      "amssymb",
+      "amsthm",
+      "anyfontsize",
+      "appendix",
+      "apptools",
+      "array",
+      "babel",
+      "bbding",
+      "biblatex",
+      "bm",
+      "booktabs",
+      "calc",
+      "caption",
+      "colortbl",
+      "comment",
+      "csquotes",
+      "ctex",
+      "enumerate",
+      "enumitem",
+      "esint",
+      "esvect",
+      "etoolbox",
+      "fancyhdr",
+      "fancyvrb",
+      "float",
+      "fontenc",
+      "fontspec",
+      "footmisc",
+      "gensymb",
+      "geometry",
+      "graphicx",
+      "helvet",
+      "hologo",
+      "hyperref",
+      "iftex",
+      "indentfirst",
+      "inputenc",
+      "kvoptions",
+      "lipsum",
+      "listings",
+      "longdivision",
+      "longtable",
+      "luatexja",
+      "makecell",
+      "manfnt",
+      "marginnote",
+      "mathrsfs",
+      "mtpro2",
+      "multicol",
+      "multirow",
+      "mwe",
+      "newtxmath",
+      "newtxtext",
+      "nicematrix",
+      "pgf-pie",
+      "pgfplots",
+      "pifont",
+      "setspace",
+      "tabularx",
+      "tcolorbox",
+      "textcomp",
+      "tikz",
+      "titlesec",
+      "tocloft",
+      "xcolor",
+      "xeCJK",
+      "xlop",
+      "yhmath"
+    ],
+    "documentclass": {
+      "immutable_pending_spec05": true,
+      "name": "elegantbook",
+      "options": [
+        "11pt",
+        "a4paper"
+      ]
+    },
+    "entry": {
+      "member": "main.tex",
+      "sha256": "b684a7ab0af064111ea36864661a736571340f173c756534343437f4efef71f4"
+    },
+    "generator": "spec04c-construct-binding-contract/1.4.1",
+    "schema_version": "template-capability-manifest/2.0",
+    "spec05_freeze_status": "pending",
+    "supported_parameters": {
+      "display_math": {
+        "source_math": true
+      },
+      "response_list": {
+        "answer_space_modes": [
+          "inline_rule",
+          "vertical_space"
+        ],
+        "columns": [
+          1,
+          2
+        ],
+        "source_items": true
+      },
+      "sectioning_starred": {
+        "numbered": false,
+        "title": true,
+        "toc_default": false,
+        "toc_entry_level": [
+          "chapter",
+          "paragraph",
+          "section",
+          "subsection",
+          "subsubsection"
+        ],
+        "toc_visibility_strategy": [
+          "localized_depth_override",
+          "native"
+        ]
+      },
+      "source_image": {
+        "artifact_sha256": true,
+        "max_height_fraction": true,
+        "source_path": true,
+        "width_fraction": true
+      },
+      "tcolorbox": {
+        "breakable": true,
+        "style": "required_existing_style",
+        "title": true
+      }
+    },
+    "toc_capability": {
+      "effective_declaration": {
+        "declaration": "\\setcounter{tocdepth}{1}",
+        "declaration_sha256": "301e748dccbe6f000467e8272c789503ea92bbdab4f7d2347862767e67c64717",
+        "depth": 1,
+        "execution_phase": "class_load",
+        "line": 160,
+        "member": "elegantbook.cls"
+      },
+      "effective_tocdepth": 1,
+      "effective_tocdepth_status": "explicitly_declared",
+      "entry_type_depths": {
+        "chapter": 0,
+        "paragraph": 4,
+        "section": 1,
+        "subsection": 2,
+        "subsubsection": 3
+      },
+      "native_visible_entry_types": [
+        "chapter",
+        "section"
+      ],
+      "pre_toc_declarations": [
+        {
+          "declaration": "\\setcounter{tocdepth}{1}",
+          "declaration_sha256": "301e748dccbe6f000467e8272c789503ea92bbdab4f7d2347862767e67c64717",
+          "depth": 1,
+          "execution_phase": "class_load",
+          "line": 160,
+          "member": "elegantbook.cls"
+        }
+      ],
+      "serialization_strategies": {
+        "localized_depth_override": {
+          "adds_template_api": false,
+          "modifies_template_preamble_or_class": false,
+          "preserves_entry_type": true,
+          "preserves_pdf_outline_level": true,
+          "scope": "single_toc_entry_group",
+          "supported": true,
+          "uses_only_standard_latex_commands": [
+            "addtocontents",
+            "begingroup",
+            "setcounter",
+            "endgroup",
+            "addcontentsline"
+          ]
+        },
+        "native": {
+          "preserves_entry_type": true,
+          "requires_depth_at_most_effective_tocdepth": true,
+          "supported": true
+        }
+      },
+      "tableofcontents": {
+        "line": 171,
+        "member": "main.tex"
+      }
+    },
+    "visibility_constraints": {
+      "hidden_by_default_environments": [
+        "answershow"
+      ],
+      "source_visible_content_forbidden_in_hidden_environment": true
+    }
+  },
+  "class_member": "elegantbook.cls",
+  "entry_member": "main.tex",
+  "extractor_sha256": "ffcd86e972b6386730938fad46e8c4c1c6869b3604ac6077c0c1d99ac45926f6",
+  "qualification_sha256": "25d007ba5b5d2f2b093fb0e427f6a87227bfaf3fc179cb2041b35ac3952f2320",
+  "schema_version": "luceon.worker-v3-template-capability-qualification/v1",
+  "status": "passed"
+}

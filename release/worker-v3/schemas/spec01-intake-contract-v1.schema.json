@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "worker-v3.spec01-intake-contract/1.0.0",
+  "title": "Worker V3 Spec 01 intake contract",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "producer",
+    "run_id",
+    "material_identity",
+    "inputs",
+    "canonical_decision_index_ref",
+    "canonical_decision_index_hash",
+    "gate_status",
+    "spec_status",
+    "open_reviews"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "luceon.worker-v3-spec01-intake-contract/v1"
+    },
+    "producer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "material_identity": {
+      "type": "object"
+    },
+    "inputs": {
+      "type": "object"
+    },
+    "canonical_decision_index_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "canonical_decision_index_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "gate_status": {
+      "type": "object"
+    },
+    "spec_status": {
+      "type": "string",
+      "const": "passed"
+    },
+    "open_reviews": {
+      "type": "array",
+      "maxItems": 0,
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}

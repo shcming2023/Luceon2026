@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luceon.local/schemas/visual-region-integrity-report.schema.json",
+  "title": "Spec 03 page visual-region and composite-media integrity report",
+  "type": "object",
+  "required": [
+    "schema_version", "report_id", "status", "scope_mode", "source_pdf",
+    "input_parent_ledger", "output_parent_ledger", "output_normalized_candidates",
+    "page_visual_inventory", "media_crop_integrity", "composite_regions", "gates", "summary"
+  ],
+  "properties": {
+    "schema_version": {"const": "visual-region-integrity-report/1.0"},
+    "status": {"enum": ["passed", "needs_review", "failed"]},
+    "scope_mode": {"enum": ["formal_full_source", "bounded_media_regression", "migration_hash_regression"]},
+    "gates": {"type": "array", "minItems": 6, "items": {"type": "object"}}
+  },
+  "additionalProperties": true
+}

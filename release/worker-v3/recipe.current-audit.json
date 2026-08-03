@@ -1,0 +1,1164 @@
+{
+  "schema_version": "luceon.worker-v3-release-recipe/v1",
+  "roots": {
+    "ebc": {
+      "relative_to_recipe": "vendor-ebc"
+    },
+    "skills": {
+      "relative_to_recipe": "vendor-skills"
+    },
+    "worker_v3": {
+      "relative_to_recipe": "../.."
+    }
+  },
+  "release": {
+    "release_id": "worker-v3-skill-source-audit-20260803-5d31514",
+    "version": "3.0.0-rc.5",
+    "channel": "rc",
+    "requested_status": "rc",
+    "created_at": "2026-08-03T17:30:00+08:00",
+    "source": {
+      "git_sha": "5d315142fdfd6eebaffe1dfe4ebb9e0fc51e2a76",
+      "git_tag": null,
+      "dirty": false
+    },
+    "stable_eligible": false
+  },
+  "sources": [
+    {
+      "id": "ebc-stable-archive-provenance",
+      "kind": "file",
+      "source_role": "provenance_only",
+      "root": "ebc",
+      "path": "elegantbookcompiler-v1.0.0.zip",
+      "destination": "references/provenance/elegantbookcompiler-v1.0.0.zip",
+      "expected_sha256": "139a0e72f42f446643de91a366069ad8fcdb15c624c49fe806bc8473251b6fb5"
+    },
+    {
+      "id": "ebc-dependency-lock-provenance",
+      "kind": "file",
+      "source_role": "provenance_only",
+      "root": "ebc",
+      "path": "dependency-lock.json",
+      "destination": "references/provenance/elegantbookcompiler-v1.0.0-dependency-lock.json",
+      "expected_sha256": "bdd1ca96920ca5cc94a8ebecde8eb91123a66388640873a3f583f791e8c4c57b"
+    },
+    {
+      "id": "ebc-requirements-lock-provenance",
+      "kind": "file",
+      "source_role": "provenance_only",
+      "root": "ebc",
+      "path": "requirements-v1.lock",
+      "destination": "references/provenance/elegantbookcompiler-v1.0.0-requirements.lock",
+      "expected_sha256": "20f994471ac65870ca9f1c416a0f4620fd367479828a9041ff63f83cfdda141d"
+    },
+    {
+      "id": "ebc-provenance-attestation",
+      "kind": "file",
+      "source_role": "provenance_only",
+      "root": "worker_v3",
+      "path": "release/worker-v3/historical-ebc-provenance-attestation.json",
+      "destination": "references/provenance/elegantbookcompiler-v1.0.0-attestation.json",
+      "expected_sha256": "6e9ec79bef3fa33adb35cfd4157a9ad065950aaa7a406c26292261c1c72f908d"
+    },
+    {
+      "id": "ebc-current-specs",
+      "kind": "tree",
+      "source_role": "normative_contract",
+      "root": "ebc",
+      "path": "specs",
+      "destination": "contracts/elegantbookcompiler",
+      "include": [
+        "*.md"
+      ],
+      "expected_tree_sha256": "7c23289d6ef706bf4bc5d2442df1fb2f117fc00cf32e22f80b1a5cca95e52fee"
+    },
+    {
+      "id": "ebc-current-spec-schemas",
+      "kind": "tree",
+      "source_role": "normative_contract",
+      "root": "ebc",
+      "path": "specs/schemas",
+      "destination": "schemas/elegantbookcompiler",
+      "include": [
+        "*.json"
+      ],
+      "expected_tree_sha256": "b475a61422aa22f6d89a208efecc1beb5d84d2cddc807d1384757c96d71a79b6"
+    },
+    {
+      "id": "skill-luceon-popo-to-refined-elegantbook",
+      "kind": "tree",
+      "source_role": "executable_baseline",
+      "root": "skills",
+      "path": "luceon-popo-to-refined-elegantbook",
+      "destination": "skills/luceon-popo-to-refined-elegantbook",
+      "expected_tree_sha256": "8b6804fbb3dd10b4eeaece3069f4676f29376b2d58dab699f8bfe6e3ee54e099"
+    },
+    {
+      "id": "skill-pdf-clean-markdown-rebuild",
+      "kind": "tree",
+      "source_role": "executable_baseline",
+      "root": "skills",
+      "path": "pdf-clean-markdown-rebuild",
+      "destination": "skills/pdf-clean-markdown-rebuild",
+      "expected_tree_sha256": "8eeefb82b3bb558bbaaa6c492e7856a75ef75154abee770989dbfcc9f3a22af2"
+    },
+    {
+      "id": "skill-material-semantic-annotator",
+      "kind": "tree",
+      "source_role": "executable_baseline",
+      "root": "skills",
+      "path": "material-semantic-annotator",
+      "destination": "skills/material-semantic-annotator",
+      "expected_tree_sha256": "e6385a9a95c12f17c30036e02447a77168e90422636b62e10fd8ebcb3a8a454c"
+    },
+    {
+      "id": "skill-cleanlatex-to-elegantbook",
+      "kind": "tree",
+      "source_role": "executable_baseline",
+      "root": "skills",
+      "path": "cleanlatex-to-elegantbook",
+      "destination": "skills/cleanlatex-to-elegantbook",
+      "expected_tree_sha256": "0d3b8dcc0f1a29c771d97d41e4027d898cf713316472cc0c47d22df407824442"
+    },
+    {
+      "id": "skill-refine-elegantbook-latex",
+      "kind": "tree",
+      "source_role": "executable_baseline",
+      "root": "skills",
+      "path": "refine-elegantbook-latex",
+      "destination": "skills/refine-elegantbook-latex",
+      "expected_tree_sha256": "9038766377f2383e2a3b1b200cb7fb67bc15030d79cfd900cf9ea057bf579f76"
+    },
+    {
+      "id": "skill-finished-textbook-final-review",
+      "kind": "tree",
+      "source_role": "executable_baseline",
+      "root": "skills",
+      "path": "finished-textbook-final-review",
+      "destination": "skills/finished-textbook-final-review",
+      "expected_tree_sha256": "7cfc400c87947e15e644a06ddafa49afa1c61220f93d07547273f6ddb9e1fe15"
+    },
+    {
+      "id": "worker-v3-stage-entrypoint-runtime",
+      "kind": "file",
+      "source_role": "executable_baseline",
+      "root": "worker_v3",
+      "path": "backend/app/workflow_v3/stage_entrypoint.py",
+      "destination": "scripts/worker-v3/stage_entrypoint.py",
+      "expected_sha256": "82f393590c3ead01d945b951ee561a3d1b1b56c0f6b33d57bf7e1dc427d414a8"
+    },
+    {
+      "id": "worker-v3-release-identity-runtime",
+      "kind": "file",
+      "source_role": "executable_baseline",
+      "root": "worker_v3",
+      "path": "backend/app/workflow_v3/release_identity.py",
+      "destination": "scripts/worker-v3/release_identity.py",
+      "expected_sha256": "4d8671f3d16aa66e5c081f902c820a78dc4248fe7ba9141f99ae3e765fde3281"
+    },
+    {
+      "id": "worker-v3-evaluation-entrypoint-runtime",
+      "kind": "file",
+      "source_role": "executable_baseline",
+      "root": "worker_v3",
+      "path": "backend/app/workflow_v3/stage_evaluation_entrypoint.py",
+      "destination": "scripts/worker-v3/stage_evaluation_entrypoint.py",
+      "expected_sha256": "633f5866f82df74e396cec270d152e592c96cc630a08ac26d8992b25ad8238a6"
+    },
+    {
+      "id": "worker-v3-contracts-runtime",
+      "kind": "file",
+      "source_role": "executable_baseline",
+      "root": "worker_v3",
+      "path": "backend/app/workflow_v3/contracts.py",
+      "destination": "scripts/worker-v3/contracts.py",
+      "expected_sha256": "7a3f08bf40dcebe30d5b068dd43d3e0704e3d3be654e53720977aad1edb6df38"
+    },
+    {
+      "id": "worker-v3-spec01-04-adapters",
+      "kind": "file",
+      "source_role": "executable_baseline",
+      "root": "worker_v3",
+      "path": "backend/app/workflow_v3/spec01_04_stage_adapters.py",
+      "destination": "scripts/worker-v3/spec01_04_stage_adapters.py",
+      "expected_sha256": "e94ceec4fc13dca6f25f52b5ff34a4224c4847e2f45b8b10d019d00b01301daa"
+    },
+    {
+      "id": "worker-v3-spec05-06-adapters",
+      "kind": "file",
+      "source_role": "executable_baseline",
+      "root": "worker_v3",
+      "path": "backend/app/workflow_v3/spec05_06_stage_adapters.py",
+      "destination": "scripts/worker-v3/spec05_06_stage_adapters.py",
+      "expected_sha256": "84a5ef84a76be71bedcb787f4873d173e71c5b5fa57f373698ae8cf431fb9064"
+    },
+    {
+      "id": "worker-v3-stage-evaluators-runtime",
+      "kind": "file",
+      "source_role": "executable_baseline",
+      "root": "worker_v3",
+      "path": "backend/app/workflow_v3/stage_evaluators.py",
+      "destination": "scripts/worker-v3/stage_evaluators.py",
+      "expected_sha256": "1bde96d5a14bc8d684e4f350451fc644b2837ed6c41bafe0a9435b9a4d3a9d2a"
+    },
+    {
+      "id": "worker-v3-page-review-contract-runtime",
+      "kind": "file",
+      "source_role": "executable_baseline",
+      "root": "worker_v3",
+      "path": "backend/app/workflow_v3/page_review_contract.py",
+      "destination": "scripts/worker-v3/page_review_contract.py",
+      "expected_sha256": "8f66bcd7ba391865d3dae6bb01594a7413b841b67e4c5796c70ee1f1de5814a9"
+    },
+    {
+      "id": "worker-v3-overleaf-compiler-client",
+      "kind": "file",
+      "source_role": "executable_baseline",
+      "root": "worker_v3",
+      "path": "backend/app/workflow_v3/overleaf_compiler.py",
+      "destination": "scripts/worker-v3/overleaf_compiler.py",
+      "expected_sha256": "669ef6b29808edd7308a5ba64a007ebf309787058d480a9957a7aa396f0a26b9"
+    },
+    {
+      "id": "worker-v3-overleaf-compiler-service",
+      "kind": "file",
+      "source_role": "executable_baseline",
+      "root": "worker_v3",
+      "path": "backend/overleaf-adapter/compiler_service.py",
+      "destination": "scripts/worker-v3/overleaf-adapter/compiler_service.py",
+      "expected_sha256": "20653f73a648ac94b2e3d2102d8496ffa5ad9372f31be0b8f616b6c70b4120bc"
+    },
+    {
+      "id": "worker-v3-overleaf-compiler-dockerfile",
+      "kind": "file",
+      "source_role": "executable_baseline",
+      "root": "worker_v3",
+      "path": "backend/Dockerfile.overleaf-adapter",
+      "destination": "scripts/worker-v3/overleaf-adapter/Dockerfile",
+      "expected_sha256": "d48ac7b1c763048db930e48f3efcd1d011179fde30d33a88827b346c12aa33c0"
+    },
+    {
+      "id": "worker-v3-spec01-03-atomic-kernel",
+      "kind": "file",
+      "source_role": "executable_baseline",
+      "root": "worker_v3",
+      "path": "backend/app/workflow_v3/spec01_03_atomic_kernel.py",
+      "destination": "scripts/worker-v3/spec01_03_atomic_kernel.py",
+      "expected_sha256": "a7765e76a5bf2c1702fc13e003a0f9bd7547ca32bd7cc1d84d057b83bd13cb00"
+    },
+    {
+      "id": "worker-v3-stage-producer-entrypoints",
+      "kind": "tree",
+      "source_role": "executable_baseline",
+      "root": "worker_v3",
+      "path": "release/worker-v3/stage-entrypoints",
+      "destination": "scripts/stages/producers",
+      "include": [
+        "*.py"
+      ],
+      "expected_tree_sha256": "8d280beaf8d725696193fbaf7ffa76c97f0ce7d62fb36ea32ac8b3cb07bf2eef"
+    },
+    {
+      "id": "worker-v3-stage-evaluator-entrypoints",
+      "kind": "tree",
+      "source_role": "executable_baseline",
+      "root": "worker_v3",
+      "path": "release/worker-v3/stage-evaluators",
+      "destination": "scripts/stages/evaluators",
+      "include": [
+        "*.py"
+      ],
+      "expected_tree_sha256": "a91afaee06f11e51214be3233ec37d070879619e68920b185d3c5bcefe717ffb"
+    },
+    {
+      "id": "worker-v3-ordinary-prompts",
+      "kind": "tree",
+      "source_role": "normative_contract",
+      "root": "worker_v3",
+      "path": "release/worker-v3/prompts",
+      "destination": "prompts",
+      "include": [
+        "spec*.txt"
+      ],
+      "expected_tree_sha256": "2841f941621366cb111032428cf9a2c65cbdb50fb912225125dc5fa94ebf4ad1"
+    },
+    {
+      "id": "worker-v3-ordinary-schemas",
+      "kind": "tree",
+      "source_role": "normative_contract",
+      "root": "worker_v3",
+      "path": "release/worker-v3/schemas",
+      "destination": "schemas",
+      "include": [
+        "spec*.schema.json"
+      ],
+      "expected_tree_sha256": "14086b3742556aa2b4db807b5a38a3663e8844a9da6464b32372bf083ac8135b"
+    },
+    {
+      "id": "worker-v3-spec04-review-schemas",
+      "kind": "tree",
+      "source_role": "normative_contract",
+      "root": "skills",
+      "path": "luceon-popo-to-refined-elegantbook/schemas",
+      "destination": "schemas",
+      "include": [
+        "spec04a-outline-review-bundle.schema.json",
+        "spec04b-semantic-review-bundle.schema.json",
+        "spec04c-construct-review-bundle.schema.json",
+        "spec04d-render-policy.schema.json"
+      ],
+      "expected_tree_sha256": "2bdea8d0a2c880a550be1a0906cbb2b1082fd3dd509792affcce7a905da036cd"
+    },
+    {
+      "id": "worker-v3-ordinary-requirements-lock",
+      "kind": "file",
+      "source_role": "runtime_evidence",
+      "root": "worker_v3",
+      "path": "backend/requirements-worker-v3.lock",
+      "destination": "runtime/requirements-worker-v3.lock",
+      "expected_sha256": "be52a2e7be1cf8e4ad27d93606f9970bc9420b7a449df208bca3d0a4f4643cba"
+    },
+    {
+      "id": "worker-v3-system-packages-lock",
+      "kind": "file",
+      "source_role": "runtime_evidence",
+      "root": "worker_v3",
+      "path": "backend/worker-v3-system-packages.lock",
+      "destination": "runtime/worker-v3-system-packages.lock",
+      "expected_sha256": "91da4a53924104e8b81b0e86a36fd0856fa0d95be25df26ac3de1eda905b7342"
+    },
+    {
+      "id": "worker-v3-ordinary-runtime-identity",
+      "kind": "file",
+      "source_role": "runtime_evidence",
+      "root": "worker_v3",
+      "path": "release/worker-v3/runtime/ordinary-runtime-identity.json",
+      "destination": "runtime/ordinary-runtime-identity.json",
+      "expected_sha256": "9260368b83c45e805e7b9b10861d6126ed1661108469d04a1bb6b33263e5685a"
+    },
+    {
+      "id": "worker-v3-ordinary-runtime-build-proof",
+      "kind": "file",
+      "source_role": "runtime_evidence",
+      "root": "worker_v3",
+      "path": "release/worker-v3/runtime/ordinary-runtime-build-proof.json",
+      "destination": "runtime/ordinary-runtime-build-proof.json",
+      "expected_sha256": "65810441cbbf334570ef451d49b719fd4fe2df1557f07e9aac0dd64a09c3e9bb"
+    },
+    {
+      "id": "worker-v3-ordinary-runtime-sbom",
+      "kind": "file",
+      "source_role": "runtime_evidence",
+      "root": "worker_v3",
+      "path": "release/worker-v3/runtime/ordinary-runtime-sbom.cdx.json",
+      "destination": "runtime/ordinary-runtime-sbom.cdx.json",
+      "expected_sha256": "b35a98b91649a3f8a215e8e434bbe07e2c9b214fed05e9f10e6054fdf9eb9047"
+    },
+    {
+      "id": "worker-v3-overleaf-target-environment",
+      "kind": "file",
+      "source_role": "runtime_evidence",
+      "root": "worker_v3",
+      "path": "release/worker-v3/runtime/overleaf-target-environment.json",
+      "destination": "runtime/overleaf-target-environment.json",
+      "expected_sha256": "5c434a7ca1fdfcea7659266c997fd581b6a8732ec574fcdf3be46115e30355e4"
+    },
+    {
+      "id": "worker-v3-overleaf-adapter-real-zip-qualification",
+      "source_role": "supporting_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/overleaf-adapter-real-zip-qualification-20260801.json",
+      "destination": "evals/qualification/overleaf-adapter-real-zip-qualification-20260801.json",
+      "expected_sha256": "bbbeac41d0ed0b9c0f5ca00ef3f74c707562a7324bf56a23abc3cf0538780e67"
+    },
+    {
+      "id": "worker-v3-spec03-real-deepseek-qualification",
+      "source_role": "supporting_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/spec03-real-deepseek-qualification-20260801.json",
+      "destination": "evals/qualification/spec03-real-deepseek-qualification-20260801.json",
+      "expected_sha256": "5a143c46dab874af82d626fe0cbbe946fe026355463029fd663f78289ad2ec3b"
+    },
+    {
+      "id": "worker-v3-spec05-final-image-real-material-qualification",
+      "source_role": "runtime_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/spec05-final-image-real-material-qualification-20260801.json",
+      "destination": "evals/qualification/spec05-final-image-real-material-qualification-20260801.json",
+      "expected_sha256": "2d3ce7fc73159d6f0a811161596751fd6a6947508785ee41c95146273456325c"
+    },
+    {
+      "id": "worker-v3-spec05-overleaf-page-equivalence",
+      "source_role": "supporting_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/spec05-overleaf-page-equivalence-20260801.json",
+      "destination": "evals/qualification/spec05-overleaf-page-equivalence-20260801.json",
+      "expected_sha256": "2f46efd4dafd7aab25dbe95aed2de41b3a35daa52028a224f1af4c4a7959ab14"
+    },
+    {
+      "id": "worker-v3-spec03-real-deepseek-qualification-15d88fc",
+      "source_role": "supporting_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/spec03-real-deepseek-qualification-20260802.json",
+      "destination": "evals/qualification/spec03-real-deepseek-qualification-20260802.json",
+      "expected_sha256": "25bfb8ff7a088e11085654c7f6e4556edbef285475578c09c9e980dc967f899b"
+    },
+    {
+      "id": "worker-v3-visual-full-page-provider-qualification-15d88fc",
+      "source_role": "supporting_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/visual-full-page-provider-qualification-20260802.json",
+      "destination": "evals/qualification/visual-full-page-provider-qualification-20260802.json",
+      "expected_sha256": "d31aaa5160c6e22d79ddd511e6a850172d025975b67fbd048b8b33fcafec3775"
+    },
+    {
+      "id": "worker-v3-spec05-final-image-real-material-qualification-15d88fc",
+      "source_role": "runtime_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/spec05-final-image-real-material-qualification-20260802.json",
+      "destination": "evals/qualification/spec05-final-image-real-material-qualification-20260802.json",
+      "expected_sha256": "b0ee8e64a0754bf6846468ce6ef6a4a75d5b40a59c875f788d94f8bce380b257"
+    },
+    {
+      "id": "worker-v3-overleaf-adapter-real-zip-qualification-15d88fc",
+      "source_role": "supporting_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/overleaf-adapter-real-zip-qualification-20260802.json",
+      "destination": "evals/qualification/overleaf-adapter-real-zip-qualification-20260802.json",
+      "expected_sha256": "7857394d9381dace7c909c85e44b1e98bb7142cb2666e47772ab8050bf108c43"
+    },
+    {
+      "id": "worker-v3-visual-full-page-provider-qualification-243c21f",
+      "source_role": "supporting_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/visual-full-page-provider-qualification-243c21f-20260802.json",
+      "destination": "evals/qualification/visual-full-page-provider-qualification-243c21f-20260802.json",
+      "expected_sha256": "95d1aa4db479478c0a5409148478201074fd96c3e32ea59f2243159f88cb4a02"
+    },
+    {
+      "id": "worker-v3-spec05-final-image-real-material-qualification-243c21f",
+      "source_role": "runtime_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/spec05-final-image-real-material-qualification-243c21f-20260802.json",
+      "destination": "evals/qualification/spec05-final-image-real-material-qualification-243c21f-20260802.json",
+      "expected_sha256": "e7277573f39d37b26997cc55f42b6dd3664d11d59d06be1073a1ed389501963a"
+    },
+    {
+      "id": "worker-v3-243c21f-qualification-ledger",
+      "source_role": "supporting_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/243c21f-qualification-ledger-20260802.json",
+      "destination": "evals/qualification/243c21f-qualification-ledger-20260802.json",
+      "expected_sha256": "cea9203d8746ee63886ed7647aaf848a517c73b755295fad36151f51760b0ccd"
+    },
+    {
+      "id": "worker-v3-visual-full-page-provider-qualification-39c9251",
+      "source_role": "runtime_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/visual-full-page-provider-qualification-39c9251-20260802.json",
+      "destination": "evals/qualification/visual-full-page-provider-qualification-39c9251-20260802.json",
+      "expected_sha256": "4bb48fd27ed25bf362db6316649910516b95279104df1e4679ef8c3acff1dcd6"
+    },
+    {
+      "id": "worker-v3-spec05-final-image-real-material-qualification-39c9251",
+      "source_role": "runtime_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/spec05-final-image-real-material-qualification-39c9251-20260802.json",
+      "destination": "evals/qualification/spec05-final-image-real-material-qualification-39c9251-20260802.json",
+      "expected_sha256": "f7d6422c7c69fdb8cf08516631c23c29af47535df7f25cb91543bf5c8298ab80"
+    },
+    {
+      "id": "worker-v3-39c9251-qualification-ledger",
+      "source_role": "supporting_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/39c9251-qualification-ledger-20260802.json",
+      "destination": "evals/qualification/39c9251-qualification-ledger-20260802.json",
+      "expected_sha256": "12f8ad22963bae59904b409e46a64c95fa91485200787ec173ae65a5da4ddd01"
+    },
+    {
+      "id": "worker-v3-visual-full-page-provider-qualification-b9c412c",
+      "source_role": "runtime_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/visual-full-page-provider-qualification-b9c412c-20260803.json",
+      "destination": "evals/qualification/visual-full-page-provider-qualification-b9c412c-20260803.json",
+      "expected_sha256": "c94778b8aff7e33b1d9f412bd297246991200417769e2345fe806fd368fe4975"
+    },
+    {
+      "id": "worker-v3-spec05-final-image-real-material-qualification-b9c412c",
+      "source_role": "runtime_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/spec05-final-image-real-material-qualification-b9c412c-20260803.json",
+      "destination": "evals/qualification/spec05-final-image-real-material-qualification-b9c412c-20260803.json",
+      "expected_sha256": "cd83d95ef743bf649c014315cb5c61e63afffe356b86cd6bed830e353b7229d9"
+    },
+    {
+      "id": "worker-v3-b9c412c-qualification-ledger",
+      "source_role": "supporting_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/b9c412c-qualification-ledger-20260803.json",
+      "destination": "evals/qualification/b9c412c-qualification-ledger-20260803.json",
+      "expected_sha256": "5079afef5811b864465a5531d576cd73f3729b1475782be4aed5d76cfd70275e"
+    },
+    {
+      "id": "worker-v3-visual-full-page-provider-qualification-da3a4ba",
+      "source_role": "runtime_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/visual-full-page-provider-qualification-da3a4ba-20260803.json",
+      "destination": "evals/qualification/visual-full-page-provider-qualification-da3a4ba-20260803.json",
+      "expected_sha256": "f21a29eea4e99183c572af552a631d01cf008537c5b4879b7860785810355824"
+    },
+    {
+      "id": "worker-v3-spec05-final-image-real-material-qualification-da3a4ba",
+      "source_role": "runtime_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/spec05-final-image-real-material-qualification-da3a4ba-20260803.json",
+      "destination": "evals/qualification/spec05-final-image-real-material-qualification-da3a4ba-20260803.json",
+      "expected_sha256": "f87fdd9945235a2107fd64454e473c7ebb447bfe398deab0bb2669b87c34cc16"
+    },
+    {
+      "id": "worker-v3-da3a4ba-qualification-ledger",
+      "source_role": "supporting_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/da3a4ba-qualification-ledger-20260803.json",
+      "destination": "evals/qualification/da3a4ba-qualification-ledger-20260803.json",
+      "expected_sha256": "136c5bd35bc4d513a9017bf9f2a9cb777aa9b1f5d9aae7d47e6f5e04a3ff91f3"
+    },
+    {
+      "id": "worker-v3-visual-full-page-provider-qualification-5d31514",
+      "source_role": "runtime_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/visual-full-page-provider-qualification-5d31514-20260803.json",
+      "destination": "evals/qualification/visual-full-page-provider-qualification-5d31514-20260803.json",
+      "expected_sha256": "5dce387c3495690c08a8b21ec51db7f4cb4320f7e58c623725541ec97a107c97"
+    },
+    {
+      "id": "worker-v3-spec05-final-image-real-material-qualification-5d31514",
+      "source_role": "runtime_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/spec05-final-image-real-material-qualification-5d31514-20260803.json",
+      "destination": "evals/qualification/spec05-final-image-real-material-qualification-5d31514-20260803.json",
+      "expected_sha256": "6703dc43f01f8a3b85f2453a39d5ed76da254a0a9bf519a7a964c579a4d01657"
+    },
+    {
+      "id": "worker-v3-5d31514-qualification-ledger",
+      "source_role": "supporting_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/5d31514-qualification-ledger-20260803.json",
+      "destination": "evals/qualification/5d31514-qualification-ledger-20260803.json",
+      "expected_sha256": "1a2b95895f92e4255a00785d3bed1d1632d11aed198dab1cb47fcc847f779b66"
+    },
+    {
+      "id": "worker-v3-spec05-build-policy",
+      "kind": "file",
+      "source_role": "runtime_evidence",
+      "root": "worker_v3",
+      "path": "release/worker-v3/runtime/spec05-build-policy.json",
+      "destination": "runtime/spec05-build-policy.json",
+      "expected_sha256": "89977b20b5db3c93f633c3846f0c3131e82a6cbad17d503e505f155bb3a6e831"
+    },
+    {
+      "id": "worker-v3-template-capabilities",
+      "kind": "file",
+      "source_role": "template",
+      "root": "worker_v3",
+      "path": "release/worker-v3/template-capabilities.json",
+      "destination": "references/template-capabilities.json",
+      "expected_sha256": "6fab95bf730ae95bde7bd97c0bc211775e60712781f6dcf714120fd5c0b175b9"
+    },
+    {
+      "id": "fixed-template",
+      "kind": "file",
+      "source_role": "template",
+      "root": "ebc",
+      "path": "2025教材模版新版.zip",
+      "destination": "templates/2025教材模版新版.zip",
+      "expected_sha256": "ebc5d6575153239552785265d2765de03b76c27d0532137712952f20ad0a9d4d"
+    }
+  ],
+  "executable_baseline": {
+    "policy": "sole-authority",
+    "source_ids": [
+      "skill-luceon-popo-to-refined-elegantbook",
+      "skill-pdf-clean-markdown-rebuild",
+      "skill-material-semantic-annotator",
+      "skill-cleanlatex-to-elegantbook",
+      "skill-refine-elegantbook-latex",
+      "skill-finished-textbook-final-review",
+      "worker-v3-stage-entrypoint-runtime",
+      "worker-v3-release-identity-runtime",
+      "worker-v3-evaluation-entrypoint-runtime",
+      "worker-v3-contracts-runtime",
+      "worker-v3-spec01-04-adapters",
+      "worker-v3-spec05-06-adapters",
+      "worker-v3-stage-evaluators-runtime",
+      "worker-v3-page-review-contract-runtime",
+      "worker-v3-overleaf-compiler-client",
+      "worker-v3-overleaf-compiler-service",
+      "worker-v3-overleaf-compiler-dockerfile",
+      "worker-v3-spec01-03-atomic-kernel",
+      "worker-v3-stage-producer-entrypoints",
+      "worker-v3-stage-evaluator-entrypoints"
+    ]
+  },
+  "identities": {
+    "skills": [
+      {
+        "id": "luceon-popo-to-refined-elegantbook",
+        "version": "snapshot-2026-07-26",
+        "path": "skills/luceon-popo-to-refined-elegantbook/SKILL.md"
+      },
+      {
+        "id": "pdf-clean-markdown-rebuild",
+        "version": "snapshot-2026-07-26",
+        "path": "skills/pdf-clean-markdown-rebuild/SKILL.md"
+      },
+      {
+        "id": "material-semantic-annotator",
+        "version": "snapshot-2026-07-26",
+        "path": "skills/material-semantic-annotator/SKILL.md"
+      },
+      {
+        "id": "cleanlatex-to-elegantbook",
+        "version": "snapshot-2026-07-26",
+        "path": "skills/cleanlatex-to-elegantbook/SKILL.md"
+      },
+      {
+        "id": "refine-elegantbook-latex",
+        "version": "snapshot-2026-07-26",
+        "path": "skills/refine-elegantbook-latex/SKILL.md"
+      },
+      {
+        "id": "finished-textbook-final-review",
+        "version": "snapshot-2026-07-26",
+        "path": "skills/finished-textbook-final-review/SKILL.md"
+      }
+    ],
+    "specs": [
+      {
+        "id": "spec-01-input-and-provenance",
+        "version": "snapshot-2026-07-26",
+        "path": "contracts/elegantbookcompiler/01-input-and-provenance-spec.md"
+      },
+      {
+        "id": "spec-02-body-scope-and-reading-order",
+        "version": "snapshot-2026-07-26",
+        "path": "contracts/elegantbookcompiler/02-body-scope-and-reading-order-spec.md"
+      },
+      {
+        "id": "spec-03-content-evidence-ledger",
+        "version": "snapshot-2026-07-26",
+        "path": "contracts/elegantbookcompiler/03-content-evidence-ledger-spec.md"
+      },
+      {
+        "id": "spec-04-semantic-elegantbook-mapping",
+        "version": "snapshot-2026-07-26",
+        "path": "contracts/elegantbookcompiler/04-semantic-elegantbook-mapping-spec.md"
+      },
+      {
+        "id": "spec-05-template-freeze-and-compile",
+        "version": "snapshot-2026-07-26",
+        "path": "contracts/elegantbookcompiler/05-template-freeze-and-compile-spec.md"
+      },
+      {
+        "id": "spec-06-final-page-review-and-acceptance",
+        "version": "snapshot-2026-07-26",
+        "path": "contracts/elegantbookcompiler/06-final-page-review-and-acceptance-spec.md"
+      }
+    ],
+    "schemas": [
+      {
+        "id": "composite-reading-relationship-v1",
+        "version": "snapshot-2026-07-26",
+        "path": "schemas/elegantbookcompiler/composite-reading-relationship-v1.schema.json"
+      },
+      {
+        "id": "elegantbookcompiler-pipeline",
+        "version": "snapshot-2026-07-26",
+        "path": "schemas/elegantbookcompiler/elegantbookcompiler-pipeline.schema.json"
+      },
+      {
+        "id": "render-coverage-delivery-set",
+        "version": "snapshot-2026-07-26",
+        "path": "schemas/elegantbookcompiler/render-coverage-delivery-set.schema.json"
+      },
+      {
+        "id": "spec05-delivery-asset-report",
+        "version": "snapshot-2026-07-26",
+        "path": "schemas/elegantbookcompiler/spec05-delivery-asset-report.schema.json"
+      },
+      {
+        "id": "spec05-overleaf-delivery-compatibility-report",
+        "version": "snapshot-2026-07-26",
+        "path": "schemas/elegantbookcompiler/spec05-overleaf-delivery-compatibility-report.schema.json"
+      },
+      {
+        "id": "spec06-delivery-set-disposition",
+        "version": "snapshot-2026-07-26",
+        "path": "schemas/elegantbookcompiler/spec06-delivery-set-disposition.schema.json"
+      },
+      {
+        "id": "volume-partition-plan",
+        "version": "snapshot-2026-07-26",
+        "path": "schemas/elegantbookcompiler/volume-partition-plan.schema.json"
+      },
+      {
+        "id": "worker-v3.spec01-intake-contract",
+        "version": "1.0.0",
+        "path": "schemas/spec01-intake-contract-v1.schema.json"
+      },
+      {
+        "id": "worker-v3.spec02-scope-order-review",
+        "version": "3.0.0",
+        "path": "schemas/spec02-scope-order-review-v3.schema.json"
+      },
+      {
+        "id": "worker-v3.spec03-media-review",
+        "version": "2.0.0",
+        "path": "schemas/spec03-media-review-v2.schema.json"
+      },
+      {
+        "id": "worker-v3.spec04a-outline-compact-review",
+        "version": "1.0.0",
+        "path": "schemas/spec04a-outline-compact-review-v1.schema.json"
+      },
+      {
+        "id": "worker-v3.spec04b-semantic-compact-review",
+        "version": "2.0.0",
+        "path": "schemas/spec04b-semantic-compact-review-v1.schema.json"
+      },
+      {
+        "id": "worker-v3.spec04c-construct-compact-review",
+        "version": "1.0.0",
+        "path": "schemas/spec04c-construct-compact-review-v1.schema.json"
+      },
+      {
+        "id": "worker-v3.spec04d-render-compact-review",
+        "version": "1.0.0",
+        "path": "schemas/spec04d-render-compact-review-v1.schema.json"
+      },
+      {
+        "id": "worker-v3.spec06-full-page-source-fidelity-review",
+        "version": "1.1.0",
+        "path": "schemas/spec06-full-page-source-fidelity-review-v1.schema.json"
+      }
+    ]
+  },
+  "stage_entrypoints": [
+    {
+      "stage": "intake_snapshot",
+      "producer": {
+        "id": "worker-v3.intake-snapshot.produce",
+        "classification": "formal",
+        "tool_path": "scripts/stages/producers/intake_snapshot.py"
+      },
+      "evaluator": {
+        "id": "worker-v3.intake-snapshot.evaluate",
+        "classification": "formal",
+        "tool_path": "scripts/stages/evaluators/intake_snapshot.py"
+      }
+    },
+    {
+      "stage": "source_scope_and_order",
+      "producer": {
+        "id": "worker-v3.source-scope-and-order.produce",
+        "classification": "formal",
+        "tool_path": "scripts/stages/producers/source_scope_and_order.py"
+      },
+      "evaluator": {
+        "id": "worker-v3.source-scope-and-order.evaluate",
+        "classification": "formal",
+        "tool_path": "scripts/stages/evaluators/source_scope_and_order.py"
+      }
+    },
+    {
+      "stage": "canonical_block_ledger",
+      "producer": {
+        "id": "worker-v3.canonical-block-ledger.produce",
+        "classification": "formal",
+        "tool_path": "scripts/stages/producers/canonical_block_ledger.py"
+      },
+      "evaluator": {
+        "id": "worker-v3.canonical-block-ledger.evaluate",
+        "classification": "formal",
+        "tool_path": "scripts/stages/evaluators/canonical_block_ledger.py"
+      }
+    },
+    {
+      "stage": "outline_reconstruction",
+      "producer": {
+        "id": "worker-v3.outline-reconstruction.produce",
+        "classification": "formal",
+        "tool_path": "scripts/stages/producers/outline_reconstruction.py"
+      },
+      "evaluator": {
+        "id": "worker-v3.outline-reconstruction.evaluate",
+        "classification": "formal",
+        "tool_path": "scripts/stages/evaluators/outline_reconstruction.py"
+      }
+    },
+    {
+      "stage": "semantic_annotation",
+      "producer": {
+        "id": "worker-v3.semantic-annotation.produce",
+        "classification": "formal",
+        "tool_path": "scripts/stages/producers/semantic_annotation.py"
+      },
+      "evaluator": {
+        "id": "worker-v3.semantic-annotation.evaluate",
+        "classification": "formal",
+        "tool_path": "scripts/stages/evaluators/semantic_annotation.py"
+      }
+    },
+    {
+      "stage": "template_construct_binding",
+      "producer": {
+        "id": "worker-v3.template-construct-binding.produce",
+        "classification": "formal",
+        "tool_path": "scripts/stages/producers/template_construct_binding.py"
+      },
+      "evaluator": {
+        "id": "worker-v3.template-construct-binding.evaluate",
+        "classification": "formal",
+        "tool_path": "scripts/stages/evaluators/template_construct_binding.py"
+      }
+    },
+    {
+      "stage": "frozen_render_plan",
+      "producer": {
+        "id": "worker-v3.frozen-render-plan.produce",
+        "classification": "formal",
+        "tool_path": "scripts/stages/producers/frozen_render_plan.py"
+      },
+      "evaluator": {
+        "id": "worker-v3.frozen-render-plan.evaluate",
+        "classification": "formal",
+        "tool_path": "scripts/stages/evaluators/frozen_render_plan.py"
+      }
+    },
+    {
+      "stage": "deterministic_elegantbook",
+      "producer": {
+        "id": "worker-v3.deterministic-elegantbook.produce",
+        "classification": "formal",
+        "tool_path": "scripts/stages/producers/deterministic_elegantbook.py"
+      },
+      "evaluator": {
+        "id": "worker-v3.deterministic-elegantbook.evaluate",
+        "classification": "formal",
+        "tool_path": "scripts/stages/evaluators/deterministic_elegantbook.py"
+      }
+    },
+    {
+      "stage": "readonly_latex_audit",
+      "producer": {
+        "id": "worker-v3.readonly-latex-audit.produce",
+        "classification": "formal",
+        "tool_path": "scripts/stages/producers/readonly_latex_audit.py"
+      },
+      "evaluator": {
+        "id": "worker-v3.readonly-latex-audit.evaluate",
+        "classification": "formal",
+        "tool_path": "scripts/stages/evaluators/readonly_latex_audit.py"
+      }
+    },
+    {
+      "stage": "independent_full_page_review",
+      "producer": {
+        "id": "worker-v3.independent-full-page-review.produce",
+        "classification": "formal",
+        "tool_path": "scripts/stages/producers/independent_full_page_review.py"
+      },
+      "evaluator": {
+        "id": "worker-v3.independent-full-page-review.evaluate",
+        "classification": "formal",
+        "tool_path": "scripts/stages/evaluators/independent_full_page_review.py"
+      }
+    },
+    {
+      "stage": "delivery_recompile",
+      "producer": {
+        "id": "worker-v3.delivery-recompile.produce",
+        "classification": "formal",
+        "tool_path": "scripts/stages/producers/delivery_recompile.py"
+      },
+      "evaluator": {
+        "id": "worker-v3.delivery-recompile.evaluate",
+        "classification": "formal",
+        "tool_path": "scripts/stages/evaluators/delivery_recompile.py"
+      }
+    },
+    {
+      "stage": "ready_for_user_acceptance",
+      "producer": {
+        "id": "worker-v3.ready-for-user-acceptance.produce",
+        "classification": "formal",
+        "tool_path": "scripts/stages/producers/ready_for_user_acceptance.py"
+      },
+      "evaluator": {
+        "id": "worker-v3.ready-for-user-acceptance.evaluate",
+        "classification": "formal",
+        "tool_path": "scripts/stages/evaluators/ready_for_user_acceptance.py"
+      }
+    }
+  ],
+  "prompts": [
+    {
+      "id": "worker-v3.spec02-scope-order-review",
+      "version": "3.0.0",
+      "path": "prompts/spec02-scope-order-review-v3.txt",
+      "output_schema": "schemas/spec02-scope-order-review-v3.schema.json"
+    },
+    {
+      "id": "worker-v3.spec03-media-review",
+      "version": "2.1.0",
+      "path": "prompts/spec03-media-review-v2.txt",
+      "output_schema": "schemas/spec03-media-review-v2.schema.json"
+    },
+    {
+      "id": "worker-v3.spec04a-outline-review",
+      "version": "2.0.0",
+      "path": "prompts/spec04a-outline-review-v2.txt",
+      "output_schema": "schemas/spec04a-outline-compact-review-v1.schema.json"
+    },
+    {
+      "id": "worker-v3.spec04b-semantic-review",
+      "version": "3.0.0",
+      "path": "prompts/spec04b-semantic-review-v2.txt",
+      "output_schema": "schemas/spec04b-semantic-compact-review-v1.schema.json"
+    },
+    {
+      "id": "worker-v3.spec04c-construct-review",
+      "version": "2.0.0",
+      "path": "prompts/spec04c-construct-review-v2.txt",
+      "output_schema": "schemas/spec04c-construct-compact-review-v1.schema.json"
+    },
+    {
+      "id": "worker-v3.spec04d-render-policy",
+      "version": "2.0.0",
+      "path": "prompts/spec04d-render-policy-v1.txt",
+      "output_schema": "schemas/spec04d-render-compact-review-v1.schema.json"
+    },
+    {
+      "id": "worker-v3.spec06-full-page-source-fidelity-review",
+      "version": "1.1.1",
+      "path": "prompts/spec06-full-page-source-fidelity-review-v1.txt",
+      "output_schema": "schemas/spec06-full-page-source-fidelity-review-v1.schema.json"
+    }
+  ],
+  "model_policy": {
+    "mode": "release-scoped-schema-bounded-json",
+    "network_calls_allowed": true,
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "endpoint_origin_sha256": "a34e2a4708ed1c61008a151688838dcf1c44d4e7f08054633e72ba7c0b16cfc1",
+    "request_parameters": {
+      "temperature": 0,
+      "max_output_tokens": 16000,
+      "thinking": {
+        "type": "disabled"
+      }
+    },
+    "timeout_seconds": 600,
+    "max_stage_calls": 1,
+    "max_stage_input_tokens": 500000,
+    "max_stage_output_tokens": 16000,
+    "max_stage_request_bytes": 1000000,
+    "max_output_json_bytes_per_token": 16,
+    "max_stage_seconds": 900,
+    "ordinary_models": [
+      "deepseek-v4-flash",
+      "deepseek-v4-pro"
+    ],
+    "pricing_snapshot_sha256": "be481c936ec3f89adee98f390d0b2a94bef0a4b79fc82e5741e4e6cc69278b45",
+    "pricing_snapshot": {
+      "schema_version": "luceon.worker-v3-pricing-snapshot/v1",
+      "snapshot_id": "worker-v3-cn-public-list-price-20260726",
+      "retrieved_at": "2026-07-26",
+      "currency": "CNY",
+      "micro_unit_exponent": 6,
+      "token_rate_denominator": 1000000,
+      "rounding": "ceil_each_component_to_micro_unit",
+      "sources": [
+        {
+          "provider": "deepseek",
+          "url": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+          "retrieved_at": "2026-07-26"
+        },
+        {
+          "provider": "dashscope",
+          "url": "https://help.aliyun.com/zh/model-studio/model-pricing",
+          "retrieved_at": "2026-07-26"
+        }
+      ],
+      "models": [
+        {
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "service_region": "official-api-global",
+          "billing_mode": "realtime",
+          "inference_mode": "thinking-or-nonthinking-same-rate",
+          "promotional_rates_excluded": true,
+          "cache_pricing_policy": "provider_breakdown_else_all_miss",
+          "tiers": [
+            {
+              "id": "input-0-to-1000000",
+              "input_tokens_min_exclusive": 0,
+              "input_tokens_max_inclusive": 1000000,
+              "input_cache_hit_micro_per_million": 20000,
+              "input_cache_miss_micro_per_million": 1000000,
+              "output_micro_per_million": 2000000
+            }
+          ]
+        },
+        {
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "service_region": "official-api-global",
+          "billing_mode": "realtime",
+          "inference_mode": "thinking-or-nonthinking-same-rate",
+          "promotional_rates_excluded": true,
+          "cache_pricing_policy": "provider_breakdown_else_all_miss",
+          "tiers": [
+            {
+              "id": "input-0-to-1000000",
+              "input_tokens_min_exclusive": 0,
+              "input_tokens_max_inclusive": 1000000,
+              "input_cache_hit_micro_per_million": 25000,
+              "input_cache_miss_micro_per_million": 3000000,
+              "output_micro_per_million": 6000000
+            }
+          ]
+        },
+        {
+          "provider": "dashscope",
+          "model": "qwen3.7-plus-2026-05-26",
+          "service_region": "cn-beijing",
+          "billing_mode": "realtime",
+          "inference_mode": "non-thinking",
+          "promotional_rates_excluded": true,
+          "cache_pricing_policy": "all_input_at_standard_rate",
+          "tiers": [
+            {
+              "id": "input-0-to-262144",
+              "input_tokens_min_exclusive": 0,
+              "input_tokens_max_inclusive": 262144,
+              "input_cache_hit_micro_per_million": 2000000,
+              "input_cache_miss_micro_per_million": 2000000,
+              "output_micro_per_million": 8000000
+            },
+            {
+              "id": "input-262144-to-1048576",
+              "input_tokens_min_exclusive": 262144,
+              "input_tokens_max_inclusive": 1048576,
+              "input_cache_hit_micro_per_million": 6000000,
+              "input_cache_miss_micro_per_million": 6000000,
+              "output_micro_per_million": 24000000
+            }
+          ]
+        }
+      ]
+    },
+    "visual_review": {
+      "mode": "release-scoped-schema-bounded-vision",
+      "provider": "dashscope",
+      "model": "qwen3.7-plus-2026-05-26",
+      "endpoint_origin_sha256": "ec1f29107de2c3a3df64b95fe366d7c640c5a610fdc5b6804611630835b4dafc",
+      "batch_size": 2,
+      "max_output_tokens": 6000,
+      "timeout_seconds": 180,
+      "max_stage_calls": 1000,
+      "max_stage_input_tokens": 4000000,
+      "max_stage_output_tokens": 1000000,
+      "max_stage_seconds": 86400,
+      "max_source_pages": 1500,
+      "max_candidate_pages": 2000,
+      "min_free_bytes": 4294967296,
+      "max_render_bundle_bytes": 4294967296
+    }
+  },
+  "template": {
+    "id": "approved-elegantbook-2025",
+    "version": "2025-template-freeze",
+    "archive_path": "templates/2025教材模版新版.zip",
+    "main_member": "main.tex",
+    "class_member": "elegantbook.cls",
+    "fixed_asset_members": [
+      "figure/logo.jpg",
+      "figure/cover.jpg"
+    ],
+    "capabilities_path": "references/template-capabilities.json"
+  },
+  "runtime": {
+    "python": "CPython 3.12.13",
+    "application_dependencies_path": "runtime/requirements-worker-v3.lock",
+    "system_tools": {
+      "runtime_id": "worker-v3-runtime-rc-5d31514",
+      "system_lock": "runtime/worker-v3-system-packages.lock",
+      "identity": "runtime/ordinary-runtime-identity.json",
+      "build_proof": "runtime/ordinary-runtime-build-proof.json",
+      "overleaf_compiler": {
+        "profile_path": "runtime/overleaf-target-environment.json",
+        "profile_sha256": "5c434a7ca1fdfcea7659266c997fd581b6a8732ec574fcdf3be46115e30355e4"
+      },
+      "spec05_build": {
+        "profile_path": "runtime/spec05-build-policy.json",
+        "profile_sha256": "89977b20b5db3c93f633c3846f0c3131e82a6cbad17d503e505f155bb3a6e831"
+      }
+    },
+    "fonts_identity_path": "runtime/ordinary-runtime-identity.json",
+    "tex_identity_path": "runtime/ordinary-runtime-identity.json",
+    "poppler_identity_path": "runtime/ordinary-runtime-identity.json",
+    "container_image_digest": "sha256:4b3894462fef3f3333dcc1d1ec1b4accea8b9e4922a3a5716eec3f9e585722d7",
+    "sbom_path": "runtime/ordinary-runtime-sbom.cdx.json",
+    "attestations": [
+      "runtime/ordinary-runtime-identity.json",
+      "runtime/ordinary-runtime-build-proof.json",
+      "runtime/worker-v3-system-packages.lock",
+      "runtime/overleaf-target-environment.json",
+      "runtime/spec05-build-policy.json"
+    ]
+  },
+  "dynamic_closure": {
+    "modules": [],
+    "resources": []
+  },
+  "qualification_evidence": {
+    "visual_full_page_provider": {
+      "required": true,
+      "source_id": "worker-v3-visual-full-page-provider-qualification-5d31514"
+    },
+    "spec05_final_image_real_material": {
+      "required": true,
+      "source_id": "worker-v3-spec05-final-image-real-material-qualification-5d31514"
+    }
+  },
+  "known_gaps": [],
+  "compatibility": {
+    "v2_3": "V2.3 remains isolated and unchanged; V3 uses distinct tables, queues and object prefixes",
+    "rollback": "disable Worker V3 admission and keep V2.3 as the unchanged active fallback; do not rewrite historical V2.3 state or objects"
+  }
+}

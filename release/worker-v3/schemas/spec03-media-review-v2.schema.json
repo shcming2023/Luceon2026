@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "worker-v3.spec03-media-review/2.0.0",
+  "title": "Worker V3 compact Spec 03 media disposition review",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "review_id",
+    "material_id",
+    "source_pdf_sha256",
+    "baseline_sha256",
+    "review_status",
+    "media",
+    "media_overrides",
+    "open_reviews"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "luceon.worker-v3-spec03-media-review/v2"
+    },
+    "review_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "material_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "source_pdf_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "baseline_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "review_status": {
+      "type": "string",
+      "const": "closed"
+    },
+    "media": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "required": [
+          "media_index",
+          "baseline_disposition"
+        ],
+        "properties": {
+          "media_index": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "baseline_disposition": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "overridden"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "media_overrides": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "required": [
+          "media_index",
+          "disposition",
+          "selected_candidate_index",
+          "source_unit_indexes",
+          "reason",
+          "review_status"
+        ],
+        "properties": {
+          "media_index": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "disposition": {
+            "type": "string",
+            "enum": [
+              "source_asset",
+              "source_region",
+              "structured_transcription",
+              "excluded_noninstructional"
+            ]
+          },
+          "selected_candidate_index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "source_unit_indexes": {
+            "type": "array",
+            "maxItems": 100000,
+            "uniqueItems": true,
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "review_status": {
+            "type": "string",
+            "const": "closed"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "open_reviews": {
+      "type": "array",
+      "maxItems": 0,
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}

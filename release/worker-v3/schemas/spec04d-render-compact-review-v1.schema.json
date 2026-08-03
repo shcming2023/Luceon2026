@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luceon.local/schemas/spec04d-render-compact-review-v1.schema.json",
+  "title": "Worker V3 Spec 04-D compact render-policy review",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "review_status",
+    "decisions",
+    "open_reviews"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "luceon.worker-v3-spec04d-compact-review/v1"
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "review_status": {
+      "const": "closed"
+    },
+    "decisions": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "task_id",
+          "selected_option_id"
+        ],
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "selected_option_id": {
+            "type": "string",
+            "pattern": "^option-[0-9]{4}$"
+          }
+        }
+      }
+    },
+    "open_reviews": {
+      "type": "array",
+      "maxItems": 0
+    }
+  }
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "PDF Clean Markdown Rebuild"
+  short_description: "Rebuild MinIO MinerU-Popo tasks or PDF extraction folders into clean Markdown master files"
+  default_prompt: "Use $pdf-clean-markdown-rebuild to show the state-aware startup task menu for eduassets-minerupopo: all rebuild, continue rebuild, retry failed, selected rebuild, random test rebuild, discover only, or local-folder rebuild. After I choose, confirm the source/rebuild state scope and whether eduassets-raw will be written before executing."

@@ -1,0 +1,226 @@
+{
+  "schema_version": "luceon.worker-v3-spec02-v3-live-and-release-rebind-evidence/v1",
+  "material": {
+    "database_id": 1343,
+    "material_id": "pdf-8e5464971a3e1d6b",
+    "source_pdf_sha256": "8e5464971a3e1d6b40f5afc996dba67efc9af60e29d73ce10730e91c4fa12fad",
+    "page_count": 200
+  },
+  "authorization": {
+    "request_sha256": "907c4dac467cf112731d8a05a581d3d778631060690aeb4db2129b693196d350",
+    "scope": "exactly one provider call",
+    "consumed": true,
+    "attempts": 1,
+    "retries": 0
+  },
+  "provider_call": {
+    "status": "http_succeeded",
+    "http_status": 200,
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "response_id": "531b98ca-93c6-477c-b95d-a4b365c54832",
+    "finish_reason": "stop",
+    "call_id": "d374750866a5d475093efbb1dc848e22b04d2bf45d9a57d18c1b19320a416cf0",
+    "raw_response_sha256": "8cb450b719e36ba1ea297b0e2cee76cb89d6e1e0d770caa15c54cc6240cfd20b",
+    "usage": {
+      "input_tokens": 285898,
+      "output_tokens": 3817,
+      "total_tokens": 289715,
+      "cache_hit_input_tokens": 0,
+      "cache_miss_input_tokens": 285898
+    },
+    "live_evidence_sha256": "47bad5623d63f56398aa23538d36e979b1b3b8ac693473ee237720fe039692a5"
+  },
+  "one_shot_harness_finding": {
+    "observed_status": "decision_policy_violation",
+    "root_cause": "the external one-shot harness reconstructed allowed_choices from the Spec 02 input, while the production Executor intentionally binds allowed_choices to an empty object",
+    "provider_or_schema_failure": false,
+    "production_replay_required": true
+  },
+  "immutable_offline_replay": {
+    "status": "succeeded",
+    "network_used": false,
+    "production_allowed_choices": {},
+    "parsed_result_sha256": "6934b38a57afb48021dcfeba28ffe2dc3264f02180bedc980203e79cb980652b",
+    "fixture_sha256": "fba19f71aed1768d69df07c9b2219a33dadb6375b738c7a8c641b0698ca34297",
+    "replay_evidence_sha256": "d01a8af55a94b28e950446e1a06807e694593f7942b8e2fb84e58441b18e117b"
+  },
+  "qualification_findings": [
+    {
+      "status": "fixed",
+      "code": "review_schema_release_binding_missing",
+      "root_cause": "the immutable release manifest bound the raw schema file bytes while the LLM gateway correctly bound canonical parsed JSON; the adapter compared the two distinct identities as if they were the same hash",
+      "fix_commit": "38e8a602895d5e6c710d567f7cf14b63998bd589"
+    },
+    {
+      "status": "fixed",
+      "code": "skill_release_identity_verified_false",
+      "root_cause": "the first fix returned the canonical schema hash to non-LLM candidate manifests, but candidate lineage must preserve the raw release file hash",
+      "fix_commit": "9447aedb688dd7d0f4c78978a4e5d95892554675"
+    }
+  ],
+  "final_runtime": {
+    "source_revision": "9447aedb688dd7d0f4c78978a4e5d95892554675",
+    "image_tag": "luceonweb2026-worker-v3-runtime:rc-9447aed",
+    "image_digest": "sha256:e35e466e0e7b1f7a82404b577683617d264aba7b23bf8d6fbaea92fe407fa9a9",
+    "runtime_identity_sha256": "ef729dc22ed232a68acc1efc0f39eff54eca51033dd1f28894dac6e10877ff46",
+    "sbom_sha256": "c8835ee14f245b7d80838972c4aa02de0b05a14d4fd6fa037694dbc29c24e2e3",
+    "tests": {
+      "passed": 335,
+      "skipped": 2,
+      "failed": 0
+    }
+  },
+  "final_release": {
+    "archive_sha256": "e92eaa1394db83d58a01c6d9a9430a86735cb0e78979d144ed6eac1d72f923c0",
+    "tree_sha256": "1e8fc01dc6585db3e16f3f31081c0ad37a1520f822f1063f88ba7f4e3ee13714",
+    "manifest_sha256": "249412df30addb925a17c798e470f63d3c2d9fe4744a46bb38e873ed3d9755db",
+    "recapture_report_sha256": "24075ff90ab00babcf123ae31964b5301b9cdabbbf9ca7ab38607282af132c76",
+    "deterministic_rebuild_archive_sha256": "e92eaa1394db83d58a01c6d9a9430a86735cb0e78979d144ed6eac1d72f923c0",
+    "self_reference_removed": true,
+    "intake_snapshot": {
+      "producer": "succeeded",
+      "evaluator": "passed",
+      "promotion": "created"
+    }
+  },
+  "request_rebind_decision": {
+    "original_authorized_request_sha256": "907c4dac467cf112731d8a05a581d3d778631060690aeb4db2129b693196d350",
+    "final_release_request_sha256": "82de64d19edcd9e98ac7333ad939fb06386700935e7c421dce025b63109a7f89",
+    "final_release_call_id": "92dd2742be0ac91fd05dc52a7620dfc0191c5036e2fba204e28897b7e9a5c2ba",
+    "model_visible_payload_equal": true,
+    "changed_request_paths": [
+      "call_id",
+      "binding.release_sha256"
+    ],
+    "rebind_allowed": false,
+    "reason": "the qualification protocol is exact-request-hash bound; a response authorized for and returned against the original release identity cannot be represented as provider evidence for a different final release request. The final request hash is stored only in external audit evidence so it does not recursively change the release manifest.",
+    "next_authorization_required": false,
+    "authorization_consumed": true
+  },
+  "final_request_authorization": {
+    "request_sha256": "82de64d19edcd9e98ac7333ad939fb06386700935e7c421dce025b63109a7f89",
+    "scope": "exactly one provider call",
+    "consumed": true,
+    "attempts": 1,
+    "retries": 0,
+    "attempt_started_sha256": "a599011f374b6ae2c71c35d69552229a2b7fcc91f83d4215c6cf5a2943a4b923"
+  },
+  "final_provider_call": {
+    "status": "succeeded",
+    "http_status": 200,
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "response_id": "66742af4-b33e-4c7b-bdd4-b264998b6d96",
+    "finish_reason": "stop",
+    "call_id": "92dd2742be0ac91fd05dc52a7620dfc0191c5036e2fba204e28897b7e9a5c2ba",
+    "raw_response_sha256": "70be002fb5bf3d005bad5e13fc9f5add64338ec0ef937e4b8a3affa11bb7c726",
+    "parsed_result_sha256": "6934b38a57afb48021dcfeba28ffe2dc3264f02180bedc980203e79cb980652b",
+    "usage": {
+      "input_tokens": 285898,
+      "output_tokens": 3817,
+      "total_tokens": 289715,
+      "cache_hit_input_tokens": 285824,
+      "cache_miss_input_tokens": 74
+    },
+    "latency_ms_wall": 20628,
+    "live_evidence_sha256": "1b628fcd711beeb1f9e6dfb5499f09da17c13d00ed814dcaa5ff0433c170ac22",
+    "fixture_sha256": "e32e537c7237c2a26da852b2e434887b07ca096d00f8f0b0d291c4c10a0e62d7"
+  },
+  "final_image_qualification_replay": {
+    "status": "spec02_passed_then_failed_closed_at_next_missing_fixture",
+    "network_used": false,
+    "production_state_written": false,
+    "release_promoted": false,
+    "job_id": "c699d7e4-c532-4fb5-ab3e-bd95195a6890",
+    "report_sha256": "e474a8070c3e3a3cd28bb1321e6b4914d1e18450d2b70829260891f4bb6eaff9",
+    "payload_sha256": "be96fa040d5fca566dcf704886cc3f4ee146ebe25e27dcb1944505572acc7609",
+    "fixture_transport": {
+      "declared_responses": 1,
+      "observed_calls": 1,
+      "observed_request_sha256": [
+        "82de64d19edcd9e98ac7333ad939fb06386700935e7c421dce025b63109a7f89"
+      ],
+      "unused_request_sha256": []
+    },
+    "stages": [
+      {
+        "stage": "intake_snapshot",
+        "producer": "succeeded",
+        "evaluator": "passed",
+        "promotion_id": "1"
+      },
+      {
+        "stage": "source_scope_and_order",
+        "producer": "succeeded",
+        "evaluator": "passed",
+        "promotion_id": "2",
+        "candidate_sha256": "0004210c8d989acf3853fc2d1b63a1b8320ac991f717ede05508b0881bd53b35"
+      }
+    ],
+    "next_failure": {
+      "stage": "canonical_block_ledger",
+      "error_code": "qualification_fixture_missing",
+      "provider_called": false
+    }
+  },
+  "next_exact_request": {
+    "stage": "canonical_block_ledger",
+    "request_sha256": "9e6793307ede5b994a5a7b33c4b62f4237cf0ff111ea159a99244ed952798b79",
+    "call_id": "21c1ea2f734b45ae3b9951c68f6050d4c5c9ddf8b29ff99d4d1cee1455e08df3",
+    "input_sha256": "dac09d825ad15ffff0205c26ecf07d8f2e220593d49d00995fdf998ceda17e4d",
+    "request_file_sha256": "9e6793307ede5b994a5a7b33c4b62f4237cf0ff111ea159a99244ed952798b79",
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "prompt": {
+      "id": "worker-v3.spec03-media-review",
+      "version": "1.0.0",
+      "sha256": "6f1e6656e8db84ccae62c96bb51a74a4ac95b2de9eb1cae0b6657b15f03f1a8f"
+    },
+    "schema": {
+      "id": "worker-v3.spec03-media-review",
+      "version": "1.0.0",
+      "canonical_sha256": "21112be6f524146a3dcff401e30f068d5bffa761f6d800c492cb912f76893117",
+      "file_sha256": "64f84427860b9a1c71d155f334619159c09743787486e10277428356c18b5811"
+    },
+    "parameters": {
+      "temperature": 0,
+      "thinking": {
+        "type": "disabled"
+      },
+      "max_output_tokens": 16000
+    },
+    "authorization_required": true,
+    "provider_calls_so_far": 0
+  },
+  "final_call_guard": {
+    "runner_path": "/private/tmp/worker_v3_call_82de64d1_once.py",
+    "runner_sha256": "60efee6eeffe8c89df79aec3d239123627cf565b20da82eeb874f2899090cc77",
+    "runner_mode": "0500",
+    "preflight_status": "passed",
+    "preflight_network_used": false,
+    "production_allowed_choices": {},
+    "authorization_environment": "WORKER_V3_AUTHORIZED_REQUEST_SHA256",
+    "missing_authorization_test": {
+      "status": "rejected_before_network",
+      "output_directory_created": false
+    },
+    "qualification_replay_runner": {
+      "path": "/private/tmp/run_worker_v3_qualification_after_82de64d1.sh",
+      "sha256": "6140d864abc20b0ba1adf1f52b30033a57d0e3f2da0fed4c437d243e0138428d",
+      "mode": "0500",
+      "network": "none",
+      "empty_fixture_guard": "rejected_before_run_root_creation"
+    },
+    "overleaf_one_shot_runner": {
+      "path": "/private/tmp/run_overleaf_compile_once_final.sh",
+      "sha256": "60b70d62dea0ea791b4ed9abd1317cc9a2735227ed1651d76dcae3abfed03a60",
+      "mode": "0500",
+      "worker_image_digest": "sha256:e35e466e0e7b1f7a82404b577683617d264aba7b23bf8d6fbaea92fe407fa9a9",
+      "adapter_image_digest": "sha256:e983be555820cc24d6d69e813142d1e7bca7fdc514c9a8a29aa139801e7c7ccf",
+      "missing_zip_guard": "rejected_before_docker_object_creation",
+      "guard_docker_counts_before_after": "0/0/0 -> 0/0/0"
+    }
+  },
+  "verdict": "Both separately authorized exact Spec 02 requests were each called exactly once. The final frozen-release request succeeded with no retry, and isolated final-image replay passed Spec 02 Producer, Evaluator and Promotion. Execution then failed closed at Spec 03 because no exact fixture was authorized; no Spec 03 provider call occurred. The executable candidate has passed the Spec 02 capacity qualification, while the current incomplete archive still retains its admission-gap declaration until final evidence reassembly."
+}

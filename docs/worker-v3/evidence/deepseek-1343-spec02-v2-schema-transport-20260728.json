@@ -1,0 +1,121 @@
+{
+  "schema_version": "luceon.worker-v3-live-provider-qualification-evidence/v1",
+  "qualification_id": "deepseek-1343-spec02-v2-schema-transport-20260728",
+  "executed_at": "2026-07-28",
+  "scope": {
+    "material_pk": 1343,
+    "material_id": "pdf-8e5464971a3e1d6b",
+    "stage_key": "source_scope_and_order",
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "attempts": 1,
+    "retry_count": 0
+  },
+  "runtime": {
+    "image_digest": "sha256:6f622548b136c302256cc7174cb2cb889e1790c06f42dbd2528d285711325b11",
+    "runtime_id": "worker-v3-runtime-rc-521fee1",
+    "source_revision": "521fee15ee857cf07115eb77d369c7597c2887ab"
+  },
+  "release": {
+    "archive_sha256": "b494e7668b9df2bd10cd9d721e55303e818767f2055dee9e77f107aadd629b1d",
+    "tree_sha256": "0f0e94d36a19a0f32462bcdecb94a644908f8a25c0ec67c7855092ad41dc3ec1",
+    "manifest_sha256": "c67fa5af4a309380269ce75cfc15cd370fa307a611bc4dc0d778ea06ebe3f330",
+    "status": "incomplete"
+  },
+  "request": {
+    "file_sha256": "58b694198e89dd0a70880934c3840da70fff9f756e34c793b072baf89ca18360",
+    "canonical_sha256": "3d5e894cc936b375a5b0276c4c6cb9f16addf79157e559e68cbb0fe5b5197bd9",
+    "canonical_bytes": 820827,
+    "input_sha256": "fa52112c476263c7ce4b934f8b2c4cd75dddff3bfe85b083bf32b3a3b8bae821",
+    "prompt_sha256": "93539983e7c799cf537c596bacad981f9782f429a11186d8df0487f5a2a2ca29",
+    "schema_sha256": "5f9b7704a128ae9a5ead790838f6a031225db1ac87898bae91791baa69078a24",
+    "physical_pages": 200,
+    "source_units": 2859,
+    "minimum_complete_response_bytes": 25910,
+    "maximum_admitted_response_bytes": 256000
+  },
+  "provider_response": {
+    "http_status": 200,
+    "response_id": "9f7febac-3eed-478d-bc1d-4232cf6abea6",
+    "raw_response_sha256": "8a13759b35ea22437747b80386bb3337755a6ea9f8ff6af47a5050437a6e8068",
+    "latency_ms": 40002,
+    "finish_reason": "stop",
+    "usage": {
+      "input_tokens": 284604,
+      "output_tokens": 6124,
+      "total_tokens": 290728,
+      "cache_hit_input_tokens": 0,
+      "cache_miss_input_tokens": 284604
+    },
+    "cost": {
+      "currency": "CNY",
+      "micro_units": 296852,
+      "amount": "0.296852",
+      "pricing_snapshot_sha256": "be481c936ec3f89adee98f390d0b2a94bef0a4b79fc82e5741e4e6cc69278b45"
+    }
+  },
+  "strict_gateway_result": {
+    "status": "rejected",
+    "error_code": "schema_mismatch",
+    "retryable": false,
+    "json_parse_status": "passed",
+    "returned_page_rows": 200,
+    "required_page_rows": 200,
+    "returned_top_level_fields": [
+      "baseline_sha256",
+      "page_scope_overrides",
+      "pages",
+      "per_page_reading_order_overrides",
+      "relationships",
+      "review_status"
+    ],
+    "missing_top_level_fields": [
+      "material_id",
+      "open_reviews",
+      "reading_order_overrides",
+      "review_id",
+      "schema_version",
+      "source_pdf_sha256",
+      "unit_scope_overrides"
+    ],
+    "page_item_fields_incomplete": true,
+    "fixture_created": false,
+    "qualification_passed": false
+  },
+  "root_cause": {
+    "classification": "production_blocker",
+    "responsibility": "worker-v3-openai-compatible-transport",
+    "detail": "The release-bound output schema was present in the audited gateway request and local validator, but the provider payload sent only the prompt and input. DeepSeek therefore never received the exact output schema and returned an invented partial shape."
+  },
+  "remediation": {
+    "status": "implemented_rebuilt_live_requalification_pending",
+    "change": "Send one canonical user payload containing both input and output_schema; retain the same strict local validator and do not add aliases, field synthesis, or relaxed gates.",
+    "files": [
+      "backend/app/workflow_v3/llm_transport.py",
+      "backend/tests/test_workflow_v3_llm_transport.py"
+    ],
+    "targeted_tests": {
+      "passed": 58,
+      "failed": 0
+    },
+    "full_worker_v3_tests": {
+      "passed": 329,
+      "skipped": 2,
+      "failed": 0
+    },
+    "rebuilt_runtime": {
+      "source_revision": "90ccb9a32bebbb714920abb5d73fc0a4226d28d4",
+      "runtime_id": "worker-v3-runtime-rc-90ccb9a",
+      "image_digest": "sha256:93f477eb3a6d7ad406fae371d40ed3e20a23effa14bf43f60f803fb8880211a9",
+      "identity_status": "passed",
+      "locked_template_smoke": "passed"
+    }
+  },
+  "evidence_handling": {
+    "private_failure_evidence_sha256": "1d5901367450b7c9213c17f7ddfa3afe7eb7c9254b167d36599a5162ae1fae97",
+    "raw_provider_content_committed": false,
+    "runtime_secret_committed": false,
+    "overleaf_network_created": false
+  },
+  "next_gate": "Regenerate the exact request from the rebuilt immutable Worker image, then obtain explicit approval before any additional provider call."
+}

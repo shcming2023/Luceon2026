@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Teaching material media",
+  "type": "object",
+  "required": ["id", "src", "source_line"],
+  "properties": {
+    "id": {"type": "string"},
+    "src": {"type": "string"},
+    "alt": {"type": "string"},
+    "caption": {"type": "string"},
+    "linked_asset_id": {"type": ["string", "null"]},
+    "role": {"type": "string"},
+    "confidence": {"type": "number"},
+    "source_line": {"type": "integer"},
+    "page_idx": {"type": ["integer", "string", "null"]}
+  }
+}

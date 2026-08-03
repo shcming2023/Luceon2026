@@ -1,0 +1,34 @@
+{
+  "schema_version": "luceon.worker-v3.qualification.overleaf-adapter-real-zip/v1",
+  "qualification_type": "overleaf_adapter_real_zip",
+  "status": "passed",
+  "evidence_id": "overleaf-adapter-real-pdf-642599641f3b15e1-15d88fc",
+  "qualified_at": "2026-08-02T06:34:00+08:00",
+  "worker": {
+    "source_git_sha": "15d88fcd10bb25194d23f29e183422c1ef014e63",
+    "image_digest": "sha256:39e0195aa4c16fc31b990564e37c1c439fd0fcc9fcc7905b25d0692d174ce702",
+    "runtime_identity_sha256": "9ced0dda8b57c29b64aad22d897f821f4fb202149015509629e120af2697214d"
+  },
+  "adapter": {
+    "image_digest": "sha256:6ab47323c6377557428502bfb8b0fbd9a9c6bbb93304684ab572961ec79aa6d1",
+    "runtime_identity_sha256": "e7a4799c79e582d098c3c4506760267e0ac3bbd4ada506a7bb9cacc3d139f6b9",
+    "result_manifest_sha256": "3ffdcc97e586732819253eb77d26e77bcd3e00fbd37c8f7165915444e07d9664",
+    "xelatex_version": "XeTeX 3.141592653-2.6-0.999997 (TeX Live 2025)",
+    "latexmk_version": "Latexmk, John Collins, 27 Dec. 2024. Version 4.86a"
+  },
+  "compile": {
+    "request_id": "6011feabe2b542f3af92b647554aef73",
+    "input_zip_sha256": "81394b387817e53ac4fa0bf9bba9338b958efa9028e8abbf18b03b0bc8684378",
+    "compiled_pdf_sha256": "7f2e9bf147615e8e8f3dad22ee518bf6c76d825476d5642163cadad2871906ad",
+    "compiled_page_count": 4,
+    "compile_log_sha256": "8828b8e734578784a03efd7404312bec539415922918975d9d36dd42fcabf84e"
+  },
+  "isolation": {
+    "root_filesystems_read_only": true,
+    "capabilities_dropped": "all",
+    "no_new_privileges": true,
+    "temporary_internal_network_removed": true,
+    "temporary_worker_container_removed": true,
+    "temporary_adapter_container_removed": true
+  }
+}

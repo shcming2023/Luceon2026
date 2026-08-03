@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luceon.local/schemas/spec04d-preflight-report.schema.json",
+  "type": "object",
+  "required": ["schema_version", "status", "included_source_atoms", "unsafe_unrepresented_fragile_atoms", "issues"],
+  "properties": {
+    "schema_version": {"const": "spec04d-preflight-report/1.0"},
+    "status": {"enum": ["passed", "failed"]},
+    "unsafe_unrepresented_fragile_atoms": {"type": "integer", "minimum": 0},
+    "issues": {"type": "array"}
+  },
+  "additionalProperties": true
+}

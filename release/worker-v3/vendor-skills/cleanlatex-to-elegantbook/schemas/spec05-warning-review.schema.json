@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "spec05-warning-review.schema.json",
+  "title": "Spec 05 warning review closures",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "closures"],
+  "properties": {
+    "schema_version": {"const": "spec05-warning-review/1.0"},
+    "status": {"const": "approved"},
+    "closures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["fingerprint", "classification", "rationale", "visual_pages"],
+        "properties": {
+          "fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "classification": {"enum": ["C2_REVIEW_REQUIRED_CLOSED", "C3_INFO_CLOSED"]},
+          "rationale": {"type": "string", "minLength": 1},
+          "visual_pages": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}}
+        }
+      }
+    }
+  }
+}
