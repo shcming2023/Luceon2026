@@ -500,6 +500,114 @@ def _collect(fixture: Fixture):
     )
 
 
+def _convert_to_evidence_complete_needs_review(
+    fixture: Fixture,
+    *,
+    stage_key: str = "canonical_block_ledger",
+) -> WorkflowV3Evaluation:
+    workflow_db = fixture.workflow_db
+    stages = (
+        workflow_db.query(WorkflowV3StageRun)
+        .filter(WorkflowV3StageRun.workflow_job_id == fixture.job.id)
+        .all()
+    )
+    order = {
+        contract.key: index
+        for index, contract in enumerate(contracts_for_version(WORKFLOW_VERSION))
+    }
+    current = next(row for row in stages if row.stage_key == stage_key)
+    for stage in stages:
+        if order[stage.stage_key] <= order[stage_key]:
+            continue
+        workflow_db.query(WorkflowV3Promotion).filter(
+            WorkflowV3Promotion.stage_run_id == stage.id
+        ).delete(synchronize_session=False)
+        workflow_db.query(WorkflowV3Evaluation).filter(
+            WorkflowV3Evaluation.stage_run_id == stage.id
+        ).delete(synchronize_session=False)
+        workflow_db.query(WorkflowV3Candidate).filter(
+            WorkflowV3Candidate.stage_run_id == stage.id
+        ).delete(synchronize_session=False)
+        workflow_db.query(WorkflowV3Execution).filter(
+            WorkflowV3Execution.stage_run_id == stage.id
+        ).delete(synchronize_session=False)
+        stage.machine_status = "pending"
+        stage.spec_status = "not_evaluated"
+        stage.promoted_candidate_id = None
+        stage.promotion_id = None
+        stage.promoted_artifact_sha256 = ""
+        stage.started_at = None
+        stage.finished_at = None
+
+    workflow_db.query(WorkflowV3Promotion).filter(
+        WorkflowV3Promotion.stage_run_id == current.id
+    ).delete(synchronize_session=False)
+    candidate = (
+        workflow_db.query(WorkflowV3Candidate)
+        .filter(WorkflowV3Candidate.stage_run_id == current.id)
+        .one()
+    )
+    evaluation = (
+        workflow_db.query(WorkflowV3Evaluation)
+        .filter(WorkflowV3Evaluation.stage_run_id == current.id)
+        .one()
+    )
+    candidate.status = "needs_review"
+    evaluation.decision = "needs_review"
+    evaluation.spec_passed = False
+    evaluation.gate_results_json = WorkflowV3Evaluation.dump(
+        {"source_lineage_complete": True, "content_conservation_passed": False}
+    )
+    evaluation.findings_json = WorkflowV3Evaluation.dump(
+        [
+            {
+                "blocking": True,
+                "code": "source_region_review_open",
+                "evidence_refs": [
+                    {"path": "reviews/region.json", "sha256": "9" * 64}
+                ],
+                "handoff": {
+                    "summary": "One exact source region needs review.",
+                    "required_action": "Inspect and record an explicit decision.",
+                    "resume_stage": stage_key,
+                },
+                "recovery_stage": stage_key,
+                "responsible_stage": stage_key,
+            }
+        ]
+    )
+    current.machine_status = "needs_review"
+    current.spec_status = "needs_review"
+    current.promoted_candidate_id = None
+    current.promotion_id = None
+    current.promoted_artifact_sha256 = ""
+    fixture.job.machine_status = "needs_review"
+    fixture.job.spec_status = "needs_review"
+    fixture.job.readiness_status = "not_ready"
+    fixture.job.human_acceptance_status = "pending"
+    fixture.job.current_stage_key = stage_key
+    fixture.job.error_code = "human_review_required"
+    fixture.job.error_message = "independent evidence requires a human decision"
+    workflow_db.query(WorkflowV3ProjectionOutbox).filter(
+        WorkflowV3ProjectionOutbox.workflow_job_id == fixture.job.id
+    ).delete(synchronize_session=False)
+    fixture.material_db.query(MaterialOutput).filter(
+        MaterialOutput.output_run_id == fixture.job.public_id
+    ).delete(synchronize_session=False)
+    fixture.ui["jobs"][0].update(
+        {
+            "machine_status": "needs_review",
+            "spec_status": "needs_review",
+            "readiness_status": "not_ready",
+            "human_acceptance_status": "pending",
+            "current_stage_key": stage_key,
+        }
+    )
+    workflow_db.commit()
+    fixture.material_db.commit()
+    return evaluation
+
+
 def test_complete_read_only_evidence_separates_statuses_and_passes():
     fixture = _complete_fixture()
     report = _collect(fixture)
@@ -537,6 +645,52 @@ def test_complete_read_only_evidence_separates_statuses_and_passes():
     assert not fixture.material_db.new
     assert not fixture.material_db.dirty
     assert not fixture.material_db.deleted
+
+
+def test_evidence_complete_needs_review_is_a_qualified_terminal():
+    fixture = _complete_fixture()
+    _convert_to_evidence_complete_needs_review(fixture)
+
+    report = _collect(fixture)
+
+    assert report["summary"]["status"] == "passed"
+    assert report["summary"]["passed_job_count"] == 1
+    assert not {
+        "job_terminal_not_ready",
+        "needs_review_evidence_incomplete",
+    } & {row["code"] for row in report["jobs"][0]["findings"]}
+    assert report["jobs"][0]["states"] == {
+        "machine": "needs_review",
+        "spec": "needs_review",
+        "readiness": "not_ready",
+        "human_acceptance": "pending",
+        "delivery": "not_projected",
+        "human_acceptance_projection": "not_recorded",
+    }
+
+
+def test_needs_review_without_hash_bound_handoff_fails_closed():
+    fixture = _complete_fixture()
+    evaluation = _convert_to_evidence_complete_needs_review(fixture)
+    finding = evaluation.load(evaluation.findings_json, [])[0]
+    finding["evidence_refs"] = []
+    finding["handoff"]["resume_stage"] = "outline_reconstruction"
+    evaluation.findings_json = WorkflowV3Evaluation.dump([finding])
+    fixture.workflow_db.commit()
+
+    report = _collect(fixture)
+
+    assert report["summary"]["status"] == "failed"
+    blocker = next(
+        row
+        for row in report["jobs"][0]["findings"]
+        if row["code"] == "needs_review_evidence_incomplete"
+    )
+    assert blocker["severity"] == "blocker"
+    assert blocker["evidence"]["errors"] == [
+        "finding[0] has no evidence_refs",
+        "finding[0] handoff is incomplete or resumes the wrong stage",
+    ]
 
 
 def test_cohort_selection_and_missing_observability_fail_closed():

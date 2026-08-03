@@ -548,6 +548,8 @@ class WorkerV3UatEvidenceCollector:
             if final_projection is not None
             and final_projection.status in {"failed", "suppressed"}
             else "projecting"
+            if final_projection is not None
+            else "not_projected"
         )
         return {
             "job": _job_identity(job),
@@ -1038,6 +1040,26 @@ class WorkerV3UatEvidenceCollector:
                     category="evidence_gap",
                 )
             )
+        elif job.machine_status == "needs_review":
+            review_errors = _needs_review_terminal_errors(
+                job,
+                latest_stages=latest_stages,
+                candidates_by_stage=candidates_by_stage,
+                evaluations_by_stage=evaluations_by_stage,
+                promotion_by_stage=promotion_by_stage,
+                projections=projections,
+            )
+            if review_errors:
+                findings.append(
+                    _job_finding(
+                        job,
+                        "needs_review_evidence_incomplete",
+                        "db",
+                        "blocker",
+                        "needs_review lacks a complete evidence and recovery handoff",
+                        evidence={"errors": review_errors},
+                    )
+                )
         elif job.machine_status != "succeeded":
             findings.append(
                 _job_finding(
@@ -1929,6 +1951,115 @@ def _canonical_sha256(value: Any) -> str:
 def _is_sha256(value: Any) -> bool:
     text = str(value or "").lower()
     return len(text) == 64 and set(text) <= _SHA256_CHARS
+
+
+def _needs_review_terminal_errors(
+    job: WorkflowV3Job,
+    *,
+    latest_stages: Sequence[WorkflowV3StageRun],
+    candidates_by_stage: Mapping[int, Sequence[WorkflowV3Candidate]],
+    evaluations_by_stage: Mapping[int, Sequence[WorkflowV3Evaluation]],
+    promotion_by_stage: Mapping[int, WorkflowV3Promotion],
+    projections: Sequence[WorkflowV3ProjectionOutbox],
+) -> list[str]:
+    errors: list[str] = []
+    if job.spec_status != "needs_review":
+        errors.append("job spec_status is not needs_review")
+    if job.readiness_status != "not_ready":
+        errors.append("needs_review job is incorrectly ready")
+    if job.human_acceptance_status != "pending":
+        errors.append("needs_review job has a human acceptance decision")
+    if job.error_code != "human_review_required":
+        errors.append("job error_code is not human_review_required")
+    if projections:
+        errors.append("needs_review job already has a delivery projection")
+
+    current_index = next(
+        (
+            index
+            for index, stage in enumerate(latest_stages)
+            if stage.stage_key == job.current_stage_key
+        ),
+        None,
+    )
+    if current_index is None:
+        errors.append("current needs_review stage is missing")
+        return errors
+    current = latest_stages[current_index]
+    if current.machine_status != "needs_review" or current.spec_status != "needs_review":
+        errors.append("current stage is not needs_review in both machine and spec state")
+    if current.id in promotion_by_stage or current.promotion_id is not None:
+        errors.append("needs_review candidate was promoted")
+
+    current_candidates = list(candidates_by_stage.get(current.id, []))
+    current_evaluations = list(evaluations_by_stage.get(current.id, []))
+    review_candidates = [
+        row for row in current_candidates if row.status == "needs_review" and row.immutable
+    ]
+    review_evaluations = [
+        row
+        for row in current_evaluations
+        if row.decision == "needs_review" and row.spec_passed is False
+    ]
+    if len(review_candidates) != 1:
+        errors.append("current stage does not have exactly one immutable needs_review candidate")
+    if len(review_evaluations) != 1:
+        errors.append("current stage does not have exactly one needs_review evaluation")
+    if review_candidates and review_evaluations:
+        candidate = review_candidates[0]
+        evaluation = review_evaluations[0]
+        if evaluation.candidate_id != candidate.id:
+            errors.append("needs_review evaluation does not bind the needs_review candidate")
+        raw_findings = evaluation.load(evaluation.findings_json, [])
+        if not isinstance(raw_findings, list) or not raw_findings:
+            errors.append("needs_review evaluation has no blocking findings")
+        else:
+            for index, raw in enumerate(raw_findings):
+                prefix = f"finding[{index}]"
+                if not isinstance(raw, Mapping):
+                    errors.append(f"{prefix} is not an object")
+                    continue
+                if raw.get("blocking") is not True or not str(raw.get("code") or ""):
+                    errors.append(f"{prefix} is not a named blocking finding")
+                refs = raw.get("evidence_refs")
+                if not isinstance(refs, list) or not refs:
+                    errors.append(f"{prefix} has no evidence_refs")
+                else:
+                    for ref_index, ref in enumerate(refs):
+                        if (
+                            not isinstance(ref, Mapping)
+                            or not _safe_relative_object_path(str(ref.get("path") or ""))
+                            or not _is_sha256(ref.get("sha256"))
+                        ):
+                            errors.append(
+                                f"{prefix}.evidence_refs[{ref_index}] is not hash-bound"
+                            )
+                handoff = raw.get("handoff")
+                if not isinstance(handoff, Mapping):
+                    errors.append(f"{prefix} has no handoff")
+                elif (
+                    not str(handoff.get("summary") or "").strip()
+                    or not str(handoff.get("required_action") or "").strip()
+                    or str(handoff.get("resume_stage") or "") != current.stage_key
+                ):
+                    errors.append(f"{prefix} handoff is incomplete or resumes the wrong stage")
+                if str(raw.get("recovery_stage") or "") != current.stage_key:
+                    errors.append(f"{prefix} recovery_stage differs from the current stage")
+                if str(raw.get("responsible_stage") or "") != current.stage_key:
+                    errors.append(f"{prefix} responsible_stage differs from the current stage")
+
+    for downstream in latest_stages[current_index + 1 :]:
+        if (
+            downstream.machine_status != "pending"
+            or downstream.spec_status != "not_evaluated"
+            or downstream.started_at is not None
+            or downstream.finished_at is not None
+            or candidates_by_stage.get(downstream.id)
+            or evaluations_by_stage.get(downstream.id)
+            or downstream.id in promotion_by_stage
+        ):
+            errors.append(f"downstream stage {downstream.stage_key} advanced after needs_review")
+    return errors
 
 
 def _aware_utc(value: datetime) -> datetime:
