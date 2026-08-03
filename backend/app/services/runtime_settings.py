@@ -678,6 +678,15 @@ def runtime_status() -> dict[str, Any]:
         results = {name: future.result() for name, future in futures.items()}
     minio = results["minio"]
     gpu = results["gpu"]
+    tunnel_status_path = Path(os.getenv("GPU_TUNNEL_STATUS_FILE", "/data/gpu-wrapper-tunnel-status.json"))
+    tunnel_status: dict[str, Any] = {"auto_recovery": False, "last_recovery_at": None}
+    if tunnel_status_path.is_file():
+        try:
+            value = json.loads(tunnel_status_path.read_text(encoding="utf-8"))
+            if isinstance(value, dict):
+                tunnel_status = value
+        except (OSError, json.JSONDecodeError):
+            pass
     backup = results["backup"]
     models = results["models"]
     dependencies = results["dependencies"]
@@ -712,7 +721,7 @@ def runtime_status() -> dict[str, Any]:
         "blockers": sorted(set(blockers)),
         "warnings": sorted(set(warnings)),
         "minio": minio,
-        "gpu": {**gpu, "active_task_count": active_tasks},
+        "gpu": {**gpu, "active_task_count": active_tasks, "tunnel": tunnel_status},
         "backup": backup,
         "models": models,
         "dependencies": dependencies,

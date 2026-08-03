@@ -88,6 +88,9 @@
             <div v-if="gpuCheck" class="probe-grid">
               <div><span>Wrapper Health</span><el-tag :type="gpuCheck.wrapper_ok ? 'success' : 'danger'">{{ gpuCheck.wrapper_ok ? 'OK' : 'FAIL' }}</el-tag></div>
               <div><span>MinerU + Popo Staged API</span><el-tag :type="gpuCheck.staged_api_ok ? 'success' : 'danger'">{{ gpuCheck.staged_api_ok ? 'OK' : 'FAIL' }}</el-tag></div>
+              <div><span>SSH 转发自动恢复</span><el-tag :type="gpuCheck.tunnel?.auto_recovery ? 'success' : 'warning'">{{ gpuCheck.tunnel?.auto_recovery ? '已启用' : '未检测到' }}</el-tag></div>
+              <div><span>SSH 转发当前状态</span><small>{{ gpuCheck.tunnel?.status || '未知' }}</small></div>
+              <div><span>最近连接成功</span><small>{{ gpuCheck.tunnel?.connection_verified && gpuCheck.tunnel?.last_recovery_at ? formatDateTime(gpuCheck.tunnel.last_recovery_at) : '尚无成功记录' }}</small></div>
             </div>
             <div class="actions"><el-button type="primary" :loading="loading.gpu" @click="checkGpuNow"><el-icon><Monitor /></el-icon>检查已保存配置</el-button></div>
           </section>
@@ -178,6 +181,7 @@ import { ElMessage } from 'element-plus'
 import { Check, Connection, FolderChecked, Monitor, RefreshRight, Setting, Upload } from '@element-plus/icons-vue'
 import { settingsApi } from '@/api/settings'
 import type { BackupJob, BackupTarget, GpuCheckResult, ModelCheckResult, MinioCheckResult, RuntimeConfig, RuntimeStatus } from '@/api/settings'
+import { formatDateTime } from '@/utils/status'
 
 const StatusCell = defineComponent({
   props: { label: String, value: String, detail: String },

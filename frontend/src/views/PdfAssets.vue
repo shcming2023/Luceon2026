@@ -7,7 +7,7 @@ import { materialsApi } from '@/api/materials'
 import type { MaterialArtifactCatalog, MaterialItem, MaterialLineage, MaterialUploadResponse, PipelinePreflightResponse } from '@/types/material'
 import { formatFileSize } from '@/utils/format'
 import { formatDateTime } from '@/utils/status'
-import { ensureCurrentUser, useCurrentUser } from '@/utils/user'
+import { ensureCurrentUser, fetchCurrentUser, useCurrentUser } from '@/utils/user'
 import MaterialIdentity from '@/components/MaterialIdentity.vue'
 import StageStatusBadge from '@/components/StageStatusBadge.vue'
 import ArtifactDownloadPanel from '@/components/ArtifactDownloadPanel.vue'
@@ -30,6 +30,16 @@ const search = ref(String(route.query.search || ''))
 const stage = ref(String(route.query.stage || ''))
 const selected = ref<MaterialItem[]>([])
 const fileInput = ref<HTMLInputElement | null>(null)
+type UploadResumeContext = { filenames: string[]; progress: number; updatedAt?: string }
+const uploadResumeContext = ref<UploadResumeContext | null>(null)
+const uploadResumeDescription = computed(() => {
+  const context = uploadResumeContext.value
+  if (!context) return ''
+  const filenames = context.filenames.slice(0, 3).join('、')
+  const remainder = context.filenames.length > 3 ? ` 等 ${context.filenames.length} 个文件` : ''
+  const progress = context.progress > 0 ? `，中断前浏览器进度 ${context.progress}%` : ''
+  return `${filenames}${remainder}${progress}。浏览器不能自动恢复本地文件，请重新选择同一批文件；已写入资产库的文件会按 SHA-256 去重复用，只继续处理未完成文件。`
+})
 
 const batchDialog = ref(false)
 const preflightLoading = ref(false)
@@ -44,6 +54,41 @@ const catalog = ref<MaterialArtifactCatalog | null>(null)
 const lineage = ref<MaterialLineage | null>(null)
 
 const selectionValid = computed(() => selected.value.length > 0 && selected.value.length <= 5)
+const uploadResumeKey = 'luceon-upload-resume'
+
+function readUploadResumeContext() {
+  try {
+    const raw = sessionStorage.getItem(uploadResumeKey)
+    if (!raw) return
+    const value = JSON.parse(raw) as Partial<UploadResumeContext>
+    if (!Array.isArray(value.filenames) || !value.filenames.every(filename => typeof filename === 'string')) {
+      sessionStorage.removeItem(uploadResumeKey)
+      return
+    }
+    uploadResumeContext.value = {
+      filenames: value.filenames,
+      progress: Number.isFinite(value.progress) ? Math.max(0, Math.min(100, Number(value.progress))) : 0,
+      updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : undefined,
+    }
+  } catch {
+    sessionStorage.removeItem(uploadResumeKey)
+  }
+}
+
+function saveUploadResumeContext(files: File[], progress: number) {
+  const context: UploadResumeContext = {
+    filenames: files.map(file => file.name),
+    progress,
+    updatedAt: new Date().toISOString(),
+  }
+  sessionStorage.setItem(uploadResumeKey, JSON.stringify(context))
+  uploadResumeContext.value = context
+}
+
+function clearUploadResumeContext() {
+  sessionStorage.removeItem(uploadResumeKey)
+  uploadResumeContext.value = null
+}
 
 function metadataDisplayStatus(material: MaterialItem) {
   const status = material.book_metadata?.status || 'missing'
@@ -55,6 +100,21 @@ function metadataDisplayLabel(material: MaterialItem) {
   if (material.book_metadata?.manual_override || status === 'manual') return '人工已编目'
   if (status === 'ai_extracted') return 'AI 已编目'
   return '待编目'
+}
+
+function refinementOutputLabel(material: MaterialItem) {
+  if (material.current_refinement_output?.id) return `Output ${material.current_refinement_output.id} 可用`
+  return material.refinement_output_status === 'succeeded' ? '已有可用输出' : '暂无可用输出'
+}
+
+function latestRefinementLabel(material: MaterialItem) {
+  if (material.latest_refinement_status === 'idle') return '未创建任务'
+  if (material.latest_refinement_status === 'unavailable') return '任务状态不可用'
+  return undefined
+}
+
+function latestWorkflowV2JobId(material: MaterialItem) {
+  return material.latest_refinement_source === 'workflow_v2' ? material.latest_refinement_job?.id || '' : ''
 }
 
 function updateQuery() {
@@ -92,17 +152,29 @@ async function uploadFiles(event: Event) {
     input.value = ''
     return
   }
+  try {
+    await fetchCurrentUser()
+  } catch {
+    ElMessage.error('登录已失效。已保留待上传文件名称，请重新登录后继续。')
+    saveUploadResumeContext(files, 0)
+    return
+  }
   uploading.value = true
   uploadProgress.value = 0
   uploadResults.value = []
+  saveUploadResumeContext(files, 0)
   try {
-    const result = await materialsApi.upload(files, value => { uploadProgress.value = value })
+    const result = await materialsApi.upload(files, value => {
+      uploadProgress.value = value
+      saveUploadResumeContext(files, value)
+    })
     uploadResults.value = result.files || []
     const duplicateText = result.duplicates ? `，${result.duplicates} 个已存在并去重` : ''
     ElMessage.success(`上传处理完成：${result.success} 个成功${duplicateText}`)
+    clearUploadResumeContext()
     await load()
   } catch (error: any) {
-    ElMessage.error(error?.response?.data?.detail || '上传失败')
+    if (!error?.isAuthExpired) ElMessage.error(error?.response?.data?.detail || '上传失败')
   } finally {
     uploading.value = false
     input.value = ''
@@ -125,6 +197,21 @@ function openBatch() {
   batchDialog.value = true
 }
 
+function preflightResourceText(result: PipelinePreflightResponse) {
+  const gate = result.resource_gate
+  if (!gate?.applies) return ''
+  const available = formatFileSize(gate.available_headroom_bytes || 0)
+  const required = formatFileSize(gate.required_headroom_bytes || 0)
+  return gate.ok
+    ? `超大 PDF 资源门禁通过：GPU 临时产物余量 ${available}，本批次要求至少 ${required}`
+    : `${gate.reason || 'GPU 临时产物余量不足'}：当前 ${available}，本批次要求至少 ${required}`
+}
+
+function preflightFailureText(result: PipelinePreflightResponse) {
+  if (result.resource_gate?.applies && !result.resource_gate.ok) return preflightResourceText(result)
+  return result.status || result.plan_status || '请检查运行状态'
+}
+
 async function runPreflight() {
   preflightLoading.value = true
   try {
@@ -133,7 +220,7 @@ async function runPreflight() {
       reprocess_completed: reprocessCompleted.value
     })
     if (preflight.value.ready) ElMessage.success('预检通过，可提交解析批次')
-    else ElMessage.warning(`预检未通过：${preflight.value.status || preflight.value.plan_status || '请检查运行状态'}`)
+    else ElMessage.warning(`预检未通过：${preflightFailureText(preflight.value)}`)
   } catch (error: any) {
     ElMessage.error(error?.response?.data?.detail || '预检失败')
   } finally {
@@ -154,7 +241,9 @@ async function submitBatch() {
     batchDialog.value = false
     router.push(`/pipeline/runs?run_id=${run.id}`)
   } catch (error: any) {
-    ElMessage.error(error?.response?.data?.detail || '提交失败')
+    const detail = error?.response?.data?.detail
+    const failedPreflight = detail?.preflight as PipelinePreflightResponse | undefined
+    ElMessage.error(failedPreflight ? `提交已拦截：${preflightFailureText(failedPreflight)}` : (typeof detail === 'string' ? detail : '提交失败'))
   } finally {
     submitting.value = false
   }
@@ -202,11 +291,17 @@ function openReview(material: MaterialItem) {
 }
 
 function openRefinement(material: MaterialItem) {
+  const jobId = latestWorkflowV2JobId(material)
+  if (jobId) {
+    router.push({ path: '/workflow/jobs', query: { job_id: jobId } })
+    return
+  }
   router.push({ path: '/workflow/jobs', query: { material_pk: material.id, material_id: material.material_id } })
 }
 
 watch(page, load)
 onMounted(async () => {
+  readUploadResumeContext()
   try { await ensureCurrentUser() } catch { /* API will enforce authorization */ }
   await load()
 })
@@ -228,6 +323,19 @@ onMounted(async () => {
     </header>
 
     <el-progress v-if="uploading" :percentage="uploadProgress" :stroke-width="5" />
+
+    <section v-if="uploadResumeContext && !uploading" class="workspace-panel">
+      <el-alert
+        type="warning"
+        :closable="false"
+        show-icon
+        title="检测到上次上传未完整确认"
+        :description="uploadResumeDescription"
+      />
+      <div class="inline-actions" style="margin-top: 8px">
+        <el-button link @click="clearUploadResumeContext">清除恢复提示</el-button>
+      </div>
+    </section>
 
     <section v-if="uploadResults.length" class="workspace-panel">
       <div class="workspace-toolbar">
@@ -285,15 +393,16 @@ onMounted(async () => {
             <template #default="{ row }"><MaterialIdentity :filename="row.filename" :material-id="row.material_id" :material-pk="row.id" :sha256="row.input_sha256" /></template>
           </el-table-column>
           <el-table-column label="规格" width="135"><template #default="{ row }"><span>{{ formatFileSize(row.size) }}</span><span class="identity-meta">{{ row.page_count || '—' }} 页</span></template></el-table-column>
-          <el-table-column label="解析就绪" width="120"><template #default="{ row }"><StageStatusBadge :status="row.popo_available ? 'succeeded' : row.stage_status" :label="row.popo_available ? '已就绪' : '未就绪'" /></template></el-table-column>
+          <el-table-column label="解析阶段" width="155"><template #default="{ row }"><StageStatusBadge :status="row.popo_available ? 'succeeded' : row.stage_status" :label="row.popo_available ? '解析已完成（已冻结）' : '解析未完成'" /></template></el-table-column>
           <el-table-column label="编目状态" width="130"><template #default="{ row }"><StageStatusBadge :status="metadataDisplayStatus(row)" :label="metadataDisplayLabel(row)" /></template></el-table-column>
-          <el-table-column label="精修状态" width="130"><template #default="{ row }"><StageStatusBadge :status="row.refinement_status" /></template></el-table-column>
+          <el-table-column label="可用精修产物" width="155"><template #default="{ row }"><StageStatusBadge :status="row.refinement_output_status" :label="refinementOutputLabel(row)" /></template></el-table-column>
+          <el-table-column label="最新精修任务" width="145"><template #default="{ row }"><StageStatusBadge :status="row.latest_refinement_status" :label="latestRefinementLabel(row)" /></template></el-table-column>
           <el-table-column label="更新时间" width="166"><template #default="{ row }">{{ formatDateTime(row.last_synced_at || row.created_at || '') }}</template></el-table-column>
           <el-table-column label="操作" width="260" fixed="right">
             <template #default="{ row }">
               <el-button link @click="openDetail(row)">资产与追溯</el-button>
               <el-button link @click="createMetadataJob(row)">AI 编目</el-button>
-              <el-button v-if="row.popo_available" link @click="openRefinement(row)">进入精修</el-button>
+              <el-button v-if="row.popo_available" link @click="openRefinement(row)">{{ latestWorkflowV2JobId(row) ? '查看精修' : '进入精修' }}</el-button>
               <el-button v-if="row.review_asset_id" link @click="openReview(row)">比对审阅</el-button>
             </template>
           </el-table-column>
@@ -315,7 +424,13 @@ onMounted(async () => {
         title="所选资产已有冻结解析结果。普通提交会保持幂等且不重刷；只有管理员明确创建新版本时才会重新运行 MinerU 与 Popo，历史版本不会删除。"
       />
       <el-checkbox v-if="isAdmin" v-model="reprocessCompleted" @change="preflight = null">管理员：为已完成资产创建新的不可变解析版本</el-checkbox>
-      <el-alert v-if="preflight" :type="preflight.ready ? 'success' : 'warning'" :closable="false" :title="preflight.ready ? '预检通过' : `预检未通过：${preflight.status || preflight.plan_status}`" />
+      <el-alert
+        v-if="preflight"
+        :type="preflight.ready ? 'success' : 'warning'"
+        :closable="false"
+        :title="preflight.ready ? '预检通过' : `预检未通过：${preflightFailureText(preflight)}`"
+        :description="preflightResourceText(preflight)"
+      />
       <template #footer>
         <el-button @click="batchDialog = false">取消</el-button>
         <el-button :loading="preflightLoading" @click="runPreflight">执行预检</el-button>

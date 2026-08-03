@@ -176,6 +176,7 @@ services:
       - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-${DEEPSEEK_DEFAULT_MODEL:-deepseek-v4-flash}}
     volumes:
       - ./runtime/backend:/data
+      - /Users/concm/.ssh/id_ed25519_trae_dev:/root/.ssh/id_ed25519_trae_dev:ro
     depends_on:
       - backend
       - redis

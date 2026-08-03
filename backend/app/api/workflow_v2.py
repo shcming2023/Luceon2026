@@ -55,6 +55,26 @@ class CodexRepairResponseRequest(BaseModel):
     rule_suggestions: dict | list = Field(default_factory=dict)
 
 
+def _output_projection(job_id: str, outputs: list[MaterialOutput] | list[dict]) -> dict:
+    rows = [output if isinstance(output, dict) else output.to_dict() for output in outputs]
+    job_outputs = [output for output in rows if output.get("output_run_id") == job_id]
+    accepted_job_output = next(
+        (output for output in job_outputs if output.get("quality_status") == "passed"),
+        job_outputs[0] if job_outputs else None,
+    )
+    current_material_output = next(
+        (output for output in rows if output.get("is_current") and output.get("quality_status") == "passed"),
+        None,
+    )
+    return {
+        "outputs": job_outputs,
+        "job_output_id": accepted_job_output.get("id", "") if accepted_job_output else "",
+        "current_output_id": accepted_job_output.get("id", "") if accepted_job_output else "",
+        "current_material_output": current_material_output,
+        "current_material_output_id": current_material_output.get("id", "") if current_material_output else "",
+    }
+
+
 def workflow_db_dependency():
     try:
         yield from get_workflow_db()
@@ -201,7 +221,7 @@ def get_job(
         **detail,
         "filename": material.filename if material else "",
         "review_asset_id": str(material.review_asset_id or "") if material else "",
-        "outputs": [output.to_dict() for output in outputs],
+        **_output_projection(public_id, outputs),
     }
 
 
@@ -236,7 +256,7 @@ def _current_review_report(workflow_db: Session, job: WorkflowJob) -> dict:
         .filter(
             ArtifactVersion.workflow_job_id == job.id,
             StageRun.stage_key == job.current_stage_key,
-            StageRun.status == "needs_review",
+            StageRun.status.in_(("needs_review", "blocked", "handoff_ready")),
         )
         .order_by(ArtifactVersion.id.desc())
         .first()
@@ -359,8 +379,8 @@ def handoff_review_candidate(
     ).first()
     if not job:
         raise HTTPException(status_code=404, detail="Worker V2.3 任务不存在")
-    if job.status != "needs_review":
-        raise HTTPException(status_code=409, detail="只有质量阻断的候选件可以转人工处理")
+    if job.status not in {"needs_review", "handoff_ready"}:
+        raise HTTPException(status_code=409, detail="只有已生成完整交接产物的任务可以转人工处理")
     artifact = _review_candidate_artifact(workflow_db, job)
     repair = (
         workflow_db.query(RepairAttempt)
@@ -406,7 +426,7 @@ def revalidate_review_candidate(
     ).first()
     if not job:
         raise HTTPException(status_code=404, detail="Worker V2.3 任务不存在")
-    if job.status != "needs_review":
+    if job.status not in {"needs_review", "handoff_ready"}:
         raise HTTPException(status_code=409, detail="只有待处理候选件可以重新验证")
     handoffs = workflow_db.query(RepairAttempt).filter(
         RepairAttempt.workflow_job_id == job.id,
@@ -474,30 +494,30 @@ def get_job_summaries(
             if material_pks
             else []
         )
-        outputs_by_material: dict[str, list[dict]] = {}
+        outputs_by_material: dict[str, list[MaterialOutput]] = {}
         for output in output_rows:
-            outputs_by_material.setdefault(str(output.material_pk), []).append(output.to_dict())
+            outputs_by_material.setdefault(str(output.material_pk), []).append(output)
         payload["jobs"] = [
             {
                 **job,
                 "filename": by_id[job["material_pk"]].filename if job.get("material_pk") in by_id else "",
                 "review_asset_id": str(by_id[job["material_pk"]].review_asset_id or "") if job.get("material_pk") in by_id else "",
-                "outputs": outputs_by_material.get(job.get("material_pk") or "", []),
-                "current_output_id": next(
-                    (
-                        output["id"]
-                        for output in outputs_by_material.get(job.get("material_pk") or "", [])
-                        if output.get("is_current") and output.get("quality_status") == "passed"
-                    ),
-                    "",
-                ),
+                **_output_projection(job["id"], outputs_by_material.get(job.get("material_pk") or "", [])),
             }
             for job in jobs
         ]
         return payload
 
     if limit is not None:
-        return enrich({"jobs": list_workflow_job_summaries(workflow_db, user_id=user_id, limit=limit)})
+        jobs = list_workflow_job_summaries(workflow_db, user_id=user_id, limit=limit)
+        return enrich({
+            "jobs": jobs,
+            "status_counts": {
+                "passed": sum(job.get("business_status") == "passed" for job in jobs),
+                "blocked": sum(job.get("business_status") == "blocked" for job in jobs),
+                "running": sum(job.get("business_status") == "running" for job in jobs),
+            },
+        })
     return enrich(
         list_workflow_job_summary_page(
             workflow_db,

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import hashlib
 import html
 import json
 import os
@@ -892,7 +893,8 @@ def unit_by_page(blocks):
     candidates_by_page = {}
     standalone_candidates_by_page = {}
     page_lines = {}
-    for block in blocks:
+    for source_order, block in enumerate(blocks):
+        source_ref = block_ref(block, source_order)
         btype = str(block.get("type", ""))
         if btype not in {"footer", "header", "text"}:
             continue
@@ -1491,7 +1493,59 @@ def unit_covers_page(unit, page):
     return True
 
 
-def build_block_assignment_reports(blocks, raw_units, clean_md, start_page, end_page, copied, missing):
+SOURCE_LINEAGE_START_RE = re.compile(r"<!--\s*luceon-source-start:\s*([^\s>]+)\s*-->")
+SOURCE_LINEAGE_END_RE = re.compile(r"<!--\s*luceon-source-end:\s*([^\s>]+)\s*-->")
+
+
+def emit_source_bound_lines(lines, source_ref, rendered_lines):
+    """Emit source-owned Markdown with temporary markers for exact output references."""
+    lines.append(f"<!-- luceon-source-start: {source_ref} -->")
+    lines.extend(rendered_lines)
+    lines.append(f"<!-- luceon-source-end: {source_ref} -->")
+
+
+def extract_direct_output_references(markdown):
+    """Remove temporary markers and return exact final clean line references by source block."""
+    rows = []
+    active_ref = ""
+    for raw in markdown.splitlines():
+        start = SOURCE_LINEAGE_START_RE.fullmatch(raw.strip())
+        if start:
+            if active_ref:
+                raise ValueError("nested Luceon source lineage markers are not allowed")
+            active_ref = start.group(1)
+            continue
+        end = SOURCE_LINEAGE_END_RE.fullmatch(raw.strip())
+        if end:
+            if not active_ref or end.group(1) != active_ref:
+                raise ValueError("unbalanced Luceon source lineage markers")
+            active_ref = ""
+            continue
+        rows.append((raw, active_ref))
+    if active_ref:
+        raise ValueError("unclosed Luceon source lineage marker")
+    while rows and not rows[0][0].strip():
+        rows.pop(0)
+    while rows and not rows[-1][0].strip():
+        rows.pop()
+    output_refs = {}
+    for line_number, (raw, source_ref) in enumerate(rows, 1):
+        if not source_ref or not raw.strip() or re.fullmatch(r"<!--.*?-->", raw.strip()):
+            continue
+        output_refs.setdefault(source_ref, []).append(f"clean:clean-line-{line_number:06d}")
+    return "\n".join(raw for raw, _source_ref in rows) + "\n", output_refs
+
+
+def build_block_assignment_reports(
+    blocks,
+    raw_units,
+    clean_md,
+    start_page,
+    end_page,
+    copied,
+    missing,
+    direct_output_refs=None,
+):
     assignments = []
     unassigned = []
     eligible_rows = []
@@ -1519,6 +1573,15 @@ def build_block_assignment_reports(blocks, raw_units, clean_md, start_page, end_
         ref = block_ref(block, order)
         btype = str(block.get("type", ""))
         text = block_text(block)
+        source_locator = {
+            "block_id": ref,
+            "source_order": order,
+            "page_idx": page,
+            "bbox": block_bbox(block),
+        }
+        source_locator["locator_sha256"] = hashlib.sha256(
+            json.dumps(source_locator, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
         row = {
             "schema": "luceon-raw-block-assignment/v1",
             "block_ref": ref,
@@ -1529,6 +1592,8 @@ def build_block_assignment_reports(blocks, raw_units, clean_md, start_page, end_
             "text_preview": text[:240],
             "image_ref": normalize_image_ref(block.get("img_path") or block.get("image_path")),
             "formula_signal": "$" in text or "\\(" in text or "\\[" in text,
+            "source_locator": source_locator,
+            "output_refs": list((direct_output_refs or {}).get(ref) or []),
         }
         eligible_rows.append(row)
 
@@ -1964,7 +2029,7 @@ def main():
                 dropped["popo_outline_semantic_header_duplicate"] += 1
                 continue
             level = 1 if re.match(r"^(Review\s+\d+|Mid-term Test|Final Test)\b", text, re.I) else 2
-            lines.extend(["", f"{'#' * level} {text}"])
+            emit_source_bound_lines(lines, source_ref, ["", f"{'#' * level} {text}"])
             continue
         if btype == "header" and args.scope == "body" and popo_outline.get("available"):
             text = clean_text(block.get("text"))
@@ -2021,7 +2086,7 @@ def main():
         if btype == "page_footnote":
             text = clean_text(block.get("text"))
             if text:
-                lines.extend(["", text])
+                emit_source_bound_lines(lines, source_ref, ["", text])
             continue
 
         if btype in IMAGE_BACKED_VISUAL_TYPES and (block.get("img_path") or block.get("image_path")):
@@ -2033,9 +2098,10 @@ def main():
                     copied.add(rel)
                 elif not (root / rel).exists():
                     missing.add(rel)
-                lines.extend(["", f"![{alt}]({rel})"])
+                rendered = ["", f"![{alt}]({rel})"]
                 if caption:
-                    lines.append(f"*{caption}*")
+                    rendered.append(f"*{caption}*")
+                emit_source_bound_lines(lines, source_ref, rendered)
             continue
 
         if btype == "table":
@@ -2047,8 +2113,9 @@ def main():
                 if not source_img.startswith("images/"):
                     source_img = f"images/{Path(source_img).name}"
                 table_sources.append(source_img)
+            rendered = []
             if caption:
-                lines.extend(["", f"**{caption}**"])
+                rendered.extend(["", f"**{caption}**"])
             if body:
                 for img_src in re.findall(r"<img[^>]+src=[\"']([^\"']+)[\"']", body, re.I):
                     img_rel = safe_copy(root, img_src, images_out, copy_images=copy_images)
@@ -2057,7 +2124,7 @@ def main():
                             copied.add(img_rel)
                         elif not (root / img_rel).exists():
                             missing.add(img_rel)
-                lines.extend(["", body])
+                rendered.extend(["", body])
             elif source_img:
                 img_rel = safe_copy(root, source_img, images_out, copy_images=copy_images)
                 if img_rel:
@@ -2066,7 +2133,9 @@ def main():
                     elif not (root / img_rel).exists():
                         missing.add(img_rel)
                     alt = normalize_markdown_image_alt(caption or "table")
-                    lines.extend(["", f"![{alt}]({img_rel})"])
+                    rendered.extend(["", f"![{alt}]({img_rel})"])
+            if rendered:
+                emit_source_bound_lines(lines, source_ref, rendered)
             continue
 
         text = list_text(block) if btype == "list" else clean_text(block.get("text"))
@@ -2088,7 +2157,7 @@ def main():
             and standalone_unit_match
             and not (popo_outline.get("available") and text_heading_keys & popo_allowed_heading_by_page.get(page, set()))
         ):
-            lines.extend(["", text])
+            emit_source_bound_lines(lines, source_ref, ["", text])
             continue
 
         if block.get("text_level") is not None and args.scope == "body" and popo_outline.get("available"):
@@ -2111,10 +2180,10 @@ def main():
             ):
                 dropped["popo_outline_adjacent_page_heading_duplicate"] += 1
                 continue
-            lines.extend(["", text])
+            emit_source_bound_lines(lines, source_ref, ["", text])
         elif block.get("text_level") is not None:
             if args.canonical_content_only:
-                lines.extend(["", f"{'#' * heading_level(text)} {text}"])
+                emit_source_bound_lines(lines, source_ref, ["", f"{'#' * heading_level(text)} {text}"])
                 continue
             parent_chapter = None if uses_unit_structure else chapter_parent_heading(text)
             level = heading_level(text)
@@ -2135,9 +2204,9 @@ def main():
                 if chapter_label == current_chapter:
                     level = 2
                 current_chapter = chapter_label
-            lines.extend(["", f"{'#' * level} {text}"])
+            emit_source_bound_lines(lines, source_ref, ["", f"{'#' * level} {text}"])
         else:
-            lines.extend(["", text])
+            emit_source_bound_lines(lines, source_ref, ["", text])
 
     clean_md = "\n".join(lines).strip() + "\n"
     clean_md, outline_code_demotion_report = demote_bare_numeric_code_headings(clean_md)
@@ -2160,6 +2229,7 @@ def main():
     clean_md, math_segment_repair_report = normalize_math_digit_spacing(clean_md)
     clean_md, arithmetic_line_repair_report = normalize_arithmetic_line_digit_spacing(clean_md)
     math_ocr_repair_report = combine_math_ocr_repair_reports(math_segment_repair_report, arithmetic_line_repair_report)
+    clean_md, direct_output_refs = extract_direct_output_references(clean_md)
     raw_units = markdown_raw_units(clean_md)
     block_assignments, unassigned_blocks, outline_apply_report, image_closure_report = build_block_assignment_reports(
         blocks,
@@ -2169,6 +2239,7 @@ def main():
         end_page,
         copied,
         missing,
+        direct_output_refs=direct_output_refs,
     )
     (out_dir / "clean.md").write_text(clean_md, encoding="utf-8")
     (out_dir / "math_ocr_repair_report.json").write_text(

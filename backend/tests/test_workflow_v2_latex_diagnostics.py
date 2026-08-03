@@ -39,3 +39,19 @@ def test_parse_latex_diagnostics_accepts_xetex_quoted_hex_codepoints():
         "font": "cmr10",
         "pdf_page_hint": 50,
     }
+
+
+def test_parse_latex_diagnostics_deduplicates_same_glyph_across_compile_passes():
+    report = parse_latex_diagnostics(
+        "[12]\nMissing character: There is no ° (U+B0) in font cmr10!\n"
+        "[48]\nMissing character: There is no ° (U+B0) in font cmr10!\n"
+    )
+
+    assert report["missing_character_count"] == 1
+    assert report["missing_character_occurrence_count"] == 2
+    assert report["missing_characters"] == [{
+        "character": "°",
+        "codepoint": "U+B0",
+        "font": "cmr10",
+        "pdf_page_hint": 12,
+    }]

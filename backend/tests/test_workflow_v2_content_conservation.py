@@ -259,6 +259,55 @@ def test_repeated_source_label_maps_to_heading_and_plain_occurrence(tmp_path):
     assert len(mapping["mappings"]) == 2
 
 
+def test_structural_page_noise_is_removed_before_exact_clean_matching(tmp_path):
+    blocks = [
+        {"type": "header", "text": "Electricity", "page_idx": 2, "bbox": [20, 12, 300, 42]},
+        {"type": "page_number", "text": "6", "page_idx": 2, "bbox": [280, 760, 320, 790]},
+        {"type": "text", "text": "Electricity", "page_idx": 2, "bbox": [20, 180, 300, 220]},
+    ]
+    canonical = _fixture(
+        tmp_path,
+        blocks,
+        [{"block_ref": "content-list-000002", "unit_id": "unit-1"}],
+    )
+
+    result = build_canonical_conservation(canonical)
+    ledger = json.loads((canonical / "cleaning-ledger.json").read_text())["entries"]
+
+    assert result["status"] == "passed"
+    assert [row["action"] for row in ledger] == [
+        "remove_structural_page_noise",
+        "remove_structural_page_noise",
+        "preserve",
+    ]
+
+
+def test_preserved_duplicate_short_text_has_stable_one_to_one_lineage(tmp_path):
+    blocks = [
+        {"type": "text", "text": "Method", "page_idx": 2, "bbox": [20, 180, 300, 220]},
+        {"type": "text", "text": "Method", "page_idx": 2, "bbox": [20, 420, 300, 460]},
+    ]
+    canonical = _fixture(
+        tmp_path,
+        blocks,
+        [
+            {"block_ref": "content-list-000000", "unit_id": "unit-1"},
+            {"block_ref": "content-list-000001", "unit_id": "unit-1"},
+        ],
+    )
+
+    result = build_canonical_conservation(canonical)
+    mapping = json.loads((canonical / "clean-block-map.json").read_text())
+    ledger = json.loads((canonical / "cleaning-ledger.json").read_text())["entries"]
+
+    assert result["status"] == "passed"
+    assert len(mapping["mappings"]) == 2
+    assert len({row["clean_block_id"] for row in mapping["mappings"]}) == 2
+    assert all(row["source_locator"]["bbox"] for row in mapping["mappings"])
+    assert len({row["source_locator"]["locator_sha256"] for row in mapping["mappings"]}) == 2
+    assert all(any(ref.startswith("clean:") for ref in row["output_refs"]) for row in ledger)
+
+
 def test_unassigned_source_list_is_preserved_when_clean_split_is_exact(tmp_path):
     canonical = _fixture(
         tmp_path,

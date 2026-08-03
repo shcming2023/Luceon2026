@@ -83,6 +83,7 @@ def detect_profile(markdown):
 def parse_markdown(markdown):
     blocks = []
     page = None
+    outline_binding = None
     for lineno, raw in enumerate(markdown.splitlines(), 1):
         line = raw.rstrip()
         stripped = line.strip()
@@ -90,6 +91,17 @@ def parse_markdown(markdown):
         if page_match:
             page = page_match.group(1)
             blocks.append({"type": "page", "line": lineno, "page_idx": page, "text": stripped})
+            continue
+        outline_match = re.match(
+            r"<!--\s*outline_node_id:\s*([^;>]+?)\s*;\s*parent_outline_node_id:\s*([^;>]*)\s*;",
+            stripped,
+        )
+        if outline_match:
+            outline_binding = {
+                "outline_node_id": outline_match.group(1).strip(),
+                "parent_outline_node_id": outline_match.group(2).strip() or None,
+            }
+            blocks.append({"type": "outline_binding", "line": lineno, "page_idx": page, **outline_binding})
             continue
         heading_match = re.match(r"^(#{1,6})\s+(.+?)\s*$", stripped)
         if heading_match:
@@ -99,7 +111,9 @@ def parse_markdown(markdown):
                 "level": len(heading_match.group(1)),
                 "text": heading_match.group(2),
                 "page_idx": page,
+                **(outline_binding or {}),
             })
+            outline_binding = None
             continue
         image_match = re.match(r"^!\[(.*)\]\(([^)\r\n]+)\)\s*$", stripped)
         if image_match:
@@ -127,15 +141,20 @@ def match_rule(text, rules):
     return {}
 
 
-def build_sections(blocks, profile):
+def build_sections(blocks, profile, outline=None):
     heading_blocks = [b for b in blocks if b["type"] == "heading"]
     sections = []
-    stack = []
+    section_by_outline_id = {}
+    legacy_level_stack = []
     role_rules = profile.get("section_role_rules", [])
     for index, block in enumerate(heading_blocks):
-        while stack and stack[-1]["level"] >= block["level"]:
-            stack.pop()
-        parent = stack[-1] if stack else None
+        outline_node_id = str(block.get("outline_node_id") or "") or None
+        parent_outline_node_id = str(block.get("parent_outline_node_id") or "") or None
+        parent = section_by_outline_id.get(parent_outline_node_id)
+        if outline_node_id is None:
+            while legacy_level_stack and legacy_level_stack[-1]["level"] >= block["level"]:
+                legacy_level_stack.pop()
+            parent = legacy_level_stack[-1] if legacy_level_stack else None
         rule = match_rule(block["text"], role_rules)
         if not rule:
             rule = fallback_section_rule(block["text"], parent)
@@ -144,6 +163,8 @@ def build_sections(blocks, profile):
         section = {
             "id": section_id,
             "parent_id": parent["id"] if parent else None,
+            "outline_node_id": outline_node_id,
+            "parent_outline_node_id": parent_outline_node_id,
             "title": block["text"],
             "level": block["level"],
             "role": rule.get("role", "unknown"),
@@ -154,7 +175,10 @@ def build_sections(blocks, profile):
             "metadata": {"heading_index": index},
         }
         sections.append(section)
-        stack.append(section)
+        if outline_node_id:
+            section_by_outline_id[outline_node_id] = section
+        else:
+            legacy_level_stack.append(section)
 
     total_lines = max((b["line"] for b in blocks), default=0)
     for i, section in enumerate(sections):
@@ -761,6 +785,7 @@ def main():
     parser.add_argument("--profile", default="auto", help="Profile id, profile json path, or auto.")
     parser.add_argument("--book-id", default="")
     parser.add_argument("--book-config", type=Path)
+    parser.add_argument("--outline", type=Path)
     args = parser.parse_args()
 
     markdown = args.markdown.read_text(encoding="utf-8")
@@ -772,7 +797,8 @@ def main():
         profile.setdefault("book_config", config)
 
     blocks = parse_markdown(markdown)
-    sections = build_sections(blocks, profile)
+    outline = read_json(args.outline) if args.outline else None
+    sections = build_sections(blocks, profile, outline)
     assets = annotate_assets(blocks, sections, profile)
     media, relations = link_media(blocks, assets)
     review_items = make_review_items(sections, assets, media)
@@ -787,6 +813,7 @@ def main():
             "markdown": str(args.markdown),
             "profile": profile_id,
             "book_config": str(args.book_config) if args.book_config else None,
+            "outline": str(args.outline) if args.outline else None,
         },
         "counts": {
             "blocks": len(blocks),

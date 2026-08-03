@@ -36,11 +36,13 @@ from app.services.codex_skill_jobs import (
 from app.services.material_inventory import (
     INPUT_BUCKET,
     PipelinePreflightError,
+    latest_timed_out_popo_batch_id,
     latest_pipeline_run,
     material_summary,
     minio_client,
     run_popo_resume_preflight,
     run_pipeline_preflight,
+    apply_pipeline_resource_gate,
     start_popo_resume_run,
     start_pipeline_run,
     sync_material_inventory,
@@ -88,6 +90,7 @@ from app.services.worker_v1_policy import v1_batch_enabled, v1_policy
 from app.utils.minio_client import get_presigned_url
 from app.utils.user_dep import get_asset_download_user_id, get_user_id, is_pipeline_admin, require_pipeline_admin
 from app.workflow_v2.database import workflow_session_factory
+from app.workflow_v2.models import WorkflowJob
 from app.workflow_v2.service import list_workflow_jobs
 
 router = APIRouter()
@@ -157,13 +160,83 @@ def _latest_codex_jobs_for_materials(db: Session, user_id: str, material_ids: li
     return latest
 
 
-def _refinement_status(material: Material, codex_job: CodexSkillJob | None) -> str:
-    job_status = str(codex_job.status or "") if codex_job else ""
-    if job_status in {"queued", "running", "validating", "retrying", "needs_review"}:
-        return job_status
-    if material.latex_manifest_bucket and material.latex_manifest_object:
-        return "succeeded"
-    return job_status or "idle"
+def _latest_workflow_jobs_for_materials(user_id: str, material_ids: list[int]) -> tuple[dict[int, dict], bool]:
+    if not material_ids:
+        return {}, True
+    workflow_db = None
+    try:
+        workflow_db = workflow_session_factory()()
+        jobs = (
+            workflow_db.query(WorkflowJob)
+            .filter(WorkflowJob.user_id == user_id, WorkflowJob.material_pk.in_(material_ids))
+            .order_by(WorkflowJob.created_at.desc(), WorkflowJob.id.desc())
+            .all()
+        )
+        latest: dict[int, dict] = {}
+        for job in jobs:
+            if job.material_pk not in latest:
+                latest[job.material_pk] = job.to_dict()
+        return latest, True
+    except Exception:
+        return {}, False
+    finally:
+        if workflow_db is not None:
+            workflow_db.close()
+
+
+def _refinement_projection(
+    material: Material,
+    codex_job: CodexSkillJob | None,
+    workflow_job: WorkflowJob | dict | None,
+    current_output: MaterialOutput | None,
+    *,
+    workflow_available: bool = True,
+) -> dict:
+    output_available = bool(current_output or (material.latex_manifest_bucket and material.latex_manifest_object))
+    output = current_output.to_dict() if current_output else None
+    if not workflow_available:
+        task = None
+        task_status = "unavailable"
+        task_source = "workflow_v2_unavailable"
+    elif workflow_job:
+        task = workflow_job if isinstance(workflow_job, dict) else workflow_job.to_dict()
+        task_status = str(task.get("status") or "idle")
+        task_source = "workflow_v2"
+    elif codex_job:
+        task = codex_job.to_dict()
+        task_status = str(codex_job.status or "idle")
+        task_source = "legacy_codex"
+    else:
+        task = None
+        task_status = "idle"
+        task_source = "none"
+    return {
+        "refinement_output_status": "succeeded" if output_available else "idle",
+        "current_refinement_output": output,
+        "latest_refinement_status": task_status,
+        "latest_refinement_job": task,
+        "latest_refinement_source": task_source,
+        # Backward-compatible aggregate: actionable task state wins; otherwise
+        # preserve the fact that a durable output is already available.
+        "refinement_status": task_status if task_status != "idle" else ("succeeded" if output_available else "idle"),
+    }
+
+
+def _refinement_status(
+    material: Material,
+    codex_job: CodexSkillJob | None,
+    workflow_job: WorkflowJob | dict | None = None,
+    current_output: MaterialOutput | None = None,
+    *,
+    workflow_available: bool = True,
+) -> str:
+    return _refinement_projection(
+        material,
+        codex_job,
+        workflow_job,
+        current_output,
+        workflow_available=workflow_available,
+    )["refinement_status"]
 
 
 class PipelineStartRequest(BaseModel):
@@ -325,11 +398,27 @@ def list_materials(
         query = query.filter(Material.stage_status == stage)
 
     rows_all = query.all()
-    latest_codex_jobs = _latest_codex_jobs_for_materials(db, user_id, [int(row.id) for row in rows_all if row.id])
+    material_ids = [int(row.id) for row in rows_all if row.id]
+    latest_codex_jobs = _latest_codex_jobs_for_materials(db, user_id, material_ids)
+    latest_workflow_jobs, workflow_available = _latest_workflow_jobs_for_materials(user_id, material_ids)
     total = len(rows_all)
     rows_all.sort(key=lambda row: _material_activity_sort_key(row, latest_codex_jobs.get(int(row.id or 0))), reverse=True)
     rows = rows_all[(page - 1) * page_size : page * page_size]
     metadata_map = metadata_for_materials(db, user_id, [row.id for row in rows])
+    current_outputs: dict[int, MaterialOutput] = {}
+    for output in (
+        db.query(MaterialOutput)
+        .filter(
+            MaterialOutput.user_id == user_id,
+            MaterialOutput.material_pk.in_([row.id for row in rows]),
+            MaterialOutput.is_current.is_(True),
+            MaterialOutput.quality_status == "passed",
+        )
+        .order_by(MaterialOutput.created_at.desc(), MaterialOutput.id.desc())
+        .all()
+    ):
+        if output.material_pk:
+            current_outputs.setdefault(int(output.material_pk), output)
     material_rows = []
     for row in rows:
         data = row.to_dict()
@@ -339,7 +428,15 @@ def list_materials(
         data["raw_dry_run_id"] = str(dry_run.id) if dry_run else ""
         latest_codex_job = latest_codex_jobs.get(int(row.id or 0)) or latest_codex_skill_job_for_material(db, user_id, row)
         data["codex_job"] = latest_codex_job.to_dict() if latest_codex_job else None
-        data["refinement_status"] = _refinement_status(row, latest_codex_job)
+        data.update(
+            _refinement_projection(
+                row,
+                latest_codex_job,
+                latest_workflow_jobs.get(int(row.id or 0)),
+                current_outputs.get(int(row.id or 0)),
+                workflow_available=workflow_available,
+            )
+        )
         material_rows.append(data)
     return {"total": total, "page": page, "page_size": page_size, "materials": material_rows}
 
@@ -792,6 +889,7 @@ def pipeline_preflight(
             input_objects=payload.input_objects,
             reprocess_completed=payload.reprocess_completed,
         )
+        result = apply_pipeline_resource_gate(result, snapshot)
         result["snapshot"] = snapshot
         return result
     except HTTPException:
@@ -845,10 +943,10 @@ def preflight_resume_popo(
     admin_user: User = Depends(require_pipeline_admin),
     db: Session = Depends(get_db),
 ):
-    _ = admin_user
     material = _admin_material_or_404(material_pk, db)
     try:
-        return run_popo_resume_preflight(material)
+        existing_popo_batch_id = latest_timed_out_popo_batch_id(db, str(material.user_id), material)
+        return run_popo_resume_preflight(material, existing_popo_batch_id=existing_popo_batch_id)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Popo 恢复预检失败: {exc}")
 

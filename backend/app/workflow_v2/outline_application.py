@@ -16,6 +16,7 @@ def apply_accepted_outline(canonical_dir: Path, outline_dir: Path, output_path: 
     if validation.get("status") != "passed":
         raise OutlineApplicationError("only an accepted outline can be applied")
     nodes = outline.get("nodes") or []
+    _bind_parent_ids(nodes)
     lines = (canonical_dir / "clean.md").read_text(encoding="utf-8").splitlines()
     blocks = {
         str(row.get("block_id") or ""): row
@@ -76,7 +77,7 @@ def apply_accepted_outline(canonical_dir: Path, outline_dir: Path, output_path: 
                 line_index = matches[0]
                 method = "existing_unique_plain_label"
         if line_index is not None:
-            replacements[line_index] = target
+            replacements[line_index] = (_outline_marker(node), target)
             anchored_positions[node["id"]] = line_index
             actions.append({"node_id": node["id"], "action": "promote_or_relevel", "line": line_index + 1, "method": method})
 
@@ -138,7 +139,7 @@ def apply_accepted_outline(canonical_dir: Path, outline_dir: Path, output_path: 
             continue
         target = f"{'#' * int(node['level'])} {node['title']}"
         detail = {"node_id": node["id"], "action": "restore_source_heading", "insert_before_line": insertion + 1, "method": method, "source_block_id": block.get("block_id") if block else ""}
-        insert_before[insertion].append((node_index, target, detail))
+        insert_before[insertion].append((node_index, _outline_marker(node), target, detail))
         planned_positions[node["id"]] = insertion
         actions.append(detail)
 
@@ -147,11 +148,12 @@ def apply_accepted_outline(canonical_dir: Path, outline_dir: Path, output_path: 
 
     rendered = []
     for index in range(len(lines) + 1):
-        for _order, heading, _detail in sorted(insert_before.get(index, []), key=lambda row: row[0]):
-            rendered.extend([heading, ""])
+        for _order, marker, heading, _detail in sorted(insert_before.get(index, []), key=lambda row: row[0]):
+            rendered.extend([marker, heading, ""])
         if index < len(lines):
             if index in replacements:
-                rendered.append(replacements[index])
+                marker, heading = replacements[index]
+                rendered.extend([marker, heading])
             elif re.fullmatch(r"#{1,6}\s+(.+?)\s*", lines[index].strip()):
                 rendered.append(re.sub(r"^#{1,6}\s+", "", lines[index].strip()))
                 actions.append({"action": "demote_unselected_heading", "line": index + 1})
@@ -170,6 +172,26 @@ def apply_accepted_outline(canonical_dir: Path, outline_dir: Path, output_path: 
         "unresolved": [],
     }
     return report
+
+
+def _bind_parent_ids(nodes: list[dict]) -> None:
+    stack: list[dict] = []
+    for node in nodes:
+        level = int(node.get("level") or 0)
+        while stack and int(stack[-1].get("level") or 0) >= level:
+            stack.pop()
+        parent = stack[-1] if stack and int(stack[-1].get("level") or 0) == level - 1 else None
+        node["parent_id"] = None if level == 1 else str((parent or {}).get("id") or "") or None
+        stack.append(node)
+
+
+def _outline_marker(node: dict) -> str:
+    parent_id = str(node.get("parent_id") or "")
+    return (
+        "<!-- outline_node_id: "
+        f"{node.get('id')}; parent_outline_node_id: {parent_id}; "
+        f"source_page: {node.get('source_page') or ''} -->"
+    )
 
 
 def _evidenced_clean_line(node: dict, lines: list[str]) -> int | None:

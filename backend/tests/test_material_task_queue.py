@@ -1,3 +1,4 @@
+import io
 import json
 from datetime import datetime, timedelta
 from types import SimpleNamespace
@@ -24,6 +25,16 @@ from app.services.material_task_queue import (
     retry_metadata_job,
 )
 from app.services import material_inventory
+from app.services import material_task_queue
+
+
+@pytest.fixture(autouse=True)
+def isolate_manifest_hashing_from_live_minio(monkeypatch):
+    monkeypatch.setattr(
+        material_task_queue,
+        "_manifest_sha256",
+        lambda bucket, object_name: f"{bucket}/{object_name}".encode().hex()[:64].ljust(64, "0"),
+    )
 
 
 def make_session():
@@ -179,6 +190,48 @@ def test_popo_resume_records_reused_mineru_without_new_mineru_freeze():
     assert mineru_attempt.external_run_id == "mineru-frozen"
 
 
+def test_popo_preparation_failure_preserves_frozen_mineru_stage():
+    db = make_session()
+    material = add_material(db, 9)
+    run = add_run(db, [material])
+    mineru_freeze = freeze(material, "mineru")
+
+    outcome = project_pipeline_result(
+        db,
+        run,
+        {
+            "status": "PARTIAL",
+            "mineru_batch_id": "mineru-batch",
+            "mineru_freezes": [mineru_freeze],
+            "mineru_errors": [],
+            "popo": {
+                "batch_id": "",
+                "freezes": [],
+                "errors": [
+                    {
+                        "material_id": material.material_id,
+                        "stage": "popo",
+                        "reason": "popo_submit_preparation_failed",
+                        "error": {"message": "ssh failed"},
+                    }
+                ],
+            },
+        },
+    )
+    db.commit()
+
+    item = db.query(PipelineRunItem).one()
+    mineru_attempt = db.query(PipelineStageAttempt).filter(PipelineStageAttempt.stage == "mineru").one()
+    popo_attempt = db.query(PipelineStageAttempt).filter(PipelineStageAttempt.stage == "popo").one()
+    assert outcome == "failed"
+    assert material.stage_status == "mineru_done"
+    assert material.mineru_manifest_object == mineru_freeze["manifest"]["object"]
+    assert item.current_stage == "popo_failed"
+    assert item.error_code == "popo_submit_preparation_failed"
+    assert mineru_attempt.status == "succeeded"
+    assert popo_attempt.status == "failed"
+
+
 def test_expired_pipeline_lease_is_requeued_and_claimed_after_restart():
     db = make_session()
     run = PipelineRun(
@@ -215,6 +268,49 @@ def test_running_items_use_honest_opaque_gpu_stage():
     assert item.current_stage == "pipeline_command"
     assert attempt.stage == "mineru"
     assert attempt.status == "running"
+
+
+def test_parent_progress_aggregates_durable_child_stages_without_fake_freeze():
+    db = make_session()
+    materials = [add_material(db, value) for value in (31, 32, 33, 34, 35)]
+    run = add_run(db, materials)
+    items = db.query(PipelineRunItem).order_by(PipelineRunItem.id).all()
+    for item, stage in zip(
+        items,
+        [
+            "mineru_frozen",
+            "mineru_frozen",
+            "mineru_remote_running",
+            "pipeline_command",
+            "pipeline_command",
+        ],
+    ):
+        item.current_stage = stage
+    run.status = "running"
+    run.current_stage = "mineru_remote_running"
+    db.commit()
+
+    detail = pipeline_run_detail(db, run)
+
+    assert detail["progress_basis"] == "per_item_stage_aggregate"
+    assert detail["progress_percent"] == 25
+    assert detail["processed"] == 0
+
+
+def test_model_switch_has_visible_progress_without_claiming_popo_freeze():
+    db = make_session()
+    materials = [add_material(db, value) for value in (41, 42)]
+    run = add_run(db, materials)
+    for item in db.query(PipelineRunItem).all():
+        item.current_stage = "mineru_frozen"
+    run.status = "running"
+    run.current_stage = "popo_model_loading"
+    db.commit()
+
+    detail = pipeline_run_detail(db, run)
+
+    assert detail["progress_percent"] == 50
+    assert detail["processed"] == 0
 
 
 def test_terminal_freeze_is_committed_before_inventory_sync(monkeypatch, tmp_path):
@@ -257,8 +353,8 @@ def test_terminal_freeze_is_committed_before_inventory_sync(monkeypatch, tmp_pat
     monkeypatch.setattr(material_inventory, "sync_pipeline_run_inventory", inspect_committed_terminal_state)
     monkeypatch.setattr(
         material_inventory.subprocess,
-        "run",
-        lambda *_args, **_kwargs: SimpleNamespace(stdout=json.dumps(payload), stderr="", returncode=0),
+        "Popen",
+        lambda *_args, **_kwargs: SimpleNamespace(stdout=io.StringIO(json.dumps(payload)), wait=lambda: 0),
     )
 
     material_inventory.run_pipeline_subprocess(
@@ -311,8 +407,8 @@ def test_terminal_inventory_sync_retries_transient_failure(monkeypatch, tmp_path
     monkeypatch.setattr(material_inventory, "sync_pipeline_run_inventory", flaky_sync)
     monkeypatch.setattr(
         material_inventory.subprocess,
-        "run",
-        lambda *_args, **_kwargs: SimpleNamespace(stdout=json.dumps(payload), stderr="", returncode=0),
+        "Popen",
+        lambda *_args, **_kwargs: SimpleNamespace(stdout=io.StringIO(json.dumps(payload)), wait=lambda: 0),
     )
 
     material_inventory.run_pipeline_subprocess(
@@ -403,6 +499,119 @@ def test_duplicate_submit_reuses_active_run_and_global_gpu_slot(monkeypatch):
     assert db.query(PipelineRun).count() == 1
     with pytest.raises(MaterialTaskError, match="串行GPU队列"):
         material_inventory.start_pipeline_run(db, "u1", apply=True, material_pks=[second.id])
+
+
+def test_large_pdf_resource_gate_blocks_insufficient_wrapper_headroom():
+    payload = {
+        "ready": True,
+        "status": "READY",
+        "health": {
+            "health": {
+                "artifact_limit_bytes": 16 * 1024**3,
+                "artifact_used_bytes": 10 * 1024**3,
+                "disk_available_bytes": 12 * 1024**3,
+            }
+        },
+    }
+    snapshot = [{"size_bytes": 512 * 1024**2, "page_count": 2415}]
+
+    result = material_inventory.apply_pipeline_resource_gate(payload, snapshot)
+
+    assert result["ready"] is False
+    assert result["status"] == "GPU_RESOURCE_HEADROOM_BLOCKED"
+    assert result["resource_gate"]["status"] == "insufficient_headroom"
+    assert result["resource_gate"]["available_headroom_bytes"] == 6 * 1024**3
+    assert result["resource_gate"]["required_headroom_bytes"] == 8 * 1024**3
+
+
+def test_large_pdf_resource_gate_passes_with_required_wrapper_headroom():
+    payload = {
+        "ready": True,
+        "status": "READY",
+        "health": {
+            "health": {
+                "artifact_limit_bytes": 16 * 1024**3,
+                "artifact_used_bytes": 6 * 1024**3,
+                "disk_available_bytes": 14 * 1024**3,
+            }
+        },
+    }
+    snapshot = [{"size_bytes": 512 * 1024**2, "page_count": 2415}]
+
+    result = material_inventory.apply_pipeline_resource_gate(payload, snapshot)
+
+    assert result["ready"] is True
+    assert result["status"] == "READY"
+    assert result["resource_gate"]["status"] == "ready"
+    assert result["resource_gate"]["available_headroom_bytes"] == 10 * 1024**3
+
+
+def test_large_pdf_resource_gate_requires_real_disk_headroom() -> None:
+    payload = {
+        "ready": True,
+        "status": "READY",
+        "health": {
+            "health": {
+                "artifact_limit_bytes": 16 * 1024**3,
+                "artifact_used_bytes": 6 * 1024**3,
+            }
+        },
+    }
+
+    result = material_inventory.apply_pipeline_resource_gate(
+        payload,
+        [{"size_bytes": 512 * 1024**2, "page_count": 2415}],
+    )
+
+    assert result["ready"] is False
+    assert result["status"] == "GPU_RESOURCE_HEADROOM_BLOCKED"
+    assert result["resource_gate"]["status"] == "disk_headroom_unknown"
+    assert result["resource_gate"]["reason"] == "GPU Wrapper 未报告真实磁盘余量"
+
+
+def test_large_pdf_resource_gate_uses_historical_expansion_factor() -> None:
+    payload = {
+        "ready": True,
+        "status": "READY",
+        "health": {
+            "health": {
+                "artifact_limit_bytes": 32 * 1024**3,
+                "artifact_used_bytes": 2 * 1024**3,
+                "disk_available_bytes": 30 * 1024**3,
+                "historical_artifact_expansion_factor": 20,
+            }
+        },
+    }
+
+    result = material_inventory.apply_pipeline_resource_gate(
+        payload,
+        [{"size_bytes": 512 * 1024**2, "page_count": 2415}],
+    )
+
+    assert result["ready"] is True
+    assert result["resource_gate"]["expansion_factor"] == 20
+    assert result["resource_gate"]["required_headroom_bytes"] == 10 * 1024**3
+
+
+def test_small_pdf_resource_gate_does_not_require_wrapper_quota_fields():
+    payload = {"ready": True, "status": "READY", "health": {}}
+
+    result = material_inventory.apply_pipeline_resource_gate(
+        payload,
+        [{"size_bytes": 20 * 1024**2, "page_count": 120}],
+    )
+
+    assert result["ready"] is True
+    assert result["resource_gate"] == {
+        "applies": False,
+        "ok": True,
+        "status": "not_applicable",
+        "large_pdf_count": 0,
+        "selected_input_bytes": 20 * 1024**2,
+        "max_page_count": 120,
+        "large_pdf_threshold_bytes": 256 * 1024**2,
+        "large_pdf_page_threshold": 1000,
+    }
 
 
 def test_versioned_reprocess_is_recorded_without_mutating_existing_frozen_refs(monkeypatch):

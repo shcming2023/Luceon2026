@@ -46,8 +46,14 @@ def build_canonical_conservation(canonical_dir: Path) -> dict:
     duplicate_assignments = sorted(ref for ref, count in assignment_counts.items() if count > 1)
     output_refs_by_block: dict[str, list[str]] = defaultdict(list)
     for row in assignments:
-        if row.get("block_ref") and row.get("unit_id"):
-            output_refs_by_block[str(row["block_ref"])].append(str(row["unit_id"]))
+        block_ref = str(row.get("block_ref") or "")
+        if not block_ref:
+            continue
+        output_refs_by_block[block_ref].extend(
+            str(value) for value in row.get("output_refs") or [] if str(value)
+        )
+        if row.get("unit_id"):
+            output_refs_by_block[block_ref].append(f"unit:{row['unit_id']}")
     included = manifest.get("included_page_range") or {}
     start_page = _integer(included.get("start_page"))
     end_page = _integer(included.get("end_page"))
@@ -109,12 +115,12 @@ def build_canonical_conservation(canonical_dir: Path) -> dict:
             action, reason = "remove_out_of_scope", "before_verified_body_range"
         elif page_idx is not None and end_page is not None and page_idx > end_page:
             action, reason = "remove_out_of_scope", "after_verified_body_range"
+        elif _is_structural_page_noise(raw, normalized):
+            action, reason = "remove_structural_page_noise", "typed_page_noise_at_page_edge"
         elif clean_disposition == "content":
             action, reason = "preserve", "source_components_present_in_canonical_clean"
         elif block_id in outline_refs:
             action, reason = "transform_to_outline_heading", "source_content_is_bound_to_a_canonical_heading"
-        elif _is_structural_page_noise(raw, normalized):
-            action, reason = "remove_structural_page_noise", "typed_page_noise_at_page_edge"
         elif clean_disposition == "heading":
             action, reason = "transform_to_outline_heading", "source_content_is_bound_to_a_canonical_heading"
         elif block_id in assigned:
@@ -157,6 +163,7 @@ def build_canonical_conservation(canonical_dir: Path) -> dict:
             }
         )
     clean_map = _map_preserved_blocks_to_clean(canonical_dir, blocks, ledger, outline_refs)
+    _bind_clean_output_refs(ledger, clean_map)
     page_conservation = _build_page_conservation(blocks, ledger, _parse_clean_blocks(canonical_dir / "clean.md"))
     if clean_map["missing_source_block_ids"]:
         blockers.append(
@@ -551,6 +558,9 @@ def _map_preserved_blocks_to_clean(canonical_dir: Path, blocks: list[dict], ledg
         if (row["source_block_id"], row["source_component"]) not in resegmented_source_components
     })
     unmapped_ids = [row["block_id"] for row in unmapped if row["block_id"] not in resegmented_clean_ids]
+    for mapping in mappings:
+        source = source_by_id.get(str(mapping.get("source_block_id") or "")) or {}
+        mapping["source_locator"] = _stable_source_locator(source)
     return {
         "schema": "luceon.clean-block-map/v1",
         "source_preserved_count": sum(row["action"] == "preserve" for row in ledger),
@@ -566,6 +576,35 @@ def _map_preserved_blocks_to_clean(canonical_dir: Path, blocks: list[dict], ledg
         "mappings": mappings,
         "media_counts": _media_counts(blocks, ledger, clean_blocks),
     }
+
+
+def _stable_source_locator(source: dict) -> dict:
+    locator = {
+        "block_id": str(source.get("block_id") or ""),
+        "source_order": _integer(source.get("source_order")),
+        "page_idx": _integer(source.get("page_idx")),
+        "bbox": source.get("bbox") if isinstance(source.get("bbox"), list) else [],
+        "content_sha256": str(source.get("content_sha256") or ""),
+    }
+    locator["locator_sha256"] = hashlib.sha256(
+        json.dumps(locator, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return locator
+
+
+def _bind_clean_output_refs(ledger: list[dict], clean_map: dict) -> None:
+    refs_by_source: dict[str, set[str]] = defaultdict(set)
+    for mapping in clean_map.get("mappings") or []:
+        source_id = str(mapping.get("source_block_id") or "")
+        clean_id = str(mapping.get("clean_block_id") or "")
+        if source_id and clean_id:
+            refs_by_source[source_id].add(f"clean:{clean_id}")
+    for entry in ledger:
+        if entry.get("action") != "preserve":
+            continue
+        refs = {str(value) for value in entry.get("output_refs") or [] if str(value)}
+        refs.update(refs_by_source.get(str(entry.get("block_id") or ""), set()))
+        entry["output_refs"] = sorted(refs)
 
 
 def _match_allowlisted_ocr_corrections(canonical_dir: Path, source_components: list[dict], clean_blocks: list[dict]) -> list[dict]:

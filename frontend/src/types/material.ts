@@ -69,6 +69,24 @@ export interface MaterialItem {
   raw_dry_run_available?: boolean
   codex_job?: CodexSkillJob | null
   refinement_status: string
+  refinement_output_status: string
+  current_refinement_output?: {
+    id: string
+    output_run_id: string
+    popo_run_id: string
+    status: string
+    quality_status: string
+    is_current: boolean
+  } | null
+  latest_refinement_status: string
+  latest_refinement_job?: {
+    id: string
+    status: string
+    current_stage_key?: string
+    created_at?: string | null
+    updated_at?: string | null
+  } | null
+  latest_refinement_source: string
   mineru_run_id: string
   popo_run_id: string
   latex_run_id: string
@@ -144,6 +162,8 @@ export interface PipelineRun {
   processed: number
   success: number
   failed: number
+  progress_percent?: number
+  progress_basis?: string
   summary: Record<string, unknown>
   request: Record<string, unknown>
   error_message: string
@@ -305,6 +325,20 @@ export interface PipelinePreflightResponse {
   plan: Record<string, unknown>
   returncode: number
   command_text: string
+  resource_gate?: {
+    applies: boolean
+    ok: boolean
+    status: string
+    reason?: string
+    large_pdf_count: number
+    selected_input_bytes: number
+    max_page_count: number
+    artifact_limit_bytes?: number
+    artifact_used_bytes?: number
+    available_headroom_bytes?: number
+    required_headroom_bytes?: number
+    expansion_factor?: number
+  }
   snapshot?: Array<{
     material_pk: number
     material_id: string
@@ -312,6 +346,8 @@ export interface PipelinePreflightResponse {
     input_bucket: string
     input_object: string
     input_sha256: string
+    size_bytes: number
+    page_count: number
   }>
 }
 

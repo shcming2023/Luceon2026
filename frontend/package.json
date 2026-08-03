@@ -9,9 +9,11 @@
     "preview": "vite preview",
     "test:theme": "node scripts/check-theme.mjs",
     "test:auth": "node scripts/check-auth.mjs",
+    "test:upload-resume": "node scripts/check-upload-resume.mjs",
     "test:nginx-dns": "node scripts/check-nginx-backend-dns.mjs",
     "test:workflow-v2-recovery": "node scripts/check-workflow-v2-recovery.mjs",
     "test:popo-resume": "node scripts/check-popo-resume.mjs",
+    "test:pipeline-resource-gate": "node scripts/check-pipeline-resource-gate.mjs",
     "test:source-trace": "node scripts/check-source-trace.mjs"
   },
   "dependencies": {

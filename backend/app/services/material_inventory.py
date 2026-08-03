@@ -17,7 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
-from app.models.material import Material, MaterialOutput, PipelineEvent, PipelineRun
+from app.models.material import Material, MaterialOutput, PipelineEvent, PipelineRun, PipelineRunItem, PipelineStageAttempt
 from app.models.review_asset import ReviewAsset
 from app.services.codex_elegantbook import (
     ELEGANTBOOK_BUCKET,
@@ -60,6 +60,12 @@ STANDARD_BUCKET = "eduassets-standard"
 DEFAULT_PIPELINE_SCRIPT = str(Path(__file__).resolve().parents[2] / "scripts" / "luceon_pdf_pipeline.py")
 PIPELINE_SCRIPT = os.getenv("LUCEON_PIPELINE_SCRIPT", DEFAULT_PIPELINE_SCRIPT)
 PIPELINE_WORKDIR = os.getenv("LUCEON_PIPELINE_WORKDIR", str(Path(PIPELINE_SCRIPT).resolve().parent))
+LARGE_PDF_THRESHOLD_BYTES = 256 * 1024 * 1024
+LARGE_PDF_PAGE_THRESHOLD = 1000
+LARGE_PDF_MIN_HEADROOM_BYTES = 8 * 1024 * 1024 * 1024
+LARGE_PDF_EXPANSION_FACTOR = 12
+DEFAULT_PIPELINE_WAIT_TIMEOUT_SECONDS = 2 * 60 * 60
+LARGE_PDF_PIPELINE_WAIT_TIMEOUT_SECONDS = 6 * 60 * 60
 
 
 class PipelinePreflightError(RuntimeError):
@@ -656,6 +662,15 @@ def pipeline_limit(limit: int) -> int:
     return max(1, min(int(limit or 5), 5))
 
 
+def pipeline_wait_timeout_seconds(snapshot: list[dict[str, Any]]) -> int:
+    is_large = any(
+        int(row.get("size_bytes") or 0) >= LARGE_PDF_THRESHOLD_BYTES
+        or int(row.get("page_count") or 0) >= LARGE_PDF_PAGE_THRESHOLD
+        for row in snapshot
+    )
+    return LARGE_PDF_PIPELINE_WAIT_TIMEOUT_SECONDS if is_large else DEFAULT_PIPELINE_WAIT_TIMEOUT_SECONDS
+
+
 def _pipeline_target_values(single: str, multiple: list[str] | tuple[str, ...] | None) -> list[str]:
     values: list[str] = []
     for raw in [single, *(multiple or [])]:
@@ -689,6 +704,7 @@ def pipeline_command(
     material_ids: list[str] | tuple[str, ...] | None = None,
     input_objects: list[str] | tuple[str, ...] | None = None,
     reprocess_completed: bool = False,
+    timeout_seconds: int = DEFAULT_PIPELINE_WAIT_TIMEOUT_SECONDS,
 ) -> list[str]:
     target_args = pipeline_target_args(
         material_id,
@@ -703,6 +719,7 @@ def pipeline_command(
         if reprocess_completed:
             command.append("--reprocess-completed")
         command.extend(target_args)
+        command.extend(["--timeout-seconds", str(max(1, int(timeout_seconds)))])
         command.extend(["--apply", "--wait"])
     else:
         command = ["python3", PIPELINE_SCRIPT, "plan-next", "--limit", str(pipeline_limit(limit))]
@@ -718,13 +735,37 @@ def popo_resume_command(
     input_object: str,
     *,
     apply: bool,
+    existing_popo_batch_id: str = "",
+    timeout_seconds: int = DEFAULT_PIPELINE_WAIT_TIMEOUT_SECONDS,
 ) -> list[str]:
     command = ["python3", PIPELINE_SCRIPT, "run-staged", "--limit", "1", "--skip-sha", "--input-status-only"]
     command.extend(pipeline_target_args(material_id, input_object))
-    command.extend(["--existing-mineru-batch-id", existing_mineru_batch_id, "--reuse-frozen-mineru"])
+    if existing_popo_batch_id:
+        command.extend(["--existing-popo-batch-id", existing_popo_batch_id])
+    else:
+        command.extend(["--existing-mineru-batch-id", existing_mineru_batch_id, "--reuse-frozen-mineru"])
     if apply:
+        command.extend(["--timeout-seconds", str(max(1, int(timeout_seconds)))])
         command.extend(["--apply", "--wait"])
     return command
+
+
+def latest_timed_out_popo_batch_id(db: Session, user_id: str, material: Material) -> str:
+    attempt = (
+        db.query(PipelineStageAttempt)
+        .join(PipelineRunItem, PipelineRunItem.id == PipelineStageAttempt.run_item_id)
+        .filter(
+            PipelineRunItem.user_id == user_id,
+            PipelineRunItem.material_pk == material.id,
+            PipelineStageAttempt.stage == "popo",
+            PipelineStageAttempt.status == "failed",
+            PipelineStageAttempt.error_code == "popo_wait_timeout",
+            PipelineStageAttempt.external_batch_id.isnot(None),
+        )
+        .order_by(PipelineStageAttempt.finished_at.desc(), PipelineStageAttempt.id.desc())
+        .first()
+    )
+    return str(attempt.external_batch_id or "") if attempt else ""
 
 
 def frozen_mineru_resume_context(material: Material) -> dict[str, str]:
@@ -767,12 +808,13 @@ def frozen_mineru_resume_context(material: Material) -> dict[str, str]:
         "input_object": expected["input_object"],
         "mineru_batch_id": batch_id,
         "mineru_run_id": run_id,
+        "mineru_manifest_bucket": manifest_bucket,
         "mineru_manifest_object": manifest_object,
         "mineru_marker_object": marker_object,
     }
 
 
-def run_popo_resume_preflight(material: Material) -> dict[str, Any]:
+def run_popo_resume_preflight(material: Material, *, existing_popo_batch_id: str = "") -> dict[str, Any]:
     try:
         context = frozen_mineru_resume_context(material)
     except ValueError as exc:
@@ -792,6 +834,7 @@ def run_popo_resume_preflight(material: Material) -> dict[str, Any]:
         context["material_id"],
         context["input_object"],
         apply=False,
+        existing_popo_batch_id=existing_popo_batch_id,
     )
     completed = subprocess.run(
         command,
@@ -812,6 +855,7 @@ def run_popo_resume_preflight(material: Material) -> dict[str, Any]:
             "plan_status": str(payload.get("status") or "ERROR"),
             "active_marker_count": 0,
             "resume_context": context,
+            "existing_popo_batch_id": existing_popo_batch_id,
         }
     )
     health = payload.get("health") if isinstance(payload.get("health"), dict) else {}
@@ -938,6 +982,95 @@ def run_pipeline_preflight(
     return payload
 
 
+def apply_pipeline_resource_gate(
+    payload: dict[str, Any],
+    snapshot: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    selected = payload.get("selected") if isinstance(payload.get("selected"), list) else []
+    rows = list(snapshot or selected)
+    total_input_bytes = sum(
+        max(0, int(row.get("size_bytes") or row.get("source_pdf_size_bytes") or 0))
+        for row in rows
+        if isinstance(row, dict)
+    )
+    max_page_count = max(
+        [max(0, int(row.get("page_count") or 0)) for row in rows if isinstance(row, dict)] or [0]
+    )
+    large_pdf_count = sum(
+        1
+        for row in rows
+        if isinstance(row, dict)
+        and (
+            int(row.get("size_bytes") or row.get("source_pdf_size_bytes") or 0) >= LARGE_PDF_THRESHOLD_BYTES
+            or int(row.get("page_count") or 0) >= LARGE_PDF_PAGE_THRESHOLD
+        )
+    )
+    gate: dict[str, Any] = {
+        "applies": large_pdf_count > 0,
+        "ok": True,
+        "status": "not_applicable" if large_pdf_count == 0 else "ready",
+        "large_pdf_count": large_pdf_count,
+        "selected_input_bytes": total_input_bytes,
+        "max_page_count": max_page_count,
+        "large_pdf_threshold_bytes": LARGE_PDF_THRESHOLD_BYTES,
+        "large_pdf_page_threshold": LARGE_PDF_PAGE_THRESHOLD,
+    }
+    if large_pdf_count == 0:
+        payload["resource_gate"] = gate
+        return payload
+
+    wrapper_health = payload.get("health") if isinstance(payload.get("health"), dict) else {}
+    wrapper_health = wrapper_health.get("health") if isinstance(wrapper_health.get("health"), dict) else {}
+    artifact_limit = int(wrapper_health.get("artifact_limit_bytes") or 0)
+    artifact_used = int(wrapper_health.get("artifact_used_bytes") or 0)
+    quota_available = max(0, artifact_limit - artifact_used) if artifact_limit > 0 else 0
+    disk = wrapper_health.get("disk") if isinstance(wrapper_health.get("disk"), dict) else {}
+    disk_available = int(
+        wrapper_health.get("disk_available_bytes")
+        or wrapper_health.get("disk_free_bytes")
+        or disk.get("available_bytes")
+        or disk.get("free_bytes")
+        or 0
+    )
+    historical_factors = []
+    for value in [
+        wrapper_health.get("historical_artifact_expansion_factor"),
+        *(row.get("historical_artifact_expansion_factor") for row in rows if isinstance(row, dict)),
+    ]:
+        try:
+            factor = float(value)
+        except (TypeError, ValueError):
+            continue
+        if factor > 0:
+            historical_factors.append(factor)
+    expansion_factor = max([float(LARGE_PDF_EXPANSION_FACTOR), *historical_factors])
+    required = max(LARGE_PDF_MIN_HEADROOM_BYTES, int(total_input_bytes * expansion_factor))
+    available_candidates = [value for value in (quota_available, disk_available) if value > 0]
+    available = min(available_candidates) if len(available_candidates) == 2 else 0
+    gate.update(
+        {
+            "artifact_limit_bytes": artifact_limit,
+            "artifact_used_bytes": artifact_used,
+            "artifact_quota_available_bytes": quota_available,
+            "disk_available_bytes": disk_available,
+            "available_headroom_bytes": available,
+            "required_headroom_bytes": required,
+            "expansion_factor": expansion_factor,
+        }
+    )
+    if artifact_limit <= 0:
+        gate.update({"ok": False, "status": "headroom_unknown", "reason": "GPU Wrapper 未报告临时产物配额"})
+    elif disk_available <= 0:
+        gate.update({"ok": False, "status": "disk_headroom_unknown", "reason": "GPU Wrapper 未报告真实磁盘余量"})
+    elif available < required:
+        gate.update({"ok": False, "status": "insufficient_headroom", "reason": "GPU 临时产物余量不足"})
+    if not gate["ok"]:
+        payload["ready"] = False
+        payload["status"] = "GPU_RESOURCE_HEADROOM_BLOCKED"
+    payload["resource_gate"] = gate
+    return payload
+
+
 def start_pipeline_run(
     db: Session,
     user_id: str,
@@ -985,13 +1118,16 @@ def start_pipeline_run(
             return active
         raise MaterialTaskError("已有解析任务占用串行GPU队列")
     preflight = (
-        run_pipeline_preflight(
-            limit,
-            material_id=material_id,
-            input_object=input_object,
-            material_ids=material_ids,
-            input_objects=input_objects,
-            reprocess_completed=reprocess_completed,
+        apply_pipeline_resource_gate(
+            run_pipeline_preflight(
+                limit,
+                material_id=material_id,
+                input_object=input_object,
+                material_ids=material_ids,
+                input_objects=input_objects,
+                reprocess_completed=reprocess_completed,
+            ),
+            snapshot,
         )
         if apply
         else None
@@ -1013,6 +1149,7 @@ def start_pipeline_run(
                 material_ids=material_ids,
                 input_objects=input_objects,
                 reprocess_completed=reprocess_completed,
+                timeout_seconds=pipeline_wait_timeout_seconds(snapshot),
             )
         ),
         current_stage="queued",
@@ -1088,15 +1225,22 @@ def start_popo_resume_run(
     )
     if active:
         raise MaterialTaskError("已有解析任务占用串行GPU队列")
-    preflight = run_popo_resume_preflight(material)
+    existing_popo_batch_id = latest_timed_out_popo_batch_id(db, user_id, material)
+    preflight = run_popo_resume_preflight(material, existing_popo_batch_id=existing_popo_batch_id)
     if not preflight.get("ready"):
         raise PipelinePreflightError(preflight)
     context = preflight["resume_context"]
+    material.mineru_run_id = context["mineru_run_id"]
+    material.mineru_manifest_bucket = context["mineru_manifest_bucket"]
+    material.mineru_manifest_object = context["mineru_manifest_object"]
+    material.promote_stage("mineru_done")
     command = popo_resume_command(
         context["mineru_batch_id"],
         context["material_id"],
         context["input_object"],
         apply=True,
+        existing_popo_batch_id=existing_popo_batch_id,
+        timeout_seconds=pipeline_wait_timeout_seconds(material_snapshot(db, user_id, [material.id])),
     )
     resume_idempotency_key = hashlib.sha256(
         f"{user_id}:resume_popo:{material.id}:{context['mineru_manifest_object']}".encode("utf-8")
@@ -1114,6 +1258,7 @@ def start_popo_resume_run(
                 "limit": 1,
                 "snapshot": material_snapshot(db, user_id, [material.id]),
                 "resume_context": context,
+                "existing_popo_batch_id": existing_popo_batch_id,
             },
             ensure_ascii=False,
         ),
@@ -1150,6 +1295,75 @@ def start_popo_resume_run(
     )
     db.commit()
     return run
+
+
+def _project_live_pipeline_progress(db: Session, run: PipelineRun, progress: dict[str, Any]) -> None:
+    stage = str(progress.get("stage") or "")
+    phase = str(progress.get("phase") or "")
+    status = str(progress.get("status") or "")
+    material_id = str(progress.get("material_id") or "")
+    ordinal = int(progress.get("ordinal") or 0)
+    total = int(progress.get("total") or run.total or 0)
+    run_id = str(progress.get("run_id") or "")
+    batch_id = str(progress.get("batch_id") or "")
+    if phase == "model_switch":
+        run.current_stage = "popo_model_loading" if status == "loading" else "popo_model_ready"
+        message = "正在切换并加载 Popo 模型" if status == "loading" else "Popo 模型已就绪"
+        create_pipeline_event(db, run, message, stage=run.current_stage, payload=progress)
+        return
+    if stage not in {"mineru", "popo"} or not material_id:
+        return
+    item = (
+        db.query(PipelineRunItem)
+        .filter(PipelineRunItem.run_id == run.id, PipelineRunItem.material_id == material_id)
+        .first()
+    )
+    if not item:
+        return
+    attempt = (
+        db.query(PipelineStageAttempt)
+        .filter(PipelineStageAttempt.run_item_id == item.id, PipelineStageAttempt.stage == stage)
+        .order_by(PipelineStageAttempt.attempt.desc(), PipelineStageAttempt.id.desc())
+        .first()
+    )
+    now = datetime.utcnow()
+    if attempt:
+        attempt.status = "running"
+        attempt.started_at = attempt.started_at or now
+        attempt.external_batch_id = batch_id or attempt.external_batch_id
+        attempt.external_run_id = run_id or attempt.external_run_id
+        evidence = attempt.evidence() if hasattr(attempt, "evidence") else {}
+        evidence.setdefault("timeline", []).append(progress)
+        attempt.evidence_json = json.dumps(evidence, ensure_ascii=False)
+    if phase == "remote":
+        item.current_stage = f"{stage}_remote_{status or 'pending'}"
+        message = f"第 {ordinal}/{total} 本 {stage.upper()} 远端状态：{status or 'pending'}"
+    elif phase == "freeze":
+        item.current_stage = f"{stage}_{'frozen' if status == 'frozen' else 'freezing'}"
+        message = (
+            f"第 {ordinal}/{total} 本 {stage.upper()} 已冻结到本地 MinIO"
+            if status == "frozen"
+            else f"第 {ordinal}/{total} 本正在冻结 {stage.upper()} 产物"
+        )
+        if status == "frozen":
+            manifest = progress.get("manifest") if isinstance(progress.get("manifest"), dict) else {}
+            if stage == "mineru":
+                item.mineru_run_id = run_id or item.mineru_run_id
+                item.mineru_manifest_bucket = str(manifest.get("bucket") or "") or item.mineru_manifest_bucket
+                item.mineru_manifest_object = str(manifest.get("object") or "") or item.mineru_manifest_object
+            else:
+                item.popo_run_id = run_id or item.popo_run_id
+                item.popo_manifest_bucket = str(manifest.get("bucket") or "") or item.popo_manifest_bucket
+                item.popo_manifest_object = str(manifest.get("object") or "") or item.popo_manifest_object
+    else:
+        return
+    run.current_stage = item.current_stage
+    run.processed = sum(
+        row.current_stage == "popo_frozen"
+        for row in pipeline_run_items(db, run.id, run.user_id)
+    )
+    run.success = run.processed
+    create_pipeline_event(db, run, message, stage=item.current_stage, payload=progress)
 
 
 def run_pipeline_subprocess(
@@ -1205,26 +1419,43 @@ def run_pipeline_subprocess(
             input_objects=input_objects,
             reprocess_completed=reprocess_completed,
         )
-        completed = subprocess.run(
+        process = subprocess.Popen(
             command,
             cwd=PIPELINE_WORKDIR,
             env=pipeline_env(),
             text=True,
-            capture_output=True,
-            timeout=None if apply else 180,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            bufsize=1,
         )
-        output = (completed.stdout or "")[-8000:]
-        error = (completed.stderr or "")[-4000:]
-        payload = parse_pipeline_json(completed.stdout)
+        output_lines: list[str] = []
+        result_lines: list[str] = []
+        assert process.stdout is not None
+        for line in process.stdout:
+            output_lines.append(line)
+            if line.startswith("__LUCEON_PROGRESS__"):
+                try:
+                    progress = json.loads(line.removeprefix("__LUCEON_PROGRESS__"))
+                    _project_live_pipeline_progress(db, run, progress)
+                    db.commit()
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    pass
+                continue
+            result_lines.append(line)
+        returncode = process.wait()
+        stdout = "".join(result_lines)
+        output = "".join(output_lines)[-8000:]
+        error = ""
+        payload = parse_pipeline_json(stdout)
         counts = pipeline_result_counts(payload, fallback_total=run.total)
         run.total = counts["total"]
         run.processed = counts["processed"]
         run.success = counts["success"]
         run.failed = counts["failed"]
         run.finished_at = datetime.utcnow()
-        outcome = pipeline_run_outcome(payload, completed.returncode, apply)
-        summary = {"returncode": completed.returncode, "result": payload}
-        if completed.returncode != 0 or error:
+        outcome = pipeline_run_outcome(payload, returncode, apply)
+        summary = {"returncode": returncode, "result": payload}
+        if returncode != 0 or error:
             summary.update({"stdout_tail": output, "stderr_tail": error})
         run.summary_json = json.dumps(summary, ensure_ascii=False)
         if pipeline_run_items(db, run.id, run.user_id):
@@ -1246,7 +1477,7 @@ def run_pipeline_subprocess(
                 run,
                 "解析任务执行完成",
                 stage="finished",
-                payload={"returncode": completed.returncode, "pipeline_status": payload.get("status")},
+                payload={"returncode": returncode, "pipeline_status": payload.get("status")},
             )
         elif outcome == "partial":
             run.current_stage = "partial"
@@ -1257,18 +1488,18 @@ def run_pipeline_subprocess(
                 "批量解析部分完成；成功样本已独立冻结，失败样本保留错误证据",
                 stage="partial",
                 level="warning",
-                payload={"returncode": completed.returncode, "pipeline_status": payload.get("status"), **counts},
+                payload={"returncode": returncode, "pipeline_status": payload.get("status"), **counts},
             )
         else:
             run.current_stage = "failed"
-            run.error_message = error or output or f"pipeline exited with {completed.returncode} ({payload.get('status') or 'unknown'})"
+            run.error_message = error or output or f"pipeline exited with {returncode} ({payload.get('status') or 'unknown'})"
             create_pipeline_event(
                 db,
                 run,
                 "解析任务执行失败",
                 stage="failed",
                 level="error",
-                payload={"returncode": completed.returncode, "pipeline_status": payload.get("status")},
+                payload={"returncode": returncode, "pipeline_status": payload.get("status")},
             )
 
         # Persist the per-book frozen result before the potentially long full

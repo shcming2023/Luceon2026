@@ -30,6 +30,8 @@ def test_existing_plain_labels_are_promoted_without_text_change(tmp_path):
     assert report["status"] == "passed"
     assert "## Vocabulary" in (tmp_path / "semantic.md").read_text()
     assert "Body" in (tmp_path / "semantic.md").read_text()
+    assert "<!-- outline_node_id: n1; parent_outline_node_id:" in (tmp_path / "semantic.md").read_text()
+    assert "<!-- outline_node_id: n2; parent_outline_node_id: n1;" in (tmp_path / "semantic.md").read_text()
 
 
 def test_source_heading_missing_from_clean_is_restored_at_page_marker(tmp_path):

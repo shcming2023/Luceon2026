@@ -393,6 +393,16 @@
         <el-icon class="upload-icon"><UploadFilled /></el-icon>
         <div class="el-upload__text">拖入 PDF 或点击选择</div>
       </el-upload>
+      <el-alert
+        v-if="uploadResumeContext && !uploading"
+        class="upload-resume"
+        type="warning"
+        :closable="false"
+        show-icon
+        title="检测到上次上传未完整确认"
+        :description="uploadResumeDescription"
+      />
+      <el-button v-if="uploadResumeContext && !uploading" link @click="clearUploadResumeContext">清除恢复提示</el-button>
       <el-progress v-if="uploading" :percentage="uploadProgress" class="upload-progress" />
       <el-alert
         v-if="uploadError"
@@ -544,7 +554,7 @@ import type {
 } from '@/types/material'
 import { formatFileSize } from '@/utils/format'
 import { formatDateTime as formatDate } from '@/utils/status'
-import { useCurrentUser } from '@/utils/user'
+import { fetchCurrentUser, useCurrentUser } from '@/utils/user'
 
 const router = useRouter()
 const currentUser = useCurrentUser()
@@ -558,6 +568,17 @@ const uploading = ref(false)
 const uploadProgress = ref(0)
 const uploadError = ref('')
 const uploadFileList = ref<UploadUserFile[]>([])
+type UploadResumeContext = { filenames: string[]; progress: number; updatedAt?: string }
+const uploadResumeKey = 'luceon-upload-resume'
+const uploadResumeContext = ref<UploadResumeContext | null>(null)
+const uploadResumeDescription = computed(() => {
+  const context = uploadResumeContext.value
+  if (!context) return ''
+  const filenames = context.filenames.slice(0, 3).join('、')
+  const remainder = context.filenames.length > 3 ? ` 等 ${context.filenames.length} 个文件` : ''
+  const progress = context.progress > 0 ? `，中断前浏览器进度 ${context.progress}%` : ''
+  return `${filenames}${remainder}${progress}。浏览器不能自动恢复本地文件，请重新选择同一批文件；已写入资产库的文件会按 SHA-256 去重复用，只继续处理未完成文件。`
+})
 const summary = ref<MaterialSummary | null>(null)
 const pipeline = reactive<PipelineStatusResponse>({ run: null, events: [] })
 const preflight = ref<PipelinePreflightResponse | null>(null)
@@ -588,6 +609,40 @@ const workerStartingIds = ref(new Set<string>())
 const popoResumeIds = ref(new Set<string>())
 const workerStatuses = ref<Record<string, CodexWorkerStatus>>({})
 const workflowV2Jobs = ref<Record<string, WorkflowV2JobSummary>>({})
+
+function readUploadResumeContext() {
+  try {
+    const raw = sessionStorage.getItem(uploadResumeKey)
+    if (!raw) return
+    const value = JSON.parse(raw) as Partial<UploadResumeContext>
+    if (!Array.isArray(value.filenames) || !value.filenames.every(filename => typeof filename === 'string')) {
+      sessionStorage.removeItem(uploadResumeKey)
+      return
+    }
+    uploadResumeContext.value = {
+      filenames: value.filenames,
+      progress: Number.isFinite(value.progress) ? Math.max(0, Math.min(100, Number(value.progress))) : 0,
+      updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : undefined,
+    }
+  } catch {
+    sessionStorage.removeItem(uploadResumeKey)
+  }
+}
+
+function saveUploadResumeContext(files: File[], progress: number) {
+  const context: UploadResumeContext = {
+    filenames: files.map(file => file.name),
+    progress,
+    updatedAt: new Date().toISOString(),
+  }
+  sessionStorage.setItem(uploadResumeKey, JSON.stringify(context))
+  uploadResumeContext.value = context
+}
+
+function clearUploadResumeContext() {
+  sessionStorage.removeItem(uploadResumeKey)
+  uploadResumeContext.value = null
+}
 const workflowV2PollingTimer = ref<number | null>(null)
 const workflowV2DrawerVisible = ref(false)
 const workflowV2DetailLoading = ref(false)
@@ -1011,6 +1066,7 @@ const activeInputObjects = computed(() => {
 })
 const pipelineProgress = computed(() => {
   if (!pipeline.run) return 0
+  if (typeof pipeline.run.progress_percent === 'number') return pipeline.run.progress_percent
   if (pipeline.run.status === 'succeeded') return 100
   if (pipeline.run.status === 'failed' || pipeline.run.status === 'partial') return 100
   if (pipeline.run.total > 0) return Math.min(95, Math.round((pipeline.run.processed / pipeline.run.total) * 100))
@@ -1427,18 +1483,28 @@ async function syncMaterials(showMessage = true) {
 
 async function submitUpload() {
   if (!uploadableFiles.value.length) return
+  try {
+    await fetchCurrentUser()
+  } catch {
+    uploadError.value = '登录已失效。文件选择已保留，请重新登录后继续上传。'
+    saveUploadResumeContext(uploadableFiles.value, 0)
+    return
+  }
   uploading.value = true
   uploadProgress.value = 0
   uploadError.value = ''
+  saveUploadResumeContext(uploadableFiles.value, 0)
   try {
     const data = await materialsApi.upload(uploadableFiles.value, progress => {
       uploadProgress.value = progress
+      saveUploadResumeContext(uploadableFiles.value, progress)
     })
     const uploadedMaterials = data.files
       .filter(item => item.status === 'success' && item.material)
       .map(item => item.material as MaterialItem)
     uploadDialogVisible.value = false
     uploadFileList.value = []
+    clearUploadResumeContext()
     if (uploadedMaterials.length) {
       const latestMaterial = uploadedMaterials[uploadedMaterials.length - 1]
       params.page = 1
@@ -1462,8 +1528,9 @@ async function submitUpload() {
       ? `上传完成：${data.success} 个 PDF 已置顶`
       : `上传完成：${data.success} 个成功`)
   } catch (error: any) {
-    uploadProgress.value = 0
-    uploadError.value = error?.code === 'ECONNABORTED'
+    uploadError.value = error?.isAuthExpired
+      ? '登录在上传期间失效。文件选择和最后进度已保留，请重新登录后继续。'
+      : error?.code === 'ECONNABORTED'
       ? '上传超时，文件没有进入材料库。请保留文件并重新提交。'
       : '上传中断，文件没有进入材料库。请保留当前文件并重新提交。'
   } finally {
@@ -1473,6 +1540,10 @@ async function submitUpload() {
 
 function preflightFailureText(result: PipelinePreflightResponse) {
   const reasons: string[] = []
+  const resourceGate = result.resource_gate
+  if (resourceGate?.applies && !resourceGate.ok) {
+    reasons.push(`${resourceGate.reason || 'GPU 临时产物余量不足'}（当前 ${formatFileSize(resourceGate.available_headroom_bytes || 0)}，要求至少 ${formatFileSize(resourceGate.required_headroom_bytes || 0)}）`)
+  }
   if (!result.gpu_ok) reasons.push('GPU 服务未就绪')
   if (!result.staged_api_ok) reasons.push('分段 MinerU/Popo API 不可用')
   if (result.active_marker_count > 0) reasons.push(`存在 ${result.active_marker_count} 个 active marker`)
@@ -1481,13 +1552,17 @@ function preflightFailureText(result: PipelinePreflightResponse) {
 }
 
 function preflightSummaryRows(result: PipelinePreflightResponse) {
-  return [
+  const rows = [
     `GPU服务：${result.gpu_ok ? '正常' : '异常'}`,
     `分段接口：${result.staged_api_ok ? '可用' : '不可用'}`,
     `待提交PDF：${result.selected_count} 个`,
     `Active Marker：${result.active_marker_count} 个`,
     `预检状态：${result.status}`
   ]
+  if (result.resource_gate?.applies) {
+    rows.splice(4, 0, `超大PDF资源门禁：${result.resource_gate.ok ? '通过' : '拦截'}；余量 ${formatFileSize(result.resource_gate.available_headroom_bytes || 0)} / 要求 ${formatFileSize(result.resource_gate.required_headroom_bytes || 0)}`)
+  }
+  return rows
 }
 
 function preflightConfirmContent(result: PipelinePreflightResponse) {
@@ -2275,7 +2350,10 @@ watch(
   }
 )
 
-onMounted(loadDashboard)
+onMounted(() => {
+  readUploadResumeContext()
+  loadDashboard()
+})
 
 onMounted(() => {
   workflowV2PollingTimer.value = window.setInterval(fetchWorkflowV2Jobs, 5000)
@@ -3088,6 +3166,10 @@ onBeforeUnmount(() => {
 
 .upload-progress {
   margin-top: 14px;
+}
+
+.upload-resume {
+  margin-top: 12px;
 }
 
 .upload-error {

@@ -116,9 +116,13 @@ const PipelineStageText: Record<string, string> = {
   pipeline_command: 'GPU 串行处理中（MinerU → Popo）',
   mineru: 'MinerU 解析',
   mineru_frozen: 'MinerU 已冻结',
+  mineru_freezing: '正在冻结 MinerU 到本地 MinIO',
   mineru_failed: 'MinerU 失败',
   popo: 'Popo 解析',
   popo_frozen: 'Popo 已冻结',
+  popo_freezing: '正在冻结 Popo 到本地 MinIO',
+  popo_model_loading: '正在切换并加载 Popo 模型',
+  popo_model_ready: 'Popo 模型已就绪',
   popo_failed: 'Popo 失败',
   metadata: 'AI 元数据',
   finished: '全部阶段完成',
@@ -132,5 +136,7 @@ const PipelineStageText: Record<string, string> = {
 
 export function formatPipelineStage(stage?: string | null): string {
   const value = String(stage || '').trim()
+  const remote = /^(mineru|popo)_remote_(.+)$/.exec(value)
+  if (remote) return `${remote[1] === 'mineru' ? 'MinerU' : 'Popo'} 远端${remote[2] === 'succeeded' ? '已完成，待本地冻结' : `处理中（${remote[2]}）`}`
   return PipelineStageText[value] || value || '—'
 }

@@ -10392,6 +10392,9 @@ def normalize_unicode_math_symbols(text: str) -> str:
 def normalize_locked_body_unicode(text: str) -> str:
     """Final body-only Unicode normalization compatible with the locked preamble."""
     text = normalize_unicode_math_symbols(text)
+    for symbol, replacement in TEXT_COMMAND_SYMBOLS.items():
+        text = text.replace(symbol, replacement)
+    text = text.replace("°", r"\ensuremath{{}^{\circ}}")
     superscript_digits = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻", "0123456789+-")
 
     def superscript(match: re.Match[str]) -> str:

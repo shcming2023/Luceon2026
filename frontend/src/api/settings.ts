@@ -127,6 +127,7 @@ export interface GpuCheckResult {
   health: Record<string, unknown>
   staged_api: Record<string, number | null>
   errors: string[]
+  tunnel?: { auto_recovery?: boolean; status?: string; connection_verified?: boolean; last_attempt_at?: string | null; last_recovery_at?: string | null; local_port?: number; remote_port?: number; host?: string }
 }
 
 export interface BackupCheckResult {

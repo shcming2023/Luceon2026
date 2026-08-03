@@ -134,7 +134,8 @@ def run_one_stage(public_id: str, *, worker_id: str) -> dict:
             if stage.stage_key == "independent_final_review":
                 _record_golden_pass(workflow_db, job, stage, artifact, output_dir)
         else:
-            artifact.status = "needs_review"
+            handoff_ready = _is_soft_handoff_ready(stage.stage_key, stage_failure, output_dir)
+            artifact.status = "handoff_ready" if handoff_ready else "blocked"
             block_current_stage_for_review(
                 workflow_db,
                 public_id,
@@ -147,6 +148,7 @@ def run_one_stage(public_id: str, *, worker_id: str) -> dict:
                     "file_count": artifact.load(artifact.metadata_json, {}).get("file_count", 0),
                     "quality_blockers": [code for code in stage_failure.split("; ") if code],
                 },
+                handoff_ready=handoff_ready,
             )
         workflow_db.commit()
         return {
@@ -177,6 +179,22 @@ def run_one_stage(public_id: str, *, worker_id: str) -> dict:
     finally:
         legacy_db.close()
         workflow_db.close()
+
+
+SOFT_HANDOFF_CODES = {
+    "visual_review_recommended",
+    "minor_layout_variance",
+    "minor_overfull_box",
+}
+
+
+def _is_soft_handoff_ready(stage_key: str, failure: str, output_dir: Path) -> bool:
+    if stage_key not in {"bounded_deepseek_polish_qa", "independent_final_review"}:
+        return False
+    codes = {value.strip() for value in str(failure or "").split(";") if value.strip()}
+    if not codes or not codes <= SOFT_HANDOFF_CODES:
+        return False
+    return (output_dir / "main.pdf").is_file() and (output_dir / "latex-project.zip").is_file()
 
 
 def _write_failure_evidence(job: WorkflowJob, stage: StageRun, exc: Exception) -> Path:
@@ -324,8 +342,11 @@ def _run_semantic(job: WorkflowJob, stage, db) -> tuple[Path, bool, str]:
     if job.workflow_version != LEGACY_WORKFLOW_VERSION:
         semantic_markdown = work_dir / "semantic-input.md"
         outline_application = apply_accepted_outline(clean_dir, outline_dir, semantic_markdown)
+    command = ["python3", str(SEMANTIC_SCRIPT), str(semantic_markdown), "--out-dir", str(output_dir), "--profile", "auto"]
+    if job.workflow_version != LEGACY_WORKFLOW_VERSION:
+        command.extend(["--outline", str(outline_dir / "outline.json")])
     completed = subprocess.run(
-        ["python3", str(SEMANTIC_SCRIPT), str(semantic_markdown), "--out-dir", str(output_dir), "--profile", "auto"],
+        command,
         cwd=str(SEMANTIC_SCRIPT.parent.parent),
         text=True,
         capture_output=True,
@@ -628,16 +649,16 @@ def _restore_locked_empty_directories(project_dir: Path) -> list[str]:
 
 
 def _manual_review_handoff_blocker(db, job: WorkflowJob) -> dict | None:
-    first_candidate = (
+    current_candidate = (
         db.query(ArtifactVersion)
         .filter(
             ArtifactVersion.workflow_job_id == job.id,
             ArtifactVersion.artifact_kind == "elegantbook-candidate",
         )
-        .order_by(ArtifactVersion.created_at.asc(), ArtifactVersion.id.asc())
+        .order_by(ArtifactVersion.created_at.desc(), ArtifactVersion.id.desc())
         .first()
     )
-    if not first_candidate:
+    if not current_candidate:
         return None
     review_count = (
         db.query(StageRun)
@@ -645,7 +666,7 @@ def _manual_review_handoff_blocker(db, job: WorkflowJob) -> dict | None:
             StageRun.workflow_job_id == job.id,
             StageRun.status == "needs_review",
             StageRun.finished_at.is_not(None),
-            StageRun.finished_at >= first_candidate.created_at,
+            StageRun.finished_at >= current_candidate.created_at,
         )
         .count()
     )

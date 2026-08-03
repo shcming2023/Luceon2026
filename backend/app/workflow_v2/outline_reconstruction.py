@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -34,25 +35,11 @@ def build_outline_artifact(canonical_dir: Path, output_dir: Path) -> dict:
     assignments = _read_jsonl(canonical_dir / "raw_block_assignments.jsonl")
     unassigned = _read_jsonl(canonical_dir / "unassigned_blocks.jsonl")
 
+    arbitration = _maybe_arbitrate_weak_outline(decision, candidates)
+    if arbitration.get("applied"):
+        decision = arbitration.pop("decision")
     candidate_by_id = {str(row.get("candidate_id") or ""): row for row in candidates}
-    nodes = []
-    for order, source in enumerate(decision.get("final_outline") or []):
-        candidate_ids = sorted({str(value) for value in source.get("candidate_ids") or [] if str(value)})
-        evidence = [candidate_by_id[value] for value in candidate_ids if value in candidate_by_id]
-        nodes.append(
-            {
-                "id": f"outline-{order + 1:04d}",
-                "order": order,
-                "title": str(source.get("title") or "").strip(),
-                "normalized_title": _normalize_title(source.get("title")),
-                "level": int(source.get("level") or 0),
-                "parent_title": str(source.get("parent_title") or "").strip(),
-                "source_page": _positive_int(source.get("page") or source.get("start_page")),
-                "source": str(source.get("source") or ""),
-                "candidate_ids": candidate_ids,
-                "evidence": evidence,
-            }
-        )
+    nodes = _nodes_from_decision(decision, candidate_by_id)
 
     source_visible_toc = _reconstruct_source_visible_toc(canonical_dir, popo)
     if source_visible_toc["applied"]:
@@ -64,17 +51,27 @@ def build_outline_artifact(canonical_dir: Path, output_dir: Path) -> dict:
     else:
         canonical_heading_reconstruction = _reconstruct_invalid_outline_from_canonical_headings(canonical_dir, nodes)
 
+    numbered_textbook_reconstruction = _reconstruct_numbered_textbook_sections(canonical_dir)
     numbered_reconstruction = _reconstruct_numbered_chapter_topics(canonical_dir)
     if source_visible_toc["applied"]:
+        numbered_textbook_reconstruction = {"applied": False, "reason": "source_visible_toc_reconstruction_applied"}
         numbered_reconstruction = {"applied": False, "reason": "source_visible_toc_reconstruction_applied"}
         question_heading_filter = {"applied": False, "reason": "source_visible_toc_reconstruction_applied", "removed_count": 0}
         root_restoration = {"applied": False, "reason": "source_visible_toc_reconstruction_applied"}
         running_root_reconciliation = {"applied": False, "reason": "source_visible_toc_reconstruction_applied"}
         metadata_title_augmentation = {"applied": False, "reason": "source_visible_toc_reconstruction_applied", "added_count": 0}
         augmentation = {"applied": False, "reason": "source_visible_toc_reconstruction_applied"}
+    elif numbered_textbook_reconstruction["applied"]:
+        nodes = numbered_textbook_reconstruction.pop("nodes")
+        numbered_reconstruction = {"applied": False, "reason": "numbered_textbook_section_reconstruction_applied"}
+        question_heading_filter = {"applied": False, "reason": "numbered_textbook_section_reconstruction_applied", "removed_count": 0}
+        root_restoration = {"applied": False, "reason": "numbered_textbook_section_reconstruction_applied"}
+        running_root_reconciliation = {"applied": False, "reason": "numbered_textbook_section_reconstruction_applied"}
+        metadata_title_augmentation = {"applied": False, "reason": "numbered_textbook_section_reconstruction_applied", "added_count": 0}
+        augmentation = {"applied": False, "reason": "numbered_textbook_section_reconstruction_applied"}
     elif numbered_reconstruction["applied"]:
         nodes = numbered_reconstruction.pop("nodes")
-        coverage_units = numbered_reconstruction.pop("coverage_units")
+        numbered_reconstruction.pop("coverage_units")
         question_heading_filter = {"applied": False, "reason": "numbered_chapter_topic_reconstruction_applied", "removed_count": 0}
         root_restoration = {"applied": False, "reason": "numbered_chapter_topic_reconstruction_applied"}
         running_root_reconciliation = {"applied": False, "reason": "numbered_chapter_topic_reconstruction_applied"}
@@ -90,8 +87,9 @@ def build_outline_artifact(canonical_dir: Path, output_dir: Path) -> dict:
     leading_orphan_filter = _remove_leading_orphan_outline_nodes(nodes)
     self_nested_root_filter = _collapse_self_nested_roots(nodes)
     duplicate_filter = _deduplicate_outline_nodes(nodes)
-    coverage_units = _body_coverage_units(nodes)
     parent_repairs = _normalize_parent_links(nodes)
+    heading_evidence_alignment = _align_nodes_to_canonical_headings(canonical_dir, nodes)
+    coverage_units = _body_coverage_units(nodes)
     hierarchy = _validate_hierarchy(nodes)
     evidence_report = _validate_evidence(nodes)
     coverage = _validate_body_coverage(
@@ -107,12 +105,17 @@ def build_outline_artifact(canonical_dir: Path, output_dir: Path) -> dict:
     if not nodes:
         blockers.append({"code": "outline_empty", "message": "No source-evidenced outline nodes were reconstructed."})
     if not depth_ok:
-        blockers.append(
-            {
-                "code": "outline_depth_out_of_range",
-                "message": f"Observed outline depth is {max_depth}; accepted depth is 2 or 3.",
-            }
-        )
+        blockers.append({
+            "code": "outline_depth_out_of_range",
+            "message": f"Observed outline depth is {max_depth}; accepted depth is 2 or 3.",
+        })
+    if len(candidates) >= 20 and len(nodes) <= 1:
+        blockers.append({
+            "code": "outline_arbitration_required",
+            "candidate_count": len(candidates),
+            "selected_node_count": len(nodes),
+            "arbitration": arbitration.get("reason"),
+        })
     blockers.extend(hierarchy["blockers"])
     blockers.extend(evidence_report["blockers"])
     blockers.extend(coverage["blockers"])
@@ -133,9 +136,12 @@ def build_outline_artifact(canonical_dir: Path, output_dir: Path) -> dict:
         "leading_orphan_filter": leading_orphan_filter,
         "self_nested_root_filter": self_nested_root_filter,
         "duplicate_filter": duplicate_filter,
+        "heading_evidence_alignment": heading_evidence_alignment,
+        "numbered_textbook_section_reconstruction": numbered_textbook_reconstruction,
         "numbered_chapter_topic_reconstruction": numbered_reconstruction,
         "source_visible_toc_reconstruction": source_visible_toc,
         "canonical_heading_reconstruction": canonical_heading_reconstruction,
+        "bounded_outline_arbitration": arbitration,
     }
     validation = {
         "schema": "luceon.outline-validation/v1",
@@ -166,6 +172,70 @@ def build_outline_artifact(canonical_dir: Path, output_dir: Path) -> dict:
     _write_json(output_dir / "source-evidence.json", evidence_report)
     _write_json(output_dir / "unresolved-items.json", {"schema": "luceon.outline-unresolved/v1", "items": blockers})
     return validation
+
+
+def _nodes_from_decision(decision: dict, candidate_by_id: dict[str, dict]) -> list[dict]:
+    nodes = []
+    for order, source in enumerate(decision.get("final_outline") or []):
+        candidate_ids = sorted({str(value) for value in source.get("candidate_ids") or [] if str(value)})
+        evidence = [candidate_by_id[value] for value in candidate_ids if value in candidate_by_id]
+        nodes.append(
+            {
+                "id": f"outline-{order + 1:04d}",
+                "order": order,
+                "title": str(source.get("title") or "").strip(),
+                "normalized_title": _normalize_title(source.get("title")),
+                "level": int(source.get("level") or 0),
+                "parent_title": str(source.get("parent_title") or "").strip(),
+                "source_page": _positive_int(source.get("page") or source.get("start_page")),
+                "source": str(source.get("source") or ""),
+                "candidate_ids": candidate_ids,
+                "evidence": evidence,
+            }
+        )
+    return nodes
+
+
+def _needs_bounded_arbitration(decision: dict, candidates: list[dict]) -> bool:
+    rows = decision.get("final_outline") or []
+    placeholder = any(_normalize_title(row.get("title")) in {"default title", "untitled", "document"} for row in rows)
+    return placeholder or (len(candidates) >= 20 and len(rows) <= 1)
+
+
+def _maybe_arbitrate_weak_outline(decision: dict, candidates: list[dict]) -> dict:
+    if not _needs_bounded_arbitration(decision, candidates):
+        return {"applied": False, "reason": "deterministic_outline_not_ambiguous"}
+    enabled = os.getenv("WORKFLOW_V2_OUTLINE_ARBITRATION_ENABLED", "1").strip().lower() not in {"0", "false", "no"}
+    if not enabled:
+        return {"applied": False, "reason": "bounded_outline_arbitration_disabled"}
+    if not os.getenv("DEEPSEEK_API_KEY"):
+        return {"applied": False, "reason": "bounded_outline_arbitration_key_unavailable"}
+    from app.workflow_v2.runtime.canonical.scripts.build_outline_decision import maybe_review_with_llm
+
+    reviewed = maybe_review_with_llm(
+        json.loads(json.dumps(decision)),
+        candidates,
+        enabled=True,
+        base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+        model=os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
+        timeout=int(os.getenv("WORKFLOW_V2_OUTLINE_ARBITRATION_TIMEOUT", "90")),
+        max_risk_candidates=min(80, max(20, len(candidates))),
+    )
+    improved = reviewed.get("final_outline") or []
+    if improved == (decision.get("final_outline") or []):
+        return {
+            "applied": False,
+            "reason": "bounded_outline_arbitration_did_not_resolve",
+            "llm": reviewed.get("llm") or {},
+        }
+    return {
+        "applied": True,
+        "reason": "ambiguous_candidate_subset_arbitrated",
+        "candidate_count": len(candidates),
+        "reviewed_candidate_limit": min(80, max(20, len(candidates))),
+        "llm": reviewed.get("llm") or {},
+        "decision": reviewed,
+    }
 
 
 ARTICLE_METADATA_RE = re.compile(r"^语篇类型\s*[:：].*?词数\s*[:：].*?难度\s*[:：]", re.I)
@@ -711,13 +781,269 @@ def _reconstruct_numbered_chapter_topics(canonical_dir: Path) -> dict:
     }
 
 
+def _reconstruct_numbered_textbook_sections(canonical_dir: Path) -> dict:
+    """Recover chapter/section hierarchy from explicit numbered Markdown headings."""
+    clean_path = canonical_dir / "clean.md"
+    if not clean_path.is_file():
+        return {"applied": False, "reason": "canonical_clean_markdown_unavailable"}
+
+    page_idx = None
+    heading_rows = []
+    chapter_rows: dict[int, list[dict]] = defaultdict(list)
+    section_rows: dict[int, dict[int, dict]] = defaultdict(dict)
+    for line_number, raw in enumerate(clean_path.read_text(encoding="utf-8").splitlines(), 1):
+        page = re.fullmatch(r"<!--\s*page_idx:\s*(\d+)\s*-->", raw.strip())
+        if page:
+            page_idx = int(page.group(1))
+            continue
+        heading = re.fullmatch(r"#{1,3}\s+(.+?)\s*", raw.strip())
+        if not heading:
+            continue
+        title = heading.group(1).strip()
+        quoted = bool(re.match(r"^>\s*", title))
+        plain_title = re.sub(r"^>\s*", "", title)
+        heading_rows.append({
+            "title": plain_title,
+            "line": line_number,
+            "page_idx": page_idx,
+            "quoted": quoted,
+        })
+        section = re.fullmatch(r"(\d{1,2})\.(\d{1,2})\s+(.+)", plain_title)
+        if section:
+            if not quoted and _looks_like_numbered_question(plain_title):
+                continue
+            chapter_number = int(section.group(1))
+            section_number = int(section.group(2))
+            section_rows[chapter_number].setdefault(section_number, {
+                "title": f"{chapter_number}.{section_number} {section.group(3).strip()}",
+                "line": line_number,
+                "page_idx": page_idx,
+            })
+            continue
+        chapter = re.fullmatch(r"(\d{1,2})\s+([^.!?。！？].{1,119})", plain_title)
+        if chapter:
+            chapter_rows[int(chapter.group(1))].append({
+                "title": plain_title,
+                "line": line_number,
+                "page_idx": page_idx,
+            })
+
+    reconstructed_roots = {}
+    skipped_chapters = []
+    for chapter_number, sections in section_rows.items():
+        first_section_line = min(row["line"] for row in sections.values())
+        root = _numbered_chapter_root(
+            chapter_number,
+            first_section_line,
+            chapter_rows.get(chapter_number) or [],
+            heading_rows,
+        )
+        if root:
+            reconstructed_roots[chapter_number] = root
+        else:
+            skipped_chapters.append(chapter_number)
+
+    eligible_chapters = sorted(reconstructed_roots)
+    section_count = sum(len(section_rows[number]) for number in eligible_chapters)
+    if len(eligible_chapters) < 2 or section_count < 5:
+        return {
+            "applied": False,
+            "reason": "insufficient_explicit_numbered_textbook_hierarchy",
+            "chapter_count": len(eligible_chapters),
+            "section_count": section_count,
+            "skipped_chapters": skipped_chapters,
+        }
+
+    nodes = []
+    for chapter_number in eligible_chapters:
+        sections = section_rows[chapter_number]
+        root = reconstructed_roots[chapter_number]
+        nodes.append({
+            "id": "",
+            "order": 0,
+            "title": root["title"],
+            "normalized_title": _normalize_title(root["title"]),
+            "level": 1,
+            "parent_title": "",
+            "source_page": (root["page_idx"] + 1) if root["page_idx"] is not None else None,
+            "source": "explicit_numbered_textbook_heading",
+            "candidate_ids": [],
+            "evidence": [{
+                "method": "explicit_numbered_chapter_heading",
+                "clean_line": root["line"],
+                "page_idx": root["page_idx"],
+            }],
+        })
+        for section_number in sorted(sections):
+            row = sections[section_number]
+            nodes.append({
+                "id": "",
+                "order": 0,
+                "title": row["title"],
+                "normalized_title": _normalize_title(row["title"]),
+                "level": 2,
+                "parent_title": root["title"],
+                "source_page": (row["page_idx"] + 1) if row["page_idx"] is not None else None,
+                "source": "explicit_numbered_textbook_heading",
+                "candidate_ids": [],
+                "evidence": [{
+                    "method": "explicit_numbered_section_heading",
+                    "clean_line": row["line"],
+                    "page_idx": row["page_idx"],
+                }],
+            })
+    for order, node in enumerate(nodes):
+        node["id"] = f"outline-{order + 1:04d}"
+        node["order"] = order
+    return {
+        "applied": True,
+        "method": "explicit_numbered_textbook_headings",
+        "chapter_count": len(eligible_chapters),
+        "section_count": section_count,
+        "skipped_chapters": skipped_chapters,
+        "nodes": nodes,
+    }
+
+
+_CHAPTER_TITLE_CONNECTORS = {"and", "for", "from", "in", "of", "on", "the", "to", "with"}
+_NON_CHAPTER_HEADINGS = {
+    "activity",
+    "background",
+    "challenge",
+    "check your progress",
+    "continued",
+    "focus",
+    "getting started",
+    "in this topic you will",
+    "key words",
+    "method",
+    "practice",
+    "project",
+    "questions",
+    "summary checklist",
+    "think like a scientist",
+    "you will need",
+}
+
+
+def _numbered_chapter_root(
+    chapter_number: int,
+    first_section_line: int,
+    numbered_rows: list[dict],
+    heading_rows: list[dict],
+) -> dict | None:
+    preceding = [row for row in numbered_rows if row["line"] < first_section_line]
+    if preceding:
+        root = dict(preceding[-1])
+        words = root["title"].split()
+        following = [
+            row
+            for row in heading_rows
+            if root["line"] < row["line"] < first_section_line and not row["quoted"]
+        ]
+        if words and words[-1].lower() in _CHAPTER_TITLE_CONNECTORS and following:
+            fragment = following[0]["title"].strip()
+            if _plausible_chapter_fragment(fragment):
+                root["title"] = f"{root['title']} {fragment}"
+        return root
+
+    preceding_headings = [
+        row
+        for row in heading_rows
+        if 0 < first_section_line - row["line"] <= 12 and not row["quoted"]
+    ]
+    for row in reversed(preceding_headings):
+        fragment = row["title"].strip()
+        if _plausible_chapter_fragment(fragment):
+            return {
+                "title": f"{chapter_number} {fragment}",
+                "line": row["line"],
+                "page_idx": row["page_idx"],
+            }
+    return None
+
+
+def _plausible_chapter_fragment(value: str) -> bool:
+    normalized = _normalize_title(value)
+    if not normalized or normalized in _NON_CHAPTER_HEADINGS:
+        return False
+    if re.match(r"^\d{1,2}(?:\.\d{1,2})?\b", value):
+        return False
+    words = value.split()
+    return 1 <= len(words) <= 12 and not value.endswith(("?", "？", ".", "。", ":", "："))
+
+
+def _align_nodes_to_canonical_headings(canonical_dir: Path, nodes: list[dict]) -> dict:
+    """Attach unique exact-title Clean line evidence when candidate evidence is shared."""
+    clean_path = canonical_dir / "clean.md"
+    if not clean_path.is_file() or not nodes:
+        return {"applied": False, "reason": "canonical_headings_or_outline_unavailable", "aligned_count": 0}
+    page_idx = None
+    headings: dict[str, list[dict]] = defaultdict(list)
+    for line_number, raw in enumerate(clean_path.read_text(encoding="utf-8").splitlines(), 1):
+        page = re.fullmatch(r"<!--\s*page_idx:\s*(\d+)\s*-->", raw.strip())
+        if page:
+            page_idx = int(page.group(1))
+            continue
+        heading = re.fullmatch(r"#{1,3}\s+(.+?)\s*", raw.strip())
+        if not heading:
+            continue
+        title = re.sub(r"^>\s*", "", heading.group(1).strip())
+        headings[_normalize_title(title)].append({
+            "line": line_number,
+            "page_idx": page_idx,
+        })
+
+    used_lines = {
+        int(evidence["clean_line"])
+        for node in nodes
+        for evidence in node.get("evidence") or []
+        if _positive_int(evidence.get("clean_line")) is not None
+    }
+    aligned = []
+    for node in nodes:
+        if any(_positive_int(row.get("clean_line")) is not None for row in node.get("evidence") or []):
+            continue
+        candidates = [row for row in headings.get(node["normalized_title"], []) if row["line"] not in used_lines]
+        if not candidates:
+            continue
+        source_page = _positive_int(node.get("source_page"))
+        chosen = min(
+            candidates,
+            key=lambda row: (
+                abs(((row["page_idx"] + 1) if row["page_idx"] is not None else 10**9) - source_page)
+                if source_page is not None else 0,
+                row["line"],
+            ),
+        )
+        node.setdefault("evidence", []).append({
+            "method": "canonical_heading_exact_title_alignment",
+            "clean_line": chosen["line"],
+            "page_idx": chosen["page_idx"],
+        })
+        used_lines.add(chosen["line"])
+        aligned.append({"node_id": node["id"], "clean_line": chosen["line"]})
+    return {
+        "applied": bool(aligned),
+        "reason": "exact_title_clean_heading_evidence_attached" if aligned else "no_unambiguous_exact_title_alignment",
+        "aligned_count": len(aligned),
+        "records": aligned,
+    }
+
+
 def _validate_hierarchy(nodes: list[dict]) -> dict:
     blockers = []
     seen = set()
     prior_titles: dict[str, list[dict]] = {}
+    prior_by_id: dict[str, dict] = {}
     previous_level = 0
     for node in nodes:
-        if _looks_like_numbered_question(node.get("title")):
+        if _normalize_title(node.get("title")) in {"default title", "untitled", "document"}:
+            blockers.append({"code": "outline_placeholder_title", "node_id": node["id"], "title": node["title"]})
+        if (
+            node.get("source") != "explicit_numbered_textbook_heading"
+            and _looks_like_numbered_question(node.get("title"))
+        ):
             blockers.append({"code": "question_stem_used_as_outline_node", "node_id": node["id"], "title": node["title"]})
         key = tuple(_normalize_title(value) for value in node.get("path") or [node["title"]])
         if key in seen:
@@ -730,9 +1056,26 @@ def _validate_hierarchy(nodes: list[dict]) -> dict:
             blockers.append({"code": "root_has_parent", "node_id": node["id"], "parent_title": node["parent_title"]})
         if level > 1:
             parents = prior_titles.get(_normalize_title(node["parent_title"]), [])
-            if not any(parent["level"] == level - 1 for parent in reversed(parents)):
+            parent = prior_by_id.get(str(node.get("parent_id") or "")) or next(
+                (candidate for candidate in reversed(parents) if candidate["level"] == level - 1),
+                None,
+            )
+            if not parent:
                 blockers.append({"code": "outline_parent_missing", "node_id": node["id"], "parent_title": node["parent_title"]})
+            elif (
+                _positive_int(node.get("source_page")) is not None
+                and _positive_int(parent.get("source_page")) is not None
+                and int(node["source_page"]) < int(parent["source_page"])
+            ):
+                blockers.append({
+                    "code": "outline_child_precedes_parent_source_page",
+                    "node_id": node["id"],
+                    "parent_id": parent["id"],
+                    "child_source_page": node["source_page"],
+                    "parent_source_page": parent["source_page"],
+                })
         prior_titles.setdefault(node["normalized_title"], []).append(node)
+        prior_by_id[str(node.get("id") or "")] = node
         previous_level = level
     return {"schema": "luceon.outline-hierarchy-validation/v1", "passed": not blockers, "blockers": blockers}
 
@@ -830,6 +1173,7 @@ def _normalize_parent_links(nodes: list[dict]) -> list[dict]:
         expected = stack[-1] if stack and stack[-1]["level"] == level - 1 else None
         if level == 1:
             node["parent_title"] = ""
+            node["parent_id"] = None
         elif expected and _normalize_title(node["parent_title"]) != expected["normalized_title"]:
             repairs.append(
                 {
@@ -842,6 +1186,8 @@ def _normalize_parent_links(nodes: list[dict]) -> list[dict]:
                 }
             )
             node["parent_title"] = expected["title"]
+        if level > 1:
+            node["parent_id"] = expected["id"] if expected else None
         node["path"] = [row["title"] for row in stack] + [node["title"]]
         stack.append(node)
     return repairs
@@ -862,8 +1208,7 @@ def _body_coverage_units(nodes: list[dict]) -> list[dict]:
     units = []
     for node in nodes:
         anchors = []
-        for candidate_id in node.get("candidate_ids") or []:
-            anchors.append(f"candidate:{candidate_id}")
+        clean_line_anchors = []
         for evidence in node.get("evidence") or []:
             if evidence.get("source_block_id"):
                 suffix = f":line:{evidence['source_block_line']}" if evidence.get("source_block_line") else ""
@@ -871,7 +1216,12 @@ def _body_coverage_units(nodes: list[dict]) -> list[dict]:
             if evidence.get("marker_block_id"):
                 anchors.append(f"source-block:{evidence['marker_block_id']}")
             if evidence.get("clean_line"):
-                anchors.append(f"clean-line:{evidence['clean_line']}")
+                clean_line_anchors.append(f"clean-line:{evidence['clean_line']}")
+        if clean_line_anchors:
+            anchors = clean_line_anchors
+        else:
+            for candidate_id in node.get("candidate_ids") or []:
+                anchors.append(f"candidate:{candidate_id}")
         if not anchors and node.get("source_page"):
             anchors.append(f"page-title:{node['source_page']}:{node['normalized_title']}")
         units.append(
@@ -1238,7 +1588,7 @@ def _remove_question_like_outline_nodes(nodes: list[dict]) -> dict:
 
 def _looks_like_numbered_question(value) -> bool:
     text = re.sub(r"\s+", " ", str(value or "")).strip()
-    match = re.match(r"^\d{1,3}[.)]\s+(.+)$", text)
+    match = re.match(r"^(?:\d{1,3}[.)]|\d{1,2}\.\d{1,2}(?:\s+[a-z])?)\s+(.+)$", text, re.I)
     if not match:
         return False
     body = match.group(1)
@@ -1246,7 +1596,12 @@ def _looks_like_numbered_question(value) -> bool:
         body.endswith("?")
         or len(body) >= 100
         or len(re.findall(r"[.!?。！？]", body)) >= 2
-        or bool(re.search(r"(?:完成|计算|解答|证明|填空|求解|判断|选择|作图)", body))
+        or bool(re.search(
+            r"(?:完成|计算|解答|证明|填空|求解|判断|选择|作图|"
+            r"\b(?:give|calculate|complete|explain|describe|state|identify|write|draw|choose|find|show|name)\b)",
+            body,
+            re.I,
+        ))
     )
 
 

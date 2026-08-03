@@ -26,15 +26,22 @@ def _page_hint(log: str, offset: int) -> int | None:
 
 
 def parse_latex_diagnostics(log: str, *, obvious_overflow_pt: float = 10.0) -> dict:
-    missing = [
-        {
+    missing = []
+    seen_missing = set()
+    missing_occurrence_count = 0
+    for match in MISSING_CHARACTER_RE.finditer(log):
+        missing_occurrence_count += 1
+        row = {
             "character": match.group("char"),
             "codepoint": f"U+{match.group('codepoint').upper()}",
             "font": match.group("font").strip(),
             "pdf_page_hint": _page_hint(log, match.start()),
         }
-        for match in MISSING_CHARACTER_RE.finditer(log)
-    ]
+        key = (row["character"], row["codepoint"], row["font"])
+        if key in seen_missing:
+            continue
+        seen_missing.add(key)
+        missing.append(row)
     overfull = [
         {
             "width_pt": float(match.group("width")),
@@ -49,6 +56,7 @@ def parse_latex_diagnostics(log: str, *, obvious_overflow_pt: float = 10.0) -> d
         "schema": "luceon.latex-diagnostics/v1",
         "obvious_overflow_threshold_pt": obvious_overflow_pt,
         "missing_character_count": len(missing),
+        "missing_character_occurrence_count": missing_occurrence_count,
         "missing_characters": missing,
         "overfull_hbox_count": len(overfull),
         "overfull_hboxes": overfull,

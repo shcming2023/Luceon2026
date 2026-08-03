@@ -5,7 +5,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.models.base import Base
-from app.models.material import Material
+from app.models.material import Material, MaterialOutput
+from app.api.workflow_v2 import _output_projection
 from app.models.material_metadata import MaterialMetadata
 from app.workflow_v2.contracts import (
     LEGACY_STAGE_CONTRACTS,
@@ -87,6 +88,32 @@ def make_sessions():
     old_db.commit()
     old_db.refresh(material)
     return old_db, workflow_db, material
+
+
+def test_output_projection_keeps_job_output_separate_from_material_current_baseline():
+    rows = [
+        MaterialOutput(
+            id=541,
+            user_id="u1",
+            material_pk=1,
+            material_id="pdf-1",
+            manifest_bucket="outputs",
+            manifest_object="successful/manifest.json",
+            output_run_id="successful-job",
+            quality_status="passed",
+            status="promoted",
+            is_current=True,
+        )
+    ]
+
+    blocked = _output_projection("needs-review-job", rows)
+    succeeded = _output_projection("successful-job", rows)
+
+    assert blocked["job_output_id"] == ""
+    assert blocked["outputs"] == []
+    assert blocked["current_material_output_id"] == "541"
+    assert succeeded["job_output_id"] == "541"
+    assert succeeded["current_material_output_id"] == "541"
 
 
 def test_stage_contracts_are_explicit_and_ordered():
@@ -258,9 +285,9 @@ def test_quality_block_preserves_candidate_and_requires_review_branch():
     db.commit()
 
     stage = db.query(StageRun).filter_by(workflow_job_id=job.id, stage_key="canonical_clean_material").one()
-    assert job.status == "needs_review"
+    assert job.status == "blocked"
     assert job.error_code == "quality_blocked"
-    assert stage.status == "needs_review"
+    assert stage.status == "blocked"
     assert stage.output_manifest_sha256 == "a" * 64
     assert db.query(StageEvent).filter_by(event_type="stage_quality_blocked").one().level == "warning"
     try:
@@ -273,6 +300,46 @@ def test_quality_block_preserves_candidate_and_requires_review_branch():
     restarted, target = restart_from_stage(db, job.public_id, "canonical_clean_material")
     assert restarted.status == "queued"
     assert target.attempt == 2
+
+
+def test_semantic_outline_contract_blocker_resumes_from_outline():
+    _old_db, db, material = make_sessions()
+    job, _ = create_workflow_job(db, user_id="u1", material=material)
+    db.commit()
+    for index in range(2):
+        claim_current_stage(db, job.public_id, "worker-a")
+        complete_current_stage(
+            db,
+            job.public_id,
+            output_bucket="v2",
+            output_object=f"immutable/{index}/manifest.json",
+            output_sha256=str(index + 1) * 64,
+        )
+        db.commit()
+    claim_current_stage(db, job.public_id, "worker-a")
+    block_current_stage_for_review(
+        db,
+        job.public_id,
+        output_bucket="v2",
+        output_object="immutable/semantic-candidate/manifest.json",
+        output_sha256="c" * 64,
+        error_message=(
+            "semantic_section_order_differs_from_accepted_outline; "
+            "semantic_section_parent_binding_mismatch"
+        ),
+        metrics={
+            "quality_blockers": [
+                "semantic_section_order_differs_from_accepted_outline",
+                "semantic_section_parent_binding_mismatch",
+            ]
+        },
+    )
+    db.commit()
+
+    detail = workflow_job_detail(db, job.public_id)
+
+    assert detail["current_stage_key"] == "semantic_annotation"
+    assert detail["minimal_resume_stage_key"] == "outline_reconstruction"
 
 
 def test_failed_job_can_start_new_immutable_branch_from_earlier_stage():

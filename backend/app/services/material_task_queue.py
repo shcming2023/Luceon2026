@@ -74,6 +74,8 @@ def material_snapshot(db: Session, user_id: str, material_pks: list[int]) -> lis
                 "input_object": row.input_object,
                 "input_sha256": row.input_sha256 or "",
                 "source_hash": row.source_hash or "",
+                "size_bytes": int(row.size_bytes or 0),
+                "page_count": int(row.page_count or 0),
                 "mineru_manifest": Material._ref(row.mineru_manifest_bucket, row.mineru_manifest_object),
                 "popo_manifest": Material._ref(row.popo_manifest_bucket, row.popo_manifest_object),
             }
@@ -143,6 +145,38 @@ def pipeline_attempts_for_items(db: Session, items: list[PipelineRunItem]) -> di
     return grouped
 
 
+def pipeline_progress_projection(run: PipelineRun, items: list[PipelineRunItem]) -> dict[str, Any]:
+    """Aggregate parent progress from durable per-item stages without treating remote completion as frozen."""
+    if run.status in {"succeeded", "failed", "partial", "cancelled"}:
+        return {"percent": 100, "basis": "terminal_run", "item_percents": [100 for _ in items]}
+    weights = {
+        "queued": 0,
+        "pipeline_command": 2,
+        "mineru_remote_pending": 5,
+        "mineru_remote_queued": 8,
+        "mineru_remote_running": 20,
+        "mineru_remote_succeeded": 35,
+        "mineru_freezing": 40,
+        "mineru_frozen": 50,
+        "popo_remote_pending": 52,
+        "popo_remote_queued": 55,
+        "popo_remote_running": 70,
+        "popo_remote_succeeded": 85,
+        "popo_freezing": 90,
+        "popo_frozen": 100,
+    }
+    item_percents = [
+        weights.get(str(item.current_stage or ""), 100 if item.status in {"succeeded", "failed"} else 2)
+        for item in items
+    ]
+    percent = round(sum(item_percents) / len(item_percents)) if item_percents else (10 if run.status == "running" else 0)
+    if run.current_stage == "popo_model_loading":
+        percent = max(percent, 50)
+    elif run.current_stage == "popo_model_ready":
+        percent = max(percent, 52)
+    return {"percent": min(99, max(0, percent)), "basis": "per_item_stage_aggregate", "item_percents": item_percents}
+
+
 def pipeline_run_detail(db: Session, run: PipelineRun) -> dict[str, Any]:
     items = pipeline_run_items(db, run.id, run.user_id)
     attempts = pipeline_attempts_for_items(db, items)
@@ -159,6 +193,9 @@ def pipeline_run_detail(db: Session, run: PipelineRun) -> dict[str, Any]:
     for job in metadata_rows:
         metadata_by_material.setdefault(job.material_pk, []).append(job.to_dict())
     value = run.to_dict()
+    progress = pipeline_progress_projection(run, items)
+    value["progress_percent"] = progress["percent"]
+    value["progress_basis"] = progress["basis"]
     value["items"] = [
         {
             **item.to_dict(),

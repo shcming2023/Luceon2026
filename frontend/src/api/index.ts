@@ -8,6 +8,7 @@ const api: AxiosInstance = axios.create({
   timeout: 30000, // 30秒超时（考虑到文件解析可能需要较长时间）
   withCredentials: true,
 })
+let lastAuthMessageAt = 0
 
 // 请求拦截器
 api.interceptors.request.use(
@@ -29,7 +30,16 @@ api.interceptors.response.use(
     // 统一错误处理
     const errorMessage = getErrorMessage(error)
 
-    ElMessage.error(errorMessage)
+    if (error.response?.status === 401) {
+      ;(error as AxiosError<any> & { isAuthExpired?: boolean }).isAuthExpired = true
+      const now = Date.now()
+      if (now - lastAuthMessageAt > 5000) {
+        ElMessage.error('登录已失效，请重新登录；当前上传选择和已完成进度已保留')
+        lastAuthMessageAt = now
+      }
+    } else {
+      ElMessage.error(errorMessage)
+    }
 
     return Promise.reject(error)
   }

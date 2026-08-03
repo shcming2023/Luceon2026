@@ -182,6 +182,53 @@ def test_core_gate_requires_handoff_only_after_reviewable_candidate_exists():
     assert _manual_review_handoff_blocker(db, job) is None
 
 
+def test_new_candidate_supersedes_old_unhanded_review():
+    _old_db, db, material = make_sessions()
+    job, _ = create_workflow_job(db, user_id="u1", material=material)
+    started = datetime.utcnow()
+    candidate_stage = db.query(StageRun).filter_by(
+        workflow_job_id=job.id,
+        stage_key="deterministic_elegantbook",
+    ).one()
+    db.add(
+        ArtifactVersion(
+            workflow_job_id=job.id,
+            stage_run_id=candidate_stage.id,
+            artifact_kind="elegantbook-candidate",
+            bucket="test",
+            object_name="candidate/old/manifest.json",
+            object_identity_hash="a" * 64,
+            sha256="b" * 64,
+            size_bytes=1,
+            metadata_json="{}",
+            created_at=started,
+        )
+    )
+    review_stage = db.query(StageRun).filter_by(
+        workflow_job_id=job.id,
+        stage_key="bounded_deepseek_polish_qa",
+    ).one()
+    review_stage.status = "needs_review"
+    review_stage.finished_at = started + timedelta(seconds=1)
+    db.add(
+        ArtifactVersion(
+            workflow_job_id=job.id,
+            stage_run_id=candidate_stage.id,
+            artifact_kind="elegantbook-candidate",
+            bucket="test",
+            object_name="candidate/new/manifest.json",
+            object_identity_hash="c" * 64,
+            sha256="d" * 64,
+            size_bytes=1,
+            metadata_json="{}",
+            created_at=started + timedelta(seconds=2),
+        )
+    )
+    db.commit()
+
+    assert _manual_review_handoff_blocker(db, job) is None
+
+
 def test_core_output_projection_is_idempotent_and_preserves_history(monkeypatch):
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
@@ -351,11 +398,11 @@ def test_quality_gate_block_publishes_candidate_instead_of_technical_failure(mon
     artifact = db.query(ArtifactVersion).filter_by(stage_run_id=stage.id).one()
 
     assert result["ok"] is False
-    assert job.status == "needs_review"
+    assert job.status == "blocked"
     assert job.error_code == "quality_blocked"
-    assert stage.status == "needs_review"
+    assert stage.status == "blocked"
     assert stage.output_manifest_sha256 == artifact.sha256
-    assert artifact.status == "needs_review"
+    assert artifact.status == "blocked"
 
 
 def test_failed_runner_persists_status_and_failure_artifact(monkeypatch, tmp_path):

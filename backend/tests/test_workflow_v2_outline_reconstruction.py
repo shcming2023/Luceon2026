@@ -1,6 +1,17 @@
 import json
 
-from app.workflow_v2.outline_reconstruction import _collapse_self_nested_roots, build_outline_artifact
+import pytest
+
+from app.workflow_v2.outline_reconstruction import (
+    _collapse_self_nested_roots,
+    _validate_hierarchy,
+    build_outline_artifact,
+)
+
+
+@pytest.fixture(autouse=True)
+def disable_live_outline_arbitration(monkeypatch):
+    monkeypatch.setenv("WORKFLOW_V2_OUTLINE_ARBITRATION_ENABLED", "0")
 
 
 def _write_json(path, value):
@@ -47,6 +58,150 @@ def test_two_level_source_evidenced_outline_passes(tmp_path):
 
     assert result["status"] == "passed"
     assert all(result["gates"].values())
+
+
+def test_explicit_numbered_textbook_headings_replace_noisy_question_outline(tmp_path):
+    canonical = _canonical(
+        tmp_path,
+        [
+            {"title": "Science", "level": 1, "parent_title": "", "page": 1, "source": "fallback"},
+            {
+                "title": "2.8 a Give the symbol for each element.",
+                "level": 3,
+                "parent_title": "",
+                "page": 76,
+                "source": "fallback",
+            },
+        ],
+    )
+    lines = []
+    for chapter in range(1, 4):
+        lines.extend([
+            f"<!-- page_idx: {chapter * 10} -->",
+            f"## {chapter} Chapter {chapter}",
+        ])
+        for section in range(1, 4):
+            title = f"Section {chapter}.{section}"
+            if chapter == 2 and section == 2:
+                title = "What is a species?"
+            lines.extend([
+                f"<!-- page_idx: {chapter * 10 + section} -->",
+                f"## > {chapter}.{section} {title}",
+                "Source body.",
+            ])
+    (canonical / "clean.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    result = build_outline_artifact(canonical, tmp_path / "output")
+    document = json.loads((tmp_path / "output" / "outline.json").read_text())
+
+    assert result["status"] == "passed"
+    assert document["numbered_textbook_section_reconstruction"]["applied"] is True
+    assert document["node_count"] == 12
+    assert all("Give the symbol" not in row["title"] for row in document["nodes"])
+    assert any(row["title"] == "2.2 What is a species?" for row in document["nodes"])
+    assert all(row["parent_id"] for row in document["nodes"] if row["level"] == 2)
+
+
+def test_partial_textbook_uses_two_evidenced_chapters_without_toc_only_roots(tmp_path):
+    canonical = _canonical(
+        tmp_path,
+        [{"title": "Default Title", "level": 1, "parent_title": "", "page": 1, "source": "fallback"}],
+    )
+    (canonical / "clean.md").write_text(
+        "\n".join(
+            [
+                "<!-- page_idx: 1 -->",
+                "## 1 Respiration",
+                "## > 1.1 Lungs",
+                "Body.",
+                "## > 1.2 Blood",
+                "Body.",
+                "<!-- page_idx: 20 -->",
+                "## 2 Properties of materials",
+                "## > 2.1 Dissolving",
+                "Body.",
+                "## > 2.2 Solutions",
+                "Body.",
+                "## > 2.3 Chromatography",
+                "Body.",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = build_outline_artifact(canonical, tmp_path / "output")
+    document = json.loads((tmp_path / "output" / "outline.json").read_text())
+
+    assert result["status"] == "passed"
+    assert document["numbered_textbook_section_reconstruction"]["chapter_count"] == 2
+    assert [row["title"] for row in document["nodes"] if row["level"] == 1] == [
+        "1 Respiration",
+        "2 Properties of materials",
+    ]
+
+
+def test_split_and_unnumbered_chapter_headings_are_joined_before_sections(tmp_path):
+    canonical = _canonical(
+        tmp_path,
+        [{"title": "Default Title", "level": 1, "parent_title": "", "page": 1, "source": "fallback"}],
+    )
+    (canonical / "clean.md").write_text(
+        "\n".join(
+            [
+                "<!-- page_idx: 1 -->",
+                "## 1 Changes to",
+                "## materials",
+                "## > 1.1 Reactions",
+                "Body.",
+                "## > 1.2 Neutralisation",
+                "Body.",
+                "<!-- page_idx: 20 -->",
+                "## Electricity",
+                "## > 2.1 Current",
+                "Body.",
+                "## > 2.2 Circuits",
+                "Body.",
+                "## > 2.3 Conductors",
+                "Body.",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = build_outline_artifact(canonical, tmp_path / "output")
+    document = json.loads((tmp_path / "output" / "outline.json").read_text())
+
+    assert result["status"] == "passed"
+    assert [row["title"] for row in document["nodes"] if row["level"] == 1] == [
+        "1 Changes to materials",
+        "2 Electricity",
+    ]
+    assert all(row["parent_id"] for row in document["nodes"] if row["level"] == 2)
+
+
+def test_shared_candidate_anchor_is_replaced_by_unique_exact_clean_heading_evidence(tmp_path):
+    outline = [
+        {"title": "1 Cells", "level": 1, "parent_title": "", "page": 8, "source": "contents"},
+        {"title": "1.1 Plant cells", "level": 2, "parent_title": "1 Cells", "page": 8, "source": "contents"},
+    ]
+    canonical = _canonical(tmp_path, outline)
+    for row in outline:
+        row["candidate_ids"] = ["shared-candidate"]
+    _write_json(canonical / "outline_decision.json", {"final_outline": outline})
+    _write_jsonl(
+        canonical / "outline_candidates.jsonl",
+        [{"candidate_id": "shared-candidate", "title_text": "1 Cells / 1.1 Plant cells", "page": 8, "source": "contents"}],
+    )
+
+    result = build_outline_artifact(canonical, tmp_path / "output")
+    document = json.loads((tmp_path / "output" / "outline.json").read_text())
+
+    assert result["status"] == "passed"
+    assert document["heading_evidence_alignment"]["aligned_count"] == 2
+    coverage = json.loads((tmp_path / "output" / "outline-body-coverage.json").read_text())
+    assert coverage["duplicate_anchor_count"] == 0
 
 
 def test_omitted_split_article_title_is_added_from_metadata_evidence(tmp_path):
@@ -138,6 +293,37 @@ def test_one_level_outline_is_preserved_but_blocked(tmp_path):
     assert result["status"] == "review"
     assert result["gates"]["outline_depth_is_two_or_three"] is False
     assert json.loads((tmp_path / "output" / "outline.json").read_text())["nodes"][0]["title"] == "Chapter 1"
+
+
+def test_placeholder_title_and_child_before_parent_are_hard_blockers():
+    nodes = [
+        {"id": "root", "title": "Default Title", "normalized_title": "default title", "level": 1, "parent_title": "", "parent_id": None, "source_page": 10},
+        {"id": "child", "title": "Method", "normalized_title": "method", "level": 2, "parent_title": "Default Title", "parent_id": "root", "source_page": 4},
+    ]
+
+    result = _validate_hierarchy(nodes)
+
+    assert {"outline_placeholder_title", "outline_child_precedes_parent_source_page"} <= {
+        row["code"] for row in result["blockers"]
+    }
+
+
+def test_large_candidate_pool_cannot_finish_with_single_selected_node(tmp_path, monkeypatch):
+    outline = [{"title": "Chapter 1", "level": 1, "parent_title": "", "page": 4, "source": "contents"}]
+    canonical = _canonical(tmp_path, outline)
+    candidates = [
+        {"candidate_id": f"candidate-{index}", "title_text": f"Candidate {index}", "page": index, "source": "body"}
+        for index in range(1, 26)
+    ]
+    _write_jsonl(canonical / "outline_candidates.jsonl", candidates)
+    monkeypatch.setenv("WORKFLOW_V2_OUTLINE_ARBITRATION_ENABLED", "1")
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+
+    result = build_outline_artifact(canonical, tmp_path / "output")
+
+    blocker = next(row for row in result["blockers"] if row["code"] == "outline_arbitration_required")
+    assert blocker["candidate_count"] == 25
+    assert blocker["arbitration"] == "bounded_outline_arbitration_key_unavailable"
 
 
 def test_source_visible_chinese_toc_replaces_invalid_outline_with_printed_page_mapping(tmp_path):

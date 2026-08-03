@@ -33,6 +33,13 @@ BOX_SYMBOL_MAP = {
 }
 BOX_SYMBOL_RE = re.compile("[" + "".join(re.escape(ch) for ch in BOX_SYMBOL_MAP) + "]")
 SUPERSCRIPT_GROUP_PATTERN = r"\^\{(?:[^{}]|\{[^{}]*\})*\}"
+UNICODE_SUBSCRIPT_MAP = str.maketrans("₀₁₂₃₄₅₆₇₈₉", "0123456789")
+UNICODE_SUPERSCRIPT_MAP = {
+    "⁰": "0", "¹": "1", "²": "2", "³": "3", "⁴": "4",
+    "⁵": "5", "⁶": "6", "⁷": "7", "⁸": "8", "⁹": "9",
+}
+UNICODE_SUBSCRIPT_RE = re.compile(r"[₀₁₂₃₄₅₆₇₈₉]+")
+UNICODE_SUPERSCRIPT_RE = re.compile(r"[⁰¹²³⁴⁵⁶⁷⁸⁹]+")
 
 
 def placeholder_token(kind, index):
@@ -68,6 +75,11 @@ def protect_blank_runs(text):
 
 
 def normalize_math_inline_artifacts(text):
+    text = UNICODE_SUBSCRIPT_RE.sub(lambda match: "_{" + match.group(0).translate(UNICODE_SUBSCRIPT_MAP) + "}", text)
+    text = UNICODE_SUPERSCRIPT_RE.sub(
+        lambda match: "^{" + "".join(UNICODE_SUPERSCRIPT_MAP[ch] for ch in match.group(0)) + "}",
+        text,
+    )
     text = unwrap_text_wrapped_array_bodies(text)
     text = re.sub(
         r"(\\begin\{array\}\{[^{}\n]+\})\s*如[:：]\}",
@@ -249,6 +261,24 @@ def escape_text(text):
         if part.startswith("$") and part.endswith("$"):
             out.append("$" + normalize_math_inline_artifacts(part[1:-1]) + "$")
             continue
+        script_placeholders = []
+
+        def store_script(command):
+            script_placeholders.append(command)
+            return placeholder_token("SCRIPT", len(script_placeholders) - 1)
+
+        part = UNICODE_SUBSCRIPT_RE.sub(
+            lambda match: store_script(r"\ensuremath{_{" + match.group(0).translate(UNICODE_SUBSCRIPT_MAP) + "}}"),
+            part,
+        )
+        part = UNICODE_SUPERSCRIPT_RE.sub(
+            lambda match: store_script(
+                r"\ensuremath{^{"
+                + "".join(UNICODE_SUPERSCRIPT_MAP[ch] for ch in match.group(0))
+                + "}}"
+            ),
+            part,
+        )
         protected, placeholders = protect_blank_runs(part)
         escaped = "".join(SPECIALS.get(ch, ch) for ch in protected)
         for index, command in enumerate(placeholders):
@@ -257,6 +287,8 @@ def escape_text(text):
             escaped = escaped.replace(placeholder_token("LITERAL", index), literal)
         for index, command in enumerate(dollar_placeholders):
             escaped = escaped.replace(placeholder_token("DOLLAR", index), command)
+        for index, command in enumerate(script_placeholders):
+            escaped = escaped.replace(placeholder_token("SCRIPT", index), command)
         out.append(escaped)
     escaped_text = "".join(out)
     for index, command in enumerate(dollar_placeholders):

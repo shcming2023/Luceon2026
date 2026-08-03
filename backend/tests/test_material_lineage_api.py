@@ -111,7 +111,7 @@ def test_upload_deduplicates_by_sha_before_minio_write_and_records_pages(monkeyp
     assert db.query(Material).count() == 1
 
 
-def test_refinement_status_keeps_frozen_output_when_latest_job_was_cancelled():
+def test_refinement_projection_separates_available_output_from_latest_needs_review_job():
     material = Material(
         user_id="u1",
         title="Book",
@@ -119,9 +119,29 @@ def test_refinement_status_keeps_frozen_output_when_latest_job_was_cancelled():
         latex_manifest_bucket="eduassets-elegantbook",
         latex_manifest_object="worker-v2/pdf-1/run/manifest.json",
     )
-    job = CodexSkillJob(user_id="u1", status="cancelled", mode="new_pdf", requested_skill="test")
+    output = MaterialOutput(
+        id=541,
+        user_id="u1",
+        material_pk=1,
+        material_id="pdf-1",
+        manifest_bucket="eduassets-elegantbook",
+        manifest_object="worker-v2/pdf-1/succeeded/manifest.json",
+        output_run_id="succeeded-job",
+        quality_status="passed",
+        status="promoted",
+        is_current=True,
+    )
+    projection = materials_api._refinement_projection(
+        material,
+        None,
+        {"id": "latest-job", "status": "needs_review", "current_stage_key": "deterministic_elegantbook"},
+        output,
+    )
 
-    assert materials_api._refinement_status(material, job) == "succeeded"
+    assert projection["refinement_output_status"] == "succeeded"
+    assert projection["current_refinement_output"]["id"] == "541"
+    assert projection["latest_refinement_status"] == "needs_review"
+    assert projection["refinement_status"] == "needs_review"
 
 
 def test_refinement_status_surfaces_active_new_attempt_over_frozen_output():
@@ -135,6 +155,22 @@ def test_refinement_status_surfaces_active_new_attempt_over_frozen_output():
     job = CodexSkillJob(user_id="u1", status="running", mode="new_pdf", requested_skill="test")
 
     assert materials_api._refinement_status(material, job) == "running"
+
+
+def test_refinement_projection_does_not_claim_latest_task_status_when_workflow_db_is_unavailable():
+    material = Material(
+        user_id="u1",
+        title="Book",
+        filename="book.pdf",
+        latex_manifest_bucket="eduassets-elegantbook",
+        latex_manifest_object="worker-v2/pdf-1/run/manifest.json",
+    )
+
+    projection = materials_api._refinement_projection(material, None, None, None, workflow_available=False)
+
+    assert projection["refinement_output_status"] == "succeeded"
+    assert projection["latest_refinement_status"] == "unavailable"
+    assert projection["refinement_status"] == "unavailable"
 
 
 def test_completed_reprocess_preflight_requires_pipeline_admin(monkeypatch):

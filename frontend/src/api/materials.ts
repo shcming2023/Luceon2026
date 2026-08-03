@@ -65,13 +65,20 @@ export interface WorkflowV2JobSummary {
   review_asset_id: string
   source_popo_manifest: { bucket: string; object: string }
   current_output_id: string
+  job_output_id: string
+  current_material_output_id: string
+  current_material_output: Record<string, any> | null
   outputs: Array<Record<string, any>>
   workflow_version: string
   is_current_workflow: boolean
   status: string
+  business_status: string
   current_stage_key: string
   current_stage_status: string
   current_attempt: number
+  last_successful_stage_key: string
+  minimal_resume_stage_key: string
+  deliverable_available: boolean
   stages: Array<{ key: string; attempt: number; status: string }>
   event_count: number
   artifact_count: number
@@ -208,7 +215,7 @@ export const materialsApi = {
   },
 
   getWorkflowV2JobSummaryPage(params: { page: number; page_size: number; status?: string }) {
-    return api.get<{ total: number; page: number; page_size: number; jobs: WorkflowV2JobSummary[] }>('/workflow-v2/job-summaries', { params }).then(res => res.data)
+    return api.get<{ total: number; page: number; page_size: number; jobs: WorkflowV2JobSummary[]; status_counts: { passed: number; blocked: number; running: number } }>('/workflow-v2/job-summaries', { params }).then(res => res.data)
   },
 
   getWorkflowV2Job(jobId: string) {

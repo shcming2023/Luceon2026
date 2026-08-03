@@ -3,8 +3,12 @@ import re
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from app.workflow_v2.runtime.canonical.scripts.bootstrap_clean_markdown import (
     build_block_assignment_reports,
+    emit_source_bound_lines,
+    extract_direct_output_references,
     apply_popo_body_bounds,
     infer_body_range,
     is_noise_block,
@@ -189,7 +193,7 @@ def test_long_set_definitions_split_and_hline_gets_row_boundary() -> None:
 
 
 def test_locked_body_unicode_and_ipa_use_existing_latex_capabilities() -> None:
-    source = "x⁵ ∝ y, x ∈ A, x ∉ B, ∅, ●, ∠A, ∵ x, △ABC and /ˈmɑːθs/"
+    source = "x⁵ ∝ y, x ∈ A, x ∉ B, ∅, ●, ∠A, ∵ x, △ABC, 100°C, ⏻ and /ˈmɑːθs/"
 
     normalized = wrap_ipa_runs(normalize_locked_body_unicode(source))
 
@@ -202,9 +206,21 @@ def test_locked_body_unicode_and_ipa_use_existing_latex_capabilities() -> None:
     assert r"\ensuremath{\angle}A" in normalized
     assert r"\ensuremath{\because} x" in normalized
     assert r"\ensuremath{\triangle}ABC" in normalized
-    assert all(symbol not in normalized for symbol in ("∠", "∵", "△"))
+    assert r"100\ensuremath{{}^{\circ}}C" in normalized
+    assert r"\fbox{\scriptsize POWER}" in normalized
+    assert all(symbol not in normalized for symbol in ("∠", "∵", "△", "°", "⏻"))
     assert r"{\fontspec{Charis SIL}ˈ}" in normalized
     assert r"{\fontspec{Charis SIL}ɑː}" in normalized
+
+
+def test_semantic_converter_normalizes_unicode_subscript_and_superscript_digits() -> None:
+    rendered = escape_text("H₂O, CO₃, x⁵ and $a₂+b³$")
+
+    assert r"H\ensuremath{_{2}}O" in rendered
+    assert r"CO\ensuremath{_{3}}" in rendered
+    assert r"x\ensuremath{^{5}}" in rendered
+    assert "$a_{2}+b^{3}$" in rendered
+    assert all(symbol not in rendered for symbol in "₂₃⁵")
 
 
 def test_dense_answer_branches_split_without_touching_normal_prose() -> None:
@@ -982,6 +998,55 @@ def test_canonical_block_assignments_use_zero_based_content_list_identity() -> N
         "First source block",
         "Second source block",
     ]
+
+
+def test_generation_time_lineage_binds_duplicate_short_text_to_exact_clean_lines() -> None:
+    lines = ["<!-- page_idx: 3 -->"]
+    emit_source_bound_lines(lines, "content-list-000000", ["Method"])
+    emit_source_bound_lines(lines, "content-list-000001", ["Method"])
+    clean_md, direct_refs = extract_direct_output_references("\n".join(lines) + "\n")
+    blocks = [
+        {"type": "text", "text": "Method", "page_idx": 3, "bbox": [20, 180, 300, 220]},
+        {"type": "text", "text": "Method", "page_idx": 3, "bbox": [20, 420, 300, 460]},
+    ]
+    units = [{
+        "unit_id": "unit-0001",
+        "order": 0,
+        "title": "Lesson",
+        "level": 2,
+        "page_start": 3,
+        "page_end": 3,
+    }]
+
+    assignments, *_ = build_block_assignment_reports(
+        blocks,
+        units,
+        clean_md,
+        3,
+        3,
+        set(),
+        set(),
+        direct_output_refs=direct_refs,
+    )
+
+    assert "luceon-source-" not in clean_md
+    assert direct_refs == {
+        "content-list-000000": ["clean:clean-line-000002"],
+        "content-list-000001": ["clean:clean-line-000003"],
+    }
+    assert [row["output_refs"] for row in assignments] == [
+        ["clean:clean-line-000002"],
+        ["clean:clean-line-000003"],
+    ]
+    assert len({row["source_locator"]["locator_sha256"] for row in assignments}) == 2
+    assert [row["source_locator"]["source_order"] for row in assignments] == [0, 1]
+
+
+def test_generation_time_lineage_rejects_unbalanced_markers() -> None:
+    with pytest.raises(ValueError, match="unclosed"):
+        extract_direct_output_references(
+            "<!-- luceon-source-start: content-list-000000 -->\nMethod\n"
+        )
 
 
 def test_adjacent_source_heading_matches_only_an_emitted_outline_node() -> None:

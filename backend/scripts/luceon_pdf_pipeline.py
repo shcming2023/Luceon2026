@@ -3477,6 +3477,14 @@ def stage_status_documents(batch_status: dict[str, Any]) -> list[Any]:
     return docs
 
 
+def emit_pipeline_progress(**payload: Any) -> None:
+    print(
+        "__LUCEON_PROGRESS__"
+        + json.dumps({"at": now_iso(), **json_safe(payload)}, ensure_ascii=False, separators=(",", ":")),
+        flush=True,
+    )
+
+
 def wait_stage_batch(
     s3: S3Client,
     cfg: Config,
@@ -3490,6 +3498,7 @@ def wait_stage_batch(
     started = time.monotonic()
     last_status: dict[str, Any] = {}
     poll_errors = []
+    last_doc_states: dict[str, str] = {}
     while True:
         try:
             last_status = wrapper.request_json("GET", f"/api/v1/{stage}/batches/{batch_id}", timeout=60)
@@ -3506,6 +3515,21 @@ def wait_stage_batch(
             run_id = str(doc_status.get("run_id") or doc_status.get("job_id") or run_ids_by_doc_id.get(str(doc.get("doc_id") or "")) or "")
             if run_id:
                 doc_status.setdefault("run_id", run_id)
+            material_id = str(doc.get("material_id") or "")
+            status_value = str(doc_status.get("status") or "pending").lower()
+            state_key = material_id or str(doc.get("doc_id") or idx)
+            if last_doc_states.get(state_key) != status_value:
+                last_doc_states[state_key] = status_value
+                emit_pipeline_progress(
+                    stage=stage,
+                    phase="remote",
+                    status=status_value,
+                    material_id=material_id,
+                    run_id=run_id,
+                    batch_id=batch_id,
+                    ordinal=idx + 1,
+                    total=len(docs),
+                )
             if not stage_doc_terminal(stage, doc_status):
                 all_terminal = False
                 if run_id:
@@ -3656,6 +3680,7 @@ def run_staged_command(args: argparse.Namespace) -> dict[str, Any]:
     health: dict[str, Any] = {}
     staged_probe: dict[str, Any] = {}
     mineru_submit: dict[str, Any] | None = None
+    existing_popo_submit: dict[str, Any] | None = None
     if args.existing_mineru_batch_id:
         wrapper = WrapperClient(cfg.wrapper_url, cfg.wrapper_api_key)
         try:
@@ -3689,6 +3714,31 @@ def run_staged_command(args: argparse.Namespace) -> dict[str, Any]:
             "target_filters": {"input_objects": list(input_objects), "material_ids": list(material_ids)},
         }
     else:
+        if args.existing_popo_batch_id:
+            wrapper = WrapperClient(cfg.wrapper_url, cfg.wrapper_api_key)
+            try:
+                health = wrapper_ready(wrapper, require_mineru=False)
+                staged_probe = staged_api_probe(wrapper)
+                existing_popo_submit = wrapper.request_json(
+                    "GET", f"/api/v1/popo/batches/{args.existing_popo_batch_id}", timeout=60
+                )
+            except Exception as exc:
+                return {
+                    "command": "run-staged",
+                    "applied": False,
+                    "status": "GPU_OFFLINE",
+                    "health": wrapper_offline_payload(exc),
+                }
+            if not health["ok"]:
+                return {"command": "run-staged", "applied": False, "status": "GPU_OFFLINE", "health": health}
+            if not staged_probe["available"]:
+                return {
+                    "command": "run-staged",
+                    "applied": False,
+                    "status": "STAGED_API_UNAVAILABLE",
+                    "health": health,
+                    "staged_api_probe": staged_probe,
+                }
         candidate_states = {"eligible_for_submit"}
         if args.existing_popo_batch_id:
             candidate_states = {"mineru_only_resume_popo"}
@@ -3769,7 +3819,9 @@ def run_staged_command(args: argparse.Namespace) -> dict[str, Any]:
 
     if args.existing_popo_batch_id:
         popo_batch_id = str(args.existing_popo_batch_id)
-        popo_submit = wrapper.request_json("GET", f"/api/v1/popo/batches/{popo_batch_id}", timeout=60)
+        popo_submit = existing_popo_submit or wrapper.request_json(
+            "GET", f"/api/v1/popo/batches/{popo_batch_id}", timeout=60
+        )
         popo_submit_statuses = stage_status_documents(popo_submit)
         popo_docs: list[dict[str, Any]] = []
         popo_run_ids: dict[str, str] = {}
@@ -3856,6 +3908,19 @@ def run_staged_command(args: argparse.Namespace) -> dict[str, Any]:
                     popo_result["errors"].append(
                         write_stage_error(s3, cfg, doc, run_id, "popo", popo_batch_id, doc_status, "popo_stage_failed")
                     )
+        else:
+            for row in popo_docs:
+                doc = row["doc"]
+                popo_result["errors"].append(
+                    {
+                        "material_id": str(doc.get("material_id") or ""),
+                        "input_object": str(doc.get("input_object") or doc.get("object") or ""),
+                        "stage": "popo",
+                        "reason": "popo_wait_timeout",
+                        "run_id": str(doc.get("run_id") or ""),
+                        "error": {"message": "Popo batch remained non-terminal before the local wait deadline"},
+                    }
+                )
         result: dict[str, Any] = {
             "command": "run-staged",
             "applied": True,
@@ -3956,6 +4021,7 @@ def run_staged_command(args: argparse.Namespace) -> dict[str, Any]:
             doc_status.setdefault("run_id", run_id)
         if stage_doc_success("mineru", doc_status):
             try:
+                emit_pipeline_progress(stage="mineru", phase="freeze", status="started", material_id=doc.get("material_id"), run_id=run_id, batch_id=mineru_batch_id, ordinal=idx + 1, total=len(docs))
                 freeze_result = (
                     reuse_frozen_mineru_result(s3, cfg, doc, doc_status, mineru_batch_id)
                     if args.reuse_frozen_mineru
@@ -3967,6 +4033,7 @@ def run_staged_command(args: argparse.Namespace) -> dict[str, Any]:
                 )
                 continue
             result["mineru_freezes"].append(freeze_result)
+            emit_pipeline_progress(stage="mineru", phase="freeze", status="frozen", material_id=doc.get("material_id"), run_id=run_id, batch_id=mineru_batch_id, ordinal=idx + 1, total=len(docs), manifest=freeze_result.get("manifest"))
             frozen_docs.append({"doc": doc, "freeze": freeze_result})
         else:
             result["mineru_errors"].append(
@@ -3981,7 +4048,9 @@ def run_staged_command(args: argparse.Namespace) -> dict[str, Any]:
         return redact_presigned_urls(result)
 
     popo_client_batch_id = args.popo_client_batch_id or "staged_popo_%s" % utc_stamp()
+    emit_pipeline_progress(stage="popo", phase="model_switch", status="loading", ordinal=1, total=len(frozen_docs))
     popo_docs: list[dict[str, Any]] = []
+    popo_prepare_errors: list[dict[str, Any]] = []
     package_refs = []
     if args.existing_popo_batch_id:
         for idx, row in enumerate(frozen_docs):
@@ -4033,7 +4102,20 @@ def run_staged_command(args: argparse.Namespace) -> dict[str, Any]:
                 submit_mode = resolve_popo_submit_mode(package, args)
                 remote_package = None
                 if submit_mode == "server_path":
-                    remote_package = copy_staged_popo_package_to_remote(package_path, args)
+                    try:
+                        remote_package = copy_staged_popo_package_to_remote(package_path, args)
+                    except Exception as exc:
+                        popo_prepare_errors.append(
+                            {
+                                "material_id": material_id,
+                                "input_object": str(doc.get("input_object") or ""),
+                                "stage": "popo",
+                                "reason": "popo_submit_preparation_failed",
+                                "run_id": mineru_run_id,
+                                "error": {"type": type(exc).__name__, "message": str(exc)},
+                            }
+                        )
+                        continue
                     mineru_result = {
                         "type": "server_path",
                         "path": remote_package["extracted_path"],
@@ -4071,13 +4153,51 @@ def run_staged_command(args: argparse.Namespace) -> dict[str, Any]:
                         "mineru_result": mineru_result,
                     }
                 )
-        popo_submit = wrapper.request_json(
-            "POST",
-            "/api/v1/popo/batches",
-            payload={"batch_id": popo_client_batch_id, "lang": cfg.lang, "documents": popo_payload_docs},
-            timeout=600,
-        )
+        if not popo_payload_docs:
+            result["popo"] = {
+                "batch_id": "",
+                "existing_popo_batch_id": "",
+                "package_refs": package_refs,
+                "submitted_markers": [],
+                "wait": {"wait_status": "NOT_SUBMITTED"},
+                "freezes": [],
+                "errors": popo_prepare_errors,
+            }
+            result["status"] = staged_completion_status(result)
+            return redact_presigned_urls(result)
+        try:
+            popo_submit = wrapper.request_json(
+                "POST",
+                "/api/v1/popo/batches",
+                payload={"batch_id": popo_client_batch_id, "lang": cfg.lang, "documents": popo_payload_docs},
+                timeout=600,
+            )
+        except Exception as exc:
+            for row in popo_docs:
+                doc = row["doc"]
+                popo_prepare_errors.append(
+                    {
+                        "material_id": str(doc.get("material_id") or ""),
+                        "input_object": str(doc.get("input_object") or ""),
+                        "stage": "popo",
+                        "reason": "popo_submit_failed",
+                        "run_id": "",
+                        "error": {"type": type(exc).__name__, "message": str(exc)},
+                    }
+                )
+            result["popo"] = {
+                "batch_id": "",
+                "existing_popo_batch_id": "",
+                "package_refs": package_refs,
+                "submitted_markers": [],
+                "wait": {"wait_status": "SUBMIT_FAILED"},
+                "freezes": [],
+                "errors": popo_prepare_errors,
+            }
+            result["status"] = staged_completion_status(result)
+            return redact_presigned_urls(result)
         popo_batch_id = str(popo_submit.get("batch_id") or popo_client_batch_id)
+        emit_pipeline_progress(stage="popo", phase="model_switch", status="ready", batch_id=popo_batch_id, ordinal=1, total=len(frozen_docs))
     popo_submit_statuses = stage_status_documents(popo_submit)
     popo_run_ids: dict[str, str] = {}
     popo_submitted_markers = []
@@ -4124,7 +4244,7 @@ def run_staged_command(args: argparse.Namespace) -> dict[str, Any]:
         "submitted_markers": popo_submitted_markers,
         "wait": popo_wait,
         "freezes": [],
-        "errors": [],
+        "errors": list(popo_prepare_errors),
     }
     if popo_wait.get("wait_status") == "TERMINAL":
         popo_final_status = popo_wait.get("last_status") if isinstance(popo_wait.get("last_status"), dict) else {}
@@ -4137,6 +4257,7 @@ def run_staged_command(args: argparse.Namespace) -> dict[str, Any]:
                 doc_status.setdefault("run_id", run_id)
             if stage_doc_success("popo", doc_status):
                 try:
+                    emit_pipeline_progress(stage="popo", phase="freeze", status="started", material_id=doc.get("material_id"), run_id=run_id, batch_id=popo_batch_id, ordinal=idx + 1, total=len(popo_docs))
                     freeze_result = freeze_popo_only_result(
                         s3,
                         cfg,
@@ -4153,10 +4274,24 @@ def run_staged_command(args: argparse.Namespace) -> dict[str, Any]:
                     )
                     continue
                 popo_result["freezes"].append(freeze_result)
+                emit_pipeline_progress(stage="popo", phase="freeze", status="frozen", material_id=doc.get("material_id"), run_id=run_id, batch_id=popo_batch_id, ordinal=idx + 1, total=len(popo_docs), manifest=freeze_result.get("manifest"))
             else:
                 popo_result["errors"].append(
                     write_stage_error(s3, cfg, doc, run_id, "popo", popo_batch_id, doc_status, "popo_stage_failed")
                 )
+    else:
+        for row in popo_docs:
+            doc = row["doc"]
+            popo_result["errors"].append(
+                {
+                    "material_id": str(doc.get("material_id") or ""),
+                    "input_object": str(doc.get("input_object") or doc.get("object") or ""),
+                    "stage": "popo",
+                    "reason": "popo_wait_timeout",
+                    "run_id": str(doc.get("run_id") or ""),
+                    "error": {"message": "Popo batch remained non-terminal before the local wait deadline"},
+                }
+            )
     result["popo"] = popo_result
     result["status"] = staged_completion_status(result)
     return redact_presigned_urls(result)

@@ -9,7 +9,7 @@ from app.workflow_v2.models import RepairAttempt, StageEvent, StageRun, Workflow
 
 
 ACTIVE_STAGE_STATUSES = {"queued", "running"}
-TERMINAL_JOB_STATUSES = {"succeeded", "cancelled", "needs_review"}
+TERMINAL_JOB_STATUSES = {"succeeded", "cancelled", "needs_review", "blocked", "handoff_ready"}
 
 
 class WorkflowTransitionError(ValueError):
@@ -131,8 +131,9 @@ def block_current_stage_for_review(
     output_sha256: str,
     error_message: str,
     metrics: dict | None = None,
+    handoff_ready: bool = False,
 ) -> tuple[WorkflowJob, StageRun]:
-    """Persist a complete candidate while pausing on a business quality gate."""
+    """Persist immutable evidence while distinguishing hard gates from a usable handoff."""
     job = _locked_job(db, public_id)
     stage = _latest_stage(db, job.id, job.current_stage_key)
     if not stage or stage.status != "running":
@@ -140,7 +141,8 @@ def block_current_stage_for_review(
     if not output_bucket or not output_object or len(output_sha256) != 64:
         raise WorkflowTransitionError("a content-addressed candidate manifest is required")
     now = datetime.utcnow()
-    stage.status = "needs_review"
+    terminal_status = "handoff_ready" if handoff_ready else "blocked"
+    stage.status = terminal_status
     stage.output_manifest_bucket = output_bucket
     stage.output_manifest_object = output_object
     stage.output_manifest_sha256 = output_sha256
@@ -149,7 +151,7 @@ def block_current_stage_for_review(
     stage.error_message = error_message
     stage.finished_at = now
     stage.heartbeat_at = now
-    job.status = "needs_review"
+    job.status = terminal_status
     job.error_code = "quality_blocked"
     job.error_message = error_message
     job.finished_at = now
@@ -157,8 +159,12 @@ def block_current_stage_for_review(
         db,
         job.id,
         stage.id,
-        "stage_quality_blocked",
-        f"Stage {stage.stage_key} produced a complete candidate that requires review.",
+        "stage_handoff_ready" if handoff_ready else "stage_quality_blocked",
+        (
+            f"Stage {stage.stage_key} produced a complete deliverable ready for manual handoff."
+            if handoff_ready
+            else f"Stage {stage.stage_key} was stopped by a hard quality gate."
+        ),
         {
             "manifest": {"bucket": output_bucket, "object": output_object, "sha256": output_sha256},
             "quality_blockers": (metrics or {}).get("quality_blockers", []),
@@ -199,8 +205,8 @@ def retry_failed_stage(db: Session, public_id: str) -> tuple[WorkflowJob, StageR
 
 def restart_from_stage(db: Session, public_id: str, stage_key: str) -> tuple[WorkflowJob, StageRun]:
     job = _locked_job(db, public_id)
-    if job.status not in {"failed", "needs_review", "succeeded"}:
-        raise WorkflowTransitionError("only a failed, needs-review, or succeeded job can restart from an earlier stage")
+    if job.status not in {"failed", "needs_review", "blocked", "handoff_ready", "succeeded"}:
+        raise WorkflowTransitionError("only a failed, blocked, handoff-ready, or succeeded job can restart from an earlier stage")
     try:
         contract = contract_for(job.workflow_version, stage_key)
     except KeyError:

@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.database import SessionLocal
-from app.services.material_inventory import popo_resume_command, run_pipeline_subprocess
+from app.services.material_inventory import pipeline_wait_timeout_seconds, popo_resume_command, run_pipeline_subprocess
 from app.services.material_task_queue import (
     claim_next_metadata_job,
     claim_next_pipeline_run,
@@ -40,6 +40,8 @@ def consume_once(worker_id: str) -> dict | None:
                     str(context.get("material_id") or ""),
                     str(context.get("input_object") or ""),
                     apply=True,
+                    existing_popo_batch_id=str(request.get("existing_popo_batch_id") or ""),
+                    timeout_seconds=pipeline_wait_timeout_seconds(snapshot),
                 )
                 start_message = "开始从冻结 MinerU 恢复 Popo"
             run_pipeline_subprocess(

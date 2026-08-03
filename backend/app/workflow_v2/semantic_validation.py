@@ -20,11 +20,17 @@ def validate_semantic_artifact(canonical_dir: Path, outline_dir: Path, annotatio
     media = _read_array(annotation_dir / "media.json")
     review_items = _read_array(annotation_dir / "review_items.json")
 
-    outline_rows = [_outline_signature(row) for row in outline.get("nodes") or []]
-    section_by_id = {str(row.get("id") or ""): row for row in sections}
-    section_rows = [_section_signature(row, section_by_id) for row in sections]
-    missing_sections = _counter_delta(outline_rows, section_rows)
-    extra_sections = _counter_delta(section_rows, outline_rows)
+    outline_nodes = outline.get("nodes") or []
+    outline_by_id = {str(row.get("id") or ""): row for row in outline_nodes if row.get("id")}
+    outline_ids = [str(row.get("id") or "") for row in outline_nodes]
+    section_outline_ids = [str(row.get("outline_node_id") or "") for row in sections]
+    missing_sections = _counter_delta(outline_ids, section_outline_ids)
+    extra_sections = sorted(
+        value for value in (Counter(section_outline_ids) - Counter(outline_ids)).elements()
+        if value
+    )
+    unbound_sections = [str(row.get("id") or "") for row in sections if not row.get("outline_node_id")]
+    binding_mismatches = _validate_outline_bindings(outline_nodes, outline_by_id, sections)
 
     content_lines, image_lines, components = _canonical_lines(semantic_markdown or canonical_dir / "clean.md")
     coverage = Counter()
@@ -52,7 +58,10 @@ def validate_semantic_artifact(canonical_dir: Path, outline_dir: Path, annotatio
     if missing_sections:
         blockers.append({"code": "outline_nodes_missing_from_semantic_sections", "signatures": missing_sections[:200]})
     if extra_sections:
-        blockers.append({"code": "semantic_sections_not_in_accepted_outline", "signatures": extra_sections[:200]})
+        blockers.append({"code": "semantic_sections_not_in_accepted_outline", "outline_node_ids": extra_sections[:200]})
+    if unbound_sections:
+        blockers.append({"code": "semantic_sections_without_outline_node_id", "section_ids": unbound_sections[:200]})
+    blockers.extend(binding_mismatches)
     if unassigned_lines:
         blockers.append({"code": "clean_content_lines_unassigned", "count": len(unassigned_lines), "lines": unassigned_lines[:200]})
     if multiply_assigned_lines:
@@ -85,14 +94,18 @@ def validate_semantic_artifact(canonical_dir: Path, outline_dir: Path, annotatio
         "schema": "luceon.semantic-validation/v1",
         "status": "passed" if not blockers else "review",
         "gates": {
-            "outline_and_sections_match_bidirectionally": not missing_sections and not extra_sections,
+            "outline_and_sections_match_bidirectionally": not missing_sections and not extra_sections and not unbound_sections and not binding_mismatches,
             "every_clean_content_line_assigned_exactly_once": not unassigned_lines and not multiply_assigned_lines,
             "image_relations_are_complete": not missing_media and not extra_media,
             "semantic_review_items_are_closed": not review_items,
             "question_formula_table_and_answer_components_assigned_exactly_once": not component_relations["unassigned_component_lines"] and not component_relations["multiply_assigned_component_lines"],
         },
-        "outline_node_count": len(outline_rows),
-        "semantic_section_count": len(section_rows),
+        "outline_node_count": len(outline_nodes),
+        "semantic_section_count": len(sections),
+        "title_signature_diagnostics": {
+            "outline": [_outline_signature(row) for row in outline_nodes],
+            "semantic": [_outline_signature(row) for row in sections],
+        },
         "blockers": blockers,
     }
     _write_json(annotation_dir / "accepted-outline.json", outline)
@@ -112,15 +125,52 @@ def _outline_signature(row: dict) -> str:
     )
 
 
-def _section_signature(row: dict, by_id: dict[str, dict]) -> str:
-    parent = by_id.get(str(row.get("parent_id") or ""), {})
-    return "|".join(
-        [
-            str(int(row.get("level") or 0)),
-            _normalize(parent.get("title")),
-            _normalize(row.get("title")),
-        ]
-    )
+def _validate_outline_bindings(outline_nodes: list[dict], outline_by_id: dict[str, dict], sections: list[dict]) -> list[dict]:
+    blockers = []
+    section_by_outline_id = {
+        str(row.get("outline_node_id") or ""): row
+        for row in sections
+        if row.get("outline_node_id")
+    }
+    bound_order = [str(row.get("outline_node_id") or "") for row in sections if row.get("outline_node_id") in outline_by_id]
+    expected_order = [str(row.get("id") or "") for row in outline_nodes if row.get("id") in section_by_outline_id]
+    if bound_order != expected_order:
+        blockers.append({
+            "code": "semantic_section_order_differs_from_accepted_outline",
+            "expected_outline_node_ids": expected_order[:200],
+            "actual_outline_node_ids": bound_order[:200],
+        })
+    previous_start = None
+    for outline_id, section in section_by_outline_id.items():
+        node = outline_by_id.get(outline_id)
+        if not node:
+            continue
+        expected_parent = str(node.get("parent_id") or "") or None
+        actual_parent = str(section.get("parent_outline_node_id") or "") or None
+        if actual_parent != expected_parent:
+            blockers.append({
+                "code": "semantic_section_parent_binding_mismatch",
+                "outline_node_id": outline_id,
+                "expected_parent_outline_node_id": expected_parent,
+                "actual_parent_outline_node_id": actual_parent,
+            })
+        if int(section.get("level") or 0) != int(node.get("level") or 0):
+            blockers.append({
+                "code": "semantic_section_level_mismatch",
+                "outline_node_id": outline_id,
+                "expected_level": int(node.get("level") or 0),
+                "actual_level": int(section.get("level") or 0),
+            })
+        span = section.get("source_span") or {}
+        start = _integer(span.get("start_line"))
+        end = _integer(span.get("end_line"))
+        if start is None or end is None or end < start:
+            blockers.append({"code": "semantic_section_source_span_invalid", "outline_node_id": outline_id})
+        elif previous_start is not None and start <= previous_start:
+            blockers.append({"code": "semantic_section_source_order_invalid", "outline_node_id": outline_id})
+        if start is not None:
+            previous_start = start
+    return blockers
 
 
 def _counter_delta(left: list[str], right: list[str]) -> list[str]:
