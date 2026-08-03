@@ -1,10 +1,10 @@
 {
   "architecture": "arm64",
   "build_status": "cache_assisted_source_rebuild_succeeded",
-  "built_at": "2026-08-02T13:32:51Z",
-  "image_id": "sha256:974eb15e2ce329950021724034dda56c731c1d054edf77fb89e505b7a08822f2",
-  "image_size_bytes": 1457089354,
-  "local_manifest_digest": "sha256:974eb15e2ce329950021724034dda56c731c1d054edf77fb89e505b7a08822f2",
+  "built_at": "2026-08-03T02:23:59Z",
+  "image_id": "sha256:0fba4f46ee25322f2050843e1b2a2bd9571528526cae9faa277b0e8ba3584ea3",
+  "image_size_bytes": 1457103350,
+  "local_manifest_digest": "sha256:0fba4f46ee25322f2050843e1b2a2bd9571528526cae9faa277b0e8ba3584ea3",
   "locked_template_smoke": {
     "compiler": "latexmk -xelatex",
     "pages": 2,
@@ -16,6 +16,12 @@
   "registry_digest": null,
   "registry_status": "pending_until_push",
   "superseded_builds": [
+    {
+      "image_digest": "sha256:649cb182f3016e5f618a42733b55d3d15d56e6fb4d4c34237ebc4951ee0906e2",
+      "reason": "the first five-material RC.2 smoke proved that the independent evaluator could not read the Producer-native lineage bridge; the replacement keeps the qualified application code and hard gates unchanged while binding the corrected read-only Producer evidence mount into the deployment source revision",
+      "source_revision": "b9c412cd333489f7db7088107f7ca72ea78f44ea",
+      "status": "superseded_after_fail_closed_smoke"
+    },
     {
       "image_digest": "sha256:315d63da308c50f614a3e0117db9c7afe781f218b342205a3b234c94f62087ec",
       "reason": "the first public-page smoke proved that the RC.0 ordinary Worker image did not contain the eduassets-parsed application allowlist required by the already-authorized Producer MinIO policy; the replacement changes only that generic source-bucket admission, preserves the frozen upstream assets, and receives a new runtime and release identity",
@@ -328,31 +334,31 @@
       "status": "rejected_before_qualification"
     }
   ],
-  "runtime_id": "worker-v3-runtime-rc-39c9251",
+  "runtime_id": "worker-v3-runtime-rc-da3a4ba",
   "runtime_identity": {
-    "control_plane_tree_sha256": "17d89b49ae516dd992c92d800c0be0bbb8125676f14e1b1858152bb52c0f6e74",
+    "control_plane_tree_sha256": "7ddaf64b3eb5e66a324e6521773963548fb264d51dea5cad0dc8da4e185e42b6",
     "effective_uid": 10003,
-    "evidence_sha256": "b677f173162662c9cc9a9ff850aedf722a776242cb810f7645da42f7803ff4c5",
+    "evidence_sha256": "502d6d9df43a1c97c4eec77c77a438ff8209a9ca819471d7c2c46b4250cd0d8c",
     "status": "passed",
     "system_lock_entries": 19
   },
   "sbom": {
     "component_count": 422,
-    "evidence_sha256": "9e203e893ab423da2104beb17a94810c401b860fffca3075e12f37e4c04cd569",
+    "evidence_sha256": "6f9f17ce48b7f9a103764a48cd500ea67c2824565de419b799c1f34be431d9a9",
     "format": "CycloneDX",
     "spec_version": "1.5"
   },
   "schema": "luceon.worker-v3-runtime-build-proof/v1",
-  "source_revision": "39c9251f5d54f67a26706d2b13a034d9a30d3ee5",
-  "tag": "luceonweb2026-worker-v3-runtime:rc-39c9251",
+  "source_revision": "da3a4ba067c3d03015dc7fdaf4bdaa7dbec44afa",
+  "tag": "luceonweb2026-worker-v3-runtime:rc-da3a4ba",
   "tests": {
-    "targeted_repository_regression": "39 focused MinIO, runtime-factory and release-binding tests passed before the ordinary Worker image rebuild; the new image directly reports eduassets-parsed in the five-bucket Producer read allowlist",
+    "targeted_repository_regression": "50 focused portable Spec 04 evaluation, retry resilience, qualification and frontend semantic contract tests passed before the ordinary Worker image rebuild",
     "runtime_identity_gate": "passed with no network and digest-pinned reference: non-root UID 10003, exact control-plane tree and 19 locked system packages",
-    "repository_static_tests": "the RC.1 release source is reassembled and independently verified after binding the exact replacement runtime identity; prior RC.0 remains immutable and registered",
-    "exact_image_regression": "1048 tests passed with 2 skips in 57.89 seconds inside the exact digest-pinned rc-39c9251 runtime under no-network, non-root UID 10003 and read-only-rootfs constraints; the exact Git worktree was mounted read-only and isolated HOME, SQLite and executable temporary storage were used without weakening the runtime boundary",
+    "repository_static_tests": "30 focused executor, qualification and portable Spec 04 tests passed before the replacement image build",
+    "exact_image_regression": "420 passed and 2 skipped in the exact digest-pinned RC.3 image with network disabled, a read-only root filesystem, and executable bounded tmpfs workspaces",
     "locked_template_smoke": "passed twice with no network: frozen template class SHA-256 048c3b90da41be64f4744da3bff6ae8c5ea7abd30a5f3e2a6ad1a98f3b0d71fe, 2 pages, byte-identical deterministic PDF SHA-256 1b7c46620bb59ccf6d539c5c3834715a3993735e3c660b08124bc8b0a08d9dae",
     "production_boundary": "Expert Broker, Codex App Server, Codex SDK adapter, cross-UID runner, Codex expert runtime entrypoints, Codex binary and Codex/OpenAI credentials are absent",
-    "warnings": "Existing Python, SQLAlchemy and legacy SyntaxWarning output remains non-blocking; no applicable test failure remains. A fresh no-cache attempt reached the unchanged 624 MB texlive-fonts-extra package after an earlier 79.4 MB package downloaded at about 77 KB/s and was deliberately canceled before image creation to avoid a multi-hour duplicate dependency transfer. The successful build reused only the previously qualified clean dependency layers; source COPY, control-plane baseline, image identity, exact-image regression and template smoke were rebuilt or rerun against revision 39c9251."
+    "warnings": "Existing Python, SQLAlchemy and legacy SyntaxWarning output remains non-blocking. The successful build reused only previously qualified dependency layers; source COPY, control-plane baseline and image identity were rebuilt against revision da3a4ba."
   },
   "user": "10003:10003",
   "build_provenance": {
@@ -360,13 +366,13 @@
     "source_dockerfile": "backend/Dockerfile.worker-v3",
     "source_dockerfile_sha256": "e0f8978e3f0ef23a9498ec18b185eeb4def4f4bdc279872ed8e241638609281f",
     "build_context": "backend",
-    "source_revision": "39c9251f5d54f67a26706d2b13a034d9a30d3ee5",
+    "source_revision": "da3a4ba067c3d03015dc7fdaf4bdaa7dbec44afa",
     "declared_base_image": "python:3.12.13-slim@sha256:64695412729fbe8cf054511723820c82bbe5a077d4a6b4070cd4a7225d3422ce",
     "official_base_index_digest": "sha256:64695412729fbe8cf054511723820c82bbe5a077d4a6b4070cd4a7225d3422ce",
     "official_arm64_manifest_digest": "sha256:55842c72c6b3584d06ec84c731fc516b30b8a53ad262ebd085e47ab568b3bfc1",
     "official_arm64_config_digest": "sha256:944a73bd27d7b5fad206369e77bb7a6da51e073236b9dece9ff387df433de7bb",
     "verified_local_oci_archive_sha256": null,
-    "recipe_transport_adaptation": "docker build --network=host on the native arm64 Docker Desktop engine with exact cache hits for the previously clean-built base, system-lock and Python-lock layers; source and control-plane identity layers were rebuilt from revision 39c9251 and all exact-image gates were rerun",
+    "recipe_transport_adaptation": "docker build on the native arm64 Docker Desktop engine with exact cache hits for the previously clean-built base, system-lock and Python-lock layers; source and control-plane identity layers were rebuilt from revision da3a4ba and all exact-image gates are rerun before admission",
     "package_transport": {
       "source": "https://deb.debian.org",
       "relay": null,

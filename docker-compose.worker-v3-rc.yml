@@ -2,6 +2,12 @@ services:
   backend:
     environment:
       - WORKFLOW_V3_ARTIFACT_BACKEND=minio
+      - WORKFLOW_V3_ENABLED=true
+    volumes:
+      - ${LUCEON_RUNTIME_ROOT:?set the absolute Luceon runtime root}/backend:/data
+      - ${LUCEON_RUNTIME_ROOT:?set the absolute Luceon runtime root}/backups:/backups
+      - ${LUCEON_RUNTIME_ROOT:?set the absolute Luceon runtime root}/external-backups:/external-backups
+      - ${LUCEON_RUNTIME_ROOT:?set the absolute Luceon runtime root}/worker-v3/releases:/worker-v3/releases:ro
 
   workflow-v3-overleaf-compiler:
     image: ${LUCEON_WORKER_V3_OVERLEAF_ADAPTER_IMAGE:?set exact repository@sha256 or local sha256 Overleaf adapter image}
@@ -13,37 +19,58 @@ services:
     environment:
       - WORKER_V3_IMAGE_REFERENCE=${LUCEON_WORKER_V3_IMAGE:?set repository@sha256 or an exact local sha256 image ID}
       - LUCEON_ENVIRONMENT=rc
+      - WORKFLOW_V3_ENABLED=true
       - WORKFLOW_V3_PRODUCER_MINIO_ENDPOINT=${WORKFLOW_V3_MINIO_ENDPOINT:?set Worker V3 MinIO endpoint}
       - WORKFLOW_V3_PRODUCER_MINIO_ACCESS_KEY=${WORKFLOW_V3_PRODUCER_MINIO_ACCESS_KEY:?load the generated Worker V3 MinIO role env}
       - WORKFLOW_V3_PRODUCER_MINIO_SECRET_KEY=${WORKFLOW_V3_PRODUCER_MINIO_SECRET_KEY:?load the generated Worker V3 MinIO role env}
       - WORKFLOW_V3_MINIO_CREDENTIAL_FINGERPRINTS=${WORKFLOW_V3_MINIO_CREDENTIAL_FINGERPRINTS:?load the generated Worker V3 MinIO role env}
+    volumes:
+      - ${LUCEON_RUNTIME_ROOT:?set the absolute Luceon runtime root}/backend:/data
+      - ${LUCEON_RUNTIME_ROOT:?set the absolute Luceon runtime root}/worker-v3/releases:/worker-v3/releases:ro
+      - ${LUCEON_RUNTIME_ROOT:?set the absolute Luceon runtime root}/worker-v3/work/producer:/worker-v3/work
 
   workflow-v3-evaluator:
     image: ${LUCEON_WORKER_V3_IMAGE:?set repository@sha256 or an exact local sha256 image ID}
     environment:
       - WORKER_V3_IMAGE_REFERENCE=${LUCEON_WORKER_V3_IMAGE:?set repository@sha256 or an exact local sha256 image ID}
       - LUCEON_ENVIRONMENT=rc
+      - WORKFLOW_V3_ENABLED=true
       - WORKFLOW_V3_EVALUATOR_MINIO_ENDPOINT=${WORKFLOW_V3_MINIO_ENDPOINT:?set Worker V3 MinIO endpoint}
       - WORKFLOW_V3_EVALUATOR_MINIO_ACCESS_KEY=${WORKFLOW_V3_EVALUATOR_MINIO_ACCESS_KEY:?load the generated Worker V3 MinIO role env}
       - WORKFLOW_V3_EVALUATOR_MINIO_SECRET_KEY=${WORKFLOW_V3_EVALUATOR_MINIO_SECRET_KEY:?load the generated Worker V3 MinIO role env}
       - WORKFLOW_V3_MINIO_CREDENTIAL_FINGERPRINTS=${WORKFLOW_V3_MINIO_CREDENTIAL_FINGERPRINTS:?load the generated Worker V3 MinIO role env}
+    volumes:
+      - ${LUCEON_RUNTIME_ROOT:?set the absolute Luceon runtime root}/backend:/data
+      - ${LUCEON_RUNTIME_ROOT:?set the absolute Luceon runtime root}/worker-v3/releases:/worker-v3/releases:ro
+      - ${LUCEON_RUNTIME_ROOT:?set the absolute Luceon runtime root}/worker-v3/work/evaluator:/worker-v3/evaluation-work
+      - ${LUCEON_RUNTIME_ROOT:?set the absolute Luceon runtime root}/worker-v3/work/producer:/worker-v3/work:ro
 
   workflow-v3-promoter:
     image: ${LUCEON_WORKER_V3_IMAGE:?set repository@sha256 or an exact local sha256 image ID}
     environment:
       - WORKER_V3_IMAGE_REFERENCE=${LUCEON_WORKER_V3_IMAGE:?set repository@sha256 or an exact local sha256 image ID}
       - LUCEON_ENVIRONMENT=rc
+      - WORKFLOW_V3_ENABLED=true
       - WORKFLOW_V3_PROMOTER_MINIO_ENDPOINT=${WORKFLOW_V3_MINIO_ENDPOINT:?set Worker V3 MinIO endpoint}
       - WORKFLOW_V3_PROMOTER_MINIO_ACCESS_KEY=${WORKFLOW_V3_PROMOTER_MINIO_ACCESS_KEY:?load the generated Worker V3 MinIO role env}
       - WORKFLOW_V3_PROMOTER_MINIO_SECRET_KEY=${WORKFLOW_V3_PROMOTER_MINIO_SECRET_KEY:?load the generated Worker V3 MinIO role env}
       - WORKFLOW_V3_MINIO_CREDENTIAL_FINGERPRINTS=${WORKFLOW_V3_MINIO_CREDENTIAL_FINGERPRINTS:?load the generated Worker V3 MinIO role env}
+    volumes:
+      - ${LUCEON_RUNTIME_ROOT:?set the absolute Luceon runtime root}/backend:/data
+      - ${LUCEON_RUNTIME_ROOT:?set the absolute Luceon runtime root}/worker-v3/releases:/worker-v3/releases:ro
+      - ${LUCEON_RUNTIME_ROOT:?set the absolute Luceon runtime root}/worker-v3/work/promoter:/worker-v3/promotion-work
 
   workflow-v3-projector:
     image: ${LUCEON_WORKER_V3_IMAGE:?set repository@sha256 or an exact local sha256 image ID}
     environment:
       - WORKER_V3_IMAGE_REFERENCE=${LUCEON_WORKER_V3_IMAGE:?set repository@sha256 or an exact local sha256 image ID}
       - LUCEON_ENVIRONMENT=rc
+      - WORKFLOW_V3_ENABLED=true
       - WORKFLOW_V3_PROJECTOR_MINIO_ENDPOINT=${WORKFLOW_V3_MINIO_ENDPOINT:?set Worker V3 MinIO endpoint}
       - WORKFLOW_V3_PROJECTOR_MINIO_ACCESS_KEY=${WORKFLOW_V3_PROJECTOR_MINIO_ACCESS_KEY:?load the generated Worker V3 MinIO role env}
       - WORKFLOW_V3_PROJECTOR_MINIO_SECRET_KEY=${WORKFLOW_V3_PROJECTOR_MINIO_SECRET_KEY:?load the generated Worker V3 MinIO role env}
       - WORKFLOW_V3_MINIO_CREDENTIAL_FINGERPRINTS=${WORKFLOW_V3_MINIO_CREDENTIAL_FINGERPRINTS:?load the generated Worker V3 MinIO role env}
+    volumes:
+      - ${LUCEON_RUNTIME_ROOT:?set the absolute Luceon runtime root}/backend:/data
+      - ${LUCEON_RUNTIME_ROOT:?set the absolute Luceon runtime root}/worker-v3/releases:/worker-v3/releases:ro
+      - ${LUCEON_RUNTIME_ROOT:?set the absolute Luceon runtime root}/worker-v3/work/projector:/worker-v3/projection-work

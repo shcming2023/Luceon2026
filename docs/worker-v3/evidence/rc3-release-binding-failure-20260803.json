@@ -1,0 +1,50 @@
+{
+  "schema_version": "luceon.worker-v3-sealed-smoke-failure/v1",
+  "recorded_at": "2026-08-03T13:18:46+08:00",
+  "release": {
+    "version": "3.0.0-rc.3",
+    "manifest_sha256": "542a43b1db28b852669b5b73859211b71774c309d382c972387d9b9a5a1af26c",
+    "runtime_image_digest": "sha256:0fba4f46ee25322f2050843e1b2a2bd9571528526cae9faa277b0e8ba3584ea3"
+  },
+  "sealed_smoke": {
+    "submission_path": "public_browser",
+    "submitted_count": 5,
+    "execution_count": 0,
+    "result": "blocked",
+    "classification": "release_binding_and_deployment",
+    "message": "release root is not a real directory: /worker-v3/releases/3.0.0-rc.3",
+    "executor_restart_count_observed": 27,
+    "oom_killed": false
+  },
+  "jobs": [
+    {"material_pk": 1339, "job_id": "3cfbf499-f12f-4f0f-96f1-2ab0c903044b", "terminal_status": "cancelled"},
+    {"material_pk": 1340, "job_id": "30883e7a-50ab-4586-b3d5-047dfff01d49", "terminal_status": "cancelled"},
+    {"material_pk": 1341, "job_id": "fe46ef4a-6683-44e4-8bc5-75d550520200", "terminal_status": "cancelled"},
+    {"material_pk": 1342, "job_id": "f865cbfe-3c49-42af-aa6b-f8765e5f2b84", "terminal_status": "cancelled"},
+    {"material_pk": 1343, "job_id": "d97ef173-ad19-4691-9e48-e94a2fb19ec8", "terminal_status": "cancelled"}
+  ],
+  "root_cause": {
+    "registered_install_layout": "<releases-root>/<release-id>",
+    "executor_lookup_layout": "<releases-root>/<release-version>",
+    "state_gap": "release verification happened before an execution was claimed, so the exception could not be recorded on the job"
+  },
+  "recovery": {
+    "method": "cancelled through the authenticated public page",
+    "reason": "RC3 sealed smoke blocked before execution: installed release path could not be resolved; superseded by corrected RC",
+    "database_direct_write": false,
+    "frozen_source_reprocessed": false
+  },
+  "browser_evidence": {
+    "path": "docs/worker-v3/evidence/rc3-release-binding-failure-page-20260803.png",
+    "sha256": "0dcb08d0860072813192a4dacd889bfb1c738e4c3ea19800674d1bd753c548d8"
+  },
+  "regression": {
+    "workflow_v3_tests": {"passed": 424, "skipped": 2, "failed": 0},
+    "new_guards": [
+      "resolve registered release_id with release_version compatibility fallback",
+      "reject an installed release identity escaping the releases root",
+      "claim before release verification so binding failures become terminal job evidence",
+      "RC overlay requires the shared runtime root and enables Worker V3 explicitly"
+    ]
+  }
+}

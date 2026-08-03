@@ -135,6 +135,15 @@ def test_rc_overlay_requires_each_role_credential_and_distinct_matrix():
     ) == 4
 
 
+def test_rc_overlay_enables_v3_and_requires_the_shared_runtime_root():
+    assert RC_COMPOSE.count("WORKFLOW_V3_ENABLED=true") == 5
+    required_root = "${LUCEON_RUNTIME_ROOT:?set the absolute Luceon runtime root}"
+    assert RC_COMPOSE.count(f"{required_root}/backend:/data") == 5
+    assert RC_COMPOSE.count(
+        f"{required_root}/worker-v3/releases:/worker-v3/releases:ro"
+    ) == 5
+
+
 def test_rc_overlay_admits_minio_for_backend_control_plane():
     assert (
         "  backend:\n"

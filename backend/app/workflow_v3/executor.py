@@ -233,10 +233,26 @@ class DirectoryReleaseResolver:
         direct = self.root
         if (direct / MANIFEST_NAME).is_file():
             return direct
-        resolved = (direct / release.release_version).resolve()
-        if self.root not in resolved.parents:
-            raise ReleaseBindingError("release version escapes the installed release root")
-        return resolved
+        manifest = release.load(release.manifest_json, {})
+        release_id = str(manifest.get("release_id") or "").strip()
+        names = [release_id, release.release_version]
+        checked: list[str] = []
+        for name in names:
+            if not name or name in checked:
+                continue
+            checked.append(name)
+            resolved = (direct / name).resolve()
+            if resolved.parent != self.root:
+                raise ReleaseBindingError(
+                    "release identity escapes the installed release root"
+                )
+            if (resolved / MANIFEST_NAME).is_file():
+                return resolved
+        raise ReleaseBindingError(
+            "installed release directory is missing for "
+            f"release_id={release_id or '<missing>'} "
+            f"version={release.release_version}"
+        )
 
 
 class DirectoryArtifactStore:
@@ -455,18 +471,11 @@ class WorkflowV3Executor:
             )
             if not stage:
                 raise WorkerV3RuntimeError("current stage is missing")
-            if self.runtime_guard is not None:
-                self.runtime_guard.assert_bound(
-                    self.release_resolver.resolve(release),
-                    job=job,
-                    release=release,
-                    qualification=self.qualification_mode,
-                )
-                runtime_identity_sha256 = (
-                    self.runtime_guard.runtime_identity_sha256
-                )
-            else:
-                runtime_identity_sha256 = release.runtime_identity_sha256
+            runtime_identity_sha256 = (
+                self.runtime_guard.runtime_identity_sha256
+                if self.runtime_guard is not None
+                else release.runtime_identity_sha256
+            )
             execution_key = _idempotency_key(
                 "execute",
                 job.public_id,

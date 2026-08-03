@@ -12,13 +12,13 @@
     }
   },
   "release": {
-    "release_id": "worker-v3-skill-source-audit-20260802-39c9251",
-    "version": "3.0.0-rc.1",
+    "release_id": "worker-v3-skill-source-audit-20260803-da3a4ba",
+    "version": "3.0.0-rc.3",
     "channel": "rc",
     "requested_status": "rc",
-    "created_at": "2026-08-02T22:14:00+08:00",
+    "created_at": "2026-08-03T11:15:00+08:00",
     "source": {
-      "git_sha": "39c9251f5d54f67a26706d2b13a034d9a30d3ee5",
+      "git_sha": "da3a4ba067c3d03015dc7fdaf4bdaa7dbec44afa",
       "git_tag": null,
       "dirty": false
     },
@@ -182,7 +182,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/spec01_04_stage_adapters.py",
       "destination": "scripts/worker-v3/spec01_04_stage_adapters.py",
-      "expected_sha256": "2379b18b6f203c24011847cf9917ad4652da17e4277b1d1fad4cc9e6a6453947"
+      "expected_sha256": "e94ceec4fc13dca6f25f52b5ff34a4224c4847e2f45b8b10d019d00b01301daa"
     },
     {
       "id": "worker-v3-spec05-06-adapters",
@@ -200,7 +200,7 @@
       "root": "worker_v3",
       "path": "backend/app/workflow_v3/stage_evaluators.py",
       "destination": "scripts/worker-v3/stage_evaluators.py",
-      "expected_sha256": "917d68d244bccb871fe2d26cda50df6980520b94bbbdfef0f32a44835cf29903"
+      "expected_sha256": "1bde96d5a14bc8d684e4f350451fc644b2837ed6c41bafe0a9435b9a4d3a9d2a"
     },
     {
       "id": "worker-v3-page-review-contract-runtime",
@@ -335,7 +335,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-identity.json",
       "destination": "runtime/ordinary-runtime-identity.json",
-      "expected_sha256": "b677f173162662c9cc9a9ff850aedf722a776242cb810f7645da42f7803ff4c5"
+      "expected_sha256": "502d6d9df43a1c97c4eec77c77a438ff8209a9ca819471d7c2c46b4250cd0d8c"
     },
     {
       "id": "worker-v3-ordinary-runtime-build-proof",
@@ -344,7 +344,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-build-proof.json",
       "destination": "runtime/ordinary-runtime-build-proof.json",
-      "expected_sha256": "7cae3eb9858efc14da878b41e35481fe3a483d662684ece6eb97dbce4aa4ae6b"
+      "expected_sha256": "c88b4157f12e65ab78b609602209b3d9590583c078e70141f551f936c6e4362b"
     },
     {
       "id": "worker-v3-ordinary-runtime-sbom",
@@ -353,7 +353,7 @@
       "root": "worker_v3",
       "path": "release/worker-v3/runtime/ordinary-runtime-sbom.cdx.json",
       "destination": "runtime/ordinary-runtime-sbom.cdx.json",
-      "expected_sha256": "9e203e893ab423da2104beb17a94810c401b860fffca3075e12f37e4c04cd569"
+      "expected_sha256": "6f9f17ce48b7f9a103764a48cd500ea67c2824565de419b799c1f34be431d9a9"
     },
     {
       "id": "worker-v3-overleaf-target-environment",
@@ -489,6 +489,60 @@
       "path": "docs/worker-v3/evidence/39c9251-qualification-ledger-20260802.json",
       "destination": "evals/qualification/39c9251-qualification-ledger-20260802.json",
       "expected_sha256": "12f8ad22963bae59904b409e46a64c95fa91485200787ec173ae65a5da4ddd01"
+    },
+    {
+      "id": "worker-v3-visual-full-page-provider-qualification-b9c412c",
+      "source_role": "runtime_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/visual-full-page-provider-qualification-b9c412c-20260803.json",
+      "destination": "evals/qualification/visual-full-page-provider-qualification-b9c412c-20260803.json",
+      "expected_sha256": "c94778b8aff7e33b1d9f412bd297246991200417769e2345fe806fd368fe4975"
+    },
+    {
+      "id": "worker-v3-spec05-final-image-real-material-qualification-b9c412c",
+      "source_role": "runtime_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/spec05-final-image-real-material-qualification-b9c412c-20260803.json",
+      "destination": "evals/qualification/spec05-final-image-real-material-qualification-b9c412c-20260803.json",
+      "expected_sha256": "cd83d95ef743bf649c014315cb5c61e63afffe356b86cd6bed830e353b7229d9"
+    },
+    {
+      "id": "worker-v3-b9c412c-qualification-ledger",
+      "source_role": "supporting_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/b9c412c-qualification-ledger-20260803.json",
+      "destination": "evals/qualification/b9c412c-qualification-ledger-20260803.json",
+      "expected_sha256": "5079afef5811b864465a5531d576cd73f3729b1475782be4aed5d76cfd70275e"
+    },
+    {
+      "id": "worker-v3-visual-full-page-provider-qualification-da3a4ba",
+      "source_role": "runtime_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/visual-full-page-provider-qualification-da3a4ba-20260803.json",
+      "destination": "evals/qualification/visual-full-page-provider-qualification-da3a4ba-20260803.json",
+      "expected_sha256": "f21a29eea4e99183c572af552a631d01cf008537c5b4879b7860785810355824"
+    },
+    {
+      "id": "worker-v3-spec05-final-image-real-material-qualification-da3a4ba",
+      "source_role": "runtime_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/spec05-final-image-real-material-qualification-da3a4ba-20260803.json",
+      "destination": "evals/qualification/spec05-final-image-real-material-qualification-da3a4ba-20260803.json",
+      "expected_sha256": "f87fdd9945235a2107fd64454e473c7ebb447bfe398deab0bb2669b87c34cc16"
+    },
+    {
+      "id": "worker-v3-da3a4ba-qualification-ledger",
+      "source_role": "supporting_evidence",
+      "kind": "file",
+      "root": "worker_v3",
+      "path": "docs/worker-v3/evidence/da3a4ba-qualification-ledger-20260803.json",
+      "destination": "evals/qualification/da3a4ba-qualification-ledger-20260803.json",
+      "expected_sha256": "136c5bd35bc4d513a9017bf9f2a9cb777aa9b1f5d9aae7d47e6f5e04a3ff91f3"
     },
     {
       "id": "worker-v3-spec05-build-policy",
@@ -1035,7 +1089,7 @@
     "python": "CPython 3.12.13",
     "application_dependencies_path": "runtime/requirements-worker-v3.lock",
     "system_tools": {
-      "runtime_id": "worker-v3-runtime-rc-39c9251",
+      "runtime_id": "worker-v3-runtime-rc-da3a4ba",
       "system_lock": "runtime/worker-v3-system-packages.lock",
       "identity": "runtime/ordinary-runtime-identity.json",
       "build_proof": "runtime/ordinary-runtime-build-proof.json",
@@ -1051,7 +1105,7 @@
     "fonts_identity_path": "runtime/ordinary-runtime-identity.json",
     "tex_identity_path": "runtime/ordinary-runtime-identity.json",
     "poppler_identity_path": "runtime/ordinary-runtime-identity.json",
-    "container_image_digest": "sha256:974eb15e2ce329950021724034dda56c731c1d054edf77fb89e505b7a08822f2",
+    "container_image_digest": "sha256:0fba4f46ee25322f2050843e1b2a2bd9571528526cae9faa277b0e8ba3584ea3",
     "sbom_path": "runtime/ordinary-runtime-sbom.cdx.json",
     "attestations": [
       "runtime/ordinary-runtime-identity.json",
@@ -1068,11 +1122,11 @@
   "qualification_evidence": {
     "visual_full_page_provider": {
       "required": true,
-      "source_id": "worker-v3-visual-full-page-provider-qualification-39c9251"
+      "source_id": "worker-v3-visual-full-page-provider-qualification-da3a4ba"
     },
     "spec05_final_image_real_material": {
       "required": true,
-      "source_id": "worker-v3-spec05-final-image-real-material-qualification-39c9251"
+      "source_id": "worker-v3-spec05-final-image-real-material-qualification-da3a4ba"
     }
   },
   "known_gaps": [],

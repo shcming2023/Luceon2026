@@ -3,9 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import create_engine
@@ -18,6 +20,7 @@ from app.workflow_v3.executor import (
     _control_plane_promotion_class,
     DirectoryArtifactStore,
     DirectoryReleaseResolver,
+    ReleaseBindingError,
     SubprocessTransport,
     WorkflowV3Executor,
 )
@@ -450,6 +453,66 @@ def _environment(tmp_path: Path, *, behavior: str = "valid"):
         "promoter": promoter,
         "tmp_path": tmp_path,
     }
+
+
+def test_release_resolver_uses_registered_manifest_release_id(tmp_path):
+    installed, _, manifest, _ = _build_installed_release(tmp_path)
+    releases_root = tmp_path / "shared-releases"
+    releases_root.mkdir()
+    target = releases_root / manifest["release_id"]
+    shutil.copytree(installed.root, target)
+    release = SimpleNamespace(
+        release_version=manifest["version"],
+        manifest_json=json.dumps(manifest),
+        load=lambda value, default: json.loads(value or "{}"),
+    )
+
+    assert DirectoryReleaseResolver(releases_root).resolve(release) == target.resolve()
+
+
+def test_release_resolver_rejects_identity_outside_installed_root(tmp_path):
+    release = SimpleNamespace(
+        release_version="3.0.0-rc.1",
+        manifest_json=json.dumps({"release_id": "../outside"}),
+        load=lambda value, default: json.loads(value or "{}"),
+    )
+
+    with pytest.raises(ReleaseBindingError, match="escapes the installed release root"):
+        DirectoryReleaseResolver(tmp_path / "releases").resolve(release)
+
+
+def test_release_binding_failure_is_recorded_instead_of_crashing_worker(tmp_path):
+    env = _environment(tmp_path)
+    db = env["factory"]()
+    try:
+        runtime_sha = db.query(WorkflowV3SkillRelease.runtime_identity_sha256).scalar()
+    finally:
+        db.close()
+
+    class MissingReleaseResolver:
+        def resolve(self, release):
+            raise ReleaseBindingError("installed release disappeared")
+
+    env["executor"].release_resolver = MissingReleaseResolver()
+    env["executor"].runtime_guard = SimpleNamespace(
+        runtime_identity_sha256=runtime_sha,
+        assert_bound=lambda *args, **kwargs: None,
+    )
+
+    result = env["executor"].run_one_stage(env["job_id"])
+
+    assert result["ok"] is False
+    assert result["status"] == "failed"
+    assert result["error_code"] == "release_binding_invalid"
+    assert result["error"] == "installed release disappeared"
+    db = env["factory"]()
+    try:
+        job = db.query(WorkflowV3Job).filter_by(public_id=env["job_id"]).one()
+        execution = db.query(WorkflowV3Execution).filter_by(workflow_job_id=job.id).one()
+        assert job.machine_status == "failed"
+        assert execution.machine_status == "failed"
+    finally:
+        db.close()
 
 
 def test_producer_evaluator_and_promoter_are_separate_and_sha_chained(tmp_path, monkeypatch):

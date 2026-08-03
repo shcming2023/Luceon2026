@@ -55,9 +55,13 @@ All Compose runtime bind sources derive from `LUCEON_RUNTIME_ROOT`; omitting it
 preserves the historical `./runtime` default.
 
 Install a verified, immutable release under
-`runtime/worker-v3/releases/<release-version>/`. The release must be complete
-and pass `verify_release_directory`; an incomplete release audit is not
-executable.
+`runtime/worker-v3/releases/<release-id>/`. The registered manifest is the
+authoritative mapping from release version to release ID; the executor also
+accepts the historical `<release-version>/` layout for compatibility. The
+release must be complete and pass `verify_release_directory`; an incomplete
+release audit is not executable. A missing or drifted installed directory is
+recorded as a failed job after claim, rather than leaving queued jobs behind
+while the worker restarts.
 
 Set `LUCEON_WORKER_V3_IMAGE` to the immutable registry digest qualified for the
 same release. A mutable `:local` tag is only the Compose development default
