@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+printf '%s\n' 'NVIDIA RTX 4090, 49140'
+printf '%s\n' '/dev/fake 100000000 1000 50000000 1% /srv/mineru'

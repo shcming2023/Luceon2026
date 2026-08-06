@@ -62,6 +62,7 @@ models2.0/
 output/
 tmp/
 runtime/
+.uat/
 !release/worker-v3/runtime/
 !release/worker-v3/runtime/spec05-build-policy.json
 graphify

@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import io
 import json
 import sys
+import tarfile
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "luceon_pdf_pipeline.py"
@@ -304,3 +308,36 @@ def test_freeze_error_marker_is_stage_specific_and_cleans_active_stage_markers()
     assert result["reason"] == "mineru_freeze_failed"
     assert all("mineru_freeze_error" in obj for _, obj, _ in s3.puts)
     assert {obj.rsplit(".", 2)[-2] for _, obj in s3.deletes} == {"mineru_submitted", "mineru_running"}
+
+
+def _tar_with_member(name: str, data: bytes = b"ok", *, mode: int = 0o644) -> bytes:
+    output = io.BytesIO()
+    with tarfile.open(fileobj=output, mode="w:gz") as tf:
+        info = tarfile.TarInfo(name)
+        info.size = len(data)
+        info.mode = mode
+        tf.addfile(info, io.BytesIO(data))
+    return output.getvalue()
+
+
+@pytest.mark.parametrize("name", ["../escape", "/absolute", "folder\\windows", "~/.ssh/key"])
+def test_result_archive_rejects_path_traversal(name):
+    archive = _tar_with_member(name)
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as tf:
+        with pytest.raises(ValueError, match="unsafe tar member path"):
+            pipeline.validate_result_tar(tf, len(archive))
+
+
+def test_result_archive_rejects_expansion_bomb(monkeypatch):
+    archive = _tar_with_member("safe/result.bin", b"x" * 4096)
+    monkeypatch.setattr(pipeline, "MAX_RESULT_EXPANSION_RATIO", 1)
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as tf:
+        with pytest.raises(ValueError, match="expansion ratio"):
+            pipeline.validate_result_tar(tf, len(archive))
+
+
+def test_result_archive_accepts_bounded_regular_members():
+    archive = _tar_with_member("mineru/content_list_v2.json", b"[]")
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as tf:
+        inventory = pipeline.validate_result_tar(tf, len(archive))
+    assert inventory == {"members_total": 1, "file_members": 1, "uncompressed_bytes": 2}

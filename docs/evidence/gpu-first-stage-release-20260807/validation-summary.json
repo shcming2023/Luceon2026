@@ -1,0 +1,49 @@
+{
+  "schema": "luceon.gpu-first-stage-release-validation/v1",
+  "base_git_sha": "ab9f06b1eacda22c3853beafdd0d197163c2da59",
+  "focused_backend": {
+    "runner": "docker",
+    "passed": 142,
+    "failed": 0
+  },
+  "full_backend_first": {
+    "passed": 1216,
+    "failed": 3,
+    "skipped": 2,
+    "adjudication": "stale 8 GiB assertions"
+  },
+  "headroom_regression": {
+    "passed": 3,
+    "failed": 0
+  },
+  "full_backend_final": {
+    "passed": 1219,
+    "failed": 0,
+    "skipped": 2
+  },
+  "frontend_build": {
+    "passed": true
+  },
+  "compose_configs": {
+    "passed": 5,
+    "failed": 0
+  },
+  "secret_scan": {
+    "finding_count": 0,
+    "passed": true
+  },
+  "tracked_uat": 0,
+  "workflow_v3_paths": 0,
+  "graphify": {
+    "primary": "unavailable",
+    "fallback": "passed",
+    "nodes": 8832,
+    "edges": 8967
+  },
+  "cloud_calls": 0,
+  "ssh_calls": 0,
+  "gpu_calls": 0,
+  "cost_cny": 0,
+  "task30": "interrupted",
+  "task36_gate_b": "blocked_not_started"
+}

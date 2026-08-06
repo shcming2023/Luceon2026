@@ -521,7 +521,7 @@ def test_large_pdf_resource_gate_blocks_insufficient_wrapper_headroom():
     assert result["status"] == "GPU_RESOURCE_HEADROOM_BLOCKED"
     assert result["resource_gate"]["status"] == "insufficient_headroom"
     assert result["resource_gate"]["available_headroom_bytes"] == 6 * 1024**3
-    assert result["resource_gate"]["required_headroom_bytes"] == 8 * 1024**3
+    assert result["resource_gate"]["required_headroom_bytes"] == 50 * 1024**3
 
 
 def test_large_pdf_resource_gate_passes_with_required_wrapper_headroom():
@@ -530,9 +530,9 @@ def test_large_pdf_resource_gate_passes_with_required_wrapper_headroom():
         "status": "READY",
         "health": {
             "health": {
-                "artifact_limit_bytes": 16 * 1024**3,
-                "artifact_used_bytes": 6 * 1024**3,
-                "disk_available_bytes": 14 * 1024**3,
+                "artifact_limit_bytes": 80 * 1024**3,
+                "artifact_used_bytes": 10 * 1024**3,
+                "disk_available_bytes": 60 * 1024**3,
             }
         },
     }
@@ -543,7 +543,7 @@ def test_large_pdf_resource_gate_passes_with_required_wrapper_headroom():
     assert result["ready"] is True
     assert result["status"] == "READY"
     assert result["resource_gate"]["status"] == "ready"
-    assert result["resource_gate"]["available_headroom_bytes"] == 10 * 1024**3
+    assert result["resource_gate"]["available_headroom_bytes"] == 60 * 1024**3
 
 
 def test_large_pdf_resource_gate_requires_real_disk_headroom() -> None:
@@ -575,9 +575,9 @@ def test_large_pdf_resource_gate_uses_historical_expansion_factor() -> None:
         "status": "READY",
         "health": {
             "health": {
-                "artifact_limit_bytes": 32 * 1024**3,
+                "artifact_limit_bytes": 80 * 1024**3,
                 "artifact_used_bytes": 2 * 1024**3,
-                "disk_available_bytes": 30 * 1024**3,
+                "disk_available_bytes": 60 * 1024**3,
                 "historical_artifact_expansion_factor": 20,
             }
         },
@@ -590,7 +590,7 @@ def test_large_pdf_resource_gate_uses_historical_expansion_factor() -> None:
 
     assert result["ready"] is True
     assert result["resource_gate"]["expansion_factor"] == 20
-    assert result["resource_gate"]["required_headroom_bytes"] == 10 * 1024**3
+    assert result["resource_gate"]["required_headroom_bytes"] == 50 * 1024**3
 
 
 def test_small_pdf_resource_gate_does_not_require_wrapper_quota_fields():

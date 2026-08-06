@@ -41,6 +41,17 @@ PATTERNS = (
     ),
 )
 
+SHELL_PLACEHOLDER = re.compile(
+    r"^(?:\$[A-Za-z_][A-Za-z0-9_]*|\$\{[A-Za-z_][A-Za-z0-9_]*(?::\?[^}]*)?\})$"
+)
+
+
+def _credential_assignment_is_placeholder(line: str) -> bool:
+    assignment = re.split(r"\s*[:=]\s*", line.strip(), maxsplit=1)
+    if len(assignment) != 2:
+        return False
+    return bool(SHELL_PLACEHOLDER.fullmatch(assignment[1].strip().strip("'\"")))
+
 
 def _text_files(roots: list[Path]):
     for root in roots:
@@ -74,6 +85,8 @@ def scan_paths(roots: list[Path]) -> list[dict[str, object]]:
                 if not match:
                     continue
                 if kind != "private_key" and not str(match.group(1) or "").strip():
+                    continue
+                if kind == "credential_assignment" and _credential_assignment_is_placeholder(line):
                     continue
                 findings.append({"path": str(path), "line": number, "kind": kind})
     return findings

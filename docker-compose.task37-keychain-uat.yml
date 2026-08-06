@@ -1,0 +1,22 @@
+name: luceon-task37-keychain-uat
+
+services:
+  preflight:
+    image: python:3.13-slim
+    network_mode: none
+    working_dir: /workspace/backend
+    command: ["python", "scripts/compshare_runtime_preflight.py"]
+    environment:
+      COMPSHARE_CREDENTIALS_FILE: /run/secrets/compshare_credentials
+      COMPSHARE_REGION: ${COMPSHARE_REGION:-cn-task37}
+      COMPSHARE_ZONE: ${COMPSHARE_ZONE:-cn-task37-01}
+      COMPSHARE_PROJECT_ID: ${COMPSHARE_PROJECT_ID:-task37-project}
+      COMPSHARE_UHOST_ID: ${COMPSHARE_UHOST_ID:-uhost-task37}
+    volumes:
+      - ./:/workspace:ro
+    secrets:
+      - compshare_credentials
+
+secrets:
+  compshare_credentials:
+    file: ${COMPSHARE_HOST_CREDENTIALS_FILE:?Task37 launcher secret file required}

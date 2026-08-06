@@ -83,7 +83,10 @@ def test_runtime_config_v2_is_explicit_and_drops_dead_fields(monkeypatch, tmp_pa
     assert config["minio"]["public_endpoint"] == "http://public.example:19000"
     assert config["minio"]["contract_buckets"] == list(runtime_settings.CURRENT_ASSET_BUCKETS)
     assert config["gpu"]["mode"] == "on_demand"
-    assert set(config["gpu"]) == {"mode", "wrapper_url", "api_key", "api_key_configured"}
+    assert set(config["gpu"]) == {"mode", "wrapper_url", "api_key", "api_key_configured", "lifecycle"}
+    assert config["gpu"]["lifecycle"]["public_key"] == ""
+    assert config["gpu"]["lifecycle"]["private_key"] == ""
+    assert config["gpu"]["lifecycle"]["project_id"] == ""
     assert set(config["models"]) == {"llm", "vision"}
     assert [target["id"] for target in config["backup"]["targets"]] == ["snapshot", "external"]
     assert config["backup"]["include_legacy"] is True
