@@ -631,7 +631,7 @@ def ssh_readiness_probe(config: CompShareConfig, wrapper_url: str) -> dict[str, 
         disk_available_bytes = int(disk_fields[3]) * 1024
     except (IndexError, TypeError, ValueError):
         return {"ready": False, "error_domain": "disk", "reason": "disk_probe_invalid"}
-    minimum_disk_bytes = max(1, int(os.getenv("GPU_MIN_FREE_DISK_BYTES", str(10 * 1024**3))))
+    minimum_disk_bytes = max(1, int(os.getenv("GPU_MIN_FREE_DISK_BYTES", str(50 * 1024**3))))
     if disk_available_bytes < minimum_disk_bytes:
         return {
             "ready": False,
