@@ -1,0 +1,3 @@
+# Host-only dependency for backend/scripts/compshare_keychain.py.
+# Do not install this file in the Linux backend/worker runtime image.
+keyring==25.7.0

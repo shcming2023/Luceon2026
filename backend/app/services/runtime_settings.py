@@ -29,7 +29,7 @@ CURRENT_ASSET_BUCKETS = (
 )
 LEGACY_ASSET_BUCKETS = ("eduassets-latex",)
 CONTRACT_BUCKETS = list(CURRENT_ASSET_BUCKETS)
-SECRET_FIELDS = {"access_key", "secret_key", "api_key"}
+SECRET_FIELDS = {"access_key", "secret_key", "api_key", "public_key", "private_key"}
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -40,6 +40,12 @@ def _env_bool(name: str, default: bool = False) -> bool:
 
 
 def default_runtime_config() -> dict[str, Any]:
+    credential_file = os.getenv("COMPSHARE_CREDENTIALS_FILE", "").strip()
+    credential_source = "secret_file" if credential_file else (
+        "legacy_environment"
+        if os.getenv("COMPSHARE_PUBLIC_KEY") or os.getenv("COMPSHARE_PRIVATE_KEY")
+        else "missing"
+    )
     return {
         "schema_version": RUNTIME_CONFIG_SCHEMA_VERSION,
         "environment": {
@@ -59,6 +65,22 @@ def default_runtime_config() -> dict[str, Any]:
             "mode": "on_demand",
             "wrapper_url": os.getenv("GPU_WRAPPER_URL", os.getenv("MINERU_API_URL", "")),
             "api_key": os.getenv("GPU_WRAPPER_API_KEY", ""),
+            "lifecycle": {
+                "enabled": _env_bool("COMPSHARE_LIFECYCLE_ENABLED", False),
+                "endpoint": os.getenv("COMPSHARE_API_ENDPOINT", "https://api.compshare.cn"),
+                "public_key": os.getenv("COMPSHARE_PUBLIC_KEY", ""),
+                "private_key": os.getenv("COMPSHARE_PRIVATE_KEY", ""),
+                "credential_source": credential_source,
+                "credential_file_configured": bool(credential_file),
+                "region": os.getenv("COMPSHARE_REGION", ""),
+                "zone": os.getenv("COMPSHARE_ZONE", ""),
+                "project_id": os.getenv("COMPSHARE_PROJECT_ID", ""),
+                "uhost_id": os.getenv("COMPSHARE_UHOST_ID", ""),
+                "ssh_host": os.getenv("GPU_SSH_HOST", ""),
+                "ssh_port": int(os.getenv("GPU_SSH_PORT", "22") or "22"),
+                "auto_stop": _env_bool("COMPSHARE_AUTO_STOP", True),
+                "stop_grace_seconds": int(os.getenv("COMPSHARE_STOP_GRACE_SECONDS", "60") or "60"),
+            },
         },
         "backup": {
             "enabled": False,
@@ -148,10 +170,21 @@ def _normalize_runtime_config(value: dict[str, Any] | None) -> dict[str, Any]:
     minio["contract_buckets"] = list(CURRENT_ASSET_BUCKETS)
 
     raw_gpu = value.get("gpu") if isinstance(value.get("gpu"), dict) else {}
+    raw_lifecycle = raw_gpu.get("lifecycle") if isinstance(raw_gpu.get("lifecycle"), dict) else {}
+    lifecycle = _deep_merge(defaults["gpu"]["lifecycle"], raw_lifecycle)
+    # Account credentials and ProjectId are process-injected only.  Ignore any
+    # browser/config-file attempt to replace them.
+    for protected in ("public_key", "private_key", "project_id"):
+        lifecycle[protected] = defaults["gpu"]["lifecycle"][protected]
+    lifecycle["enabled"] = bool(lifecycle.get("enabled"))
+    lifecycle["auto_stop"] = bool(lifecycle.get("auto_stop"))
+    lifecycle["ssh_port"] = max(1, min(65535, int(lifecycle.get("ssh_port") or 22)))
+    lifecycle["stop_grace_seconds"] = max(0, int(lifecycle.get("stop_grace_seconds") or 0))
     gpu = {
         "mode": "on_demand",
         "wrapper_url": str(raw_gpu.get("wrapper_url") or defaults["gpu"]["wrapper_url"] or ""),
         "api_key": str(raw_gpu.get("api_key") or defaults["gpu"]["api_key"] or ""),
+        "lifecycle": lifecycle,
     }
 
     raw_models = value.get("models") if isinstance(value.get("models"), dict) else {}
@@ -226,6 +259,9 @@ def save_runtime_config(payload: dict[str, Any]) -> dict[str, Any]:
     merged.get("minio", {}).pop("access_key_configured", None)
     merged.get("minio", {}).pop("secret_key_configured", None)
     merged.get("gpu", {}).pop("api_key_configured", None)
+    merged.get("gpu", {}).get("lifecycle", {}).pop("public_key_configured", None)
+    merged.get("gpu", {}).get("lifecycle", {}).pop("private_key_configured", None)
+    merged.get("gpu", {}).get("lifecycle", {}).pop("project_id_configured", None)
     merged.get("models", {}).get("llm", {}).get("deepseek", {}).pop("api_key_configured", None)
     merged.get("models", {}).get("vision", {}).get("dashscope", {}).pop("api_key_configured", None)
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -246,6 +282,15 @@ def sanitize_config(config: dict[str, Any]) -> dict[str, Any]:
     gpu = safe.get("gpu", {})
     gpu["api_key_configured"] = bool(config.get("gpu", {}).get("api_key"))
     gpu["api_key"] = ""
+    lifecycle = gpu.get("lifecycle", {}) if isinstance(gpu.get("lifecycle"), dict) else {}
+    source_lifecycle = config.get("gpu", {}).get("lifecycle", {})
+    lifecycle["public_key_configured"] = bool(source_lifecycle.get("public_key"))
+    lifecycle["private_key_configured"] = bool(source_lifecycle.get("private_key"))
+    lifecycle["project_id_configured"] = bool(source_lifecycle.get("project_id"))
+    lifecycle["public_key"] = ""
+    lifecycle["private_key"] = ""
+    # ProjectId is an account-scoped identifier and is not returned to browsers.
+    lifecycle["project_id"] = ""
     models = safe.get("models", {})
     llm = models.get("llm", {}) if isinstance(models.get("llm"), dict) else {}
     deepseek = llm.get("deepseek", {}) if isinstance(llm.get("deepseek"), dict) else {}

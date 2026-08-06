@@ -53,12 +53,36 @@ services:
       - MINERU_API_URL=${MINERU_API_URL:-http://host.docker.internal:8083}
       - GPU_WRAPPER_URL=${GPU_WRAPPER_URL:-${MINERU_API_URL:-http://host.docker.internal:8083}}
       - GPU_WRAPPER_API_KEY=${GPU_WRAPPER_API_KEY:-}
+      - COMPSHARE_LIFECYCLE_ENABLED=${COMPSHARE_LIFECYCLE_ENABLED:-false}
+      - COMPSHARE_API_ENDPOINT=${COMPSHARE_API_ENDPOINT:-https://api.compshare.cn}
+      - COMPSHARE_CREDENTIALS_FILE=/run/secrets/compshare_credentials
+      - COMPSHARE_REGION=${COMPSHARE_REGION:-}
+      - COMPSHARE_ZONE=${COMPSHARE_ZONE:-}
+      - COMPSHARE_PROJECT_ID=${COMPSHARE_PROJECT_ID:-}
+      - COMPSHARE_UHOST_ID=${COMPSHARE_UHOST_ID:-}
+      - COMPSHARE_AUTO_STOP=${COMPSHARE_AUTO_STOP:-true}
+      - COMPSHARE_STOP_GRACE_SECONDS=${COMPSHARE_STOP_GRACE_SECONDS:-60}
+      - COMPSHARE_STATE_LAG_GRACE_SECONDS=${COMPSHARE_STATE_LAG_GRACE_SECONDS:-60}
+      - COMPSHARE_STATE_LAG_MAX_OBSERVATIONS=${COMPSHARE_STATE_LAG_MAX_OBSERVATIONS:-3}
+      - GPU_SSH_HOST=${GPU_SSH_HOST:-}
+      - GPU_SSH_PORT=${GPU_SSH_PORT:-22}
       - LUCEON_PIPELINE_SCRIPT=/app/scripts/luceon_pdf_pipeline.py
       - LUCEON_PIPELINE_WORKDIR=/app/scripts
       - LUCEON_RUNTIME_CONFIG=/data/runtime_config.json
       - LUCEON_BACKUP_ROOT=/backups
       - LUCEON_EXTERNAL_BACKUP_ROOT=/external-backups
       - LUCEON_PIPELINE_WORK_ROOT=/data/pipeline-work
+      - TMPDIR=/data/upload-tmp
+      - LUCEON_UPLOAD_TEMP_DIR=/data/upload-tmp
+      - LUCEON_MAX_UPLOAD_PDF_BYTES=${LUCEON_MAX_UPLOAD_PDF_BYTES:-2147483648}
+      - LUCEON_MAX_UPLOAD_PDF_PAGES=${LUCEON_MAX_UPLOAD_PDF_PAGES:-2000}
+      - LUCEON_MAX_UPLOAD_REQUEST_BYTES=${LUCEON_MAX_UPLOAD_REQUEST_BYTES:-3221225472}
+      - LUCEON_MAX_UPLOAD_REQUEST_FILES=${LUCEON_MAX_UPLOAD_REQUEST_FILES:-5}
+      - LUCEON_MAX_UPLOAD_REQUEST_FIELDS=${LUCEON_MAX_UPLOAD_REQUEST_FIELDS:-16}
+      - LUCEON_MAX_GPU_BATCH_INPUT_BYTES=${LUCEON_MAX_GPU_BATCH_INPUT_BYTES:-3221225472}
+      - LUCEON_MAX_GPU_BATCH_FILES=${LUCEON_MAX_GPU_BATCH_FILES:-5}
+      - LUCEON_LARGE_PDF_THRESHOLD_BYTES=${LUCEON_LARGE_PDF_THRESHOLD_BYTES:-268435456}
+      - LUCEON_LARGE_PDF_PAGE_THRESHOLD=${LUCEON_LARGE_PDF_PAGE_THRESHOLD:-1000}
       - WORKFLOW_V2_CANONICAL_OUTLINE_CACHE=/data/workflow-v2-model-cache/canonical-outline
       - LUCEON_PUBLIC_API_BASE_URL=${LUCEON_PUBLIC_API_BASE_URL:-}
       - CHROME_BIN=${CHROME_BIN:-/usr/bin/chromium}
@@ -96,6 +120,8 @@ services:
       - /Users/concm/.codex/skills/eduassets-raw-cleaner:/skills/eduassets-raw-cleaner:ro
       - /Users/concm/.codex/skills/refine-elegantbook-latex:/skills/refine-elegantbook-latex:ro
       - ${LUCEON_RUNTIME_ROOT:-./runtime}/worker-v3/releases:/worker-v3/releases:ro
+    secrets:
+      - compshare_credentials
     depends_on:
       - redis
     extra_hosts:
@@ -173,6 +199,23 @@ services:
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:?set MINIO_SECRET_KEY}
       - GPU_WRAPPER_URL=${GPU_WRAPPER_URL:-${MINERU_API_URL:-http://host.docker.internal:8083}}
       - GPU_WRAPPER_API_KEY=${GPU_WRAPPER_API_KEY:-}
+      - COMPSHARE_LIFECYCLE_ENABLED=${COMPSHARE_LIFECYCLE_ENABLED:-false}
+      - COMPSHARE_API_ENDPOINT=${COMPSHARE_API_ENDPOINT:-https://api.compshare.cn}
+      - COMPSHARE_CREDENTIALS_FILE=/run/secrets/compshare_credentials
+      - COMPSHARE_REGION=${COMPSHARE_REGION:-}
+      - COMPSHARE_ZONE=${COMPSHARE_ZONE:-}
+      - COMPSHARE_PROJECT_ID=${COMPSHARE_PROJECT_ID:-}
+      - COMPSHARE_UHOST_ID=${COMPSHARE_UHOST_ID:-}
+      - COMPSHARE_AUTO_STOP=${COMPSHARE_AUTO_STOP:-true}
+      - COMPSHARE_STOP_GRACE_SECONDS=${COMPSHARE_STOP_GRACE_SECONDS:-60}
+      - COMPSHARE_STATE_LAG_GRACE_SECONDS=${COMPSHARE_STATE_LAG_GRACE_SECONDS:-60}
+      - COMPSHARE_STATE_LAG_MAX_OBSERVATIONS=${COMPSHARE_STATE_LAG_MAX_OBSERVATIONS:-3}
+      - GPU_SSH_HOST=${GPU_SSH_HOST:-}
+      - GPU_SSH_PORT=${GPU_SSH_PORT:-22}
+      - GPU_SSH_USER=${GPU_SSH_USER:-root}
+      - GPU_SSH_KEY_PATH_IN_CONTAINER=/root/.ssh/id_ed25519_trae_dev
+      - GPU_SSH_KNOWN_HOSTS_PATH=/root/.ssh/known_hosts
+      - GPU_REMOTE_SERVICE_ROOT=${GPU_REMOTE_SERVICE_ROOT:-/root/mineru-popo-service}
       - LUCEON_PIPELINE_SCRIPT=/app/scripts/luceon_pdf_pipeline.py
       - LUCEON_PIPELINE_WORKDIR=/app/scripts
       - LUCEON_RUNTIME_CONFIG=/data/runtime_config.json
@@ -183,6 +226,9 @@ services:
     volumes:
       - ${LUCEON_RUNTIME_ROOT:-./runtime}/backend:/data
       - ${GPU_SSH_KEY_PATH:-/Users/concm/.ssh/id_ed25519_trae_dev}:/root/.ssh/id_ed25519_trae_dev:ro
+      - ${GPU_SSH_KNOWN_HOSTS_PATH:-/Users/concm/.ssh/known_hosts}:/root/.ssh/known_hosts:ro
+    secrets:
+      - compshare_credentials
     depends_on:
       - backend
       - redis
@@ -444,3 +490,7 @@ networks:
     name: ${LUCEON_WORKER_V3_OVERLEAF_NETWORK:-luceonweb2026-worker-v3-overleaf}
     driver: bridge
     internal: true
+
+secrets:
+  compshare_credentials:
+    file: ${COMPSHARE_HOST_CREDENTIALS_FILE:-/dev/null}
