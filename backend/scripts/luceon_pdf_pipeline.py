@@ -14,6 +14,7 @@ import argparse
 import datetime as dt
 import hashlib
 import hmac
+import http.client
 import io
 import json
 import mimetypes
@@ -32,6 +33,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Any
 
 
@@ -40,6 +42,10 @@ BATCH_PREFIX = "_status/_batches/"
 RAW_VERSION = "v1"
 DEFAULT_LANG = "ch"
 MAX_FILE_BYTES = 512 * 1024 * 1024
+MAX_RESULT_ARCHIVE_BYTES = 4 * 1024 * 1024 * 1024
+MAX_RESULT_MEMBER_COUNT = 200_000
+MAX_RESULT_UNCOMPRESSED_BYTES = 20 * 1024 * 1024 * 1024
+MAX_RESULT_EXPANSION_RATIO = 100
 MAX_BATCH_PDFS = 5
 USER_AGENT = "Luceon-PDF-MinerU-Popo-Pipeline/0.1"
 ERROR_STATUSES = {
@@ -342,6 +348,72 @@ class S3Client:
             pass
         return S3Ref(bucket, obj, sha256_hex(data), len(data), content_type).as_dict()
 
+    def put_file(
+        self,
+        bucket: str,
+        obj: str,
+        path: str | Path,
+        content_type: str,
+        *,
+        sha256: str = "",
+        size_bytes: int = 0,
+    ) -> dict[str, Any]:
+        file_path = Path(path)
+        if not size_bytes:
+            size_bytes = file_path.stat().st_size
+        if not sha256:
+            digest = hashlib.sha256()
+            with file_path.open("rb") as source:
+                for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            sha256 = digest.hexdigest()
+        parsed = urllib.parse.urlparse(self.endpoint)
+        host = parsed.netloc
+        request_path = "/" + urllib.parse.quote(bucket, safe="") + "/" + urllib.parse.quote(obj, safe="/")
+        now = dt.datetime.now(dt.timezone.utc)
+        amz_date = now.strftime("%Y%m%dT%H%M%SZ")
+        date_stamp = now.strftime("%Y%m%d")
+        canonical_headers = f"host:{host}\nx-amz-content-sha256:{sha256}\nx-amz-date:{amz_date}\n"
+        signed_headers = "host;x-amz-content-sha256;x-amz-date"
+        canonical_request = "\n".join(["PUT", request_path, "", canonical_headers, signed_headers, sha256])
+        scope = f"{date_stamp}/us-east-1/s3/aws4_request"
+        string_to_sign = "AWS4-HMAC-SHA256\n%s\n%s\n%s" % (amz_date, scope, sha256_hex(canonical_request))
+        signature = hmac.new(
+            signing_key(self.secret_key, date_stamp, "us-east-1", "s3"),
+            string_to_sign.encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+        headers = {
+            "Authorization": (
+                "AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s"
+                % (self.access_key, scope, signed_headers, signature)
+            ),
+            "Host": host,
+            "x-amz-content-sha256": sha256,
+            "x-amz-date": amz_date,
+            "Content-Type": content_type,
+            "Content-Length": str(size_bytes),
+        }
+        if parsed.scheme == "https":
+            connection: http.client.HTTPConnection = http.client.HTTPSConnection(
+                parsed.hostname,
+                parsed.port or 443,
+                timeout=3600,
+                context=ssl._create_unverified_context(),
+            )
+        else:
+            connection = http.client.HTTPConnection(parsed.hostname, parsed.port or 80, timeout=3600)
+        try:
+            with file_path.open("rb") as source:
+                connection.request("PUT", request_path, body=source, headers=headers)
+                response = connection.getresponse()
+                body = response.read(4096)
+            if not 200 <= response.status < 300:
+                raise RuntimeError(f"MinIO PUT failed HTTP {response.status}: {body.decode('utf-8', errors='replace')}")
+        finally:
+            connection.close()
+        return S3Ref(bucket, obj, sha256, size_bytes, content_type).as_dict()
+
     def put_json(self, bucket: str, obj: str, value: Any) -> dict[str, Any]:
         data = dumps(value, pretty=True).encode("utf-8")
         return self.put_bytes(bucket, obj, data, "application/json")
@@ -425,6 +497,37 @@ class WrapperClient:
 
     def request_bytes(self, method: str, path_or_url: str, timeout: int = 3600) -> bytes:
         return self.request(method, path_or_url, timeout=timeout)
+
+    def request_to_file(
+        self,
+        method: str,
+        path_or_url: str,
+        path: str | Path,
+        *,
+        timeout: int = 3600,
+        max_bytes: int = MAX_RESULT_ARCHIVE_BYTES,
+    ) -> dict[str, Any]:
+        url = self.url(path_or_url)
+        headers = {"User-Agent": USER_AGENT}
+        if self.api_key:
+            headers["Authorization"] = "Bearer " + self.api_key
+        req = urllib.request.Request(url, headers=headers, method=method)
+        digest = hashlib.sha256()
+        size_bytes = 0
+        output_path = Path(path)
+        with urlopen_default(req, timeout=timeout) as response, output_path.open("wb") as target:
+            while True:
+                chunk = response.read(1024 * 1024)
+                if not chunk:
+                    break
+                size_bytes += len(chunk)
+                if size_bytes > max_bytes:
+                    raise ValueError(f"wrapper result archive exceeds {max_bytes} bytes")
+                digest.update(chunk)
+                target.write(chunk)
+            target.flush()
+            os.fsync(target.fileno())
+        return {"path": str(output_path), "sha256": digest.hexdigest(), "size_bytes": size_bytes}
 
     def health(self, timeout: int = 30) -> dict[str, Any]:
         return self.request_json("GET", "/api/v1/health", timeout=timeout)
@@ -2069,13 +2172,58 @@ def submit_batch(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def safe_tar_path(path: str) -> str:
-    rel = str(path or "").replace("\\", "/").lstrip("./")
-    parts = [p for p in rel.split("/") if p not in ("", ".", "..")]
-    return "/".join(parts)
+    raw = str(path or "")
+    if not raw or "\\" in raw or raw.startswith(("/", "~")):
+        raise ValueError(f"unsafe tar member path: {raw!r}")
+    pure = PurePosixPath(raw)
+    if pure.is_absolute() or any(part in {"", ".", ".."} for part in pure.parts):
+        raise ValueError(f"unsafe tar member path: {raw!r}")
+    return str(pure)
 
 
 def tar_members(tf: tarfile.TarFile) -> list[tarfile.TarInfo]:
     return [m for m in tf.getmembers() if m.isfile()]
+
+
+def validate_result_tar(tf: tarfile.TarFile, archive_size_bytes: int) -> dict[str, Any]:
+    members = tf.getmembers()
+    if len(members) > MAX_RESULT_MEMBER_COUNT:
+        raise ValueError(f"result archive has too many members: {len(members)}")
+    total = 0
+    files = 0
+    for member in members:
+        safe_tar_path(member.name)
+        if member.issym() or member.islnk() or member.isdev():
+            raise ValueError(f"result archive contains unsupported member type: {member.name}")
+        if member.isfile():
+            files += 1
+            total += max(0, int(member.size))
+            if total > MAX_RESULT_UNCOMPRESSED_BYTES:
+                raise ValueError("result archive uncompressed bytes exceed safety limit")
+    if archive_size_bytes <= 0:
+        raise ValueError("result archive is empty")
+    if total > archive_size_bytes * MAX_RESULT_EXPANSION_RATIO:
+        raise ValueError("result archive expansion ratio exceeds safety limit")
+    return {"members_total": len(members), "file_members": files, "uncompressed_bytes": total}
+
+
+def download_validated_result_archive(
+    wrapper: WrapperClient,
+    result_url: str,
+    *,
+    prefix: str,
+) -> dict[str, Any]:
+    temporary_directory = tempfile.TemporaryDirectory(prefix=prefix)
+    path = Path(temporary_directory.name) / "result.tar.gz"
+    try:
+        receipt = wrapper.request_to_file("GET", result_url, path, timeout=3600)
+        with tarfile.open(path, mode="r:gz") as tf:
+            receipt["tar_inventory"] = validate_result_tar(tf, int(receipt["size_bytes"]))
+        receipt["_temporary_directory"] = temporary_directory
+        return receipt
+    except Exception:
+        temporary_directory.cleanup()
+        raise
 
 
 def read_member(tf: tarfile.TarFile, member: tarfile.TarInfo | None) -> bytes:
@@ -2145,8 +2293,10 @@ def freeze_success_doc(
     if not run_id:
         raise ValueError("succeeded document missing run_id/job_id")
     result_url = doc_status.get("result_url") or f"/api/v1/batches/{batch_status.get('batch_id')}/documents/{run_id}/result"
-    tar_bytes = wrapper.request_bytes("GET", str(result_url), timeout=3600)
-    tar_sha = sha256_hex(tar_bytes)
+    archive_receipt = download_validated_result_archive(wrapper, str(result_url), prefix="luceon-result-")
+    archive_path = Path(archive_receipt["path"])
+    tar_sha = str(archive_receipt["sha256"])
+    tar_size = int(archive_receipt["size_bytes"])
     pdf_bytes = s3.get_bytes(cfg.input_bucket, input_object, max_bytes=cfg.max_file_bytes)
     source_sha = sha256_hex(pdf_bytes)
     mineru_prefix = f"mineru/{material_id}/{run_id}/"
@@ -2154,10 +2304,12 @@ def freeze_success_doc(
     archive_object = f"gpu-wrapper/{material_id}/{run_id}/result.tar.gz"
     source_pdf_object = f"source-pdf/{material_id}/{run_id}/source.pdf"
     objects: dict[str, Any] = {
-        "archive": s3.put_bytes(cfg.archive_bucket, archive_object, tar_bytes, "application/gzip"),
+        "archive": s3.put_file(
+            cfg.archive_bucket, archive_object, archive_path, "application/gzip", sha256=tar_sha, size_bytes=tar_size
+        ),
         "source_pdf": s3.put_bytes(cfg.archive_bucket, source_pdf_object, pdf_bytes, "application/pdf"),
     }
-    with tarfile.open(fileobj=io.BytesIO(tar_bytes), mode="r:gz") as tf:
+    with tarfile.open(archive_path, mode="r:gz") as tf:
         content_v2 = find_member(
             tf,
             lambda p: p.endswith("_content_list_v2.json") or p.endswith("content_list_v2.json"),
@@ -2286,6 +2438,7 @@ def freeze_success_doc(
             },
         },
         "archive_sha256": tar_sha,
+        "archive_size_bytes": tar_size,
         "full_tree_counts": objects.get("full_tree", {}).get("counts", {}),
         "objects": objects,
         "created_at": now_iso(),
@@ -2595,18 +2748,22 @@ def freeze_mineru_only_result(
     material_id = str(doc.get("material_id") or "")
     run_id = run_id_from_doc_status(doc_status, "MinerU result")
     result_url = doc_status.get("result_url") or f"/api/v1/mineru/results/{run_id}"
-    tar_bytes = wrapper.request_bytes("GET", str(result_url), timeout=3600)
-    tar_sha = sha256_hex(tar_bytes)
+    archive_receipt = download_validated_result_archive(wrapper, str(result_url), prefix="luceon-mineru-result-")
+    archive_path = Path(archive_receipt["path"])
+    tar_sha = str(archive_receipt["sha256"])
+    tar_size = int(archive_receipt["size_bytes"])
     pdf_bytes = s3.get_bytes(cfg.input_bucket, input_object, max_bytes=cfg.max_file_bytes)
     source_sha = sha256_hex(pdf_bytes)
     mineru_prefix = f"mineru/{material_id}/{run_id}/"
     archive_object = f"gpu-wrapper/{material_id}/{run_id}/mineru-result.tar.gz"
     source_pdf_object = f"source-pdf/{material_id}/{run_id}/source.pdf"
     objects: dict[str, Any] = {
-        "archive": s3.put_bytes(cfg.archive_bucket, archive_object, tar_bytes, "application/gzip"),
+        "archive": s3.put_file(
+            cfg.archive_bucket, archive_object, archive_path, "application/gzip", sha256=tar_sha, size_bytes=tar_size
+        ),
         "source_pdf": s3.put_bytes(cfg.archive_bucket, source_pdf_object, pdf_bytes, "application/pdf"),
     }
-    with tarfile.open(fileobj=io.BytesIO(tar_bytes), mode="r:gz") as tf:
+    with tarfile.open(archive_path, mode="r:gz") as tf:
         content_v2 = find_member(
             tf,
             lambda p: p.endswith("_content_list_v2.json") or p.endswith("content_list_v2.json"),
@@ -2694,7 +2851,7 @@ def freeze_mineru_only_result(
             },
         },
         "archive_sha256": tar_sha,
-        "archive_size_bytes": len(tar_bytes),
+        "archive_size_bytes": tar_size,
         "full_tree_counts": objects.get("full_tree", {}).get("counts", {}),
         "objects": objects,
         "created_at": now_iso(),
@@ -2710,7 +2867,7 @@ def freeze_mineru_only_result(
     }
     markers = write_status_marker(s3, cfg, doc, run_id, "mineru_done_frozen", status_payload)
     cleanup = cleanup_stage_markers(s3, cfg, doc, run_id, ("mineru_submitted", "mineru_running"))
-    return {
+    result = {
         "schema": "luceon-staged-mineru-freeze/v1",
         "status": "PASS",
         "material_id": material_id,
@@ -2720,6 +2877,8 @@ def freeze_mineru_only_result(
         "status_markers": {"mineru_done_frozen": markers},
         "active_marker_cleanup": cleanup,
     }
+    archive_receipt["_temporary_directory"].cleanup()
+    return result
 
 
 def reuse_frozen_mineru_result(
@@ -2991,14 +3150,18 @@ def freeze_popo_only_result(
     material_id = str(doc.get("material_id") or "")
     run_id = run_id_from_doc_status(doc_status, "Popo result")
     result_url = doc_status.get("result_url") or f"/api/v1/popo/results/{run_id}"
-    tar_bytes = wrapper.request_bytes("GET", str(result_url), timeout=3600)
-    tar_sha = sha256_hex(tar_bytes)
+    archive_receipt = download_validated_result_archive(wrapper, str(result_url), prefix="luceon-popo-result-")
+    archive_path = Path(archive_receipt["path"])
+    tar_sha = str(archive_receipt["sha256"])
+    tar_size = int(archive_receipt["size_bytes"])
     popo_prefix = f"minerupopo/{material_id}/{run_id}/"
     archive_object = f"gpu-wrapper/{material_id}/{run_id}/popo-result.tar.gz"
     objects: dict[str, Any] = {
-        "archive": s3.put_bytes(cfg.archive_bucket, archive_object, tar_bytes, "application/gzip"),
+        "archive": s3.put_file(
+            cfg.archive_bucket, archive_object, archive_path, "application/gzip", sha256=tar_sha, size_bytes=tar_size
+        ),
     }
-    with tarfile.open(fileobj=io.BytesIO(tar_bytes), mode="r:gz") as tf:
+    with tarfile.open(archive_path, mode="r:gz") as tf:
         tree = find_member(
             tf,
             lambda p: p.endswith("enhanced/document_tree.json") or p.endswith("document_tree.json"),
@@ -3101,7 +3264,7 @@ def freeze_popo_only_result(
             },
         },
         "archive_sha256": tar_sha,
-        "archive_size_bytes": len(tar_bytes),
+        "archive_size_bytes": tar_size,
         "full_tree_counts": objects.get("full_tree", {}).get("counts", {}),
         "objects": objects,
         "created_at": now_iso(),
@@ -3120,7 +3283,7 @@ def freeze_popo_only_result(
     popo_done_markers = write_status_marker(s3, cfg, doc, run_id, "popo_done_frozen", status_payload)
     done_markers = write_status_marker(s3, cfg, doc, run_id, "done", status_payload)
     cleanup = cleanup_stage_markers(s3, cfg, doc, run_id, ("popo_submitted", "popo_running"))
-    return {
+    result = {
         "schema": "luceon-staged-popo-freeze/v1",
         "status": "PASS",
         "material_id": material_id,
@@ -3130,6 +3293,8 @@ def freeze_popo_only_result(
         "status_markers": {"popo_done_frozen": popo_done_markers, "done": done_markers},
         "active_marker_cleanup": cleanup,
     }
+    archive_receipt["_temporary_directory"].cleanup()
+    return result
 
 
 def write_doc_error(
@@ -3681,7 +3846,77 @@ def run_staged_command(args: argparse.Namespace) -> dict[str, Any]:
     staged_probe: dict[str, Any] = {}
     mineru_submit: dict[str, Any] | None = None
     existing_popo_submit: dict[str, Any] | None = None
-    if args.existing_mineru_batch_id:
+    if args.reuse_frozen_mineru:
+        # A locally frozen MinerU manifest is the recovery source of truth.  The
+        # remote scheduler may legitimately have pruned/restarted since the
+        # original batch completed, so Popo-only recovery must not require the
+        # old remote MinerU batch inventory to remain queryable.
+        wrapper = WrapperClient(cfg.wrapper_url, cfg.wrapper_api_key)
+        try:
+            health = wrapper_ready(wrapper, require_mineru=False)
+            staged_probe = staged_api_probe(wrapper)
+        except Exception as exc:
+            return {
+                "command": "run-staged",
+                "applied": False,
+                "status": "GPU_OFFLINE",
+                "health": wrapper_offline_payload(exc),
+            }
+        if not health["ok"]:
+            return {"command": "run-staged", "applied": False, "status": "GPU_OFFLINE", "health": health}
+        if not staged_probe["available"]:
+            return {
+                "command": "run-staged",
+                "applied": False,
+                "status": "STAGED_API_UNAVAILABLE",
+                "health": health,
+                "staged_api_probe": staged_probe,
+            }
+        plan = build_next_batch_plan(
+            s3,
+            cfg,
+            args.limit,
+            args.sort_by,
+            with_sha=not args.skip_sha,
+            lineage_file=args.lineage_file,
+            include_error_review=args.include_error_review,
+            input_status_only=args.input_status_only,
+            input_objects=input_objects,
+            material_ids=material_ids,
+            allow_active=True,
+            candidate_states={"mineru_only_resume_popo"},
+        )
+        selected = plan.get("selected") or []
+        docs = [lineage_item_to_submit_doc(s3, cfg, item, idx) for idx, item in enumerate(selected)]
+        local_statuses = []
+        for doc in docs:
+            _manifest_object, manifest = latest_mineru_manifest_for_material(s3, cfg, str(doc["material_id"]))
+            source = manifest.get("source_pdf") if isinstance(manifest.get("source_pdf"), dict) else {}
+            local_statuses.append(
+                {
+                    "doc_id": doc["doc_id"],
+                    "run_id": str(manifest.get("run_id") or ""),
+                    "status": "succeeded",
+                    "source": {
+                        "material_id": doc["material_id"],
+                        "input_object": source.get("input_object"),
+                        "sha256": source.get("sha256"),
+                        "size_bytes": source.get("size_bytes"),
+                    },
+                }
+            )
+        mineru_submit = {
+            "batch_id": str(args.existing_mineru_batch_id),
+            "status": "succeeded",
+            "documents": local_statuses,
+            "recovery_source": "local_frozen_mineru_manifest",
+        }
+        plan = {
+            **plan,
+            "mode": "local_frozen_mineru_recovery",
+            "existing_mineru_batch_id": str(args.existing_mineru_batch_id),
+        }
+    elif args.existing_mineru_batch_id:
         wrapper = WrapperClient(cfg.wrapper_url, cfg.wrapper_api_key)
         try:
             health = wrapper_ready(wrapper, require_mineru=True)
@@ -3990,7 +4225,15 @@ def run_staged_command(args: argparse.Namespace) -> dict[str, Any]:
                 )
             )
 
-    mineru_wait = wait_stage_batch(s3, cfg, wrapper, "mineru", mineru_batch_id, docs, mineru_run_ids, args)
+    mineru_wait = (
+        {
+            "wait_status": "TERMINAL",
+            "last_status": mineru_submit,
+            "recovery_source": "local_frozen_mineru_manifest",
+        }
+        if args.reuse_frozen_mineru
+        else wait_stage_batch(s3, cfg, wrapper, "mineru", mineru_batch_id, docs, mineru_run_ids, args)
+    )
     result: dict[str, Any] = {
         "command": "run-staged",
         "applied": True,

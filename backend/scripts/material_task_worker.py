@@ -10,6 +10,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.database import SessionLocal
 from app.services.material_inventory import pipeline_wait_timeout_seconds, popo_resume_command, run_pipeline_subprocess
+from app.services.gpu_pipeline_lifecycle import (
+    acquire_gpu_for_pipeline,
+    mark_lifecycle_failure,
+    reconcile_stale_lifecycle_leases,
+    release_gpu_after_pipeline,
+)
 from app.services.material_task_queue import (
     claim_next_metadata_job,
     claim_next_pipeline_run,
@@ -25,6 +31,13 @@ def consume_once(worker_id: str) -> dict | None:
         pipeline_run = claim_next_pipeline_run(db, worker_id)
         if pipeline_run:
             request = pipeline_run.request()
+            lifecycle_lease = None
+            if bool(request.get("apply")):
+                try:
+                    lifecycle_lease = acquire_gpu_for_pipeline(db, pipeline_run)
+                except Exception as exc:
+                    mark_lifecycle_failure(db, pipeline_run, exc)
+                    return {"kind": "pipeline_run", "id": str(pipeline_run.id), "status": "gpu_lifecycle_failed"}
             snapshot = request.get("snapshot") if isinstance(request.get("snapshot"), list) else []
             material_ids = [str(row.get("material_id") or "") for row in snapshot if isinstance(row, dict)]
             input_objects = [str(row.get("input_object") or "") for row in snapshot if isinstance(row, dict)]
@@ -44,17 +57,24 @@ def consume_once(worker_id: str) -> dict | None:
                     timeout_seconds=pipeline_wait_timeout_seconds(snapshot),
                 )
                 start_message = "开始从冻结 MinerU 恢复 Popo"
-            run_pipeline_subprocess(
-                pipeline_run.id,
-                bool(request.get("apply")),
-                int(request.get("limit") or len(snapshot) or 1),
-                material_ids=material_ids,
-                input_objects=input_objects,
-                reprocess_completed=reprocess_completed,
-                command_override=command_override,
-                start_message=start_message,
-                worker_id=worker_id,
-            )
+            try:
+                run_pipeline_subprocess(
+                    pipeline_run.id,
+                    bool(request.get("apply")),
+                    int(request.get("limit") or len(snapshot) or 1),
+                    material_ids=material_ids,
+                    input_objects=input_objects,
+                    reprocess_completed=reprocess_completed,
+                    command_override=command_override,
+                    start_message=start_message,
+                    worker_id=worker_id,
+                )
+            finally:
+                if lifecycle_lease is not None:
+                    db.expire_all()
+                    completed_run = db.query(type(pipeline_run)).filter(type(pipeline_run).id == pipeline_run.id).first()
+                    if completed_run:
+                        release_gpu_after_pipeline(db, completed_run, lifecycle_lease)
             return {"kind": "pipeline_run", "id": str(pipeline_run.id)}
 
         metadata_job = claim_next_metadata_job(db, worker_id)
@@ -77,6 +97,7 @@ def main() -> int:
     db = SessionLocal()
     try:
         recovered = recover_stale_tasks(db)
+        recovered["gpu_lifecycle_leases"] = reconcile_stale_lifecycle_leases(db)
     finally:
         db.close()
     if any(recovered.values()):

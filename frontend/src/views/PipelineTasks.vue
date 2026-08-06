@@ -39,6 +39,34 @@ function workerLeaseLabel(run: PipelineRun) {
   return run.worker_id || '等待 Worker 领取'
 }
 
+function manifestLabel(value: { bucket?: string; object?: string } | undefined) {
+  if (!value?.bucket || !value?.object) return '尚未冻结'
+  return `${value.bucket}/${value.object}`
+}
+
+function gpuLifecycle(run: PipelineRun) {
+  return (run.summary?.gpu_lifecycle || {}) as Record<string, any>
+}
+
+function gpuShutdown(run: PipelineRun) {
+  return (run.summary?.gpu_shutdown || {}) as Record<string, any>
+}
+
+function gpuLease(run: PipelineRun) {
+  return (gpuLifecycle(run).lease || {}) as Record<string, any>
+}
+
+function readinessLabel(run: PipelineRun) {
+  const readiness = (gpuLease(run).readiness || {}) as Record<string, any>
+  if (!Object.keys(readiness).length) return '尚未形成就绪证据'
+  return readiness.ready ? 'SSH / GPU / 磁盘 / wrapper 已核验' : `未就绪 · ${readiness.reason || readiness.error_domain || '原因待核验'}`
+}
+
+function eventDetail(payload: Record<string, unknown>) {
+  const value = payload as Record<string, any>
+  return value.error_domain || value.status || (Array.isArray(value.blockers) ? value.blockers.join('、') : '')
+}
+
 function updateQuery() {
   router.replace({ query: { ...(status.value ? { status: status.value } : {}), ...(page.value > 1 ? { page: String(page.value) } : {}), ...(selectedRun.value ? { run_id: selectedRun.value.id } : {}) } })
 }
@@ -167,7 +195,20 @@ onUnmounted(() => {
         </div>
         <span class="mono-note">GPU 重任务全局串行 · 批次上限 5</span>
       </div>
-      <el-table v-loading="loading" :data="rows" height="calc(100vh - 330px)" empty-text="暂无解析任务">
+      <div class="mobile-record-list" aria-label="解析任务列表">
+        <article v-for="row in rows" :key="`mobile-${row.id}`" class="mobile-record-card">
+          <div class="identity-title">解析批次 #{{ row.id }}</div>
+          <dl class="mobile-record-facts">
+            <div><dt>模式</dt><dd>{{ modeLabel(row.mode) }}</dd></div>
+            <div><dt>状态</dt><dd>{{ row.status }}</dd></div>
+            <div><dt>当前阶段</dt><dd>{{ formatPipelineStage(row.current_stage) }}</dd></div>
+            <div><dt>结果</dt><dd>共 {{ row.total }} · 成功 {{ row.success }} · 失败 {{ row.failed }}</dd></div>
+            <div><dt>Worker / 租约</dt><dd>{{ workerLeaseLabel(row) }}</dd></div>
+          </dl>
+          <el-button link @click="openDetail(row)">查看详情</el-button>
+        </article>
+      </div>
+      <el-table v-loading="loading" :data="rows" max-height="calc(100vh - 330px)" class="workspace-data-table" empty-text="暂无解析任务">
         <el-table-column label="批次" width="105"><template #default="{ row }"><el-button link @click="openDetail(row)">#{{ row.id }}</el-button></template></el-table-column>
         <el-table-column label="模式" width="145"><template #default="{ row }">{{ modeLabel(row.mode) }}</template></el-table-column>
         <el-table-column label="状态" width="120"><template #default="{ row }"><StageStatusBadge :status="row.status" /></template></el-table-column>
@@ -175,9 +216,33 @@ onUnmounted(() => {
         <el-table-column label="逐本结果" width="190"><template #default="{ row }">共 {{ row.total }} · 成功 {{ row.success }} · 失败 {{ row.failed }}</template></el-table-column>
         <el-table-column label="Worker / 租约" min-width="195"><template #default="{ row }"><span class="mono-note">{{ workerLeaseLabel(row) }}</span><span class="identity-meta">尝试 {{ row.attempt_count }}</span></template></el-table-column>
         <el-table-column label="创建时间" width="170"><template #default="{ row }">{{ formatDateTime(row.created_at || '') }}</template></el-table-column>
-        <el-table-column label="操作" width="100" fixed="right"><template #default="{ row }"><el-button link @click="openDetail(row)">查看</el-button></template></el-table-column>
+        <el-table-column label="操作" width="100"><template #default="{ row }"><el-button link @click="openDetail(row)">查看</el-button></template></el-table-column>
       </el-table>
       <div class="workspace-pagination"><el-pagination v-model:current-page="page" :page-size="pageSize" :total="total" layout="total, prev, pager, next" /></div>
+    </section>
+
+    <section v-if="selectedRun && detailOpen" class="mobile-run-detail" aria-label="解析任务详情">
+      <div class="identity-title">解析批次 #{{ selectedRun.id }} 详情</div>
+      <dl class="mobile-record-facts">
+        <div><dt>状态</dt><dd>{{ selectedRun.status }}</dd></div>
+        <div><dt>启动前状态</dt><dd>{{ gpuLease(selectedRun).prior_state || '未核验' }}</dd></div>
+        <div><dt>启动所有权</dt><dd>{{ gpuLease(selectedRun).started_by_pipeline ? '本任务从 Stopped 启动' : '原本运行或无所有权' }}</dd></div>
+        <div><dt>SSH / 服务</dt><dd>{{ readinessLabel(selectedRun) }}</dd></div>
+        <div><dt>生命周期</dt><dd>{{ gpuLease(selectedRun).phase || '未登记' }}</dd></div>
+        <div><dt>停机结果</dt><dd>{{ gpuShutdown(selectedRun).status || '尚未执行安全停机判断' }}</dd></div>
+        <div><dt>停机阻断</dt><dd>{{ (gpuShutdown(selectedRun).blockers || []).join('、') || '无' }}</dd></div>
+      </dl>
+      <div v-for="item in selectedRun.items || []" :key="`mobile-item-${item.id}`" class="mobile-run-item">
+        <strong>{{ item.filename || item.material_id }}</strong>
+        <span class="identity-meta">{{ item.material_id }}</span>
+        <span class="identity-meta">MinerU：{{ manifestLabel(item.mineru_manifest) }}</span>
+        <span class="identity-meta">Popo：{{ manifestLabel(item.popo_manifest) }}</span>
+      </div>
+      <ol class="mobile-event-list">
+        <li v-for="event in selectedRun.events || []" :key="`mobile-event-${event.id}`">
+          <strong>{{ formatPipelineStage(event.stage) }}</strong> · {{ event.message }}
+        </li>
+      </ol>
     </section>
 
     <el-drawer v-model="detailOpen" size="86%" :title="selectedRun ? `解析批次 #${selectedRun.id}` : '解析任务详情'" @closed="closeDetail">
@@ -189,7 +254,23 @@ onUnmounted(() => {
           <el-descriptions-item label="幂等键"><span class="mono-note">{{ selectedRun.idempotency_key || '历史任务未登记' }}</span></el-descriptions-item>
           <el-descriptions-item label="心跳">{{ formatDateTime(selectedRun.heartbeat_at || '') || '—' }}</el-descriptions-item>
           <el-descriptions-item label="错误"><span class="error-note">{{ selectedRun.error_message }}</span></el-descriptions-item>
+          <el-descriptions-item label="GPU 生命周期">{{ gpuLifecycle(selectedRun).status || '未由本任务管理' }}</el-descriptions-item>
+          <el-descriptions-item label="启动前状态">{{ gpuLease(selectedRun).prior_state || '未核验' }}</el-descriptions-item>
+          <el-descriptions-item label="启动所有权">{{ gpuLease(selectedRun).started_by_pipeline ? '本任务从 Stopped 启动' : '原本运行或无所有权' }}</el-descriptions-item>
+          <el-descriptions-item label="SSH / 服务就绪">{{ readinessLabel(selectedRun) }}</el-descriptions-item>
+          <el-descriptions-item label="生命周期阶段">{{ gpuLease(selectedRun).phase || '未登记' }}</el-descriptions-item>
+          <el-descriptions-item label="停机结果">{{ gpuShutdown(selectedRun).status || '尚未执行安全停机判断' }}</el-descriptions-item>
+          <el-descriptions-item label="停机阻断">{{ (gpuShutdown(selectedRun).blockers || []).join('、') || '无' }}</el-descriptions-item>
         </el-descriptions>
+        <section v-if="selectedRun?.events?.length" class="detail-section">
+          <h3>云实例、远端阶段与冻结时间线</h3>
+          <el-timeline>
+            <el-timeline-item v-for="event in selectedRun.events" :key="event.id" :timestamp="formatDateTime(event.created_at || '')" :type="event.level === 'error' ? 'danger' : event.level === 'warning' ? 'warning' : 'primary'">
+              <strong>{{ formatPipelineStage(event.stage) }}</strong> · {{ event.message }}
+              <div v-if="eventDetail(event.payload)" class="mono-note">{{ eventDetail(event.payload) }}</div>
+            </el-timeline-item>
+          </el-timeline>
+        </section>
         <section v-if="selectedRun" class="detail-section">
           <h3>逐本状态与阶段证据</h3>
           <PipelineRunItems :items="selectedRun.items || []" :show-recovery="isAdmin" @recover-popo="recoverPopo" @retry-metadata="retryMetadata" />

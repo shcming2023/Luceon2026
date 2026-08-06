@@ -6,6 +6,11 @@ import StageStatusBadge from './StageStatusBadge.vue'
 
 defineProps<{ items: PipelineRunItem[]; showRecovery?: boolean }>()
 defineEmits<{ recoverPopo: [item: PipelineRunItem]; retryMetadata: [item: PipelineRunItem] }>()
+
+function manifestLabel(value: { bucket?: string; object?: string } | undefined) {
+  if (!value?.bucket || !value?.object) return '尚未冻结'
+  return `${value.bucket}/${value.object}`
+}
 </script>
 
 <template>
@@ -15,13 +20,15 @@ defineEmits<{ recoverPopo: [item: PipelineRunItem]; retryMetadata: [item: Pipeli
     </el-table-column>
     <el-table-column label="状态" width="118"><template #default="{ row }"><StageStatusBadge :status="row.status" /></template></el-table-column>
     <el-table-column label="当前阶段" width="140"><template #default="{ row }">{{ formatPipelineStage(row.current_stage) }}</template></el-table-column>
-    <el-table-column label="阶段证据" min-width="250">
+    <el-table-column label="阶段证据" min-width="330">
       <template #default="{ row }">
         <div v-for="attempt in row.attempts" :key="attempt.id" class="attempt-line">
           {{ formatPipelineStage(attempt.stage) }} #{{ attempt.attempt }} · <StageStatusBadge :status="attempt.status" />
           <span v-if="attempt.external_run_id"> · {{ attempt.external_run_id }}</span>
         </div>
         <span v-if="!row.attempts?.length" class="mono-note">尚无尝试记录</span>
+        <span class="mono-note" :title="manifestLabel(row.mineru_manifest)">MinerU：{{ manifestLabel(row.mineru_manifest) }}</span>
+        <span class="mono-note" :title="manifestLabel(row.popo_manifest)">Popo：{{ manifestLabel(row.popo_manifest) }}</span>
       </template>
     </el-table-column>
     <el-table-column label="问题" min-width="180"><template #default="{ row }"><span class="error-note">{{ row.error_message }}</span></template></el-table-column>
@@ -30,7 +37,7 @@ defineEmits<{ recoverPopo: [item: PipelineRunItem]; retryMetadata: [item: Pipeli
         <StageStatusBadge :status="row.metadata_jobs?.[0]?.status || (row.status === 'succeeded' ? 'queued' : 'idle')" />
       </template>
     </el-table-column>
-    <el-table-column label="操作" width="265" fixed="right">
+    <el-table-column label="操作" width="265">
       <template #default="{ row }">
         <router-link :to="{ path: '/assets', query: { material_pk: row.material_pk, search: row.material_id } }"><el-button link>材料谱系</el-button></router-link>
         <el-button v-if="['failed', 'skipped_manual_override'].includes(row.metadata_jobs?.[0]?.status)" link @click="$emit('retryMetadata', row)">重试编目</el-button>

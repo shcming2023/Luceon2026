@@ -113,6 +113,12 @@ export function formatDateTime(dateStr: string): string {
 
 const PipelineStageText: Record<string, string> = {
   queued: '等待 Worker',
+  input_frozen: 'PDF 已哈希并冻结',
+  gpu_starting: '正在核验并按需启动 GPU',
+  gpu_ready: 'GPU、SSH 与服务已就绪',
+  gpu_lifecycle_failed: 'GPU 生命周期门禁失败',
+  gpu_stopped: 'GPU 已由云控制面确认停止',
+  gpu_retained: 'GPU 保持运行（无停机所有权或仍有活动）',
   pipeline_command: 'GPU 串行处理中（MinerU → Popo）',
   mineru: 'MinerU 解析',
   mineru_frozen: 'MinerU 已冻结',
@@ -120,6 +126,7 @@ const PipelineStageText: Record<string, string> = {
   mineru_failed: 'MinerU 失败',
   popo: 'Popo 解析',
   popo_frozen: 'Popo 已冻结',
+  pulled_local: '结果已拉回本地并通过 SHA 核验',
   popo_freezing: '正在冻结 Popo 到本地 MinIO',
   popo_model_loading: '正在切换并加载 Popo 模型',
   popo_model_ready: 'Popo 模型已就绪',

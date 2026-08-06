@@ -13,6 +13,7 @@ from app.database import SessionLocal
 from app.models.material import (
     Material,
     MetadataJob,
+    PipelineEvent,
     PipelineRun,
     PipelineRunItem,
     PipelineStageAttempt,
@@ -203,6 +204,15 @@ def pipeline_run_detail(db: Session, run: PipelineRun) -> dict[str, Any]:
             "metadata_jobs": metadata_by_material.get(item.material_pk, []),
         }
         for item in items
+    ]
+    value["events"] = [
+        row.to_dict()
+        for row in (
+            db.query(PipelineEvent)
+            .filter(PipelineEvent.run_id == run.id, PipelineEvent.user_id == run.user_id)
+            .order_by(PipelineEvent.created_at.asc(), PipelineEvent.id.asc())
+            .all()
+        )
     ]
     return value
 
