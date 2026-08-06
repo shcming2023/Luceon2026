@@ -17,6 +17,7 @@ from app.api import (
 )
 from app.api import stats
 from app.services.pipeline_recovery import recover_interrupted_pipeline_runs
+from app.middleware.upload_envelope import UploadEnvelopeMiddleware
 from app.workflow_v2 import initialize_workflow_database
 from app.workflow_v3.database import initialize_workflow_v3_database
 from contextlib import asynccontextmanager
@@ -35,6 +36,7 @@ async def life_span(app: FastAPI):
 
 
 app = FastAPI(title="MinerU 文档解析系统 API", lifespan=life_span)
+app.add_middleware(UploadEnvelopeMiddleware)
 
 # 允许前端跨域
 app.add_middleware(

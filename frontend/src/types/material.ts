@@ -175,6 +175,7 @@ export interface PipelineRun {
   finished_at: string | null
   created_at: string | null
   items?: PipelineRunItem[]
+  events?: PipelineEvent[]
 }
 
 export interface PipelineStageAttempt {
@@ -352,6 +353,7 @@ export interface PipelinePreflightResponse {
 }
 
 export interface MaterialUploadResponse {
+  upload_policy_sha256?: string
   total: number
   success: number
   failed: number
@@ -359,7 +361,33 @@ export interface MaterialUploadResponse {
   files: Array<{
     filename: string
     status: string
+    eligibility_status?: 'upload_allowed' | 'uploaded_but_gpu_resource_review' | 'gpu_eligible' | 'rejected_by_config' | string
     error_message?: string
     material?: MaterialItem
   }>
+}
+
+export interface PdfUploadCapabilities {
+  schema_version: string
+  policy_sha256: string
+  max_file_bytes: number
+  max_file_pages: number
+  max_request_bytes: number
+  max_request_files: number
+  max_gpu_batch_input_bytes: number
+  max_gpu_batch_files: number
+  large_pdf_threshold_bytes: number
+  large_pdf_page_threshold: number
+  expansion_factor: number
+  min_local_temp_free_bytes: number
+  min_gpu_headroom_bytes: number
+  default_stage_timeout_seconds: number
+  large_stage_timeout_seconds: number
+  upload_chunk_bytes: number
+  multipart_overhead_bytes: number
+  temp_dir: string
+  max_file_label: string
+  actual_2gib_transfer_qualified: boolean
+  internal_2gib_2000_profile_qualified: boolean
+  internal_profile_gap: string[]
 }

@@ -35,6 +35,14 @@ export default defineConfig({
       }
     }
   },
+  preview: {
+    proxy: {
+      '/api': {
+        target: process.env.VITE_PREVIEW_API_TARGET || 'http://localhost:8000',
+        changeOrigin: true
+      }
+    }
+  },
   build: {
     // 代码分割优化
     rollupOptions: {

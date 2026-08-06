@@ -14,7 +14,8 @@ import type {
   PipelinePreflightResponse,
   PipelineRun,
   PipelineRunListResponse,
-  PipelineStatusResponse
+  PipelineStatusResponse,
+  PdfUploadCapabilities
 } from '@/types/material'
 
 const UPLOAD_TIMEOUT_MS = 30 * 60 * 1000
@@ -148,6 +149,10 @@ export const materialsApi = {
         }
       }
     }).then(res => res.data)
+  },
+
+  getUploadCapabilities() {
+    return api.get<PdfUploadCapabilities>('/materials/upload/capabilities').then(res => res.data)
   },
 
   getPipelineStatus() {

@@ -1,12 +1,15 @@
 import mimetypes
+import os
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from starlette.datastructures import UploadFile as StarletteUploadFile
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
@@ -42,12 +45,15 @@ from app.services.material_inventory import (
     minio_client,
     run_popo_resume_preflight,
     run_pipeline_preflight,
+    run_cloud_deferred_pipeline_preflight,
     apply_pipeline_resource_gate,
     start_popo_resume_run,
     start_pipeline_run,
     sync_material_inventory,
     upload_input_pdfs,
 )
+from app.services.upload_policy import pdf_upload_capabilities
+from app.services.upload_policy import load_pdf_upload_policy
 from app.services.material_metadata import (
     MetadataExtractionError,
     extract_metadata_with_ai,
@@ -638,17 +644,75 @@ def sync_materials(
     return summary
 
 
-@router.post("/materials/upload")
+async def bounded_material_upload_files(request: Request):
+    policy = load_pdf_upload_policy()
+    try:
+        form = await request.form(
+            max_files=policy.max_request_files,
+            max_fields=policy.max_request_fields,
+            max_part_size=policy.max_file_bytes,
+        )
+    except StarletteHTTPException as exc:
+        detail = str(exc.detail)
+        if "Too many files" in detail or "Too many fields" in detail or detail.startswith("upload_envelope_exceeded:"):
+            status_code = 413
+        elif detail == "upload_client_disconnected":
+            status_code = 400
+        else:
+            status_code = exc.status_code
+        raise HTTPException(status_code=status_code, detail=detail) from exc
+    try:
+        files = [value for key, value in form.multi_items() if key == "files" and isinstance(value, StarletteUploadFile)]
+        if not files:
+            raise HTTPException(status_code=422, detail="至少提交一个 PDF 文件")
+        yield files
+    finally:
+        await form.close()
+
+
+UPLOAD_OPENAPI = {
+    "requestBody": {
+        "required": True,
+        "content": {
+            "multipart/form-data": {
+                "schema": {
+                    "type": "object",
+                    "required": ["files"],
+                    "properties": {"files": {"type": "array", "items": {"type": "string", "format": "binary"}}},
+                }
+            }
+        },
+    }
+}
+
+
+@router.post(
+    "/materials/upload",
+    openapi_extra=UPLOAD_OPENAPI,
+    responses={
+        413: {"description": "Configured multipart file/count/aggregate envelope exceeded"},
+        507: {"description": "Temporary upload storage preflight failed before body consumption"},
+    },
+)
 async def upload_materials(
-    files: list[UploadFile] = File(...),
+    files: list[UploadFile] = Depends(bounded_material_upload_files),
     user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db),
 ):
     try:
         return await upload_input_pdfs(files, user_id, db)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=413, detail=str(exc))
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"上传 PDF 失败: {exc}")
+
+
+@router.get("/materials/upload/capabilities")
+def upload_capabilities(user_id: str = Depends(get_user_id)):
+    del user_id
+    return pdf_upload_capabilities()
 
 
 @router.get("/materials/pipeline/status")
@@ -881,13 +945,17 @@ def pipeline_preflight(
             payload.limit = len(snapshot)
         else:
             snapshot = []
-        result = run_pipeline_preflight(
-            payload.limit,
-            material_id=payload.material_id,
-            input_object=payload.input_object,
-            material_ids=payload.material_ids,
-            input_objects=payload.input_objects,
-            reprocess_completed=payload.reprocess_completed,
+        result = (
+            run_cloud_deferred_pipeline_preflight(snapshot, reprocess_completed=payload.reprocess_completed)
+            if os.getenv("COMPSHARE_LIFECYCLE_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
+            else run_pipeline_preflight(
+                payload.limit,
+                material_id=payload.material_id,
+                input_object=payload.input_object,
+                material_ids=payload.material_ids,
+                input_objects=payload.input_objects,
+                reprocess_completed=payload.reprocess_completed,
+            )
         )
         result = apply_pipeline_resource_gate(result, snapshot)
         result["snapshot"] = snapshot
@@ -907,6 +975,10 @@ def start_pipeline(
     db: Session = Depends(get_db),
 ):
     try:
+        if payload.apply:
+            user = db.query(User).filter(User.id == int(user_id)).first()
+            if not user or not is_pipeline_admin(user):
+                raise HTTPException(status_code=403, detail="仅管线管理员可启动或唤醒 GPU 解析任务")
         if payload.reprocess_completed:
             user = db.query(User).filter(User.id == int(user_id)).first()
             if not user or not is_pipeline_admin(user):

@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Download, Refresh, Search, UploadFilled } from '@element-plus/icons-vue'
 import { materialsApi } from '@/api/materials'
-import type { MaterialArtifactCatalog, MaterialItem, MaterialLineage, MaterialUploadResponse, PipelinePreflightResponse } from '@/types/material'
+import type { MaterialArtifactCatalog, MaterialItem, MaterialLineage, MaterialUploadResponse, PdfUploadCapabilities, PipelinePreflightResponse } from '@/types/material'
 import { formatFileSize } from '@/utils/format'
 import { formatDateTime } from '@/utils/status'
 import { ensureCurrentUser, fetchCurrentUser, useCurrentUser } from '@/utils/user'
@@ -22,6 +22,7 @@ const loading = ref(false)
 const uploading = ref(false)
 const uploadProgress = ref(0)
 const uploadResults = ref<MaterialUploadResponse['files']>([])
+const uploadCapabilities = ref<PdfUploadCapabilities | null>(null)
 const rows = ref<MaterialItem[]>([])
 const total = ref(0)
 const page = ref(Number(route.query.page) || 1)
@@ -54,6 +55,12 @@ const catalog = ref<MaterialArtifactCatalog | null>(null)
 const lineage = ref<MaterialLineage | null>(null)
 
 const selectionValid = computed(() => selected.value.length > 0 && selected.value.length <= 5)
+const uploadLimitText = computed(() => {
+  const value = uploadCapabilities.value
+  if (!value) return '正在读取服务器上传限制…'
+  const aggregateGiB = value.max_request_bytes / (1024 ** 3)
+  return `单文件 ${value.max_file_label} / ${value.max_file_pages} 页；单次最多 ${value.max_request_files} 本、合计 ${aggregateGiB.toFixed(aggregateGiB % 1 ? 1 : 0)} GiB。大文件上传后仍需 GPU 资源预检。`
+})
 const uploadResumeKey = 'luceon-upload-resume'
 
 function readUploadResumeContext() {
@@ -151,6 +158,15 @@ async function uploadFiles(event: Event) {
     ElMessage.error('只能上传 PDF 文件')
     input.value = ''
     return
+  }
+  const capability = uploadCapabilities.value
+  if (capability) {
+    const totalBytes = files.reduce((sum, file) => sum + file.size, 0)
+    if (files.length > capability.max_request_files || totalBytes > capability.max_request_bytes || files.some(file => file.size > capability.max_file_bytes)) {
+      ElMessage.error(`所选文件超过服务器当前包络：${uploadLimitText.value}`)
+      input.value = ''
+      return
+    }
   }
   try {
     await fetchCurrentUser()
@@ -303,6 +319,7 @@ watch(page, load)
 onMounted(async () => {
   readUploadResumeContext()
   try { await ensureCurrentUser() } catch { /* API will enforce authorization */ }
+  try { uploadCapabilities.value = await materialsApi.getUploadCapabilities() } catch { /* upload API remains authoritative */ }
   await load()
 })
 </script>
@@ -314,6 +331,7 @@ onMounted(async () => {
         <span class="workspace-kicker">Stage 1 · digital assets</span>
         <h1>PDF 资产</h1>
         <p>上传、去重、检索与下载原始或阶段性数字资产；任务执行在独立工作台追踪。</p>
+        <p class="mono-note">{{ uploadLimitText }}</p>
       </div>
       <div class="workspace-actions">
         <input ref="fileInput" hidden type="file" accept="application/pdf,.pdf" multiple @change="uploadFiles" />
@@ -323,6 +341,15 @@ onMounted(async () => {
     </header>
 
     <el-progress v-if="uploading" :percentage="uploadProgress" :stroke-width="5" />
+
+    <el-alert
+      v-if="uploadCapabilities && !uploadCapabilities.internal_2gib_2000_profile_qualified"
+      type="warning"
+      :closable="false"
+      show-icon
+      title="当前部署上传限制低于公司内部 2 GiB / 2000 页资格基线"
+      :description="uploadCapabilities.internal_profile_gap.join('；')"
+    />
 
     <section v-if="uploadResumeContext && !uploading" class="workspace-panel">
       <el-alert
@@ -350,6 +377,21 @@ onMounted(async () => {
           <template #default="{ row }">
             <el-tag :type="row.status === 'failed' ? 'danger' : row.status === 'duplicate' ? 'warning' : 'success'">
               {{ row.status === 'duplicate' ? '已去重' : row.status === 'success' ? '已新建' : '失败' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="输入冻结" width="125">
+          <template #default="{ row }">
+            <StageStatusBadge
+              :status="row.material?.pipeline_status === 'input_frozen' ? 'succeeded' : 'needs_review'"
+              :label="row.material?.pipeline_status === 'input_frozen' ? 'input_frozen' : (row.material?.pipeline_status || '未形成')"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column label="GPU 资格" width="180">
+          <template #default="{ row }">
+            <el-tag :type="row.eligibility_status === 'gpu_eligible' ? 'success' : row.eligibility_status === 'uploaded_but_gpu_resource_review' ? 'warning' : 'danger'">
+              {{ row.eligibility_status === 'gpu_eligible' ? '可进入资源预检' : row.eligibility_status === 'uploaded_but_gpu_resource_review' ? '已上传，待 GPU 资源审阅' : '配置拒绝' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -387,7 +429,22 @@ onMounted(async () => {
       </div>
 
       <div class="workspace-table">
-        <el-table v-loading="loading" :data="rows" row-key="id" height="calc(100vh - 284px)" @selection-change="onSelectionChange">
+        <div class="mobile-record-list" aria-label="PDF 资产列表">
+          <article v-for="row in rows" :key="`mobile-${row.id}`" class="mobile-record-card">
+            <MaterialIdentity :filename="row.filename" :material-id="row.material_id" :material-pk="row.id" :sha256="row.input_sha256" />
+            <dl class="mobile-record-facts">
+              <div><dt>规格</dt><dd>{{ formatFileSize(row.size) }} · {{ row.page_count || '—' }} 页</dd></div>
+              <div><dt>解析阶段</dt><dd>{{ row.popo_available ? '解析已完成（已冻结）' : '解析未完成' }}</dd></div>
+              <div><dt>输入状态</dt><dd>{{ row.pipeline_status || row.stage_status || '未形成' }}</dd></div>
+            </dl>
+            <div class="inline-actions">
+              <el-button link @click="openDetail(row)">资产与追溯</el-button>
+              <el-button link @click="createMetadataJob(row)">AI 编目</el-button>
+              <el-button v-if="row.popo_available" link @click="openRefinement(row)">{{ latestWorkflowV2JobId(row) ? '查看精修' : '进入精修' }}</el-button>
+            </div>
+          </article>
+        </div>
+        <el-table v-loading="loading" :data="rows" row-key="id" max-height="calc(100vh - 284px)" class="workspace-data-table" @selection-change="onSelectionChange">
           <el-table-column type="selection" width="46" />
           <el-table-column label="PDF / 身份" min-width="310">
             <template #default="{ row }"><MaterialIdentity :filename="row.filename" :material-id="row.material_id" :material-pk="row.id" :sha256="row.input_sha256" /></template>
@@ -398,7 +455,7 @@ onMounted(async () => {
           <el-table-column label="可用精修产物" width="155"><template #default="{ row }"><StageStatusBadge :status="row.refinement_output_status" :label="refinementOutputLabel(row)" /></template></el-table-column>
           <el-table-column label="最新精修任务" width="145"><template #default="{ row }"><StageStatusBadge :status="row.latest_refinement_status" :label="latestRefinementLabel(row)" /></template></el-table-column>
           <el-table-column label="更新时间" width="166"><template #default="{ row }">{{ formatDateTime(row.last_synced_at || row.created_at || '') }}</template></el-table-column>
-          <el-table-column label="操作" width="260" fixed="right">
+          <el-table-column label="操作" width="260">
             <template #default="{ row }">
               <el-button link @click="openDetail(row)">资产与追溯</el-button>
               <el-button link @click="createMetadataJob(row)">AI 编目</el-button>

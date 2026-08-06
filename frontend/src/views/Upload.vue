@@ -259,11 +259,11 @@ const handleUpload = async () => {
         return {
           ...file,
           status: uploaded ? 'success' : 'error',
-          message: uploaded ? '已进入解析队列' : '上传结果未确认'
+          message: uploaded ? '已上传；PDF 请在“PDF 资产”页创建解析批次' : '上传结果未确认'
         }
       })
       uploadProgress.value = 100
-      uploadResultMessage.value = `成功上传 ${result.total} 个文件，已进入解析队列`
+      uploadResultMessage.value = `成功上传 ${result.total} 个文件；上传完成不代表 GPU 已提交或正在解析`
       ElMessage.success(uploadResultMessage.value)
       uploadRef.value?.clearFiles()
     } else {

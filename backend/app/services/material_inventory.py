@@ -3,8 +3,10 @@ import json
 import os
 import posixpath
 import subprocess
+import tempfile
 import threading
 import time
+import shutil
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -46,6 +48,8 @@ from app.services.material_task_queue import (
     touch_pipeline_lease,
 )
 from app.services.runtime_settings import pipeline_env
+from app.services.compshare_lifecycle import CompShareConfig
+from app.services.upload_policy import load_pdf_upload_policy
 
 
 INPUT_BUCKET = "eduassets-input"
@@ -60,12 +64,16 @@ STANDARD_BUCKET = "eduassets-standard"
 DEFAULT_PIPELINE_SCRIPT = str(Path(__file__).resolve().parents[2] / "scripts" / "luceon_pdf_pipeline.py")
 PIPELINE_SCRIPT = os.getenv("LUCEON_PIPELINE_SCRIPT", DEFAULT_PIPELINE_SCRIPT)
 PIPELINE_WORKDIR = os.getenv("LUCEON_PIPELINE_WORKDIR", str(Path(PIPELINE_SCRIPT).resolve().parent))
-LARGE_PDF_THRESHOLD_BYTES = 256 * 1024 * 1024
-LARGE_PDF_PAGE_THRESHOLD = 1000
-LARGE_PDF_MIN_HEADROOM_BYTES = 8 * 1024 * 1024 * 1024
-LARGE_PDF_EXPANSION_FACTOR = 12
-DEFAULT_PIPELINE_WAIT_TIMEOUT_SECONDS = 2 * 60 * 60
-LARGE_PDF_PIPELINE_WAIT_TIMEOUT_SECONDS = 6 * 60 * 60
+_UPLOAD_POLICY = load_pdf_upload_policy()
+LARGE_PDF_THRESHOLD_BYTES = _UPLOAD_POLICY.large_pdf_threshold_bytes
+LARGE_PDF_PAGE_THRESHOLD = _UPLOAD_POLICY.large_pdf_page_threshold
+LARGE_PDF_MIN_HEADROOM_BYTES = _UPLOAD_POLICY.min_gpu_headroom_bytes
+LARGE_PDF_EXPANSION_FACTOR = _UPLOAD_POLICY.expansion_factor
+DEFAULT_PIPELINE_WAIT_TIMEOUT_SECONDS = _UPLOAD_POLICY.default_stage_timeout_seconds
+LARGE_PDF_PIPELINE_WAIT_TIMEOUT_SECONDS = _UPLOAD_POLICY.large_stage_timeout_seconds
+UPLOAD_CHUNK_BYTES = _UPLOAD_POLICY.upload_chunk_bytes
+MAX_UPLOAD_PDF_BYTES = _UPLOAD_POLICY.max_file_bytes
+MAX_UPLOAD_PDF_PAGES = _UPLOAD_POLICY.max_file_pages
 
 
 class PipelinePreflightError(RuntimeError):
@@ -563,71 +571,158 @@ def sync_pipeline_run_inventory(db: Session, user_id: str, run_id: int) -> dict[
     return {"materials": synced}
 
 
+def _readback_pdf_identity(bucket: str, object_name: str) -> tuple[int, str]:
+    response = minio_client.get_object(bucket, object_name)
+    remote_digest = hashlib.sha256()
+    remote_size = 0
+    try:
+        for chunk in response.stream(UPLOAD_CHUNK_BYTES):
+            remote_digest.update(chunk)
+            remote_size += len(chunk)
+    finally:
+        response.close()
+        response.release_conn()
+    return remote_size, remote_digest.hexdigest()
+
+
 async def upload_input_pdfs(files: list[UploadFile], user_id: str, db: Session) -> dict[str, Any]:
+    policy = load_pdf_upload_policy()
     results = []
+    if len(files) > policy.max_request_files:
+        raise ValueError(f"单次请求最多 {policy.max_request_files} 个 PDF")
+    declared_sizes = [max(0, int(getattr(item, "size", 0) or 0)) for item in files]
+    if sum(declared_sizes) > policy.max_request_bytes:
+        raise ValueError(f"上传请求总字节超过配置上限 {policy.max_request_bytes}")
+    Path(policy.temp_dir).mkdir(parents=True, exist_ok=True)
+    required_free = policy.min_local_temp_free_bytes + max(declared_sizes or [0])
+    if shutil.disk_usage(policy.temp_dir).free < required_free:
+        raise ValueError("上传临时目录空间不足，multipart 已落盘但无法安全完成 PDF 冻结")
     for file in files:
         filename = Path(file.filename or "untitled.pdf").name
         if not filename.lower().endswith(".pdf"):
             results.append({"filename": filename, "status": "failed", "error_message": "仅支持 PDF"})
             continue
-        data = await file.read()
-        sha256 = hashlib.sha256(data).hexdigest()
-        material_id = material_id_from_sha256(sha256)
+        temp_path = ""
+        created_object_name = ""
         try:
-            with fitz.open(stream=data, filetype="pdf") as document:
+            digest = hashlib.sha256()
+            size_bytes = 0
+            with tempfile.NamedTemporaryFile(
+                prefix="luceon-pdf-upload-", suffix=".pdf", delete=False, dir=policy.temp_dir
+            ) as staged:
+                temp_path = staged.name
+                first_chunk = True
+                while True:
+                    chunk = await file.read(UPLOAD_CHUNK_BYTES)
+                    if not chunk:
+                        break
+                    if first_chunk:
+                        first_chunk = False
+                        if not chunk.startswith(b"%PDF-"):
+                            raise ValueError("文件内容不是 PDF")
+                    size_bytes += len(chunk)
+                    effective_max_bytes = min(policy.max_file_bytes, MAX_UPLOAD_PDF_BYTES)
+                    if size_bytes > effective_max_bytes:
+                        raise ValueError(f"PDF 超过服务器限制 {effective_max_bytes} bytes")
+                    if sum(item.get("size_bytes", 0) for item in results) + size_bytes > policy.max_request_bytes:
+                        raise ValueError(f"上传请求总字节超过配置上限 {policy.max_request_bytes}")
+                    digest.update(chunk)
+                    staged.write(chunk)
+                staged.flush()
+                os.fsync(staged.fileno())
+            if size_bytes == 0:
+                raise ValueError("PDF 文件为空")
+            sha256 = digest.hexdigest()
+            material_id = material_id_from_sha256(sha256)
+            with fitz.open(temp_path) as document:
                 page_count = int(document.page_count)
-        except Exception:
-            results.append({"filename": filename, "status": "failed", "error_message": "PDF 文件无法读取"})
-            continue
-        existing = (
-            db.query(Material)
-            .filter(
-                Material.user_id == user_id,
-                Material.ignored.is_(False),
-                (Material.input_sha256 == sha256) | (Material.material_id == material_id),
+                if page_count <= 0:
+                    raise ValueError("PDF 没有可读取页面")
+                effective_max_pages = min(policy.max_file_pages, MAX_UPLOAD_PDF_PAGES)
+                if page_count > effective_max_pages:
+                    raise ValueError(f"PDF 超过服务器页数限制 {effective_max_pages}")
+                if document.needs_pass:
+                    raise ValueError("PDF 已加密，无法冻结处理")
+            existing = (
+                db.query(Material)
+                .filter(
+                    Material.user_id == user_id,
+                    Material.ignored.is_(False),
+                    (Material.input_sha256 == sha256) | (Material.material_id == material_id),
+                )
+                .order_by(Material.id.asc())
+                .first()
             )
-            .order_by(Material.id.asc())
-            .first()
-        )
-        if existing:
-            existing.input_sha256 = existing.input_sha256 or sha256
-            existing.size_bytes = existing.size_bytes or len(data)
-            existing.page_count = existing.page_count or page_count
-            results.append({"filename": filename, "status": "duplicate", "material": existing.to_dict()})
-            continue
-        object_name = filename
-        if object_exists(INPUT_BUCKET, object_name):
-            stem = Path(filename).stem
-            suffix = Path(filename).suffix
-            object_name = f"{stem}-{sha256[:8]}{suffix}"
-        minio_client.put_object(
-            INPUT_BUCKET,
-            object_name,
-            BytesIO(data),
-            length=len(data),
-            content_type=file.content_type or "application/pdf",
-        )
-        material = upsert_material(
-            db,
-            user_id,
-            filename,
-            filename,
-            material_id=material_id,
-            input_ref=ObjectRef(INPUT_BUCKET, object_name),
-            source_type="uploaded",
-        )
-        material.input_sha256 = sha256
-        material.size_bytes = len(data)
-        material.page_count = page_count
-        material.content_type = file.content_type or "application/pdf"
-        material.promote_stage("input")
-        asset = ensure_input_review_asset(db, user_id, INPUT_BUCKET, object_name)
-        assign_input_review_asset(material, asset)
-        link_review_asset(db, material)
-        db.flush()
-        results.append({"filename": filename, "status": "success", "material": material.to_dict()})
-    db.commit()
+            if existing:
+                duplicate_bucket = str(existing.input_bucket or INPUT_BUCKET)
+                duplicate_object = str(existing.input_object or "")
+                if not duplicate_object or not object_exists(duplicate_bucket, duplicate_object):
+                    raise ValueError("重复 PDF 的既有 MinIO 冻结对象缺失")
+                remote_size, remote_sha256 = _readback_pdf_identity(duplicate_bucket, duplicate_object)
+                if remote_size != size_bytes or remote_sha256 != sha256:
+                    raise ValueError("重复 PDF 的既有 MinIO 对象 SHA/size 漂移")
+                existing.input_sha256 = existing.input_sha256 or sha256
+                existing.size_bytes = existing.size_bytes or size_bytes
+                existing.page_count = existing.page_count or page_count
+                results.append({"filename": filename, "status": "duplicate", "size_bytes": size_bytes, "eligibility_status": "uploaded_but_gpu_resource_review" if size_bytes >= policy.large_pdf_threshold_bytes or page_count >= policy.large_pdf_page_threshold else "gpu_eligible", "material": existing.to_dict()})
+                continue
+            object_name = f"pdf/{material_id}/{sha256}.pdf"
+            if not object_exists(INPUT_BUCKET, object_name):
+                with open(temp_path, "rb") as source:
+                    minio_client.put_object(
+                        INPUT_BUCKET,
+                        object_name,
+                        source,
+                        length=size_bytes,
+                        content_type="application/pdf",
+                        metadata={"sha256": sha256, "material-id": material_id},
+                    )
+                created_object_name = object_name
+            remote_size, remote_sha256 = _readback_pdf_identity(INPUT_BUCKET, object_name)
+            if remote_size != size_bytes or remote_sha256 != sha256:
+                raise ValueError("本地 MinIO 独立回读 SHA/size 不一致")
+            material = upsert_material(
+                db,
+                user_id,
+                filename,
+                filename,
+                material_id=material_id,
+                input_ref=ObjectRef(INPUT_BUCKET, object_name),
+                source_type="uploaded",
+            )
+            material.input_sha256 = sha256
+            material.size_bytes = size_bytes
+            material.page_count = page_count
+            material.content_type = "application/pdf"
+            material.pipeline_status = "input_frozen"
+            material.promote_stage("input")
+            asset = ensure_input_review_asset(db, user_id, INPUT_BUCKET, object_name)
+            assign_input_review_asset(material, asset)
+            link_review_asset(db, material)
+            db.flush()
+            db.commit()
+            results.append({"filename": filename, "status": "success", "size_bytes": size_bytes, "eligibility_status": "uploaded_but_gpu_resource_review" if size_bytes >= policy.large_pdf_threshold_bytes or page_count >= policy.large_pdf_page_threshold else "gpu_eligible", "material": material.to_dict()})
+        except ValueError as exc:
+            db.rollback()
+            if created_object_name:
+                try:
+                    minio_client.remove_object(INPUT_BUCKET, created_object_name)
+                except Exception:
+                    pass
+            results.append({"filename": filename, "status": "failed", "size_bytes": 0, "eligibility_status": "rejected_by_config", "error_message": str(exc)})
+        except Exception as exc:
+            db.rollback()
+            if created_object_name:
+                try:
+                    minio_client.remove_object(INPUT_BUCKET, created_object_name)
+                except Exception:
+                    pass
+            results.append({"filename": filename, "status": "failed", "size_bytes": 0, "eligibility_status": "rejected_by_config", "error_message": f"PDF 冻结失败: {exc}"})
+        finally:
+            if temp_path:
+                Path(temp_path).unlink(missing_ok=True)
     return {
+        "upload_policy_sha256": policy.identity_sha256(),
         "total": len(results),
         "success": sum(1 for item in results if item["status"] in {"success", "duplicate"}),
         "duplicates": sum(1 for item in results if item["status"] == "duplicate"),
@@ -659,16 +754,17 @@ def create_pipeline_event(db: Session, run: PipelineRun, message: str, stage: st
 
 
 def pipeline_limit(limit: int) -> int:
-    return max(1, min(int(limit or 5), 5))
+    return max(1, min(int(limit or 5), load_pdf_upload_policy().max_gpu_batch_files))
 
 
 def pipeline_wait_timeout_seconds(snapshot: list[dict[str, Any]]) -> int:
+    policy = load_pdf_upload_policy()
     is_large = any(
-        int(row.get("size_bytes") or 0) >= LARGE_PDF_THRESHOLD_BYTES
-        or int(row.get("page_count") or 0) >= LARGE_PDF_PAGE_THRESHOLD
+        int(row.get("size_bytes") or 0) >= policy.large_pdf_threshold_bytes
+        or int(row.get("page_count") or 0) >= policy.large_pdf_page_threshold
         for row in snapshot
     )
-    return LARGE_PDF_PIPELINE_WAIT_TIMEOUT_SECONDS if is_large else DEFAULT_PIPELINE_WAIT_TIMEOUT_SECONDS
+    return policy.large_stage_timeout_seconds if is_large else policy.default_stage_timeout_seconds
 
 
 def _pipeline_target_values(single: str, multiple: list[str] | tuple[str, ...] | None) -> list[str]:
@@ -982,6 +1078,60 @@ def run_pipeline_preflight(
     return payload
 
 
+def run_cloud_deferred_pipeline_preflight(
+    snapshot: list[dict[str, Any]],
+    *,
+    reprocess_completed: bool = False,
+) -> dict[str, Any]:
+    """Plan exact inputs without assuming a stopped GPU wrapper is online.
+
+    Cloud lifecycle mutation remains worker-only. This check proves the local
+    frozen denominator and lifecycle configuration; SSH/wrapper/GPU/disk are
+    deliberately reported as deferred and are revalidated after Running.
+    """
+    config = CompShareConfig.from_env()
+    missing = config.missing_fields()
+    if missing:
+        return {
+            "ready": False,
+            "status": "CLOUD_CONFIG_INCOMPLETE",
+            "checked_at": datetime.utcnow().isoformat(),
+            "selected_count": len(snapshot),
+            "cloud": {"configured": False, "missing_fields": missing, **config.public_identity()},
+        }
+    if not snapshot or any(not row.get("input_sha256") or not row.get("input_object") for row in snapshot):
+        return {
+            "ready": False,
+            "status": "INPUT_SNAPSHOT_INCOMPLETE",
+            "checked_at": datetime.utcnow().isoformat(),
+            "selected_count": len(snapshot),
+            "cloud": {"configured": True, **config.public_identity()},
+        }
+    identities = [str(row["input_sha256"]) for row in snapshot]
+    if len(identities) != len(set(identities)):
+        return {
+            "ready": False,
+            "status": "DUPLICATE_INPUT_IDENTITY",
+            "checked_at": datetime.utcnow().isoformat(),
+            "selected_count": len(snapshot),
+            "cloud": {"configured": True, **config.public_identity()},
+        }
+    return {
+        "ready": True,
+        "status": "CLOUD_LIFECYCLE_DEFERRED",
+        "checked_at": datetime.utcnow().isoformat(),
+        "selected_count": len(snapshot),
+        "gpu_ok": False,
+        "staged_api_ok": False,
+        "readiness_deferred_until_running": True,
+        "cloud": {"configured": True, "describe_first": True, **config.public_identity()},
+        "snapshot_sha256": hashlib.sha256(
+            json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest(),
+        "reprocess_completed": bool(reprocess_completed),
+    }
+
+
 def apply_pipeline_resource_gate(
     payload: dict[str, Any],
     snapshot: list[dict[str, Any]] | None = None,
@@ -996,13 +1146,14 @@ def apply_pipeline_resource_gate(
     max_page_count = max(
         [max(0, int(row.get("page_count") or 0)) for row in rows if isinstance(row, dict)] or [0]
     )
+    policy = load_pdf_upload_policy()
     large_pdf_count = sum(
         1
         for row in rows
         if isinstance(row, dict)
         and (
-            int(row.get("size_bytes") or row.get("source_pdf_size_bytes") or 0) >= LARGE_PDF_THRESHOLD_BYTES
-            or int(row.get("page_count") or 0) >= LARGE_PDF_PAGE_THRESHOLD
+            int(row.get("size_bytes") or row.get("source_pdf_size_bytes") or 0) >= policy.large_pdf_threshold_bytes
+            or int(row.get("page_count") or 0) >= policy.large_pdf_page_threshold
         )
     )
     gate: dict[str, Any] = {
@@ -1012,10 +1163,40 @@ def apply_pipeline_resource_gate(
         "large_pdf_count": large_pdf_count,
         "selected_input_bytes": total_input_bytes,
         "max_page_count": max_page_count,
-        "large_pdf_threshold_bytes": LARGE_PDF_THRESHOLD_BYTES,
-        "large_pdf_page_threshold": LARGE_PDF_PAGE_THRESHOLD,
+        "large_pdf_threshold_bytes": policy.large_pdf_threshold_bytes,
+        "large_pdf_page_threshold": policy.large_pdf_page_threshold,
     }
+    if len(rows) > policy.max_gpu_batch_files or total_input_bytes > policy.max_gpu_batch_input_bytes:
+        gate.update(
+            {
+                "ok": False,
+                "status": "rejected_by_config",
+                "reason": "解析批次超过配置的文件数或总字节上限",
+                "max_gpu_batch_files": policy.max_gpu_batch_files,
+                "max_gpu_batch_input_bytes": policy.max_gpu_batch_input_bytes,
+            }
+        )
+        payload["resource_gate"] = gate
+        return payload
     if large_pdf_count == 0:
+        payload["resource_gate"] = gate
+        return payload
+
+    # A stopped cloud instance has no observable wrapper quota or remote disk
+    # until the worker has completed Describe/Start, SSH and service readiness.
+    # Preserve the denominator and explicitly defer this measurement.
+    if payload.get("status") == "CLOUD_LIFECYCLE_DEFERRED":
+        gate.update(
+            {
+                "ok": True,
+                "status": "deferred_until_gpu_ready",
+                "required_headroom_bytes": max(
+                    policy.min_gpu_headroom_bytes,
+                    int(total_input_bytes * float(policy.expansion_factor)),
+                ),
+                "reason": "远端磁盘与 Wrapper 配额将在实例 Running 后由 Worker 重新核验",
+            }
+        )
         payload["resource_gate"] = gate
         return payload
 
@@ -1043,8 +1224,8 @@ def apply_pipeline_resource_gate(
             continue
         if factor > 0:
             historical_factors.append(factor)
-    expansion_factor = max([float(LARGE_PDF_EXPANSION_FACTOR), *historical_factors])
-    required = max(LARGE_PDF_MIN_HEADROOM_BYTES, int(total_input_bytes * expansion_factor))
+    expansion_factor = max([float(policy.expansion_factor), *historical_factors])
+    required = max(policy.min_gpu_headroom_bytes, int(total_input_bytes * expansion_factor))
     available_candidates = [value for value in (quota_available, disk_available) if value > 0]
     available = min(available_candidates) if len(available_candidates) == 2 else 0
     gate.update(
@@ -1099,6 +1280,18 @@ def start_pipeline_run(
     if apply and not resolved_pks:
         raise MaterialTaskError("正式解析必须提交明确的材料快照")
     snapshot = material_snapshot(db, user_id, resolved_pks) if resolved_pks else []
+    if apply and snapshot and not reprocess_completed:
+        completed = [
+            str(row.get("material_id") or row.get("filename") or row.get("material_pk"))
+            for row in snapshot
+            if str((row.get("popo_manifest") or {}).get("bucket") or "")
+            and str((row.get("popo_manifest") or {}).get("object") or "")
+        ]
+        if completed:
+            raise MaterialTaskError(
+                "材料已存在冻结 Popo 结果，普通重试不会重复提交 GPU；如需新版本请使用管理员 reprocess："
+                + ", ".join(completed)
+            )
     if snapshot:
         material_ids = [str(row["material_id"]) for row in snapshot]
         input_objects = [str(row["input_object"]) for row in snapshot]
@@ -1117,21 +1310,22 @@ def start_pipeline_run(
         if active.user_id == user_id and idempotency_key and active.idempotency_key == idempotency_key:
             return active
         raise MaterialTaskError("已有解析任务占用串行GPU队列")
-    preflight = (
-        apply_pipeline_resource_gate(
-            run_pipeline_preflight(
+    cloud_lifecycle_enabled = os.getenv("COMPSHARE_LIFECYCLE_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
+    preflight = None
+    if apply:
+        preflight = (
+            run_cloud_deferred_pipeline_preflight(snapshot, reprocess_completed=reprocess_completed)
+            if cloud_lifecycle_enabled
+            else run_pipeline_preflight(
                 limit,
                 material_id=material_id,
                 input_object=input_object,
                 material_ids=material_ids,
                 input_objects=input_objects,
                 reprocess_completed=reprocess_completed,
-            ),
-            snapshot,
+            )
         )
-        if apply
-        else None
-    )
+        preflight = apply_pipeline_resource_gate(preflight, snapshot)
     if apply and not bool(preflight and preflight.get("ready")):
         raise PipelinePreflightError(preflight or {})
     run = PipelineRun(
@@ -1454,7 +1648,10 @@ def run_pipeline_subprocess(
         run.failed = counts["failed"]
         run.finished_at = datetime.utcnow()
         outcome = pipeline_run_outcome(payload, returncode, apply)
-        summary = {"returncode": returncode, "result": payload}
+        # GPU lifecycle ownership/readiness is recorded before the subprocess
+        # starts.  Preserve that immutable context when adding the terminal
+        # pipeline result instead of replacing it.
+        summary = {**run.summary(), "returncode": returncode, "result": payload}
         if returncode != 0 or error:
             summary.update({"stdout_tail": output, "stderr_tail": error})
         run.summary_json = json.dumps(summary, ensure_ascii=False)
