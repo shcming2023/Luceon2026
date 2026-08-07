@@ -14,5 +14,5 @@ from .material import (
 from .material_metadata import MaterialMetadata
 from .parsed_content import ParsedContent
 from .review_asset import ReviewAsset
-from .settings import Settings
+from .settings import GpuRuntimeSetting, Settings
 from .user import User

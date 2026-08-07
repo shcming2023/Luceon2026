@@ -54,6 +54,7 @@ from app.services.material_inventory import (
 )
 from app.services.upload_policy import pdf_upload_capabilities
 from app.services.upload_policy import load_pdf_upload_policy
+from app.services.gpu_runtime_settings import load_snapshot as load_gpu_runtime_snapshot
 from app.services.material_metadata import (
     MetadataExtractionError,
     extract_metadata_with_ai,
@@ -945,9 +946,10 @@ def pipeline_preflight(
             payload.limit = len(snapshot)
         else:
             snapshot = []
+        gpu_settings = load_gpu_runtime_snapshot(db)
         result = (
-            run_cloud_deferred_pipeline_preflight(snapshot, reprocess_completed=payload.reprocess_completed)
-            if os.getenv("COMPSHARE_LIFECYCLE_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
+            run_cloud_deferred_pipeline_preflight(snapshot, reprocess_completed=payload.reprocess_completed, gpu_settings=gpu_settings)
+            if gpu_settings.effective_automatic
             else run_pipeline_preflight(
                 payload.limit,
                 material_id=payload.material_id,
@@ -957,7 +959,8 @@ def pipeline_preflight(
                 reprocess_completed=payload.reprocess_completed,
             )
         )
-        result = apply_pipeline_resource_gate(result, snapshot)
+        result = apply_pipeline_resource_gate(result, snapshot, gpu_settings)
+        result["gpu_runtime"] = gpu_settings.public_dict()
         result["snapshot"] = snapshot
         return result
     except HTTPException:

@@ -22,9 +22,115 @@ from app.services.runtime_settings import (
     runtime_status,
     save_runtime_config,
 )
+from app.services.compshare_credentials import (
+    CompShareCredentialError,
+    delete_project_credentials,
+    write_project_credentials,
+)
+from app.services.compshare_lifecycle import CompShareConfig, CompShareLifecycleError, UCloudCompShareClient, exact_instance
+from app.services.gpu_runtime_settings import (
+    PROJECT_SECRET_PATH,
+    GpuRuntimeSettingError,
+    load_snapshot,
+    save_setting,
+)
 from app.utils.user_dep import require_runtime_admin
 
 router = APIRouter()
+
+
+def _gpu_setting_error(exc: Exception) -> HTTPException:
+    code = getattr(exc, "code", "gpu_runtime_setting_failed")
+    status = 409 if code in {"settings_version_conflict", "credential_missing"} else 400
+    return HTTPException(status_code=status, detail={"code": code, "message": str(exc)})
+
+
+@router.get("/runtime/gpu/automation")
+def get_gpu_automation(admin_user: User = Depends(require_runtime_admin), db: Session = Depends(get_db)):
+    _ = admin_user
+    return load_snapshot(db).public_dict()
+
+
+@router.put("/runtime/gpu/automation")
+def update_gpu_automation(
+    payload: dict[str, Any] = Body(...),
+    admin_user: User = Depends(require_runtime_admin),
+    db: Session = Depends(get_db),
+):
+    try:
+        save_setting(db, payload, user_id=str(admin_user.id))
+        db.commit()
+        return load_snapshot(db).public_dict()
+    except GpuRuntimeSettingError as exc:
+        db.rollback()
+        raise _gpu_setting_error(exc) from exc
+
+
+@router.get("/runtime/gpu/credentials")
+def get_gpu_credentials(admin_user: User = Depends(require_runtime_admin), db: Session = Depends(get_db)):
+    _ = admin_user
+    snapshot = load_snapshot(db)
+    return {"status": snapshot.credential_status, "present": snapshot.credential_status == "present", "source": snapshot.credential_provider}
+
+
+@router.put("/runtime/gpu/credentials")
+def update_gpu_credentials(payload: dict[str, Any] = Body(...), admin_user: User = Depends(require_runtime_admin), db: Session = Depends(get_db)):
+    _ = admin_user
+    if load_snapshot(db).credential_provider != "project_secret_file":
+        raise HTTPException(status_code=409, detail={"code":"credential_provider_mismatch","message":"Select project secret file before writing credentials from this page"})
+    if set(payload) != {"public_key", "private_key"}:
+        raise HTTPException(status_code=400, detail={"code": "credential_fields_invalid", "message": "Both credential fields are required"})
+    try:
+        return write_project_credentials(PROJECT_SECRET_PATH, payload["public_key"], payload["private_key"])
+    except CompShareCredentialError as exc:
+        raise _gpu_setting_error(exc) from exc
+
+
+@router.delete("/runtime/gpu/credentials")
+def remove_gpu_credentials(
+    payload: dict[str, Any] = Body(...),
+    admin_user: User = Depends(require_runtime_admin),
+    db: Session = Depends(get_db),
+):
+    try:
+        snapshot = load_snapshot(db)
+        if snapshot.credential_provider != "project_secret_file":
+            raise GpuRuntimeSettingError("credential_provider_mismatch", "Page deletion only manages the project secret file")
+        if snapshot.automatic_enabled:
+            raise GpuRuntimeSettingError("automatic_gpu_enabled", "Disable automatic GPU management before deleting credentials")
+        return delete_project_credentials(PROJECT_SECRET_PATH, str(payload.get("confirmation") or ""))
+    except (CompShareCredentialError, GpuRuntimeSettingError) as exc:
+        raise _gpu_setting_error(exc) from exc
+
+
+@router.post("/runtime/gpu/describe")
+def describe_gpu_instance(
+    admin_user: User = Depends(require_runtime_admin),
+    db: Session = Depends(get_db),
+):
+    _ = admin_user
+    snapshot = load_snapshot(db)
+    try:
+        config = CompShareConfig.from_runtime_snapshot(snapshot, project_secret_path=str(PROJECT_SECRET_PATH))
+        client = UCloudCompShareClient(config)
+        row = exact_instance(client.describe(), config.uhost_id)
+    except (CompShareLifecycleError, CompShareCredentialError) as exc:
+        raise _gpu_setting_error(exc) from exc
+    # Describe-only endpoint: no Start/Stop/scheduler call and no raw provider body.
+    return {
+        "status": "described",
+        "instance_state": str(row.get("State") or ""),
+        "uhost_id": config.uhost_id,
+        "region": config.region,
+        "zone": config.zone,
+        "endpoint_origin": config.public_identity()["endpoint_origin"],
+        "price_boundary": {
+            key: row[key]
+            for key in ("ChargeType", "ExpireTime", "InstancePrice", "SchedulerStopTime")
+            if key in row and isinstance(row[key], (str, int, float))
+        },
+        "mutation_performed": False,
+    }
 
 
 @router.get("/runtime/settings")

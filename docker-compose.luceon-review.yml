@@ -54,6 +54,8 @@ services:
       - GPU_WRAPPER_URL=${GPU_WRAPPER_URL:-${MINERU_API_URL:-http://host.docker.internal:8083}}
       - GPU_WRAPPER_API_KEY=${GPU_WRAPPER_API_KEY:-}
       - COMPSHARE_LIFECYCLE_ENABLED=${COMPSHARE_LIFECYCLE_ENABLED:-false}
+      - COMPSHARE_LIFECYCLE_KILL_SWITCH=${COMPSHARE_LIFECYCLE_KILL_SWITCH:-false}
+      - COMPSHARE_PROJECT_SECRET_FILE=/run/luceon-project-secrets/compshare.json
       - COMPSHARE_API_ENDPOINT=${COMPSHARE_API_ENDPOINT:-https://api.compshare.cn}
       - COMPSHARE_CREDENTIALS_FILE=/run/secrets/compshare_credentials
       - COMPSHARE_REGION=${COMPSHARE_REGION:-}
@@ -83,7 +85,7 @@ services:
       - LUCEON_MAX_GPU_BATCH_FILES=${LUCEON_MAX_GPU_BATCH_FILES:-5}
       - LUCEON_LARGE_PDF_THRESHOLD_BYTES=${LUCEON_LARGE_PDF_THRESHOLD_BYTES:-268435456}
       - LUCEON_LARGE_PDF_PAGE_THRESHOLD=${LUCEON_LARGE_PDF_PAGE_THRESHOLD:-1000}
-      - LUCEON_MIN_GPU_HEADROOM_BYTES=${LUCEON_MIN_GPU_HEADROOM_BYTES:-53687091200}
+      - LUCEON_MIN_GPU_HEADROOM_BYTES=${LUCEON_MIN_GPU_HEADROOM_BYTES:-12884901888}
       - WORKFLOW_V2_CANONICAL_OUTLINE_CACHE=/data/workflow-v2-model-cache/canonical-outline
       - LUCEON_PUBLIC_API_BASE_URL=${LUCEON_PUBLIC_API_BASE_URL:-}
       - CHROME_BIN=${CHROME_BIN:-/usr/bin/chromium}
@@ -121,6 +123,7 @@ services:
       - /Users/concm/.codex/skills/eduassets-raw-cleaner:/skills/eduassets-raw-cleaner:ro
       - /Users/concm/.codex/skills/refine-elegantbook-latex:/skills/refine-elegantbook-latex:ro
       - ${LUCEON_RUNTIME_ROOT:-./runtime}/worker-v3/releases:/worker-v3/releases:ro
+      - ${LUCEON_RUNTIME_ROOT:-./runtime}/secrets:/run/luceon-project-secrets
     secrets:
       - compshare_credentials
     depends_on:
@@ -201,6 +204,8 @@ services:
       - GPU_WRAPPER_URL=${GPU_WRAPPER_URL:-${MINERU_API_URL:-http://host.docker.internal:8083}}
       - GPU_WRAPPER_API_KEY=${GPU_WRAPPER_API_KEY:-}
       - COMPSHARE_LIFECYCLE_ENABLED=${COMPSHARE_LIFECYCLE_ENABLED:-false}
+      - COMPSHARE_LIFECYCLE_KILL_SWITCH=${COMPSHARE_LIFECYCLE_KILL_SWITCH:-false}
+      - COMPSHARE_PROJECT_SECRET_FILE=/run/luceon-project-secrets/compshare.json
       - COMPSHARE_API_ENDPOINT=${COMPSHARE_API_ENDPOINT:-https://api.compshare.cn}
       - COMPSHARE_CREDENTIALS_FILE=/run/secrets/compshare_credentials
       - COMPSHARE_REGION=${COMPSHARE_REGION:-}
@@ -228,6 +233,7 @@ services:
       - ${LUCEON_RUNTIME_ROOT:-./runtime}/backend:/data
       - ${GPU_SSH_KEY_PATH:-/Users/concm/.ssh/id_ed25519_trae_dev}:/root/.ssh/id_ed25519_trae_dev:ro
       - ${GPU_SSH_KNOWN_HOSTS_PATH:-/Users/concm/.ssh/known_hosts}:/root/.ssh/known_hosts:ro
+      - ${LUCEON_RUNTIME_ROOT:-./runtime}/secrets:/run/luceon-project-secrets:ro
     secrets:
       - compshare_credentials
     depends_on:
