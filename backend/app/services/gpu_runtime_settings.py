@@ -17,7 +17,7 @@ from app.services.compshare_credentials import (
 )
 
 
-SCHEMA = "luceon.gpu-runtime-setting/v2"
+SCHEMA = "luceon.gpu-runtime-setting/v3"
 GIB = 1024**3
 DEFAULT_MIN_FREE_DISK_BYTES = 12 * GIB
 ABSOLUTE_DISK_SAFETY_FLOOR_BYTES = 8 * GIB
@@ -51,6 +51,7 @@ class GpuRuntimeSnapshot:
     uhost_id: str
     ssh_host: str
     ssh_port: int
+    wrapper_remote_port: int
     budget_micro_cny: int
     min_free_disk_bytes: int
     disk_reserve_bytes: int
@@ -80,6 +81,7 @@ def _defaults() -> dict[str, Any]:
         "uhost_id": "",
         "ssh_host": "",
         "ssh_port": 22,
+        "wrapper_remote_port": 18080,
         "budget_micro_cny": MAX_BUDGET_MICRO_CNY,
         "min_free_disk_bytes": DEFAULT_MIN_FREE_DISK_BYTES,
         "disk_reserve_bytes": DEFAULT_DISK_RESERVE_BYTES,
@@ -118,6 +120,9 @@ def _validate(value: dict[str, Any]) -> dict[str, Any]:
     port = int(value.get("ssh_port") or 0)
     if not 1 <= port <= 65535:
         raise GpuRuntimeSettingError("ssh_port_invalid", "SSH port is invalid")
+    wrapper_port = int(value.get("wrapper_remote_port") or 0)
+    if not 1 <= wrapper_port <= 65535:
+        raise GpuRuntimeSettingError("wrapper_remote_port_invalid", "Wrapper remote port is invalid")
     stop_grace = int(value.get("stop_grace_seconds") or 0)
     if not 30 <= stop_grace <= 3600:
         raise GpuRuntimeSettingError("auto_stop_policy_invalid", "Stop grace must be between 30 and 3600 seconds")
@@ -130,6 +135,7 @@ def _validate(value: dict[str, Any]) -> dict[str, Any]:
         "disk_reserve_bytes": reserve,
         "expansion_factor": expansion,
         "ssh_port": port,
+        "wrapper_remote_port": wrapper_port,
         "stop_grace_seconds": stop_grace,
         # Automatic management is one product switch.  A managed lifecycle
         # always owns safe shutdown; manual mode never acquires ownership.

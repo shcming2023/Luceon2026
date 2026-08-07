@@ -12,7 +12,10 @@ from app.database import SessionLocal
 from app.services.material_inventory import pipeline_wait_timeout_seconds, popo_resume_command, run_pipeline_subprocess
 from app.services.gpu_pipeline_lifecycle import (
     acquire_gpu_for_pipeline,
+    mark_gpu_offline_before_submit_if_applicable,
     mark_lifecycle_failure,
+    mark_transport_pre_submit_failure,
+    qualify_pipeline_transport_for_submission,
     reconcile_stale_lifecycle_leases,
     release_gpu_after_pipeline,
 )
@@ -61,6 +64,18 @@ def consume_once(worker_id: str) -> dict | None:
                     timeout_seconds=pipeline_wait_timeout_seconds(snapshot),
                 )
                 start_message = "开始从冻结 MinerU 恢复 Popo"
+            subprocess_env = None
+            if lifecycle_lease is not None:
+                try:
+                    transport = qualify_pipeline_transport_for_submission(db, pipeline_run, lifecycle_lease)
+                    subprocess_env = {"GPU_WRAPPER_URL": str(transport["endpoint"])}
+                except Exception as exc:
+                    mark_transport_pre_submit_failure(db, pipeline_run, exc)
+                    db.expire_all()
+                    failed_run = db.query(type(pipeline_run)).filter(type(pipeline_run).id == pipeline_run.id).first()
+                    if failed_run:
+                        release_gpu_after_pipeline(db, failed_run, lifecycle_lease)
+                    return {"kind": "pipeline_run", "id": str(pipeline_run.id), "status": "gpu_transport_failed_before_submit"}
             try:
                 run_pipeline_subprocess(
                     pipeline_run.id,
@@ -72,7 +87,17 @@ def consume_once(worker_id: str) -> dict | None:
                     command_override=command_override,
                     start_message=start_message,
                     worker_id=worker_id,
+                    pipeline_env_override=subprocess_env,
                 )
+                # ``run-staged`` may return code 0 while reporting GPU_OFFLINE
+                # in its structured payload.  Preserve that payload, but
+                # classify the exact no-external-identity shape for the common
+                # failure stop authority rather than retaining an owned GPU.
+                if lifecycle_lease is not None:
+                    db.expire_all()
+                    terminal_run = db.query(type(pipeline_run)).filter(type(pipeline_run).id == pipeline_run.id).first()
+                    if terminal_run:
+                        mark_gpu_offline_before_submit_if_applicable(db, terminal_run)
             finally:
                 if lifecycle_lease is not None:
                     db.expire_all()

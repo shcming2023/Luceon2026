@@ -4,6 +4,8 @@ import hashlib
 import json
 import os
 import secrets
+import signal
+import socket
 import subprocess
 import time
 import urllib.error
@@ -11,6 +13,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Callable, Protocol
 
 from app.services.compshare_credentials import CompShareCredentialError, load_project_credentials, load_runtime_credentials
@@ -21,6 +24,7 @@ TRANSITION_STATES = {"Starting", "Initializing", "Stopping", "Rebooting", "Insta
 KNOWN_STATES = TERMINAL_STATES | TRANSITION_STATES
 OPERATION_LOCK_ERROR = "InstanceOperationInProgress"
 BILLING_NORMALIZATION_SCHEMA = "luceon.compshare-billing-normalization/v3"
+MANAGED_WRAPPER_TRANSPORT_SCHEMA = "luceon.managed-wrapper-transport/v2"
 
 
 def _utc_now() -> str:
@@ -58,6 +62,7 @@ class CompShareConfig:
     scheduler_guard_verify_max_observations: int = 3
     ssh_host: str = ""
     ssh_port: int = 22
+    wrapper_remote_port: int = 18080
     ssh_user: str = "root"
     ssh_key_path: str = ""
     ssh_known_hosts_path: str = ""
@@ -108,6 +113,7 @@ class CompShareConfig:
             state_lag_max_observations=max(0, int(os.getenv("COMPSHARE_STATE_LAG_MAX_OBSERVATIONS", "3"))),
             ssh_host=os.getenv("GPU_SSH_HOST", ""),
             ssh_port=int(os.getenv("GPU_SSH_PORT", "22")),
+            wrapper_remote_port=int(os.getenv("GPU_WRAPPER_TUNNEL_REMOTE_PORT", "18080")),
             ssh_user=os.getenv("GPU_SSH_USER", "root"),
             ssh_key_path=os.getenv("GPU_SSH_KEY_PATH_IN_CONTAINER", "/root/.ssh/id_ed25519_trae_dev"),
             ssh_known_hosts_path=os.getenv("GPU_SSH_KNOWN_HOSTS_PATH", "/root/.ssh/known_hosts"),
@@ -136,6 +142,7 @@ class CompShareConfig:
             private_key=credentials.private_key, region=str(snapshot.region), zone=str(snapshot.zone),
             project_id=str(snapshot.project_id), uhost_id=str(snapshot.uhost_id),
             ssh_host=str(snapshot.ssh_host), ssh_port=int(snapshot.ssh_port),
+            wrapper_remote_port=int(snapshot.wrapper_remote_port),
             ssh_user=os.getenv("GPU_SSH_USER", "root"),
             ssh_key_path=os.getenv("GPU_SSH_KEY_PATH_IN_CONTAINER", "/root/.ssh/id_ed25519_trae_dev"),
             ssh_known_hosts_path=os.getenv("GPU_SSH_KNOWN_HOSTS_PATH", "/root/.ssh/known_hosts"),
@@ -431,11 +438,15 @@ class LifecycleLease:
     readiness: dict[str, Any] = field(default_factory=dict)
     phase: str = "described"
     cost_guard: dict[str, Any] = field(default_factory=dict)
+    # The transport commitment contains only a loopback endpoint and SSH
+    # forwarding identity.  Credentials deliberately remain in the runtime
+    # secret provider and are never serialized into a lease.
+    transport: dict[str, Any] = field(default_factory=dict)
     updated_at: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         payload = {
-            "schema": "luceon.compshare-lifecycle-lease/v4",
+            "schema": "luceon.compshare-lifecycle-lease/v5",
             "lease_id": self.lease_id,
             "uhost_id": self.uhost_id,
             "prior_state": self.prior_state,
@@ -447,6 +458,7 @@ class LifecycleLease:
             "readiness": self.readiness,
             "phase": self.phase,
             "cost_guard": self.cost_guard,
+            "transport": self.transport,
             "updated_at": self.updated_at,
         }
         payload["lease_sha256"] = _canonical_sha(payload)
@@ -456,7 +468,7 @@ class LifecycleLease:
     def from_dict(cls, payload: dict[str, Any]) -> "LifecycleLease":
         raw = dict(payload or {})
         claimed = str(raw.pop("lease_sha256", ""))
-        if raw.get("schema") not in {"luceon.compshare-lifecycle-lease/v1", "luceon.compshare-lifecycle-lease/v2", "luceon.compshare-lifecycle-lease/v3", "luceon.compshare-lifecycle-lease/v4"} or not claimed or _canonical_sha(raw) != claimed:
+        if raw.get("schema") not in {"luceon.compshare-lifecycle-lease/v1", "luceon.compshare-lifecycle-lease/v2", "luceon.compshare-lifecycle-lease/v3", "luceon.compshare-lifecycle-lease/v4", "luceon.compshare-lifecycle-lease/v5"} or not claimed or _canonical_sha(raw) != claimed:
             raise CompShareLifecycleError("lifecycle_lease_invalid", "Lifecycle lease hash or schema is invalid")
         return cls(
             lease_id=str(raw.get("lease_id") or ""),
@@ -470,8 +482,353 @@ class LifecycleLease:
             readiness=dict(raw.get("readiness") or {}),
             phase=str(raw.get("phase") or "described"),
             cost_guard=dict(raw.get("cost_guard") or {}),
+            transport=dict(raw.get("transport") or {}),
             updated_at=str(raw.get("updated_at") or ""),
         )
+
+
+@dataclass
+class ManagedWrapperTransport:
+    """A lease-owned loopback tunnel to the protected wrapper.
+
+    A public/direct wrapper health check is not sufficient evidence that the
+    worker subprocess will retain a data path.  The context therefore records
+    the loopback endpoint used by readiness, submission, result collection and
+    safe-stop inventory.  It intentionally contains no bearer/API credential.
+    """
+
+    lease_id: str
+    endpoint: str
+    local_port: int
+    remote_port: int
+    ssh_host: str
+    settings_sha256: str = ""
+    process: Any | None = field(default=None, repr=False, compare=False)
+    transport_id: str = ""
+    owner_token: str = ""
+    process_pid: int = 0
+    process_boot_id: str = ""
+    process_start_ticks: int = 0
+    process_command_sha256: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.owner_token:
+            self.owner_token = secrets.token_hex(16)
+        if not self.process_pid and self.process is not None:
+            self.process_pid = int(getattr(self.process, "pid", 0) or 0)
+        if self.process_pid > 1 and (not self.process_boot_id or self.process_start_ticks <= 0):
+            identity = _read_linux_process_identity(self.process_pid)
+            self.process_boot_id = identity["boot_id"]
+            self.process_start_ticks = identity["start_ticks"]
+        if not self.transport_id:
+            self.transport_id = _canonical_sha(
+                {
+                    "schema": MANAGED_WRAPPER_TRANSPORT_SCHEMA,
+                    "lease_id": self.lease_id,
+                    "endpoint": self.endpoint,
+                    "local_port": self.local_port,
+                    "remote_port": self.remote_port,
+                    "ssh_host": self.ssh_host,
+                    "settings_sha256": self.settings_sha256,
+                }
+            )
+
+    def active(self) -> bool:
+        return self.process is not None and self.process.poll() is None
+
+    def to_dict(self, *, state: str = "active") -> dict[str, Any]:
+        payload = {
+            "schema": MANAGED_WRAPPER_TRANSPORT_SCHEMA,
+            "transport_id": self.transport_id,
+            "lease_id": self.lease_id,
+            "endpoint": self.endpoint,
+            "local_port": self.local_port,
+            "remote_port": self.remote_port,
+            "ssh_host": self.ssh_host,
+            "settings_sha256": self.settings_sha256,
+            "owner_token": self.owner_token,
+            "process_pid": self.process_pid,
+            "process_boot_id": self.process_boot_id,
+            "process_start_ticks": self.process_start_ticks,
+            "process_command_sha256": self.process_command_sha256,
+            "state": state,
+        }
+        payload["transport_sha256"] = _canonical_sha(payload)
+        return payload
+
+    def close(self) -> None:
+        if self.process is None:
+            return
+        if self.process.poll() is None:
+            self.process.terminate()
+        try:
+            self.process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            self.process.kill()
+            self.process.wait(timeout=5)
+
+
+def _transport_remote_port(config: CompShareConfig) -> int:
+    value = int(config.wrapper_remote_port)
+    if not 1 <= value <= 65535:
+        raise CompShareLifecycleError("wrapper_transport_port_invalid", "Configured wrapper tunnel port is invalid")
+    return value
+
+
+def _reserve_loopback_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        return int(probe.getsockname()[1])
+
+
+def _ssh_exit_evidence(process: Any) -> dict[str, Any]:
+    """Return only an opaque, bounded diagnostic for a failed SSH child."""
+    try:
+        raw = process.stderr.read() if getattr(process, "stderr", None) is not None else ""
+    except Exception:
+        raw = ""
+    encoded = str(raw).encode("utf-8", "replace")[:4096]
+    return {"exit_code": process.poll(), "stderr_sha256": hashlib.sha256(encoded).hexdigest(), "stderr_bytes": len(encoded)}
+
+
+def _argv_bytes(argv: list[str]) -> bytes:
+    """Encode argv exactly as Linux exposes it through ``/proc/PID/cmdline``."""
+    if not argv or any("\x00" in value for value in argv):
+        raise CompShareLifecycleError("wrapper_transport_command_invalid", "Managed SSH argv is invalid")
+    return b"\x00".join(os.fsencode(value) for value in argv) + b"\x00"
+
+
+def _argv_sha256(argv: list[str]) -> str:
+    return hashlib.sha256(_argv_bytes(argv)).hexdigest()
+
+
+def _read_linux_process_identity(pid: int) -> dict[str, Any]:
+    """Read the kernel identity and exact argv of one Linux process.
+
+    PID alone is not an identity because it can be reused.  The system boot ID
+    plus ``/proc/PID/stat`` starttime ticks is stable for the process lifetime.
+    No ``ps`` text or application timestamp is accepted as a substitute.
+    """
+    try:
+        boot_id = Path("/proc/sys/kernel/random/boot_id").read_text(encoding="ascii").strip()
+        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+        cmdline = Path(f"/proc/{pid}/cmdline").read_bytes()
+    except FileNotFoundError:
+        raise
+    except (OSError, UnicodeError) as exc:
+        raise CompShareLifecycleError(
+            "wrapper_transport_orphan_identity_unreadable",
+            "Kernel process identity is unreadable",
+            evidence={"process_pid": pid},
+        ) from exc
+    close_paren = stat.rfind(")")
+    fields = stat[close_paren + 2 :].split() if close_paren > 0 else []
+    # fields[0] is kernel field 3 (state); starttime is kernel field 22.
+    if not boot_id or len(fields) <= 19 or not cmdline:
+        raise CompShareLifecycleError(
+            "wrapper_transport_orphan_identity_unreadable",
+            "Kernel process identity is incomplete",
+            evidence={"process_pid": pid},
+        )
+    try:
+        start_ticks = int(fields[19])
+    except (TypeError, ValueError) as exc:
+        raise CompShareLifecycleError(
+            "wrapper_transport_orphan_identity_unreadable",
+            "Kernel process start identity is invalid",
+            evidence={"process_pid": pid},
+        ) from exc
+    if start_ticks <= 0:
+        raise CompShareLifecycleError(
+            "wrapper_transport_orphan_identity_unreadable",
+            "Kernel process start identity is invalid",
+            evidence={"process_pid": pid},
+        )
+    return {
+        "boot_id": boot_id,
+        "start_ticks": start_ticks,
+        "state": fields[0],
+        "argv_sha256": hashlib.sha256(cmdline).hexdigest(),
+    }
+
+
+def _managed_wrapper_ssh_argv(
+    config: CompShareConfig, *, local_port: int, remote_port: int, owner_token: str
+) -> list[str]:
+    command = [
+        "ssh", "-N", "-o", "BatchMode=yes", "-o", "ExitOnForwardFailure=yes",
+        "-o", "ConnectTimeout=15", "-o", "StrictHostKeyChecking=yes",
+        "-o", f"UserKnownHostsFile={config.ssh_known_hosts_path}", "-p", str(config.ssh_port),
+        "-L", f"127.0.0.1:{local_port}:127.0.0.1:{remote_port}",
+        "-o", f"SetEnv=LUCEON_WRAPPER_TRANSPORT_OWNER={owner_token}",
+    ]
+    if config.ssh_key_path:
+        command.extend(["-i", config.ssh_key_path])
+    command.append(f"{config.ssh_user}@{config.ssh_host}")
+    return command
+
+
+def _reap_exact_owned_orphan(previous: dict[str, Any], config: CompShareConfig) -> None:
+    """Reap only a prior tunnel whose process proves this exact lease identity.
+
+    The owner token is non-secret and is attached to the SSH invocation solely
+    for crash recovery.  A matching port alone is never authority to kill a
+    process, so an unrelated developer tunnel remains untouched.
+    """
+    pid = int(previous.get("process_pid") or 0)
+    token = str(previous.get("owner_token") or "")
+    if pid <= 1 or not token:
+        return
+    expected_argv = _managed_wrapper_ssh_argv(
+        config,
+        local_port=int(previous["local_port"]),
+        remote_port=int(previous["remote_port"]),
+        owner_token=token,
+    )
+    expected_command_sha256 = _argv_sha256(expected_argv)
+    try:
+        identity = _read_linux_process_identity(pid)
+    except FileNotFoundError:
+        return
+    persisted_boot_id = str(previous.get("process_boot_id") or "")
+    try:
+        persisted_start_ticks = int(previous.get("process_start_ticks") or 0)
+    except (TypeError, ValueError):
+        persisted_start_ticks = 0
+    persisted_command_sha256 = str(previous.get("process_command_sha256") or "")
+    if (
+        identity["state"] == "Z"
+        or not persisted_boot_id
+        or persisted_start_ticks <= 0
+        or identity["boot_id"] != persisted_boot_id
+        or identity["start_ticks"] != persisted_start_ticks
+        or persisted_command_sha256 != expected_command_sha256
+        or identity["argv_sha256"] != expected_command_sha256
+    ):
+        raise CompShareLifecycleError(
+            "wrapper_transport_orphan_identity_unverified",
+            "Existing local tunnel cannot be proven to belong to this lifecycle lease",
+            evidence={"process_pid": pid},
+        )
+    os.kill(pid, signal.SIGTERM)
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() <= deadline:
+        try:
+            current = _read_linux_process_identity(pid)
+        except FileNotFoundError:
+            return
+        if current["boot_id"] != persisted_boot_id or current["start_ticks"] != persisted_start_ticks:
+            return
+        time.sleep(0.1)
+    raise CompShareLifecycleError(
+        "wrapper_transport_orphan_reap_timeout",
+        "Exact lease-owned local tunnel did not exit after SIGTERM",
+        evidence={"process_pid": pid},
+    )
+
+
+def open_managed_wrapper_transport(
+    config: CompShareConfig,
+    *,
+    lease_id: str,
+    prior: dict[str, Any] | None = None,
+    process_factory: Callable[..., Any] = subprocess.Popen,
+    health_probe: Callable[[str], dict[str, Any]] | None = None,
+    sleep: Callable[[float], None] = time.sleep,
+    monotonic: Callable[[], float] = time.monotonic,
+    port_allocator: Callable[[], int] = _reserve_loopback_port,
+) -> ManagedWrapperTransport:
+    """Create and prove the one tunnel used for a lifecycle-owned job.
+
+    A persisted context can be re-established after a worker crash, but only
+    for the same lease and only as a loopback SSH forward with strict host-key
+    verification.  A dead/stale context is never accepted as ready.
+    """
+    if not config.ssh_host or not config.ssh_known_hosts_path or not os.path.isfile(config.ssh_known_hosts_path):
+        raise CompShareLifecycleError("wrapper_transport_ssh_unavailable", "Managed wrapper transport requires verified SSH host keys")
+    previous = dict(prior or {})
+    if previous and previous.get("schema") != MANAGED_WRAPPER_TRANSPORT_SCHEMA:
+        raise CompShareLifecycleError("wrapper_transport_context_legacy", "Legacy managed wrapper transport context has no kernel process identity authority")
+    if previous and previous.get("lease_id") != lease_id:
+        raise CompShareLifecycleError("wrapper_transport_context_invalid", "Managed wrapper transport context does not match lifecycle lease")
+    if previous:
+        supplied_sha = str(previous.pop("transport_sha256", ""))
+        if not supplied_sha or _canonical_sha(previous) != supplied_sha:
+            raise CompShareLifecycleError("wrapper_transport_binding_drift", "Managed wrapper transport hash is invalid")
+        required = ("transport_id", "endpoint", "local_port", "remote_port", "ssh_host", "settings_sha256", "owner_token", "process_pid", "process_boot_id", "process_start_ticks", "process_command_sha256")
+        if any(not previous.get(key) for key in required):
+            raise CompShareLifecycleError("wrapper_transport_binding_drift", "Managed wrapper transport commitment is incomplete")
+        expected_endpoint = f"http://127.0.0.1:{int(previous['local_port'])}"
+        if (
+            previous["endpoint"] != expected_endpoint
+            or int(previous["remote_port"]) != int(config.wrapper_remote_port)
+            or previous["ssh_host"] != config.ssh_host
+            or previous["settings_sha256"] != config.settings_sha256
+        ):
+            raise CompShareLifecycleError("wrapper_transport_binding_drift", "Managed wrapper transport drifted from the frozen lifecycle settings")
+        expected_id = _canonical_sha({
+            "schema": MANAGED_WRAPPER_TRANSPORT_SCHEMA, "lease_id": lease_id,
+            "endpoint": previous["endpoint"], "local_port": int(previous["local_port"]),
+            "remote_port": int(previous["remote_port"]), "ssh_host": previous["ssh_host"],
+            "settings_sha256": previous["settings_sha256"],
+        })
+        if previous["transport_id"] != expected_id:
+            raise CompShareLifecycleError("wrapper_transport_binding_drift", "Managed wrapper transport identity is invalid")
+        _reap_exact_owned_orphan(previous, config)
+    # A prior commitment may never select another port: changing it would make
+    # a restarted worker silently use a different endpoint than the one whose
+    # hash was persisted in the lifecycle lease.  New leases may make at most
+    # three initial reservations, because bind/release is necessarily a race
+    # with ssh's later bind on POSIX.
+    local_ports = [int(previous["local_port"])] if previous else [port_allocator() for _ in range(3)]
+    remote_port = _transport_remote_port(config)
+    last_error: CompShareLifecycleError | None = None
+    for index, local_port in enumerate(local_ports):
+        endpoint = f"http://127.0.0.1:{local_port}"
+        owner_token = str(previous.get("owner_token") or secrets.token_hex(16))
+        command = _managed_wrapper_ssh_argv(
+            config, local_port=local_port, remote_port=remote_port, owner_token=owner_token
+        )
+        process = process_factory(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        transport = ManagedWrapperTransport(
+            lease_id=lease_id, endpoint=endpoint, local_port=local_port,
+            remote_port=remote_port, ssh_host=config.ssh_host, settings_sha256=config.settings_sha256, process=process,
+            owner_token=owner_token,
+            process_command_sha256=_argv_sha256(command),
+        )
+        deadline = monotonic() + min(30.0, max(1.0, float(config.operation_timeout_seconds)))
+        probe: dict[str, Any] = {}
+        while monotonic() <= deadline:
+            if not transport.active():
+                evidence = _ssh_exit_evidence(process)
+                transport.close()
+                last_error = CompShareLifecycleError("wrapper_transport_start_failed", "Managed SSH wrapper transport exited before readiness", evidence=evidence)
+                break
+            try:
+                probe = health_probe(endpoint) if health_probe else _wrapper_health(endpoint)
+            except Exception:
+                probe = {"ready": False, "status": "unreachable"}
+            if bool(probe.get("ready")):
+                return transport
+            sleep(min(1.0, max(0.05, float(config.poll_seconds))))
+        else:
+            transport.close()
+            last_error = CompShareLifecycleError("wrapper_transport_readiness_timeout", "Managed SSH wrapper transport did not become ready within the bounded deadline", evidence={"probe": probe})
+        # Re-select only before any commitment exists and only for a child that
+        # demonstrably exited.  A healthy but unready child is never replaced.
+        if previous or last_error is None or last_error.code != "wrapper_transport_start_failed" or index == len(local_ports) - 1:
+            break
+    if last_error is not None:
+        raise last_error
+    raise CompShareLifecycleError("wrapper_transport_unreachable", "Managed SSH wrapper transport could not reach wrapper health")
+
+
+def _wrapper_health(endpoint: str) -> dict[str, Any]:
+    request = urllib.request.Request(endpoint.rstrip("/") + "/api/v1/health", headers={"Accept": "application/json"})
+    with urllib.request.urlopen(request, timeout=20) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    status = str(payload.get("status") or "").lower() if isinstance(payload, dict) else ""
+    return {"ready": status in {"ok", "healthy", "ready", "pass"}, "status": status}
 
 
 def _timeline(action: str, state: str, **extra: Any) -> dict[str, Any]:

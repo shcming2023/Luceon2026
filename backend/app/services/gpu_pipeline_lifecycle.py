@@ -13,14 +13,17 @@ from typing import Any, Callable
 
 from sqlalchemy.orm import Session
 
-from app.models.material import PipelineEvent, PipelineRun, PipelineRunItem
+from app.models.material import PipelineEvent, PipelineRun, PipelineRunItem, PipelineStageAttempt
 from app.services.compshare_lifecycle import (
     CompShareConfig,
     CompShareLifecycleError,
     LifecycleLease,
+    ManagedWrapperTransport,
     SafeStopContext,
     UCloudCompShareClient,
+    exact_instance,
     ensure_running,
+    open_managed_wrapper_transport,
     ssh_readiness_probe,
     stop_when_safe,
 )
@@ -30,6 +33,7 @@ from app.services.gpu_runtime_settings import (
     load_snapshot as load_gpu_runtime_snapshot,
     required_gpu_disk_bytes,
 )
+from app.services.runtime_settings import pipeline_env
 
 
 def lifecycle_enabled(db: Session) -> bool:
@@ -42,6 +46,7 @@ def _frozen_snapshot(db: Session, run: PipelineRun, *, enforce_current: bool = T
         raise CompShareLifecycleError("gpu_settings_snapshot_missing", "Pipeline run has no frozen GPU settings snapshot")
     compatible = dict(raw)
     compatible.setdefault("automation_blockers", ())
+    compatible.setdefault("wrapper_remote_port", 18080)
     try:
         frozen = GpuRuntimeSnapshot(**compatible)
     except (TypeError, ValueError) as exc:
@@ -79,6 +84,7 @@ def _legacy_snapshot(config: CompShareConfig) -> GpuRuntimeSnapshot:
         "uhost_id": config.uhost_id,
         "ssh_host": config.ssh_host,
         "ssh_port": config.ssh_port,
+        "wrapper_remote_port": config.wrapper_remote_port,
         "budget_micro_cny": config.budget_micro_cny,
         "min_free_disk_bytes": config.minimum_disk_bytes,
         "disk_reserve_bytes": 0,
@@ -156,6 +162,7 @@ def acquire_gpu_for_pipeline(
     *,
     client_factory: Callable[[CompShareConfig], Any] = UCloudCompShareClient,
     readiness_probe: Callable[[CompShareConfig, str], dict[str, Any]] = ssh_readiness_probe,
+    transport_factory: Callable[..., ManagedWrapperTransport] = open_managed_wrapper_transport,
 ) -> LifecycleLease | None:
     try:
         snapshot = _frozen_snapshot(db, run)
@@ -190,7 +197,12 @@ def acquire_gpu_for_pipeline(
             if candidate and candidate.lease_id == f"pipeline-{run.id}-{run.idempotency_key[:16] if run.idempotency_key else 'unkeyed'}":
                 resume_lease = candidate
 
+    transport_holder: dict[str, ManagedWrapperTransport] = {}
+
     def persist_lease(current: LifecycleLease) -> None:
+        transport = transport_holder.get("transport")
+        if transport is not None:
+            current.transport = transport.to_dict()
         _merge_summary(
             run,
             {
@@ -203,14 +215,38 @@ def acquire_gpu_for_pipeline(
         )
         db.commit()
 
-    lease = ensure_running(
+    def readiness() -> dict[str, Any]:
+        transport = transport_holder.get("transport")
+        if transport is None or not transport.active():
+            transport = transport_factory(
+                config,
+                lease_id=f"pipeline-{run.id}-{run.idempotency_key[:16] if run.idempotency_key else 'unkeyed'}",
+                prior=(resume_lease.transport if resume_lease else None),
+            )
+            transport_holder["transport"] = transport
+        return readiness_probe(config, transport.endpoint)
+
+    try:
+        lease = ensure_running(
         client,
         config,
-        lambda: readiness_probe(config, os.getenv("GPU_WRAPPER_URL", "")),
+        readiness,
         lease_id=f"pipeline-{run.id}-{run.idempotency_key[:16] if run.idempotency_key else 'unkeyed'}",
         checkpoint=persist_lease,
         resume_lease=resume_lease,
-    )
+        )
+    except Exception:
+        transport = transport_holder.get("transport")
+        if transport is not None:
+            transport.close()
+        raise
+    transport = transport_holder.get("transport")
+    if transport is None or not transport.active():
+        raise CompShareLifecycleError("wrapper_transport_unavailable", "No active managed wrapper transport after GPU readiness")
+    lease.transport = transport.to_dict()
+    # Runtime-only process ownership is never serialized, but lets this worker
+    # pass the exact same endpoint to the subprocess and the final Stop probe.
+    setattr(lease, "runtime_transport", transport)
     run.current_stage = "gpu_ready"
     _merge_summary(run, {"gpu_lifecycle": {"status": "ready", "managed": True, "settings_sha256": snapshot.settings_sha256, "lease": lease.to_dict()}})
     _event(
@@ -223,6 +259,7 @@ def acquire_gpu_for_pipeline(
             "started_by_pipeline": lease.started_by_pipeline,
             "lifecycle_owned": lease.lifecycle_owned,
             "lease_sha256": lease.to_dict()["lease_sha256"],
+            "wrapper_transport_sha256": lease.transport.get("transport_sha256", ""),
         },
     )
     db.commit()
@@ -428,6 +465,96 @@ def wrapper_active_jobs(wrapper_url: str) -> dict[str, Any]:
     return remote_activity_snapshot(wrapper_url, bearer_key=os.getenv("GPU_WRAPPER_API_KEY", ""))
 
 
+def _transport_for_lease(
+    config: CompShareConfig,
+    lease: LifecycleLease,
+    *,
+    transport_factory: Callable[..., ManagedWrapperTransport] = open_managed_wrapper_transport,
+) -> ManagedWrapperTransport:
+    active = getattr(lease, "runtime_transport", None)
+    if isinstance(active, ManagedWrapperTransport) and active.active():
+        return active
+    context = dict(lease.transport or {})
+    if not context:
+        raise CompShareLifecycleError("wrapper_transport_context_missing", "Lifecycle lease has no managed wrapper transport context")
+    transport = transport_factory(config, lease_id=lease.lease_id, prior=context)
+    lease.transport = transport.to_dict()
+    setattr(lease, "runtime_transport", transport)
+    return transport
+
+
+def qualify_wrapper_transport_for_submission(
+    config: CompShareConfig,
+    lease: LifecycleLease,
+    *,
+    bearer_key: str,
+    transport_factory: Callable[..., ManagedWrapperTransport] = open_managed_wrapper_transport,
+) -> dict[str, Any]:
+    """Recheck the lease endpoint and all staged protected inventories.
+
+    This runs immediately before the first external submission.  A ready SSH
+    probe alone cannot authorize a subprocess that would otherwise use a
+    different, transient direct-wrapper URL.
+    """
+    transport = _transport_for_lease(config, lease, transport_factory=transport_factory)
+    remote = remote_activity_snapshot(transport.endpoint, bearer_key=bearer_key)
+    if not (
+        remote.get("verified")
+        and remote.get("all_required_denominators_verified")
+        and remote.get("idle_verified")
+        and remote.get("active_total") == 0
+    ):
+        raise CompShareLifecycleError(
+            "wrapper_transport_pre_submit_unqualified",
+            "Managed wrapper transport failed protected staged API qualification",
+            evidence={"transport_sha256": lease.transport.get("transport_sha256", ""), "remote_reason": remote.get("reason", "")},
+        )
+    return {"endpoint": transport.endpoint, "transport_sha256": lease.transport.get("transport_sha256", ""), "remote": remote}
+
+
+def qualify_pipeline_transport_for_submission(db: Session, run: PipelineRun, lease: LifecycleLease) -> dict[str, Any]:
+    """Return the only wrapper environment a lifecycle-owned subprocess may use."""
+    _snapshot, config = _config_for_run(db, run, enforce_current=False)
+    result = qualify_wrapper_transport_for_submission(
+        config,
+        lease,
+        bearer_key=pipeline_env().get("GPU_WRAPPER_API_KEY", ""),
+    )
+    _event(
+        db,
+        run,
+        "gpu_transport_qualified",
+        "生命周期受管 Wrapper 通道已在外部提交前完成 staged API 重核验",
+        payload={"transport_sha256": result["transport_sha256"], "active_total": result["remote"].get("active_total")},
+    )
+    _merge_summary(run, {"gpu_transport": {"endpoint": result["endpoint"], "transport_sha256": result["transport_sha256"], "pre_submit_qualified": True}})
+    db.commit()
+    return result
+
+
+def mark_transport_pre_submit_failure(db: Session, run: PipelineRun, exc: BaseException) -> None:
+    """Record a lifecycle-ready failure that provably occurred before submit."""
+    code = exc.code if isinstance(exc, CompShareLifecycleError) else "wrapper_transport_pre_submit_failed"
+    evidence = exc.evidence if isinstance(exc, CompShareLifecycleError) else {}
+    run.status = "failed"
+    run.current_stage = "gpu_transport_failed_before_submit"
+    run.error_message = str(exc)
+    run.finished_at = datetime.utcnow()
+    run.queue_slot = None
+    lifecycle = run.summary().get("gpu_lifecycle")
+    lifecycle = dict(lifecycle) if isinstance(lifecycle, dict) else {}
+    lifecycle.update({"status": "failed", "error_domain": code, "evidence": evidence})
+    _merge_summary(run, {"gpu_lifecycle": lifecycle})
+    _event(db, run, "gpu_transport_failed_before_submit", "GPU 就绪后、外部提交前的受管 Wrapper 通道失败", level="error", payload={"error_domain": code, "evidence": evidence})
+    for item in db.query(PipelineRunItem).filter(PipelineRunItem.run_id == run.id).all():
+        item.status = "failed"
+        item.current_stage = "gpu_transport_failed_before_submit"
+        item.error_code = code
+        item.error_message = str(exc)
+        item.finished_at = datetime.utcnow()
+    db.commit()
+
+
 def _all_results_frozen(db: Session, run: PipelineRun) -> bool:
     items = db.query(PipelineRunItem).filter(PipelineRunItem.run_id == run.id).all()
     return bool(items) and all(
@@ -436,6 +563,50 @@ def _all_results_frozen(db: Session, run: PipelineRun) -> bool:
         and bool(item.popo_manifest_bucket and item.popo_manifest_object)
         for item in items
     )
+
+
+def _failed_before_external_submit(db: Session, run: PipelineRun) -> bool:
+    """Fail closed unless this run has no remote identity or frozen result."""
+    items = db.query(PipelineRunItem).filter(PipelineRunItem.run_id == run.id).all()
+    if not items or run.current_stage not in {"gpu_lifecycle_failed", "gpu_transport_failed_before_submit"}:
+        return False
+    stages = db.query(PipelineStageAttempt).join(PipelineRunItem, PipelineStageAttempt.run_item_id == PipelineRunItem.id).filter(PipelineRunItem.run_id == run.id).all()
+    if any(str(row.external_batch_id or "").strip() or str(row.external_run_id or "").strip() for row in stages):
+        return False
+    return all(
+        not item.mineru_manifest_object and not item.popo_manifest_object
+        and item.current_stage in {"gpu_lifecycle_failed", "gpu_transport_failed_before_submit"}
+        for item in items
+    )
+
+
+def mark_gpu_offline_before_submit_if_applicable(db: Session, run: PipelineRun) -> bool:
+    """Classify the run100-shaped terminal response without guessing retries.
+
+    The staged script can return zero while its structured payload reports
+    GPU_OFFLINE.  When no external batch/run identity or local frozen result
+    exists, this is still a *pre-submit transport* failure and can use the
+    same safe-stop authority after an independent idle check.
+    """
+    result = run.summary().get("result")
+    if not isinstance(result, dict) or str(result.get("status") or "").upper() != "GPU_OFFLINE":
+        return False
+    items = db.query(PipelineRunItem).filter(PipelineRunItem.run_id == run.id).all()
+    attempts = db.query(PipelineStageAttempt).join(PipelineRunItem, PipelineStageAttempt.run_item_id == PipelineRunItem.id).filter(PipelineRunItem.run_id == run.id).all()
+    no_external_identity = not any(str(row.external_batch_id or "").strip() or str(row.external_run_id or "").strip() for row in attempts)
+    no_local_result = all(not item.mineru_manifest_object and not item.popo_manifest_object for item in items)
+    if not items or not no_external_identity or not no_local_result:
+        return False
+    mark_transport_pre_submit_failure(
+        db,
+        run,
+        CompShareLifecycleError(
+            "gpu_wrapper_transport_lost_before_submit",
+            "Staged pipeline reported GPU_OFFLINE before any external batch identity was recorded",
+            evidence={"pipeline_status": "GPU_OFFLINE"},
+        ),
+    )
+    return True
 
 
 def _safe_stop_context(
@@ -467,6 +638,7 @@ def release_gpu_after_pipeline(
     *,
     client_factory: Callable[[CompShareConfig], Any] = UCloudCompShareClient,
     remote_jobs_probe: Callable[[str], dict[str, Any]] = wrapper_active_jobs,
+    transport_factory: Callable[..., ManagedWrapperTransport] = open_managed_wrapper_transport,
     sleep: Callable[[float], None] = time.sleep,
 ) -> dict[str, Any]:
     if lease is None:
@@ -481,14 +653,33 @@ def release_gpu_after_pipeline(
             .filter(PipelineRun.id != run.id, PipelineRun.status.in_(["queued", "running"]))
             .count()
         )
-        remote = remote_jobs_probe(os.getenv("GPU_WRAPPER_URL", ""))
+        transport: ManagedWrapperTransport | None = None
+        try:
+            if lease.transport:
+                transport = _transport_for_lease(config, lease, transport_factory=transport_factory)
+                # The default probe reads its bearer only from process env. For
+                # project secret-file runtime use the short-lived pipeline env.
+                if remote_jobs_probe is wrapper_active_jobs:
+                    remote = remote_activity_snapshot(
+                        transport.endpoint,
+                        bearer_key=pipeline_env().get("GPU_WRAPPER_API_KEY", ""),
+                    )
+                else:
+                    remote = remote_jobs_probe(transport.endpoint)
+            else:
+                # Pre-v5 historical leases retain their old, independently
+                # fail-closed release semantics. New automatic leases always
+                # carry a managed transport and never reach this fallback.
+                remote = remote_jobs_probe(os.getenv("GPU_WRAPPER_URL", ""))
+        except Exception as exc:
+            remote = {"verified": False, "idle_verified": False, "active_total": None, "reason": "managed_transport_unavailable", "error_type": type(exc).__name__}
         grace_seconds = max(0, int(snapshot.stop_grace_seconds))
         if grace_seconds:
             sleep(grace_seconds)
         context = _safe_stop_context(
             queue_empty=active_other == 0,
             remote=remote,
-            all_results_frozen_local=_all_results_frozen(db, run),
+            all_results_frozen_local=_all_results_frozen(db, run) or _failed_before_external_submit(db, run),
             grace_elapsed=True,
         )
 
@@ -496,8 +687,25 @@ def release_gpu_after_pipeline(
             _merge_summary(run, {"gpu_lifecycle": {"status": "stopping", "managed": True, "lease": current.to_dict()}})
             db.commit()
 
-        result = stop_when_safe(client_factory(config), config, lease, context, checkpoint=persist_stop)
-        result["remote_probe"] = remote
+        try:
+            result = stop_when_safe(client_factory(config), config, lease, context, checkpoint=persist_stop)
+            result["remote_probe"] = remote
+        except Exception as exc:
+            # The lease was checkpointed by stop_when_safe before any accepted
+            # Stop.  Preserve a recoverable retained state instead of leaving
+            # this function with an unbound result or pretending shutdown
+            # completed; the stale reaper consumes the same lease contract.
+            result = {
+                "stopped": False,
+                "status": "retained_running",
+                "blockers": ["stop_authority_exception"],
+                "error_type": type(exc).__name__,
+                "remote_probe": remote,
+                "lease": lease.to_dict(),
+            }
+        finally:
+            if transport is not None:
+                transport.close()
     lifecycle_status = "stopped" if result.get("stopped") else "retained_running"
     _merge_summary(
         run,
@@ -528,6 +736,7 @@ def reconcile_stale_lifecycle_leases(
     *,
     client_factory: Callable[[CompShareConfig], Any] = UCloudCompShareClient,
     remote_jobs_probe: Callable[[str], dict[str, Any]] = wrapper_active_jobs,
+    transport_factory: Callable[..., ManagedWrapperTransport] = open_managed_wrapper_transport,
     limit: int = 20,
 ) -> dict[str, int]:
     """Recover only leases whose accepted Start proves pipeline ownership."""
@@ -558,15 +767,39 @@ def reconcile_stale_lifecycle_leases(
             .filter(PipelineRun.id != run.id, PipelineRun.status.in_(["queued", "running"]))
             .count()
         )
-        remote = remote_jobs_probe(os.getenv("GPU_WRAPPER_URL", ""))
-        items = db.query(PipelineRunItem).filter(PipelineRunItem.run_id == run.id).all()
-        failed_before_submit = bool(items) and all(
-            item.current_stage == "gpu_lifecycle_failed"
-            and not item.mineru_manifest_object
-            and not item.popo_manifest_object
-            for item in items
-        )
-        local_safe = _all_results_frozen(db, run) or failed_before_submit
+        transport: ManagedWrapperTransport | None = None
+        client = client_factory(config)
+        try:
+            # A stopped cloud instance has no tunnel to recover.  Mark the
+            # durable lease converged before any SSH reconstruction attempt.
+            instance = exact_instance(client.describe(), config.uhost_id)
+            if str(instance.get("State") or "") == "Stopped":
+                lease.current_state = "Stopped"
+                lease.phase = "stopped"
+                lifecycle["lease"] = lease.to_dict()
+                lifecycle["status"] = "stopped"
+                _merge_summary(run, {"gpu_lifecycle": lifecycle, "gpu_shutdown": {"stopped": True, "status": "stopped_already", "reconciled": True}})
+                _event(db, run, "gpu_stopped", "过期生命周期租约已由官方 Describe 确认停止", payload={"status": "stopped_already"})
+                db.commit()
+                result["stopped"] += 1
+                continue
+            if lease.transport:
+                transport = _transport_for_lease(config, lease, transport_factory=transport_factory)
+                if remote_jobs_probe is wrapper_active_jobs:
+                    remote = remote_activity_snapshot(
+                        transport.endpoint,
+                        bearer_key=pipeline_env().get("GPU_WRAPPER_API_KEY", ""),
+                    )
+                else:
+                    remote = remote_jobs_probe(transport.endpoint)
+            else:
+                # Historical leases remain readable but cannot be upgraded into
+                # a new transport contract.  Their existing stop authority is
+                # intentionally retained only for backwards-safe recovery.
+                remote = remote_jobs_probe(os.getenv("GPU_WRAPPER_URL", ""))
+        except Exception as exc:
+            remote = {"verified": False, "idle_verified": False, "active_total": None, "reason": "managed_transport_unavailable", "error_type": type(exc).__name__}
+        local_safe = _all_results_frozen(db, run) or _failed_before_external_submit(db, run)
         try:
             acquired = datetime.fromisoformat(lease.acquired_at.replace("Z", "+00:00"))
             if acquired.tzinfo is None:
@@ -598,7 +831,19 @@ def reconcile_stale_lifecycle_leases(
             _merge_summary(run, {"gpu_lifecycle": lifecycle})
             db.commit()
 
-        stop_result = stop_when_safe(client_factory(config), config, lease, context, checkpoint=persist)
+        try:
+            stop_result = stop_when_safe(client, config, lease, context, checkpoint=persist)
+        except Exception as exc:
+            stop_result = {
+                "stopped": False,
+                "status": "retained_running",
+                "blockers": ["stop_authority_exception"],
+                "error_type": type(exc).__name__,
+                "lease": lease.to_dict(),
+            }
+        finally:
+            if transport is not None:
+                transport.close()
         lifecycle["lease"] = stop_result.get("lease") or lease.to_dict()
         lifecycle["status"] = "stopped" if stop_result.get("stopped") else "retained_running"
         _merge_summary(

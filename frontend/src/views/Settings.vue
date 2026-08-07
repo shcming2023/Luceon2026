@@ -95,6 +95,7 @@
               <el-form-item label="ProjectId"><el-input v-model="gpuAutomation.project_id" /></el-form-item>
               <el-form-item label="UHostId"><el-input v-model="gpuAutomation.uhost_id" /></el-form-item>
               <el-form-item label="SSH Host / Port"><div class="inline-fields"><el-input v-model="gpuAutomation.ssh_host" /><el-input-number v-model="gpuAutomation.ssh_port" :min="1" :max="65535" /></div></el-form-item>
+              <el-form-item label="Wrapper Remote Port"><el-input-number v-model="gpuAutomation.wrapper_remote_port" :min="1" :max="65535" /></el-form-item>
               <el-form-item label="每轮费用硬上限（CNY）"><el-input-number :model-value="gpuAutomation.budget_micro_cny / 1000000" :min="1" :max="20" @update:model-value="gpuAutomation.budget_micro_cny = Number($event) * 1000000" /></el-form-item>
               <el-form-item label="GPU 最低可用空间（GiB）"><el-input-number :model-value="gpuAutomation.min_free_disk_bytes / 1073741824" :min="8" :max="1024" @update:model-value="gpuAutomation.min_free_disk_bytes = Number($event) * 1073741824" /></el-form-item>
               <el-form-item label="动态预留（GiB）"><el-input-number :model-value="gpuAutomation.disk_reserve_bytes / 1073741824" :min="1" :max="128" @update:model-value="gpuAutomation.disk_reserve_bytes = Number($event) * 1073741824" /></el-form-item>
@@ -295,6 +296,7 @@ const saveGpuAutomation = async () => {
     uhost_id: current.uhost_id,
     ssh_host: current.ssh_host,
     ssh_port: current.ssh_port,
+    wrapper_remote_port: current.wrapper_remote_port,
     budget_micro_cny: current.budget_micro_cny,
     min_free_disk_bytes: current.min_free_disk_bytes,
     disk_reserve_bytes: current.disk_reserve_bytes,

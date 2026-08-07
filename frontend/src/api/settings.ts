@@ -67,6 +67,7 @@ export interface GpuAutomationConfig {
   uhost_id: string
   ssh_host: string
   ssh_port: number
+  wrapper_remote_port: number
   budget_micro_cny: number
   min_free_disk_bytes: number
   disk_reserve_bytes: number

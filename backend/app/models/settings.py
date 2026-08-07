@@ -41,6 +41,7 @@ class GpuRuntimeSetting(Base):
     uhost_id = Column(String(128), nullable=False, default="")
     ssh_host = Column(String(255), nullable=False, default="")
     ssh_port = Column(Integer, nullable=False, default=22)
+    wrapper_remote_port = Column(Integer, nullable=False, default=18080)
     budget_micro_cny = Column(Integer, nullable=False, default=20_000_000)
     min_free_disk_bytes = Column(Integer, nullable=False, default=12 * 1024**3)
     disk_reserve_bytes = Column(Integer, nullable=False, default=2 * 1024**3)

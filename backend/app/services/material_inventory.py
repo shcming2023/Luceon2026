@@ -1601,6 +1601,7 @@ def run_pipeline_subprocess(
     command_override: list[str] | None = None,
     start_message: str = "开始执行现有 Luceon first-stage 调度脚本",
     worker_id: str = "",
+    pipeline_env_override: dict[str, str] | None = None,
 ) -> None:
     db = SessionLocal()
     heartbeat_stop = threading.Event()
@@ -1642,10 +1643,16 @@ def run_pipeline_subprocess(
             input_objects=input_objects,
             reprocess_completed=reprocess_completed,
         )
+        subprocess_env = pipeline_env()
+        if pipeline_env_override:
+            # The lifecycle owner supplies only non-secret, lease-bound
+            # transport values (currently the loopback wrapper URL).  This
+            # deliberately overrides a possibly transient direct endpoint.
+            subprocess_env.update({str(key): str(value) for key, value in pipeline_env_override.items()})
         process = subprocess.Popen(
             command,
             cwd=PIPELINE_WORKDIR,
-            env=pipeline_env(),
+            env=subprocess_env,
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
