@@ -20,6 +20,7 @@ from app.services.compshare_lifecycle import (
     cap_derived_scheduler_stop,
     ensure_running,
     exact_instance,
+    open_managed_wrapper_transport,
     stop_when_safe,
     ssh_readiness_probe,
 )
@@ -865,3 +866,223 @@ def test_ssh_readiness_fails_closed_on_disk_shortage(monkeypatch, tmp_path):
     result = ssh_readiness_probe(cfg, "http://wrapper.test")
     assert result["ready"] is False
     assert result["reason"] == "disk_headroom_insufficient"
+
+
+def test_managed_wrapper_transport_uses_strict_loopback_forward_and_never_direct_url(tmp_path, monkeypatch):
+    known_hosts = tmp_path / "known_hosts"; known_hosts.write_text("gpu ssh-ed25519 test\n")
+    cfg = config(ssh_host="gpu.example", ssh_port=23, ssh_known_hosts_path=str(known_hosts), ssh_key_path="/keys/gpu")
+    monkeypatch.setenv("GPU_WRAPPER_URL", "http://direct-wrapper.example:18080")
+    observed = {}
+
+    class Process:
+        def poll(self): return None
+        def terminate(self): observed["terminated"] = True
+        def wait(self, timeout=None): return 0
+        def kill(self): observed["killed"] = True
+
+    def fake_popen(command, **kwargs):
+        observed["command"] = command; observed["kwargs"] = kwargs
+        return Process()
+
+    transport = open_managed_wrapper_transport(
+        cfg, lease_id="lease-1", process_factory=fake_popen,
+        health_probe=lambda endpoint: {"ready": endpoint.startswith("http://127.0.0.1:")},
+    )
+    assert transport.endpoint.startswith("http://127.0.0.1:")
+    command = observed["command"]
+    assert "BatchMode=yes" in command and "StrictHostKeyChecking=yes" in command and "ExitOnForwardFailure=yes" in command
+    assert "direct-wrapper.example" not in " ".join(command)
+    assert any(value.endswith(":127.0.0.1:18080") for value in command)
+    serialized = transport.to_dict()
+    assert "private" not in json.dumps(serialized) and serialized["lease_id"] == "lease-1"
+    transport.close()
+    assert observed["terminated"] is True
+
+
+def test_managed_transport_rejects_every_persisted_binding_drift(tmp_path):
+    known_hosts = tmp_path / "known_hosts"; known_hosts.write_text("gpu ssh-ed25519 test\n")
+    cfg = config(ssh_host="gpu.example", ssh_known_hosts_path=str(known_hosts), wrapper_remote_port=18080, settings_sha256="settings-a")
+
+    class Process:
+        stderr = None
+        def poll(self): return None
+        def terminate(self): pass
+        def wait(self, timeout=None): return 0
+        def kill(self): pass
+
+    prior = open_managed_wrapper_transport(
+        cfg, lease_id="lease-binding", process_factory=lambda *args, **kwargs: Process(),
+        health_probe=lambda _endpoint: {"ready": True}, port_allocator=lambda: 19001,
+    ).to_dict()
+    for key, value in (("remote_port", 19000), ("ssh_host", "old.example"), ("endpoint", "http://127.0.0.1:19002"), ("settings_sha256", "settings-b")):
+        forged = dict(prior); forged[key] = value
+        # Re-signing a self-authored payload cannot bypass frozen config facts.
+        unsigned = dict(forged); unsigned.pop("transport_sha256")
+        forged["transport_sha256"] = __import__("hashlib").sha256(json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        with pytest.raises(CompShareLifecycleError) as exc:
+            open_managed_wrapper_transport(cfg, lease_id="lease-binding", prior=forged, process_factory=lambda *args, **kwargs: Process(), health_probe=lambda _endpoint: {"ready": True})
+        assert exc.value.code == "wrapper_transport_binding_drift"
+
+
+def test_managed_transport_waits_for_slow_ssh_health_without_replacing_commitment(tmp_path):
+    known_hosts = tmp_path / "known_hosts"; known_hosts.write_text("gpu ssh-ed25519 test\n")
+    cfg = config(ssh_host="gpu.example", ssh_known_hosts_path=str(known_hosts), poll_seconds=0.001, operation_timeout_seconds=2)
+    calls = {"health": 0, "popen": 0}
+    class Process:
+        stderr = None
+        def poll(self): return None
+        def terminate(self): pass
+        def wait(self, timeout=None): return 0
+        def kill(self): pass
+    def probe(_endpoint):
+        calls["health"] += 1
+        return {"ready": calls["health"] >= 2}
+    transport = open_managed_wrapper_transport(
+        cfg, lease_id="lease-slow", process_factory=lambda *args, **kwargs: (calls.__setitem__("popen", calls["popen"] + 1) or Process()),
+        health_probe=probe,
+    )
+    assert calls == {"health": 2, "popen": 1}
+    transport.close()
+
+
+def test_owned_orphan_recovery_requires_exact_kernel_and_argv_identity(monkeypatch, tmp_path):
+    from app.services import compshare_lifecycle as lifecycle
+    known_hosts = tmp_path / "known_hosts"; known_hosts.write_text("gpu ssh-ed25519 test\n")
+    cfg = config(ssh_host="gpu.example", ssh_known_hosts_path=str(known_hosts), wrapper_remote_port=18080)
+    expected_argv = lifecycle._managed_wrapper_ssh_argv(
+        cfg, local_port=39123, remote_port=18080, owner_token="owner-token"
+    )
+    expected_sha = lifecycle._argv_sha256(expected_argv)
+    prior = {
+        "process_pid": 4242, "owner_token": "owner-token", "local_port": 39123,
+        "remote_port": 18080, "ssh_host": "gpu.example",
+        "process_boot_id": "boot-a", "process_start_ticks": 123456,
+        "process_command_sha256": expected_sha,
+    }
+    killed = []
+    monkeypatch.setattr(lifecycle, "_read_linux_process_identity", lambda _pid: {
+        "boot_id": "boot-a", "start_ticks": 123456, "state": "S",
+        "argv_sha256": lifecycle._argv_sha256(["python", "unrelated-service", "--port", "39123"]),
+    })
+    monkeypatch.setattr(lifecycle.os, "kill", lambda pid, sig: killed.append((pid, sig)))
+    with pytest.raises(CompShareLifecycleError) as exc:
+        lifecycle._reap_exact_owned_orphan(prior, cfg)
+    assert exc.value.code == "wrapper_transport_orphan_identity_unverified"
+    assert killed == []
+
+    identities = iter([
+        {"boot_id": "boot-a", "start_ticks": 123456, "state": "S", "argv_sha256": expected_sha},
+        FileNotFoundError(),
+    ])
+    def exact_then_exited(_pid):
+        value = next(identities)
+        if isinstance(value, Exception):
+            raise value
+        return value
+    monkeypatch.setattr(lifecycle, "_read_linux_process_identity", exact_then_exited)
+    lifecycle._reap_exact_owned_orphan(prior, cfg)
+    assert killed and killed[0][0] == 4242
+
+
+@pytest.mark.parametrize(
+    ("prior_patch", "live_patch"),
+    [
+        ({}, {"boot_id": "boot-b"}),
+        ({}, {"start_ticks": 123457}),
+        ({}, {"argv_sha256": "a" * 64}),
+        ({"process_command_sha256": "b" * 64}, {}),
+    ],
+)
+def test_owned_orphan_pid_reuse_or_forged_command_never_kills(monkeypatch, tmp_path, prior_patch, live_patch):
+    from app.services import compshare_lifecycle as lifecycle
+    known_hosts = tmp_path / "known_hosts"; known_hosts.write_text("gpu ssh-ed25519 test\n")
+    cfg = config(ssh_host="gpu.example", ssh_known_hosts_path=str(known_hosts), wrapper_remote_port=18080)
+    expected = lifecycle._argv_sha256(lifecycle._managed_wrapper_ssh_argv(
+        cfg, local_port=39123, remote_port=18080, owner_token="owner-token"
+    ))
+    prior = {
+        "process_pid": 4242, "owner_token": "owner-token", "local_port": 39123,
+        "remote_port": 18080, "ssh_host": "gpu.example", "process_boot_id": "boot-a",
+        "process_start_ticks": 123456, "process_command_sha256": expected,
+        **prior_patch,
+    }
+    live = {"boot_id": "boot-a", "start_ticks": 123456, "state": "S", "argv_sha256": expected, **live_patch}
+    killed = []
+    monkeypatch.setattr(lifecycle, "_read_linux_process_identity", lambda _pid: live)
+    monkeypatch.setattr(lifecycle.os, "kill", lambda pid, sig: killed.append((pid, sig)))
+    with pytest.raises(CompShareLifecycleError) as exc:
+        lifecycle._reap_exact_owned_orphan(prior, cfg)
+    assert exc.value.code == "wrapper_transport_orphan_identity_unverified"
+    assert killed == []
+
+
+def test_owned_orphan_zombie_is_never_signalled(monkeypatch, tmp_path):
+    from app.services import compshare_lifecycle as lifecycle
+    known_hosts = tmp_path / "known_hosts"; known_hosts.write_text("gpu ssh-ed25519 test\n")
+    cfg = config(ssh_host="gpu.example", ssh_known_hosts_path=str(known_hosts), wrapper_remote_port=18080)
+    expected = lifecycle._argv_sha256(lifecycle._managed_wrapper_ssh_argv(
+        cfg, local_port=39123, remote_port=18080, owner_token="owner-token"
+    ))
+    prior = {
+        "process_pid": 4242, "owner_token": "owner-token", "local_port": 39123,
+        "remote_port": 18080, "ssh_host": "gpu.example", "process_boot_id": "boot-a",
+        "process_start_ticks": 123456, "process_command_sha256": expected,
+    }
+    killed = []
+    monkeypatch.setattr(lifecycle, "_read_linux_process_identity", lambda _pid: {
+        "boot_id": "boot-a", "start_ticks": 123456, "state": "Z", "argv_sha256": expected,
+    })
+    monkeypatch.setattr(lifecycle.os, "kill", lambda pid, sig: killed.append((pid, sig)))
+    with pytest.raises(CompShareLifecycleError) as exc:
+        lifecycle._reap_exact_owned_orphan(prior, cfg)
+    assert exc.value.code == "wrapper_transport_orphan_identity_unverified"
+    assert killed == []
+
+
+def test_resigned_transport_with_forged_persisted_command_sha_never_reaps(monkeypatch, tmp_path):
+    from app.services import compshare_lifecycle as lifecycle
+    known_hosts = tmp_path / "known_hosts"; known_hosts.write_text("gpu ssh-ed25519 test\n")
+    cfg = config(
+        ssh_host="gpu.example", ssh_known_hosts_path=str(known_hosts),
+        wrapper_remote_port=18080, settings_sha256="settings-a",
+    )
+    expected = lifecycle._argv_sha256(lifecycle._managed_wrapper_ssh_argv(
+        cfg, local_port=39123, remote_port=18080, owner_token="owner-token"
+    ))
+    transport_id = lifecycle._canonical_sha({
+        "schema": lifecycle.MANAGED_WRAPPER_TRANSPORT_SCHEMA,
+        "lease_id": "lease-forged", "endpoint": "http://127.0.0.1:39123",
+        "local_port": 39123, "remote_port": 18080, "ssh_host": "gpu.example",
+        "settings_sha256": "settings-a",
+    })
+    prior = {
+        "schema": lifecycle.MANAGED_WRAPPER_TRANSPORT_SCHEMA,
+        "transport_id": transport_id, "lease_id": "lease-forged",
+        "endpoint": "http://127.0.0.1:39123", "local_port": 39123,
+        "remote_port": 18080, "ssh_host": "gpu.example", "settings_sha256": "settings-a",
+        "owner_token": "owner-token", "process_pid": 4242,
+        "process_boot_id": "boot-a", "process_start_ticks": 123456,
+        "process_command_sha256": "f" * 64, "state": "active",
+    }
+    # The attacker can recompute the self-hash, but not change the command
+    # independently reconstructed from frozen config and forwarding identity.
+    prior["transport_sha256"] = lifecycle._canonical_sha(prior)
+    monkeypatch.setattr(lifecycle, "_read_linux_process_identity", lambda _pid: {
+        "boot_id": "boot-a", "start_ticks": 123456, "state": "S", "argv_sha256": expected,
+    })
+    killed = []
+    monkeypatch.setattr(lifecycle.os, "kill", lambda pid, sig: killed.append((pid, sig)))
+    with pytest.raises(CompShareLifecycleError) as exc:
+        open_managed_wrapper_transport(cfg, lease_id="lease-forged", prior=prior)
+    assert exc.value.code == "wrapper_transport_orphan_identity_unverified"
+    assert killed == []
+
+
+def test_legacy_transport_context_is_not_reinterpreted(monkeypatch, tmp_path):
+    known_hosts = tmp_path / "known_hosts"; known_hosts.write_text("gpu ssh-ed25519 test\n")
+    cfg = config(ssh_host="gpu.example", ssh_known_hosts_path=str(known_hosts))
+    with pytest.raises(CompShareLifecycleError) as exc:
+        open_managed_wrapper_transport(
+            cfg, lease_id="lease-v2", prior={"schema": "luceon.managed-wrapper-transport/v1", "lease_id": "lease-v2"}
+        )
+    assert exc.value.code == "wrapper_transport_context_legacy"

@@ -116,6 +116,8 @@ const PipelineStageText: Record<string, string> = {
   input_frozen: 'PDF 已哈希并冻结',
   gpu_starting: '正在核验并按需启动 GPU',
   gpu_ready: 'GPU、SSH 与服务已就绪',
+  gpu_transport_qualified: '受管 Wrapper 通道已复核，允许提交',
+  gpu_transport_failed_before_submit: 'GPU 已就绪，但受管 Wrapper 通道在提交前失败（未创建远端任务）',
   gpu_lifecycle_failed: 'GPU 生命周期门禁失败',
   gpu_stopped: 'GPU 已由云控制面确认停止',
   gpu_retained: 'GPU 保持运行（无停机所有权或仍有活动）',

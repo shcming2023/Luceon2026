@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 from pathlib import Path
+import socket
+import subprocess
 import threading
 import time
 import urllib.error
@@ -233,4 +236,53 @@ def test_fake_wrapper_inventory_paginates_to_explicit_eof_and_preserves_legacy_r
     finally:
         server.shutdown()
         server.server_close()
+        thread.join(timeout=2)
+
+
+def test_fake_ssh_keeps_a_managed_local_forward_alive_until_terminated():
+    script = Path(__file__).parent / "uat" / "task31_fake_ssh"
+    upstream = socket.socket()
+    upstream.bind(("127.0.0.1", 0))
+    upstream.listen()
+    upstream_port = upstream.getsockname()[1]
+    probe = socket.socket()
+    probe.bind(("127.0.0.1", 0))
+    local_port = probe.getsockname()[1]
+    probe.close()
+
+    def serve_once():
+        connection, _ = upstream.accept()
+        with connection:
+            connection.sendall(b"managed-forward-ready")
+
+    thread = threading.Thread(target=serve_once, daemon=True)
+    thread.start()
+    environment = os.environ.copy()
+    environment["TASK31_FAKE_WRAPPER_HOST"] = "127.0.0.1"
+    process = subprocess.Popen(
+        [
+            str(script),
+            "-N",
+            "-L",
+            f"127.0.0.1:{local_port}:127.0.0.1:{upstream_port}",
+            "root@fake-services",
+        ],
+        env=environment,
+    )
+    try:
+        deadline = time.monotonic() + 3
+        while True:
+            try:
+                with socket.create_connection(("127.0.0.1", local_port), timeout=0.2) as client:
+                    assert client.recv(64) == b"managed-forward-ready"
+                    break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.02)
+        assert process.poll() is None
+    finally:
+        process.terminate()
+        process.wait(timeout=3)
+        upstream.close()
         thread.join(timeout=2)

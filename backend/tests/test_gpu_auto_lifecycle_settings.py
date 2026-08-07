@@ -21,6 +21,7 @@ from app.services.compshare_credentials import (
     project_secret_status,
     write_project_credentials,
 )
+from app.services.compshare_lifecycle import ManagedWrapperTransport
 from app.services.gpu_pipeline_lifecycle import acquire_gpu_for_pipeline, release_gpu_after_pipeline
 from app.services.gpu_runtime_settings import (
     GIB,
@@ -92,6 +93,21 @@ class LifecycleClient:
         self.scheduler_stop_time = int(_stop_time)
         self.guard_verification_pending = True
         return {"Action":"UpdateCompShareStopSchedulerResponse", "RetCode":0, "UHostId":"uhost-test"}
+
+
+class _AliveTransportProcess:
+    def poll(self): return None
+    def terminate(self): pass
+    def wait(self, timeout=None): return 0
+    def kill(self): pass
+
+
+def fake_transport(_config, *, lease_id, prior=None):
+    port = int((prior or {}).get("local_port") or 39123)
+    return ManagedWrapperTransport(
+        lease_id=lease_id, endpoint=f"http://127.0.0.1:{port}", local_port=port,
+        remote_port=18080, ssh_host="fake-gpu", process=_AliveTransportProcess(),
+    )
 
 
 def test_project_secret_file_permissions_schema_rotation_and_no_value_status(tmp_path: Path, monkeypatch):
@@ -294,7 +310,7 @@ def test_automatic_owned_lifecycle_starts_once_schedules_and_stops_after_freeze(
     db.add(PipelineRunItem(run_id=run.id,user_id="1",material_pk=1,material_id="m1",input_bucket="input",input_object="m1.pdf",filename="m1.pdf",status="succeeded",current_stage="done",mineru_manifest_bucket="mineru",mineru_manifest_object="m.json",popo_manifest_bucket="popo",popo_manifest_object="p.json"))
     db.commit()
     client=LifecycleClient(["Stopped","Running","Running","Stopping","Stopped"])
-    lease=acquire_gpu_for_pipeline(db,run,client_factory=lambda _config:client,readiness_probe=lambda config,_url:{"ready":True,"ssh":{"disk_available_bytes":14_978_945_024,"disk_required_bytes":config.minimum_disk_bytes}})
+    lease=acquire_gpu_for_pipeline(db,run,client_factory=lambda _config:client,readiness_probe=lambda config,_url:{"ready":True,"ssh":{"disk_available_bytes":14_978_945_024,"disk_required_bytes":config.minimum_disk_bytes}},transport_factory=fake_transport)
     assert lease is not None and lease.lifecycle_owned is True
     assert client.start_calls==1 and client.scheduler_calls==1
     result=release_gpu_after_pipeline(db,run,lease,client_factory=lambda _config:client,remote_jobs_probe=lambda _url:{"verified":True,"all_required_denominators_verified":True,"idle_verified":True,"active_total":0},sleep=lambda _seconds:None)
@@ -318,7 +334,7 @@ def test_pipeline_resume_reuses_persisted_guard_without_duplicate_scheduler_or_s
             raise RuntimeError("simulated death between guard and accepted start")
     db.commit = crash_after_guard_commit
     with pytest.raises(RuntimeError, match="simulated death"):
-        acquire_gpu_for_pipeline(db, run, client_factory=lambda _config: first, readiness_probe=lambda *_: {"ready": True})
+        acquire_gpu_for_pipeline(db, run, client_factory=lambda _config: first, readiness_probe=lambda *_: {"ready": True}, transport_factory=fake_transport)
     db.commit = real_commit
     persisted = run.summary()["gpu_lifecycle"]["lease"]
     assert persisted["phase"] == "guard_accepted_before_start"
@@ -326,7 +342,7 @@ def test_pipeline_resume_reuses_persisted_guard_without_duplicate_scheduler_or_s
 
     resumed = LifecycleClient(["Stopped", "Running"])
     resumed.scheduler_stop_time = int(persisted["cost_guard"]["scheduler_stop_time"])
-    lease = acquire_gpu_for_pipeline(db, run, client_factory=lambda _config: resumed, readiness_probe=lambda *_: {"ready": True})
+    lease = acquire_gpu_for_pipeline(db, run, client_factory=lambda _config: resumed, readiness_probe=lambda *_: {"ready": True}, transport_factory=fake_transport)
     assert resumed.scheduler_calls == 0
     assert resumed.start_calls == 1
     assert lease.phase == "ready"
@@ -340,7 +356,7 @@ def test_already_running_instance_is_never_claimed_or_stopped(tmp_path: Path, mo
     run=PipelineRun(user_id="1",status="running",mode="apply",idempotency_key="run-2",request_json=json.dumps({"apply":True,"snapshot":[{"size_bytes":1}],"gpu_runtime_snapshot":snapshot.public_dict()}))
     db.add(run); db.commit()
     client=LifecycleClient(["Running"])
-    lease=acquire_gpu_for_pipeline(db,run,client_factory=lambda _config:client,readiness_probe=lambda _config,_url:{"ready":True})
+    lease=acquire_gpu_for_pipeline(db,run,client_factory=lambda _config:client,readiness_probe=lambda _config,_url:{"ready":True},transport_factory=fake_transport)
     assert lease is not None and lease.lifecycle_owned is False and client.start_calls==0
     result=release_gpu_after_pipeline(db,run,lease,client_factory=lambda _config:client,remote_jobs_probe=lambda _url:{"verified":True,"all_required_denominators_verified":True,"idle_verified":True,"active_total":0},sleep=lambda _seconds:None)
     assert result["stopped"] is False and "lifecycle_not_owned" in result["blockers"] and client.stop_calls==0

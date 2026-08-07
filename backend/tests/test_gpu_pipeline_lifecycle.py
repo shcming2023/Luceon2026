@@ -10,7 +10,9 @@ from app.models.base import Base
 from app.models.material import PipelineRun, PipelineRunItem
 from app.services.compshare_lifecycle import LifecycleLease
 from app.services.gpu_pipeline_lifecycle import (
+    _failed_before_external_submit,
     _safe_stop_context,
+    mark_gpu_offline_before_submit_if_applicable,
     reconcile_stale_lifecycle_leases,
     release_gpu_after_pipeline,
     remote_activity_snapshot,
@@ -374,10 +376,14 @@ def test_stale_owned_lease_reaper_stops_only_after_all_gates(monkeypatch):
         client_factory=lambda _config: client,
         remote_jobs_probe=lambda _url: verified_idle_snapshot(),
     )
-    assert result["stopped"] == 1
-    assert client.stop_calls == 1
     db.refresh(run)
-    assert run.summary()["gpu_shutdown"]["status"] == "stopped"
+    assert result["stopped"] == 1
+    # The reaper's initial official Describe consumed the transition to
+    # Stopped, so it must converge without rebuilding a tunnel or issuing a
+    # duplicate Stop.
+    assert client.stop_calls == 0
+    db.refresh(run)
+    assert run.summary()["gpu_shutdown"]["status"] == "already_stopped"
     assert run.summary()["gpu_lifecycle"]["status"] == "stopped"
     assert run.summary()["gpu_lifecycle"]["lease"]["current_state"] == "Stopped"
 
@@ -476,3 +482,84 @@ def test_reaper_retains_invalid_lease_timestamp_without_stopping(monkeypatch):
     assert result["invalid"] == 1
     assert result["stopped"] == 0
     assert client.stop_calls == 0
+
+
+def test_lifecycle_ready_transport_failure_without_external_ids_can_use_common_safe_stop(monkeypatch):
+    """Regression for production run100: ready does not imply a submitted batch."""
+    for name, value in {
+        "COMPSHARE_LIFECYCLE_ENABLED": "true",
+        "COMPSHARE_ALLOW_LEGACY_ENV": "true",
+        "COMPSHARE_PUBLIC_KEY": "present",
+        "COMPSHARE_PRIVATE_KEY": "present",
+        "COMPSHARE_REGION": "cn-test",
+        "COMPSHARE_ZONE": "cn-test-01",
+        "COMPSHARE_PROJECT_ID": "org-test",
+        "COMPSHARE_UHOST_ID": "uhost-1",
+        "COMPSHARE_STOP_GRACE_SECONDS": "0",
+    }.items():
+        monkeypatch.setenv(name, value)
+    db = make_session()
+    lease = LifecycleLease(
+        lease_id="before-submit", uhost_id="uhost-1", prior_state="Stopped", current_state="Running",
+        lifecycle_owned=True, started_by_pipeline=True, acquired_at="2026-08-01T00:00:00+00:00", phase="ready",
+    )
+    run = PipelineRun(
+        user_id="u1", status="failed", mode="apply", current_stage="gpu_transport_failed_before_submit",
+        summary_json=json.dumps({"gpu_lifecycle": {"status": "failed", "lease": lease.to_dict()}}),
+    )
+    db.add(run); db.flush()
+    db.add(PipelineRunItem(
+        run_id=run.id, user_id="u1", material_pk=1, material_id="pdf-1", input_bucket="input", input_object="book.pdf",
+        filename="book.pdf", status="failed", current_stage="gpu_transport_failed_before_submit",
+    ))
+    db.commit()
+    assert _failed_before_external_submit(db, run) is True
+    client = ReaperClient()
+    result = release_gpu_after_pipeline(
+        db, run, lease, client_factory=lambda _config: client,
+        remote_jobs_probe=lambda _url: verified_idle_snapshot(), sleep=lambda _seconds: None,
+    )
+    assert result["stopped"] is True, result
+    assert client.stop_calls == 1
+
+
+def test_external_identity_or_unverified_inventory_blocks_failed_before_submit_stop(monkeypatch):
+    for name, value in {
+        "COMPSHARE_LIFECYCLE_ENABLED": "true", "COMPSHARE_ALLOW_LEGACY_ENV": "true",
+        "COMPSHARE_PUBLIC_KEY": "present", "COMPSHARE_PRIVATE_KEY": "present", "COMPSHARE_REGION": "cn-test",
+        "COMPSHARE_ZONE": "cn-test-01", "COMPSHARE_PROJECT_ID": "org-test", "COMPSHARE_UHOST_ID": "uhost-1",
+        "COMPSHARE_STOP_GRACE_SECONDS": "0",
+    }.items(): monkeypatch.setenv(name, value)
+    db = make_session()
+    lease = LifecycleLease(lease_id="blocked", uhost_id="uhost-1", prior_state="Stopped", current_state="Running", lifecycle_owned=True, started_by_pipeline=True, acquired_at="2026-08-01T00:00:00+00:00")
+    run = PipelineRun(user_id="u1", status="failed", mode="apply", current_stage="gpu_transport_failed_before_submit", summary_json=json.dumps({"gpu_lifecycle": {"lease": lease.to_dict()}}))
+    db.add(run); db.flush()
+    item = PipelineRunItem(run_id=run.id, user_id="u1", material_pk=1, material_id="pdf-1", input_bucket="input", input_object="book.pdf", filename="book.pdf", status="failed", current_stage="gpu_transport_failed_before_submit")
+    db.add(item); db.flush()
+    from app.models.material import PipelineStageAttempt
+    db.add(PipelineStageAttempt(run_item_id=item.id, user_id="u1", stage="mineru", attempt=1, status="failed", external_batch_id="external-1"))
+    db.commit()
+    assert _failed_before_external_submit(db, run) is False
+    client = ReaperClient()
+    result = release_gpu_after_pipeline(db, run, lease, client_factory=lambda _config: client, remote_jobs_probe=lambda _url: verified_idle_snapshot(), sleep=lambda _seconds: None)
+    assert result["stopped"] is False
+    assert "results_not_frozen_local" in result["blockers"]
+    assert client.stop_calls == 0
+
+
+def test_gpu_offline_payload_with_zero_external_identity_is_reclassified_before_stop():
+    db = make_session()
+    run = PipelineRun(
+        user_id="u1", status="failed", mode="apply", current_stage="failed",
+        summary_json=json.dumps({"result": {"status": "GPU_OFFLINE", "error": "network unreachable"}}),
+    )
+    db.add(run); db.flush()
+    db.add(PipelineRunItem(
+        run_id=run.id, user_id="u1", material_pk=1, material_id="pdf-1", input_bucket="input", input_object="book.pdf",
+        filename="book.pdf", status="failed", current_stage="failed",
+    ))
+    db.commit()
+    assert mark_gpu_offline_before_submit_if_applicable(db, run) is True
+    db.refresh(run)
+    assert run.current_stage == "gpu_transport_failed_before_submit"
+    assert _failed_before_external_submit(db, run) is True

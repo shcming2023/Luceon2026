@@ -1,5 +1,76 @@
 #!/bin/sh
 set -eu
+
+forward=''
+no_command=false
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -L)
+      shift
+      forward="${1:-}"
+      ;;
+    -N)
+      no_command=true
+      ;;
+  esac
+  shift || true
+done
+
+if [ "$no_command" = true ]; then
+  [ -n "$forward" ] || exit 64
+  exec python3 - "$forward" <<'PY'
+import socket
+import sys
+import threading
+import os
+from pathlib import Path
+
+local_host, local_port, _remote_host, remote_port = sys.argv[1].split(":", 3)
+disconnect_after = int(os.environ.get("TASK31_FAKE_SSH_DISCONNECT_AFTER", "0") or 0)
+disconnect_once_file = Path(os.environ.get("TASK31_FAKE_SSH_DISCONNECT_ONCE_FILE", "/tmp/task31-fake-ssh-disconnect-used"))
+disconnect_this_process = disconnect_after > 0 and not disconnect_once_file.exists()
+if disconnect_this_process:
+    disconnect_once_file.parent.mkdir(parents=True, exist_ok=True)
+    disconnect_once_file.touch()
+
+
+def copy(source, target):
+    try:
+        while chunk := source.recv(64 * 1024):
+            target.sendall(chunk)
+    except OSError:
+        pass
+    finally:
+        try:
+            target.shutdown(socket.SHUT_WR)
+        except OSError:
+            pass
+
+
+with socket.socket() as listener:
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    listener.bind((local_host, int(local_port)))
+    listener.listen()
+    accepted = 0
+    while True:
+        client, _ = listener.accept()
+        accepted += 1
+        if disconnect_this_process and accepted >= disconnect_after:
+            client.close()
+            raise SystemExit(73)
+        try:
+            upstream = socket.create_connection(
+                (os.environ.get("TASK31_FAKE_WRAPPER_HOST", "fake-services"), int(remote_port)),
+                timeout=5,
+            )
+        except OSError:
+            client.close()
+            continue
+        threading.Thread(target=copy, args=(client, upstream), daemon=True).start()
+        threading.Thread(target=copy, args=(upstream, client), daemon=True).start()
+PY
+fi
+
 printf '%s\n' 'NVIDIA RTX 4090, 49140'
 # Decimal 14,978,945,024 bytes, matching the observed development capacity
 # without encoding that value into production policy.

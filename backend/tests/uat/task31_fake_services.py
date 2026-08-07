@@ -282,6 +282,9 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    wrapper_port = int(os.getenv("WRAPPER_PORT", "18080"))
+    wrapper_server = ThreadingHTTPServer(("0.0.0.0", wrapper_port), Handler)
+    threading.Thread(target=wrapper_server.serve_forever, daemon=True).start()
     server = ThreadingHTTPServer(("0.0.0.0", int(os.getenv("PORT", "8080"))), Handler)
     certificate = os.getenv("TASK31_FAKE_TLS_CERT", "").strip()
     private_key = os.getenv("TASK31_FAKE_TLS_KEY", "").strip()

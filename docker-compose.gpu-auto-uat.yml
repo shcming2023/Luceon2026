@@ -32,8 +32,10 @@ services:
     command: ['python', '/fixture/task31_fake_services.py']
     environment:
       PORT: '8443'
+      WRAPPER_PORT: '18080'
       COMPSHARE_UHOST_ID: uhost-gpu-auto-fake
       GPU_WRAPPER_API_KEY: ${GPU_AUTO_UAT_WRAPPER_KEY:?set GPU_AUTO_UAT_WRAPPER_KEY}
+      TASK31_FAKE_FAIL_STAGE_ONCE: ${GPU_AUTO_UAT_FAIL_STAGE_ONCE:-}
       TASK31_FAKE_EVIDENCE: /evidence/fake-services.jsonl
       TASK31_FAKE_TLS_CERT: /tls/fake-services.crt
       TASK31_FAKE_TLS_KEY: /tls/fake-services.key
@@ -78,6 +80,8 @@ services:
       LUCEON_UPLOAD_TEMP_DIR: /uat/upload-tmp
       PYTHONPATH: /workspace/backend
       PATH: /fake-bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin
+      TASK31_FAKE_SSH_DISCONNECT_AFTER: ${GPU_AUTO_UAT_SSH_DISCONNECT_AFTER:-0}
+      TASK31_FAKE_SSH_DISCONNECT_ONCE_FILE: /uat/fake-ssh-disconnect-once
       SSL_CERT_FILE: /uat-tls/ca.crt
     ports:
       - '${GPU_AUTO_UAT_API_PORT:-39280}:8000'
