@@ -206,6 +206,23 @@ function onSelectionChange(value: MaterialItem[]) {
   preflight.value = null
 }
 
+function isSelected(row: MaterialItem) {
+  return selected.value.some(item => Number(item.id) === Number(row.id))
+}
+
+function toggleMobileSelection(row: MaterialItem, checked: boolean | string | number) {
+  const next = selected.value.filter(item => Number(item.id) !== Number(row.id))
+  if (Boolean(checked)) {
+    if (next.length >= 5) {
+      ElMessage.warning('一个解析批次最多选择 5 本教材')
+      return
+    }
+    next.push(row)
+  }
+  selected.value = next
+  preflight.value = null
+}
+
 function openBatch() {
   if (!selectionValid.value) return
   preflight.value = null
@@ -214,16 +231,21 @@ function openBatch() {
 }
 
 function preflightResourceText(result: PipelinePreflightResponse) {
+  if (result.status === 'GPU_OFFLINE') return '自动管理已关闭；请先在 Compshare 手工开机，系统不会自动开机或关机。'
   const gate = result.resource_gate
   if (!gate?.applies) return ''
-  const available = formatFileSize(gate.available_headroom_bytes || 0)
   const required = formatFileSize(gate.required_headroom_bytes || 0)
+  if (result.status === 'CLOUD_LIFECYCLE_DEFERRED' || gate.status === 'deferred_until_gpu_ready') {
+    return `GPU 当前可离线；提交后由 Worker 执行 Describe/按需启动，并在上传 PDF 前核验远端磁盘。本批次动态要求至少 ${required}`
+  }
+  const available = formatFileSize(gate.available_headroom_bytes || 0)
   return gate.ok
     ? `超大 PDF 资源门禁通过：GPU 临时产物余量 ${available}，本批次要求至少 ${required}`
     : `${gate.reason || 'GPU 临时产物余量不足'}：当前 ${available}，本批次要求至少 ${required}`
 }
 
 function preflightFailureText(result: PipelinePreflightResponse) {
+  if (result.status === 'GPU_OFFLINE') return 'GPU_OFFLINE：自动管理已关闭，请手工开机后重试'
   if (result.resource_gate?.applies && !result.resource_gate.ok) return preflightResourceText(result)
   return result.status || result.plan_status || '请检查运行状态'
 }
@@ -431,6 +453,11 @@ onMounted(async () => {
       <div class="workspace-table">
         <div class="mobile-record-list" aria-label="PDF 资产列表">
           <article v-for="row in rows" :key="`mobile-${row.id}`" class="mobile-record-card">
+            <el-checkbox
+              :model-value="isSelected(row)"
+              :aria-label="`选择 ${row.filename}`"
+              @change="toggleMobileSelection(row, $event)"
+            >选择此 PDF</el-checkbox>
             <MaterialIdentity :filename="row.filename" :material-id="row.material_id" :material-pk="row.id" :sha256="row.input_sha256" />
             <dl class="mobile-record-facts">
               <div><dt>规格</dt><dd>{{ formatFileSize(row.size) }} · {{ row.page_count || '—' }} 页</dd></div>
@@ -485,7 +512,7 @@ onMounted(async () => {
         v-if="preflight"
         :type="preflight.ready ? 'success' : 'warning'"
         :closable="false"
-        :title="preflight.ready ? '预检通过' : `预检未通过：${preflightFailureText(preflight)}`"
+        :title="preflight.status === 'CLOUD_LIFECYCLE_DEFERRED' ? '云生命周期已延后到正式提交' : preflight.ready ? '预检通过' : `预检未通过：${preflightFailureText(preflight)}`"
         :description="preflightResourceText(preflight)"
       />
       <template #footer>

@@ -50,6 +50,44 @@ export interface RuntimeGpuConfig {
   api_key_configured?: boolean
 }
 
+export interface GpuAutomationConfig {
+  schema_version: string
+  version: number
+  automatic_enabled: boolean
+  effective_automatic: boolean
+  auto_stop: boolean
+  take_over_running: boolean
+  credential_provider: 'project_secret_file' | 'macos_keychain_secret_file'
+  credential_status: 'present' | 'missing' | 'invalid'
+  credential_version: number
+  endpoint: string
+  region: string
+  zone: string
+  project_id: string
+  uhost_id: string
+  ssh_host: string
+  ssh_port: number
+  budget_micro_cny: number
+  min_free_disk_bytes: number
+  disk_reserve_bytes: number
+  expansion_factor: number
+  stop_grace_seconds: number
+  kill_switch_active: boolean
+  automation_blockers: string[]
+  settings_sha256: string
+}
+
+export interface GpuDescribeResult {
+  status: 'described'
+  instance_state: string
+  uhost_id: string
+  region: string
+  zone: string
+  endpoint_origin: string
+  price_boundary: Record<string, string | number>
+  mutation_performed: false
+}
+
 export interface RuntimeProviderConfig {
   base_url: string
   api_key: string
@@ -267,6 +305,18 @@ export const settingsApi = {
     return api.post<GpuCheckResult>('/runtime/gpu/check')
       .then(res => res.data)
   },
+
+  getGpuAutomation() { return api.get<GpuAutomationConfig>('/runtime/gpu/automation').then(res => res.data) },
+  updateGpuAutomation(value: Partial<GpuAutomationConfig> & { expected_version: number }) {
+    return api.put<GpuAutomationConfig>('/runtime/gpu/automation', value).then(res => res.data)
+  },
+  updateGpuCredentials(publicKey: string, privateKey: string) {
+    return api.put<{ status: string; present: boolean; source: string; version: number }>('/runtime/gpu/credentials', { public_key: publicKey, private_key: privateKey }).then(res => res.data)
+  },
+  deleteGpuCredentials() {
+    return api.delete<{ status: string; present: boolean }>('/runtime/gpu/credentials', { data: { confirmation: 'DELETE_COMPSHARE_PROJECT_SECRET' } }).then(res => res.data)
+  },
+  describeGpu() { return api.post<GpuDescribeResult>('/runtime/gpu/describe').then(res => res.data) },
 
   checkModels() {
     return api.post<ModelCheckResult>('/runtime/models/check')

@@ -1,4 +1,6 @@
 #!/bin/sh
 set -eu
 printf '%s\n' 'NVIDIA RTX 4090, 49140'
-printf '%s\n' '/dev/fake 100000000 1000 50000000 1% /srv/mineru'
+# Decimal 14,978,945,024 bytes, matching the observed development capacity
+# without encoding that value into production policy.
+printf '%s\n' '/dev/fake 100000000 1000 14627876 1% /srv/mineru'

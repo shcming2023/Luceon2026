@@ -7,6 +7,7 @@ import hashlib
 import io
 import json
 import os
+import ssl
 import tarfile
 import threading
 from datetime import datetime, timezone
@@ -15,7 +16,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 
-STATE = {"instance": "Stopped", "jobs": {}, "mineru": {}, "popo": {}, "events": []}
+STATE = {"instance": "Stopped", "scheduler_stop_time": 0, "jobs": {}, "mineru": {}, "popo": {}, "events": []}
 LOCK = threading.Lock()
 EVIDENCE_PATH = Path(os.getenv("TASK31_FAKE_EVIDENCE", "/evidence/fake-services.jsonl"))
 UHOST_ID = os.getenv("COMPSHARE_UHOST_ID", "uhost-task31-fake")
@@ -105,6 +106,12 @@ class Handler(BaseHTTPRequestHandler):
     def wrapper_authorized(self) -> bool:
         return self.headers.get("Authorization") == f"Bearer {WRAPPER_KEY}"
 
+    def wrapper_running(self) -> bool:
+        if STATE["instance"] == "Running":
+            return True
+        self.send_json(503, {"error": "gpu_offline", "instance_state": STATE["instance"]})
+        return False
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         query = parse_qs(parsed.query)
@@ -114,6 +121,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         path = parsed.path.rstrip("/")
         if path == "/api/v1/health":
+            if not self.wrapper_running():
+                return
             self.send_json(
                 200,
                 {
@@ -134,6 +143,8 @@ class Handler(BaseHTTPRequestHandler):
             if not self.wrapper_authorized():
                 self.send_json(401, {"error": "unauthorized"})
                 return
+            if not self.wrapper_running():
+                return
             rows = [dict(value, id=key) for key, value in sorted(STATE["jobs"].items())]
             status, payload = paginated_inventory(rows, query, key="jobs")
             self.send_json(status, payload)
@@ -145,16 +156,22 @@ class Handler(BaseHTTPRequestHandler):
                 if not self.wrapper_authorized():
                     self.send_json(401, {"error": "unauthorized"})
                     return
+                if not self.wrapper_running():
+                    return
                 rows = [dict(value, id=key) for key, value in sorted(STATE[stage].items())]
                 status, payload = paginated_inventory(rows, query, key="batches")
                 self.send_json(status, payload)
                 return
             if path.startswith(prefix + "/"):
+                if not self.wrapper_running():
+                    return
                 batch_id = path.rsplit("/", 1)[-1]
                 payload = STATE[stage].get(batch_id)
                 self.send_json(200 if payload else 404, payload or {"error": "not_found"})
                 return
             if path.startswith(result_prefix):
+                if not self.wrapper_running():
+                    return
                 run_id = path[len(result_prefix) :]
                 if run_id == "__probe__":
                     self.send_json(404, {"error": "probe"})
@@ -182,6 +199,8 @@ class Handler(BaseHTTPRequestHandler):
         for stage in ("mineru", "popo"):
             if path != f"/api/v1/{stage}/batches":
                 continue
+            if not self.wrapper_running():
+                return
             if FAIL_STAGE_ONCE == stage and not FAILURE_USED["value"]:
                 FAILURE_USED["value"] = True
                 record("batch_submit_failed", {"stage": stage, "failure": "injected_once"})
@@ -233,7 +252,10 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(400, {"RetCode": 400, "ErrCode": "WithoutGpuSpecForbidden"})
             return
         if action == "DescribeCompShareInstance":
-            response = {"RetCode": 0, "UHostSet": [{"UHostId": UHOST_ID, "State": STATE["instance"], "IPSet": []}]}
+            row = {"UHostId": UHOST_ID, "State": STATE["instance"], "IPSet": [], "ChargeType": "Postpay", "InstancePrice": 3.13}
+            if int(STATE.get("scheduler_stop_time") or 0):
+                row["SchedulerStopTime"] = int(STATE["scheduler_stop_time"])
+            response = {"RetCode": 0, "UHostSet": [row]}
         elif action == "StartCompShareInstance":
             if STATE["instance"] != "Stopped":
                 response = {"RetCode": 191, "ErrCode": "InstanceOperationInProgress", "Message": "not stopped"}
@@ -251,7 +273,8 @@ class Handler(BaseHTTPRequestHandler):
             if scheduler_stop_time < int(datetime.now(timezone.utc).timestamp()) + 300:
                 response = {"RetCode": 400, "ErrCode": "SchedulerStopTimeTooSoon", "Message": "must be >= now+300"}
             else:
-                response = {"RetCode": 0, "UHostId": UHOST_ID, "SchedulerStopTime": scheduler_stop_time}
+                STATE["scheduler_stop_time"] = scheduler_stop_time
+                response = {"Action": "UpdateCompShareStopSchedulerResponse", "RetCode": 0, "UHostId": UHOST_ID}
         else:
             response = {"RetCode": 404, "ErrCode": "UnknownAction", "Message": action}
         record("cloud_control", {"action": action, "state": STATE["instance"], "ret_code": response.get("RetCode")})
@@ -259,4 +282,13 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    ThreadingHTTPServer(("0.0.0.0", int(os.getenv("PORT", "8080"))), Handler).serve_forever()
+    server = ThreadingHTTPServer(("0.0.0.0", int(os.getenv("PORT", "8080"))), Handler)
+    certificate = os.getenv("TASK31_FAKE_TLS_CERT", "").strip()
+    private_key = os.getenv("TASK31_FAKE_TLS_KEY", "").strip()
+    if certificate or private_key:
+        if not certificate or not private_key:
+            raise RuntimeError("both fake TLS certificate and key are required")
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(certificate, private_key)
+        server.socket = context.wrap_socket(server.socket, server_side=True)
+    server.serve_forever()

@@ -1,0 +1,115 @@
+name: ${GPU_AUTO_UAT_COMPOSE_NAME:-luceon-gpu-auto-uat}
+
+services:
+  minio:
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    command: server /data --console-address ':9001'
+    environment:
+      MINIO_ROOT_USER: ${GPU_AUTO_UAT_MINIO_ACCESS:?set GPU_AUTO_UAT_MINIO_ACCESS}
+      MINIO_ROOT_PASSWORD: ${GPU_AUTO_UAT_MINIO_SECRET:?set GPU_AUTO_UAT_MINIO_SECRET}
+    volumes:
+      - ${GPU_AUTO_UAT_ROOT:-./.uat/gpu-auto}/minio:/data
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-05-21T01-59-54Z
+    depends_on: [minio]
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - >-
+        until mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"; do sleep 1; done;
+        mc mb --ignore-existing local/eduassets-input local/eduassets-mineru local/eduassets-minerupopo local/eduassets-parsed local/eduassets-raw local/eduassets-clean local/eduassets-standard local/eduassets-elegantbook local/eduassets-review local/eduassets-latex;
+        exit 0
+    environment:
+      MINIO_ROOT_USER: ${GPU_AUTO_UAT_MINIO_ACCESS}
+      MINIO_ROOT_PASSWORD: ${GPU_AUTO_UAT_MINIO_SECRET}
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly no
+
+  fake-services:
+    image: python:3.12-slim
+    command: ['python', '/fixture/task31_fake_services.py']
+    environment:
+      PORT: '8443'
+      COMPSHARE_UHOST_ID: uhost-gpu-auto-fake
+      GPU_WRAPPER_API_KEY: ${GPU_AUTO_UAT_WRAPPER_KEY:?set GPU_AUTO_UAT_WRAPPER_KEY}
+      TASK31_FAKE_EVIDENCE: /evidence/fake-services.jsonl
+      TASK31_FAKE_TLS_CERT: /tls/fake-services.crt
+      TASK31_FAKE_TLS_KEY: /tls/fake-services.key
+    volumes:
+      - ./backend/tests/uat:/fixture:ro
+      - ${GPU_AUTO_UAT_ROOT:-./.uat/gpu-auto}/evidence:/evidence
+      - ${GPU_AUTO_UAT_ROOT:-./.uat/gpu-auto}/tls:/tls:ro
+
+  backend:
+    image: luceonweb2026-review-backend:prod-ef9b39e5-20260806T232656Z
+    command: ['uvicorn', 'main:app', '--host', '0.0.0.0', '--port', '8000']
+    working_dir: /workspace/backend
+    environment: &backend_env
+      TZ: Asia/Shanghai
+      REDIS_HOST: redis
+      DATABASE_URL: sqlite:////uat/application.db
+      LUCEON_AUTH_DISABLED: 'false'
+      AUTH_SECRET_KEY: ${GPU_AUTO_UAT_AUTH_SECRET:?set GPU_AUTO_UAT_AUTH_SECRET}
+      LUCEON_PIPELINE_ADMIN_EMAILS: gpu-auto-admin@example.test
+      LUCEON_RUNTIME_ADMIN_EMAILS: gpu-auto-admin@example.test
+      MINIO_INTERNAL_ENDPOINT: minio:9000
+      MINIO_PUBLIC_ENDPOINT: minio:9000
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${GPU_AUTO_UAT_MINIO_ACCESS}
+      MINIO_SECRET_KEY: ${GPU_AUTO_UAT_MINIO_SECRET}
+      GPU_WRAPPER_URL: https://fake-services:8443
+      GPU_WRAPPER_API_KEY: ${GPU_AUTO_UAT_WRAPPER_KEY}
+      COMPSHARE_PROJECT_SECRET_FILE: /run/luceon-project-secrets/compshare.json
+      COMPSHARE_ALLOWED_ENDPOINT_ORIGINS: fake-services:8443
+      COMPSHARE_LIFECYCLE_KILL_SWITCH: 'false'
+      COMPSHARE_POLL_SECONDS: '1'
+      COMPSHARE_OPERATION_TIMEOUT_SECONDS: '30'
+      COMPSHARE_STATE_LAG_GRACE_SECONDS: '5'
+      COMPSHARE_STATE_LAG_MAX_OBSERVATIONS: '3'
+      GPU_SSH_USER: root
+      GPU_SSH_KEY_PATH_IN_CONTAINER: ''
+      GPU_SSH_KNOWN_HOSTS_PATH: /fixture/known_hosts
+      GPU_REMOTE_SERVICE_ROOT: /srv/mineru
+      LUCEON_PIPELINE_SCRIPT: /workspace/backend/scripts/luceon_pdf_pipeline.py
+      LUCEON_PIPELINE_WORKDIR: /uat
+      TMPDIR: /uat/upload-tmp
+      LUCEON_UPLOAD_TEMP_DIR: /uat/upload-tmp
+      PYTHONPATH: /workspace/backend
+      PATH: /fake-bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin
+      SSL_CERT_FILE: /uat-tls/ca.crt
+    ports:
+      - '${GPU_AUTO_UAT_API_PORT:-39280}:8000'
+    volumes:
+      - ./:/workspace:ro
+      - ${GPU_AUTO_UAT_ROOT:-./.uat/gpu-auto}/backend:/uat
+      - ${GPU_AUTO_UAT_ROOT:-./.uat/gpu-auto}/project-secrets:/run/luceon-project-secrets
+      - ${GPU_AUTO_UAT_ROOT:-./.uat/gpu-auto}/tls:/uat-tls:ro
+      - ./backend/tests/uat:/fixture:ro
+    depends_on: [minio-init, redis, fake-services]
+
+  material-task-worker:
+    image: luceonweb2026-review-backend:prod-ef9b39e5-20260806T232656Z
+    command: ['python', 'scripts/material_task_worker.py', '--loop', '--worker-id', 'gpu-auto-uat-worker']
+    working_dir: /workspace/backend
+    environment: *backend_env
+    volumes:
+      - ./:/workspace:ro
+      - ${GPU_AUTO_UAT_ROOT:-./.uat/gpu-auto}/backend:/uat
+      - ${GPU_AUTO_UAT_ROOT:-./.uat/gpu-auto}/project-secrets:/run/luceon-project-secrets:ro
+      - ${GPU_AUTO_UAT_ROOT:-./.uat/gpu-auto}/tls:/uat-tls:ro
+      - ./backend/tests/uat:/fixture:ro
+      - ./backend/tests/uat/task31_fake_ssh:/fake-bin/ssh:ro
+    depends_on: [backend]
+
+  frontend:
+    build: {context: ./frontend}
+    ports:
+      - '${GPU_AUTO_UAT_WEB_PORT:-39281}:80'
+    depends_on: [backend]
+
+networks:
+  default:
+    external: true
+    name: luceon-worker-v31-phase-a-uat_default

@@ -566,7 +566,11 @@ def test_pipeline_admin_can_preflight_new_immutable_parse_version(monkeypatch):
     monkeypatch.setattr(
         materials_api,
         "run_pipeline_preflight",
-        lambda *_args, **kwargs: {"ready": kwargs.get("reprocess_completed") is True, "status": "READY"},
+        lambda *_args, **kwargs: {
+            "ready": kwargs.get("reprocess_completed") is True,
+            "status": "READY",
+            "health": {"health": {"artifact_limit_bytes": 20 * 1024**3, "artifact_used_bytes": 0, "disk_available_bytes": 15 * 1024**3}},
+        },
     )
 
     result = materials_api.pipeline_preflight(

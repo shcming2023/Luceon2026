@@ -488,7 +488,7 @@ def test_duplicate_submit_reuses_active_run_and_global_gpu_slot(monkeypatch):
     monkeypatch.setattr(
         material_inventory,
         "run_pipeline_preflight",
-        lambda *_args, **_kwargs: {"ready": True, "status": "DRY_RUN", "selected_count": 1},
+        lambda *_args, **_kwargs: {"ready": True, "status": "DRY_RUN", "selected_count": 1, "health": {"health": {"artifact_limit_bytes": 20 * 1024**3, "artifact_used_bytes": 0, "disk_available_bytes": 15 * 1024**3}}},
     )
 
     run = material_inventory.start_pipeline_run(db, "u1", apply=True, material_pks=[first.id])
@@ -521,7 +521,7 @@ def test_large_pdf_resource_gate_blocks_insufficient_wrapper_headroom():
     assert result["status"] == "GPU_RESOURCE_HEADROOM_BLOCKED"
     assert result["resource_gate"]["status"] == "insufficient_headroom"
     assert result["resource_gate"]["available_headroom_bytes"] == 6 * 1024**3
-    assert result["resource_gate"]["required_headroom_bytes"] == 50 * 1024**3
+    assert result["resource_gate"]["required_headroom_bytes"] == 12 * 1024**3
 
 
 def test_large_pdf_resource_gate_passes_with_required_wrapper_headroom():
@@ -590,11 +590,11 @@ def test_large_pdf_resource_gate_uses_historical_expansion_factor() -> None:
 
     assert result["ready"] is True
     assert result["resource_gate"]["expansion_factor"] == 20
-    assert result["resource_gate"]["required_headroom_bytes"] == 50 * 1024**3
+    assert result["resource_gate"]["required_headroom_bytes"] == 12 * 1024**3
 
 
-def test_small_pdf_resource_gate_does_not_require_wrapper_quota_fields():
-    payload = {"ready": True, "status": "READY", "health": {}}
+def test_small_pdf_resource_gate_enforces_dynamic_wrapper_headroom():
+    payload = {"ready": True, "status": "READY", "health": {"health": {"artifact_limit_bytes": 20 * 1024**3, "artifact_used_bytes": 0, "disk_available_bytes": 14_978_945_024}}}
 
     result = material_inventory.apply_pipeline_resource_gate(
         payload,
@@ -602,16 +602,10 @@ def test_small_pdf_resource_gate_does_not_require_wrapper_quota_fields():
     )
 
     assert result["ready"] is True
-    assert result["resource_gate"] == {
-        "applies": False,
-        "ok": True,
-        "status": "not_applicable",
-        "large_pdf_count": 0,
-        "selected_input_bytes": 20 * 1024**2,
-        "max_page_count": 120,
-        "large_pdf_threshold_bytes": 256 * 1024**2,
-        "large_pdf_page_threshold": 1000,
-    }
+    assert result["ready"] is True
+    assert result["resource_gate"]["applies"] is True
+    assert result["resource_gate"]["required_headroom_bytes"] == 12 * 1024**3
+    assert result["resource_gate"]["available_headroom_bytes"] == 14_978_945_024
 
 
 def test_versioned_reprocess_is_recorded_without_mutating_existing_frozen_refs(monkeypatch):
@@ -630,6 +624,7 @@ def test_versioned_reprocess_is_recorded_without_mutating_existing_frozen_refs(m
             "ready": kwargs.get("reprocess_completed") is True,
             "status": "READY",
             "selected_count": 1,
+            "health": {"health": {"artifact_limit_bytes": 20 * 1024**3, "artifact_used_bytes": 0, "disk_available_bytes": 15 * 1024**3}},
         },
     )
 

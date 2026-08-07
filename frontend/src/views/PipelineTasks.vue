@@ -62,6 +62,16 @@ function readinessLabel(run: PipelineRun) {
   return readiness.ready ? 'SSH / GPU / 磁盘 / wrapper 已核验' : `未就绪 · ${readiness.reason || readiness.error_domain || '原因待核验'}`
 }
 
+function readinessDisk(run: PipelineRun) {
+  const readiness = (gpuLease(run).readiness || {}) as Record<string, any>
+  const ssh = (readiness.ssh || {}) as Record<string, any>
+  const actual = Number(ssh.disk_available_bytes || 0)
+  const required = Number(ssh.disk_required_bytes || 0)
+  if (!actual && !required) return '尚未测量'
+  const gib = (value: number) => `${(value / 1073741824).toFixed(2)} GiB`
+  return `actual ${gib(actual)} / required ${gib(required)}`
+}
+
 function eventDetail(payload: Record<string, unknown>) {
   const value = payload as Record<string, any>
   return value.error_domain || value.status || (Array.isArray(value.blockers) ? value.blockers.join('、') : '')
@@ -228,6 +238,7 @@ onUnmounted(() => {
         <div><dt>启动前状态</dt><dd>{{ gpuLease(selectedRun).prior_state || '未核验' }}</dd></div>
         <div><dt>启动所有权</dt><dd>{{ gpuLease(selectedRun).started_by_pipeline ? '本任务从 Stopped 启动' : '原本运行或无所有权' }}</dd></div>
         <div><dt>SSH / 服务</dt><dd>{{ readinessLabel(selectedRun) }}</dd></div>
+        <div><dt>GPU 磁盘门禁</dt><dd>{{ readinessDisk(selectedRun) }}</dd></div>
         <div><dt>生命周期</dt><dd>{{ gpuLease(selectedRun).phase || '未登记' }}</dd></div>
         <div><dt>停机结果</dt><dd>{{ gpuShutdown(selectedRun).status || '尚未执行安全停机判断' }}</dd></div>
         <div><dt>停机阻断</dt><dd>{{ (gpuShutdown(selectedRun).blockers || []).join('、') || '无' }}</dd></div>
@@ -258,6 +269,7 @@ onUnmounted(() => {
           <el-descriptions-item label="启动前状态">{{ gpuLease(selectedRun).prior_state || '未核验' }}</el-descriptions-item>
           <el-descriptions-item label="启动所有权">{{ gpuLease(selectedRun).started_by_pipeline ? '本任务从 Stopped 启动' : '原本运行或无所有权' }}</el-descriptions-item>
           <el-descriptions-item label="SSH / 服务就绪">{{ readinessLabel(selectedRun) }}</el-descriptions-item>
+          <el-descriptions-item label="GPU 磁盘门禁">{{ readinessDisk(selectedRun) }}</el-descriptions-item>
           <el-descriptions-item label="生命周期阶段">{{ gpuLease(selectedRun).phase || '未登记' }}</el-descriptions-item>
           <el-descriptions-item label="停机结果">{{ gpuShutdown(selectedRun).status || '尚未执行安全停机判断' }}</el-descriptions-item>
           <el-descriptions-item label="停机阻断">{{ (gpuShutdown(selectedRun).blockers || []).join('、') || '无' }}</el-descriptions-item>

@@ -79,6 +79,36 @@
 
         <el-tab-pane label="GPU 算力" name="gpu">
           <section class="panel">
+            <div class="panel-title"><span>GPU 自动生命周期</span><el-tag :type="gpuAutomation?.effective_automatic ? 'success' : 'info'">{{ gpuAutomation?.effective_automatic ? '自动管理已开启' : '手动管理' }}</el-tag></div>
+            <el-alert v-if="gpuAutomationHint" :title="gpuAutomationHint" :type="gpuAutomation?.credential_status === 'invalid' ? 'error' : 'info'" :closable="false" show-icon />
+            <el-form v-if="gpuAutomation" label-position="top" class="form-grid gpu-automation-form">
+              <el-form-item label="自动管理 GPU"><el-switch v-model="gpuAutomation.automatic_enabled" :disabled="gpuAutomation.credential_status !== 'present' || gpuAutomation.kill_switch_active" /></el-form-item>
+              <el-form-item label="任务完成自动关闭"><div class="readonly-policy"><el-switch :model-value="true" disabled /><small>自动管理开启时强制启用；手动模式不会接管或关闭人工启动的实例。</small></div></el-form-item>
+              <el-form-item v-if="gpuAutomation.automation_blockers.length" label="启用阻断"><div class="blocker-list"><el-tag v-for="blocker in gpuAutomation.automation_blockers" :key="blocker" type="warning">{{ blocker }}</el-tag></div></el-form-item>
+              <el-form-item label="Credential provider"><el-select v-model="gpuAutomation.credential_provider"><el-option label="项目 Secret File（开发默认）" value="project_secret_file" /><el-option label="macOS Keychain 兼容" value="macos_keychain_secret_file" /></el-select></el-form-item>
+              <el-form-item label="密钥状态"><el-tag :type="gpuAutomation.credential_status === 'present' ? 'success' : 'danger'">{{ gpuAutomation.credential_status }}</el-tag></el-form-item>
+              <el-form-item label="Public Key（仅写入）"><el-input v-model="gpuSecret.publicKey" :disabled="gpuAutomation.credential_provider !== 'project_secret_file'" type="password" autocomplete="new-password" placeholder="永不回显" /></el-form-item>
+              <el-form-item label="Private Key（仅写入）"><el-input v-model="gpuSecret.privateKey" :disabled="gpuAutomation.credential_provider !== 'project_secret_file'" type="password" autocomplete="new-password" placeholder="永不回显" /></el-form-item>
+              <el-form-item label="API Endpoint"><el-input v-model="gpuAutomation.endpoint" /></el-form-item>
+              <el-form-item label="Region"><el-input v-model="gpuAutomation.region" /></el-form-item>
+              <el-form-item label="Zone"><el-input v-model="gpuAutomation.zone" /></el-form-item>
+              <el-form-item label="ProjectId"><el-input v-model="gpuAutomation.project_id" /></el-form-item>
+              <el-form-item label="UHostId"><el-input v-model="gpuAutomation.uhost_id" /></el-form-item>
+              <el-form-item label="SSH Host / Port"><div class="inline-fields"><el-input v-model="gpuAutomation.ssh_host" /><el-input-number v-model="gpuAutomation.ssh_port" :min="1" :max="65535" /></div></el-form-item>
+              <el-form-item label="每轮费用硬上限（CNY）"><el-input-number :model-value="gpuAutomation.budget_micro_cny / 1000000" :min="1" :max="20" @update:model-value="gpuAutomation.budget_micro_cny = Number($event) * 1000000" /></el-form-item>
+              <el-form-item label="GPU 最低可用空间（GiB）"><el-input-number :model-value="gpuAutomation.min_free_disk_bytes / 1073741824" :min="8" :max="1024" @update:model-value="gpuAutomation.min_free_disk_bytes = Number($event) * 1073741824" /></el-form-item>
+              <el-form-item label="动态预留（GiB）"><el-input-number :model-value="gpuAutomation.disk_reserve_bytes / 1073741824" :min="1" :max="128" @update:model-value="gpuAutomation.disk_reserve_bytes = Number($event) * 1073741824" /></el-form-item>
+              <el-form-item label="产物扩张系数"><el-input-number v-model="gpuAutomation.expansion_factor" :min="2" :max="64" /></el-form-item>
+            </el-form>
+            <div class="actions gpu-actions">
+              <el-button :disabled="gpuAutomation?.credential_provider !== 'project_secret_file'" :loading="loading.secret" @click="saveGpuSecret">录入/更新密钥</el-button>
+              <el-button type="danger" plain :disabled="gpuAutomation?.credential_provider !== 'project_secret_file'" :loading="loading.secret" @click="deleteGpuSecret">删除密钥</el-button>
+              <el-button :loading="loading.describe" @click="describeGpu">测试连接（仅 Describe）</el-button>
+              <el-button type="primary" :loading="loading.gpuSettings" @click="saveGpuAutomation">保存 GPU 设置</el-button>
+            </div>
+            <div v-if="gpuDescribe" class="probe-grid"><div><span>实例状态（Describe，不会开机）</span><el-tag>{{ gpuDescribe.instance_state }}</el-tag></div><div><span>实例身份</span><small>{{ gpuDescribe.uhost_id }} · {{ gpuDescribe.region }}/{{ gpuDescribe.zone }}</small></div></div>
+          </section>
+          <section class="panel gpu-wrapper-panel">
             <div class="panel-title"><span>GPU Wrapper</span><el-tag :type="gpuTagType">{{ gpuStateText }}</el-tag></div>
             <el-form :model="runtime.gpu" label-position="top" class="form-grid">
               <el-form-item label="运行语义"><el-input :model-value="'按需启动（无活动任务时离线属于正常）'" disabled /></el-form-item>
@@ -177,10 +207,10 @@
 
 <script setup lang="ts">
 import { computed, defineComponent, h, onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Check, Connection, FolderChecked, Monitor, RefreshRight, Setting, Upload } from '@element-plus/icons-vue'
 import { settingsApi } from '@/api/settings'
-import type { BackupJob, BackupTarget, GpuCheckResult, ModelCheckResult, MinioCheckResult, RuntimeConfig, RuntimeStatus } from '@/api/settings'
+import type { BackupJob, BackupTarget, GpuAutomationConfig, GpuCheckResult, GpuDescribeResult, ModelCheckResult, MinioCheckResult, RuntimeConfig, RuntimeStatus } from '@/api/settings'
 import { formatDateTime } from '@/utils/status'
 
 const StatusCell = defineComponent({
@@ -207,9 +237,20 @@ const runtime = ref<RuntimeConfig>(defaultRuntime())
 const status = ref<RuntimeStatus | null>(null)
 const minioCheck = ref<MinioCheckResult | null>(null)
 const gpuCheck = ref<GpuCheckResult | null>(null)
+const gpuAutomation = ref<GpuAutomationConfig | null>(null)
+const gpuDescribe = ref<GpuDescribeResult | null>(null)
+const gpuSecret = reactive({ publicKey: '', privateKey: '' })
 const modelCheck = ref<ModelCheckResult | null>(null)
 const backupJobs = ref<BackupJob[]>([])
-const loading = reactive({ initial: false, saving: false, status: false, minio: false, ensure: false, gpu: false, models: false, backup: false, backupRun: false })
+const loading = reactive({ initial: false, saving: false, status: false, minio: false, ensure: false, gpu: false, gpuSettings: false, secret: false, describe: false, models: false, backup: false, backupRun: false })
+const gpuAutomationHint = computed(() => {
+  if (!gpuAutomation.value) return ''
+  if (gpuAutomation.value.kill_switch_active) return '主机 fail-safe kill switch 已开启，页面不能启动云实例。'
+  if (gpuAutomation.value.credential_status !== 'present') return '密钥缺失或无效：先录入密钥，才能开启自动管理。'
+  if (gpuAutomation.value.automation_blockers.length) return `自动管理未开启，需先解决：${gpuAutomation.value.automation_blockers.join('、')}`
+  if (!gpuAutomation.value.automatic_enabled) return '自动管理关闭：GPU 离线时需手工开机，系统不会自动关闭人工启动的实例。'
+  return '实例关闭时，正式解析提交后由 Worker Describe-first 并按需启动；“测试连接”只执行 Describe。'
+})
 
 const runtimeTagType = computed(() => status.value?.status === 'ready' ? 'success' : status.value?.status === 'blocked' ? 'danger' : 'warning')
 const runtimeStatusText = computed(() => !status.value ? '未检查' : status.value.status === 'ready' ? '就绪' : status.value.status === 'blocked' ? '阻断' : '警告')
@@ -237,6 +278,39 @@ const dependencyLabel = (name: string) => ({ sqlite: 'SQLite', redis: 'Redis', w
 const dependencyDetail = (row: { detail?: string; reason?: string; worker_id?: string; age_seconds?: number }) => row.detail || row.reason || (row.worker_id ? `${row.worker_id} · ${row.age_seconds ?? '-'}s` : '-')
 
 const loadRuntime = async () => { loading.initial = true; try { runtime.value = await settingsApi.getRuntimeSettings() } catch { ElMessage.error('加载运行设置失败') } finally { loading.initial = false } }
+const loadGpuAutomation = async () => { try { gpuAutomation.value = await settingsApi.getGpuAutomation() } catch { ElMessage.error('加载 GPU 生命周期设置失败') } }
+const saveGpuAutomation = async () => {
+  if (!gpuAutomation.value) return
+  loading.gpuSettings = true
+  const current = gpuAutomation.value
+  const writable = {
+    expected_version: current.version,
+    automatic_enabled: current.automatic_enabled,
+    auto_stop: true,
+    credential_provider: current.credential_provider,
+    endpoint: current.endpoint,
+    region: current.region,
+    zone: current.zone,
+    project_id: current.project_id,
+    uhost_id: current.uhost_id,
+    ssh_host: current.ssh_host,
+    ssh_port: current.ssh_port,
+    budget_micro_cny: current.budget_micro_cny,
+    min_free_disk_bytes: current.min_free_disk_bytes,
+    disk_reserve_bytes: current.disk_reserve_bytes,
+    expansion_factor: current.expansion_factor,
+    stop_grace_seconds: current.stop_grace_seconds
+  }
+  try { gpuAutomation.value = await settingsApi.updateGpuAutomation(writable); ElMessage.success('GPU 生命周期设置已保存') }
+  catch (error: any) {
+    await loadGpuAutomation()
+    ElMessage.error(error?.response?.data?.detail?.message || 'GPU 生命周期设置保存失败')
+  }
+  finally { loading.gpuSettings = false }
+}
+const saveGpuSecret = async () => { if (!gpuSecret.publicKey || !gpuSecret.privateKey) return ElMessage.warning('请同时输入公钥和私钥'); loading.secret = true; try { await settingsApi.updateGpuCredentials(gpuSecret.publicKey, gpuSecret.privateKey); gpuSecret.publicKey = ''; gpuSecret.privateKey = ''; await loadGpuAutomation(); ElMessage.success('密钥已安全写入，页面不会回显') } catch { ElMessage.error('密钥写入失败') } finally { loading.secret = false } }
+const deleteGpuSecret = async () => { try { await ElMessageBox.confirm('仅删除本项目 secret file，不会删除云端 API key。请先关闭自动管理。', '确认删除', { type: 'warning' }); loading.secret = true; await settingsApi.deleteGpuCredentials(); await loadGpuAutomation(); ElMessage.success('项目密钥已删除') } catch (error) { if (error !== 'cancel' && error !== 'close') ElMessage.error('密钥删除失败') } finally { loading.secret = false } }
+const describeGpu = async () => { loading.describe = true; try { gpuDescribe.value = await settingsApi.describeGpu(); ElMessage.success('Describe 成功；未执行开机或关机') } catch { ElMessage.error('Describe 失败') } finally { loading.describe = false } }
 const loadBackupJobs = async () => { try { backupJobs.value = await settingsApi.listBackupJobs() } catch { ElMessage.error('加载备份作业失败') } }
 const refreshStatus = async () => { loading.status = true; try { status.value = await settingsApi.getRuntimeStatus(); minioCheck.value = status.value.minio; gpuCheck.value = status.value.gpu; applyBackupCheck(status.value.backup.targets); await loadBackupJobs() } catch { ElMessage.error('刷新运行状态失败') } finally { loading.status = false } }
 const saveRuntime = async () => { loading.saving = true; try { runtime.value = await settingsApi.updateRuntimeSettings(runtime.value); ElMessage.success('运行设置已保存') } catch { ElMessage.error('保存运行设置失败') } finally { loading.saving = false } }
@@ -250,7 +324,7 @@ const retryBackup = async (jobId: string) => { await settingsApi.retryBackupJob(
 const acknowledgeAlert = async (jobId: string) => { await settingsApi.acknowledgeBackupAlert(jobId); await loadBackupJobs(); ElMessage.success('告警已确认') }
 const applyBackupCheck = (targets: BackupTarget[]) => { const byId = new Map(targets.map(target => [target.id, target])); runtime.value.backup.targets = runtime.value.backup.targets.map(target => ({ ...target, ...byId.get(target.id), path: byId.get(target.id)?.path ?? target.path })) }
 
-onMounted(async () => { await loadRuntime(); await refreshStatus() })
+onMounted(async () => { await Promise.all([loadRuntime(), loadGpuAutomation()]); await refreshStatus() })
 </script>
 
 <style scoped>
@@ -274,6 +348,11 @@ onMounted(async () => { await loadRuntime(); await refreshStatus() })
 .table-row:last-child { border-bottom: 0; }
 .table-head { background: var(--bg-secondary); color: var(--text-muted); font-size: 12px; font-weight: 650; }
 .actions { justify-content: flex-end; margin-top: 20px; }
+.gpu-wrapper-panel { margin-top: 18px; }
+.gpu-actions { flex-wrap: wrap; }
+.readonly-policy { display: flex; align-items: center; gap: 10px; color: var(--el-text-color-secondary); }
+.blocker-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.inline-fields { display: grid; width: 100%; grid-template-columns: 1fr auto; gap: 8px; }
 .probe-grid { display: grid; gap: 8px; margin-top: 16px; }
 .probe-grid > div { display: flex; align-items: center; justify-content: space-between; padding: 12px; border: 1px solid var(--border-light); border-radius: 7px; }
 .model-section { padding: 18px 0; border-top: 1px solid var(--border-light); }

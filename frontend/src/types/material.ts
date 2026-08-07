@@ -326,6 +326,14 @@ export interface PipelinePreflightResponse {
   plan: Record<string, unknown>
   returncode: number
   command_text: string
+  readiness_deferred_until_running?: boolean
+  gpu_runtime?: {
+    automatic_enabled: boolean
+    effective_automatic: boolean
+    auto_stop: boolean
+    credential_provider: string
+    settings_sha256: string
+  }
   resource_gate?: {
     applies: boolean
     ok: boolean

@@ -17,6 +17,7 @@ from app.services.compshare_lifecycle import (
     LifecycleLease,
     SafeStopContext,
     UCloudCompShareClient,
+    cap_derived_scheduler_stop,
     ensure_running,
     exact_instance,
     stop_when_safe,
@@ -41,7 +42,7 @@ def config(**overrides):
 
 
 class FakeClient:
-    def __init__(self, states, *, start_error="", stop_error=""):
+    def __init__(self, states, *, start_error="", stop_error="", hourly_price=None, billing_row=None, scheduler_error=""):
         self.states = iter(states)
         self.last_state = ""
         self.start_error = start_error
@@ -49,17 +50,34 @@ class FakeClient:
         self.start_calls = 0
         self.stop_calls = 0
         self.describe_calls = 0
+        self.hourly_price = hourly_price
+        self.billing_row = dict(billing_row or {})
+        self.scheduler_error = scheduler_error
+        self.scheduler_calls = []
+        self.mutation_ledger = []
+        self.scheduler_stop_time = 0
+        self.guard_verification_pending = False
 
     def describe(self):
         self.describe_calls += 1
-        try:
-            self.last_state = next(self.states)
-        except StopIteration:
-            pass
-        return {"UHostSet": [{"UHostId": "uhost-1", "State": self.last_state}]}
+        if self.guard_verification_pending:
+            self.guard_verification_pending = False
+        else:
+            try:
+                self.last_state = next(self.states)
+            except StopIteration:
+                pass
+        row = {"UHostId": "uhost-1", "State": self.last_state}
+        if self.hourly_price is not None:
+            row.update({"ChargeType":"Hour", "Price":self.hourly_price})
+        row.update(self.billing_row)
+        if self.scheduler_stop_time:
+            row["SchedulerStopTime"] = self.scheduler_stop_time
+        return {"UHostSet": [row]}
 
     def start(self):
         self.start_calls += 1
+        self.mutation_ledger.append("StartCompShareInstance")
         if self.start_error:
             raise CompShareLifecycleError(self.start_error, self.start_error)
         return {"RetCode": 0}
@@ -71,7 +89,381 @@ class FakeClient:
         return {"RetCode": 0}
 
     def update_stop_scheduler(self, stop_time):
-        return {"RetCode": 0, "SchedulerStopTime": stop_time}
+        self.scheduler_calls.append(stop_time)
+        self.mutation_ledger.append("UpdateCompShareStopScheduler")
+        if self.scheduler_error:
+            raise CompShareLifecycleError(self.scheduler_error, self.scheduler_error)
+        self.scheduler_stop_time = int(stop_time)
+        self.guard_verification_pending = True
+        return {
+            "Action": "UpdateCompShareStopSchedulerResponse",
+            "RetCode": 0,
+            "UHostId": "uhost-1",
+        }
+
+
+class OfficialSchedulerClient:
+    """Official 2026-08-04 Describe/scheduler response shapes."""
+
+    def __init__(
+        self,
+        states,
+        *,
+        scheduler_stop_time=0,
+        scheduler_uhost_id="uhost-1",
+        guard_visibility_lag_observations=0,
+    ):
+        self.states = iter(states)
+        self.last_state = ""
+        self.scheduler_stop_time = int(scheduler_stop_time)
+        self.scheduler_uhost_id = scheduler_uhost_id
+        self.guard_visibility_lag_observations = int(guard_visibility_lag_observations)
+        self._guard_visibility_remaining = 0
+        self._previous_scheduler_stop_time = self.scheduler_stop_time
+        self.scheduler_calls = []
+        self.start_calls = 0
+        self.call_ledger = []
+
+    def describe(self):
+        self.call_ledger.append("DescribeCompShareInstance")
+        try:
+            self.last_state = next(self.states)
+        except StopIteration:
+            pass
+        row = {
+            "UHostId": "uhost-1",
+            "State": self.last_state,
+            "ChargeType": "Postpay",
+            "InstancePrice": 3.13,
+        }
+        visible_scheduler_stop_time = self.scheduler_stop_time
+        if self._guard_visibility_remaining:
+            visible_scheduler_stop_time = self._previous_scheduler_stop_time
+            self._guard_visibility_remaining -= 1
+        if visible_scheduler_stop_time:
+            row["SchedulerStopTime"] = visible_scheduler_stop_time
+        return {"UHostSet": [row]}
+
+    def update_stop_scheduler(self, stop_time):
+        self.call_ledger.append("UpdateCompShareStopScheduler")
+        self.scheduler_calls.append(int(stop_time))
+        self._previous_scheduler_stop_time = self.scheduler_stop_time
+        self.scheduler_stop_time = int(stop_time)
+        self._guard_visibility_remaining = self.guard_visibility_lag_observations
+        return {
+            "Action": "UpdateCompShareStopSchedulerResponse",
+            "RetCode": 0,
+            "UHostId": self.scheduler_uhost_id,
+        }
+
+    def start(self):
+        self.call_ledger.append("StartCompShareInstance")
+        self.start_calls += 1
+        return {"RetCode": 0, "UHostId": "uhost-1"}
+
+    def stop(self):
+        return {"RetCode": 0, "UHostId": "uhost-1"}
+
+
+def test_cost_guard_uses_whole_hour_budget_and_reserves_safe_stop_window():
+    guard = cap_derived_scheduler_stop(
+        {"ChargeType":"Hour", "Price":3.3}, budget_micro_cny=20_000_000, now_epoch=1_000
+    )
+    assert guard["authorized_units"] == 6
+    assert guard["scheduler_stop_time"] == 1_000 + 6 * 3600 - 1800
+    assert guard["authorized_units"] * guard["unit_price_micro_cny"] <= 20_000_000
+
+
+def test_official_postpay_shape_normalizes_to_versioned_hourly_contract():
+    guard = cap_derived_scheduler_stop(
+        {"ChargeType": "Postpay", "InstancePrice": 3.13},
+        budget_micro_cny=20_000_000,
+        now_epoch=1_000,
+    )
+    assert guard["authorized_units"] == 6
+    assert guard["unit_price_micro_cny"] == 3_130_000
+    assert guard["billing_normalization_schema"] == "luceon.compshare-billing-normalization/v3"
+    assert guard["billing_normalization_method"] == "compshare_postpay_instance_price_v1"
+
+
+def test_official_postpay_instance_price_shape_normalizes_to_hourly_contract():
+    guard = cap_derived_scheduler_stop(
+        {"ChargeType": "Postpay", "InstancePrice": 3.13},
+        budget_micro_cny=20_000_000,
+        now_epoch=1_000,
+    )
+    assert guard["authorized_units"] == 6
+    assert guard["unit_price_micro_cny"] == 3_130_000
+    assert guard["billing_normalization_method"] == "compshare_postpay_instance_price_v1"
+
+
+@pytest.mark.parametrize("value", [True, False, 0, -1, "3.13"])
+def test_official_postpay_instance_price_rejects_non_exact_positive_number(value):
+    with pytest.raises(CompShareLifecycleError) as failure:
+        cap_derived_scheduler_stop(
+            {"ChargeType": "Postpay", "InstancePrice": value},
+            budget_micro_cny=20_000_000,
+        )
+    assert failure.value.code == "cloud_billing_unqualified"
+
+
+def test_postpay_legacy_price_without_raw_evidence_is_not_qualified():
+    with pytest.raises(CompShareLifecycleError) as failure:
+        cap_derived_scheduler_stop(
+            {"ChargeType": "Postpay", "Price": 3.13},
+            budget_micro_cny=20_000_000,
+        )
+    assert failure.value.code == "cloud_billing_unqualified"
+
+
+@pytest.mark.parametrize("legacy_field", [
+    {"Price": 3.13}, {"Price": 4.00}, {"DiscountPrice": 3.13},
+])
+def test_postpay_instance_price_rejects_conflicting_legacy_price_fields(legacy_field):
+    with pytest.raises(CompShareLifecycleError) as failure:
+        cap_derived_scheduler_stop(
+            {"ChargeType": "Postpay", "InstancePrice": 3.13, **legacy_field},
+            budget_micro_cny=20_000_000,
+        )
+    assert failure.value.code == "cloud_billing_unqualified"
+
+
+@pytest.mark.parametrize("row", [
+    {"ChargeType": "Postpay"},
+    {"ChargeType": "Postpay", "Price": 3.13, "PriceUnit": "CNY/day"},
+    {"ChargeType": "Mystery", "Price": 3.13},
+])
+def test_unknown_or_ambiguous_billing_still_fails_closed(row):
+    with pytest.raises(CompShareLifecycleError) as failure:
+        cap_derived_scheduler_stop(row, budget_micro_cny=20_000_000)
+    assert failure.value.code == "cloud_billing_unqualified"
+
+
+def test_versioned_automatic_start_sets_cap_derived_scheduler_once():
+    client = FakeClient(["Stopped", "Starting", "Running"], hourly_price=3.3)
+    lease = ensure_running(
+        client,
+        config(settings_sha256="settings", budget_micro_cny=20_000_000),
+        ready,
+        sleep=lambda _: None,
+        monotonic=clock(),
+    )
+    assert lease.lifecycle_owned is True
+    assert client.start_calls == 1
+    assert len(client.scheduler_calls) == 1
+    assert client.mutation_ledger == ["UpdateCompShareStopScheduler", "StartCompShareInstance"]
+    actions = [row["action"] for row in lease.timeline]
+    assert actions.index("guard_accepted_before_start") < actions.index("start_accepted")
+
+
+def test_scheduler_failure_prevents_start_and_is_checkpointed():
+    client = FakeClient(
+        ["Stopped"], hourly_price=3.3, scheduler_error="cloud_scheduler_rejected"
+    )
+    checkpoints = []
+    with pytest.raises(CompShareLifecycleError) as failure:
+        ensure_running(
+            client,
+            config(settings_sha256="settings"),
+            ready,
+            checkpoint=lambda lease: checkpoints.append(lease.to_dict()),
+        )
+    assert failure.value.code == "cloud_scheduler_rejected"
+    assert client.start_calls == 0
+    assert client.scheduler_calls
+    assert all(row["phase"] != "start_accepted" for row in checkpoints)
+
+
+def test_official_scheduler_response_requires_post_update_describe_before_start():
+    client = OfficialSchedulerClient(["Stopped", "Stopped", "Starting", "Running"])
+    lease = ensure_running(
+        client,
+        config(settings_sha256="settings"),
+        ready,
+        sleep=lambda _: None,
+        monotonic=clock(),
+        wall_time=lambda: 1_000,
+    )
+    assert lease.lifecycle_owned is True
+    assert client.call_ledger[:4] == [
+        "DescribeCompShareInstance",
+        "UpdateCompShareStopScheduler",
+        "DescribeCompShareInstance",
+        "StartCompShareInstance",
+    ]
+    assert client.start_calls == 1
+
+
+def test_scheduler_guard_allows_one_eventually_consistent_describe_before_start():
+    client = OfficialSchedulerClient(
+        ["Stopped", "Stopped", "Stopped", "Starting", "Running"],
+        scheduler_stop_time=1_300,
+        guard_visibility_lag_observations=1,
+    )
+    lease = ensure_running(
+        client,
+        config(settings_sha256="settings", scheduler_guard_verify_max_observations=3),
+        ready,
+        sleep=lambda _: None,
+        monotonic=clock(),
+        wall_time=lambda: 1_000,
+    )
+    assert lease.lifecycle_owned is True
+    assert client.start_calls == 1
+    assert client.scheduler_calls and len(client.scheduler_calls) == 1
+    assert client.call_ledger[:5] == [
+        "DescribeCompShareInstance",
+        "UpdateCompShareStopScheduler",
+        "DescribeCompShareInstance",
+        "DescribeCompShareInstance",
+        "StartCompShareInstance",
+    ]
+    assert any(row["action"] == "guard_verification_pending" for row in lease.timeline)
+
+
+def test_scheduler_guard_persistent_visibility_drift_prevents_start_without_duplicate_update():
+    client = OfficialSchedulerClient(
+        ["Stopped", "Stopped", "Stopped", "Stopped"],
+        scheduler_stop_time=1_300,
+        guard_visibility_lag_observations=3,
+    )
+    with pytest.raises(CompShareLifecycleError) as failure:
+        ensure_running(
+            client,
+            config(settings_sha256="settings", scheduler_guard_verify_max_observations=3),
+            ready,
+            sleep=lambda _: None,
+            wall_time=lambda: 1_000,
+        )
+    assert failure.value.code == "cloud_scheduler_not_confirmed"
+    assert client.start_calls == 0
+    assert len(client.scheduler_calls) == 1
+
+
+def test_scheduler_guard_instance_leaving_stopped_prevents_start():
+    client = OfficialSchedulerClient(
+        ["Stopped", "Starting"], scheduler_stop_time=1_300, guard_visibility_lag_observations=1
+    )
+    with pytest.raises(CompShareLifecycleError) as failure:
+        ensure_running(
+            client,
+            config(settings_sha256="settings", scheduler_guard_verify_max_observations=3),
+            ready,
+            sleep=lambda _: None,
+            wall_time=lambda: 1_000,
+        )
+    assert failure.value.code == "cloud_scheduler_not_confirmed"
+    assert client.start_calls == 0
+
+
+def test_scheduler_response_uhost_mismatch_prevents_start():
+    client = OfficialSchedulerClient(
+        ["Stopped"], scheduler_uhost_id="uhost-other"
+    )
+    with pytest.raises(CompShareLifecycleError) as failure:
+        ensure_running(
+            client,
+            config(settings_sha256="settings"),
+            ready,
+            wall_time=lambda: 1_000,
+        )
+    assert failure.value.code == "cloud_scheduler_identity_mismatch"
+    assert client.start_calls == 0
+
+
+@pytest.mark.parametrize(
+    ("cloud_deadline", "expected_updates"),
+    [(5_000, 0), (1_200, 1), (4_999, 1), (0, 1)],
+)
+def test_resume_guard_is_reverified_and_rearmed_when_expired_missing_or_drifted(
+    cloud_deadline, expected_updates
+):
+    persisted_deadline = 5_000
+    lease = LifecycleLease(
+        lease_id="lease-1",
+        uhost_id="uhost-1",
+        prior_state="Stopped",
+        current_state="Stopped",
+        lifecycle_owned=False,
+        started_by_pipeline=False,
+        acquired_at="2026-08-06T00:00:00Z",
+        phase="guard_accepted_before_start",
+        cost_guard={
+            "scheduler_stop_time": persisted_deadline,
+            "billing_normalization_schema": "luceon.compshare-billing-normalization/v3",
+        },
+    )
+    states = ["Stopped", "Starting", "Running"] if expected_updates == 0 else ["Stopped", "Stopped", "Starting", "Running"]
+    client = OfficialSchedulerClient(states, scheduler_stop_time=cloud_deadline)
+    result = ensure_running(
+        client,
+        config(settings_sha256="settings"),
+        ready,
+        resume_lease=lease,
+        sleep=lambda _: None,
+        monotonic=clock(),
+        wall_time=lambda: 1_000,
+    )
+    assert len(client.scheduler_calls) == expected_updates
+    assert client.start_calls == 1
+    assert result.current_state == "Running"
+
+
+def test_uat_endpoint_allowlist_blocks_official_origin_before_transport(monkeypatch):
+    monkeypatch.setenv("COMPSHARE_ALLOWED_ENDPOINT_ORIGINS", "fake-services:8443")
+    called = {"value": False}
+
+    def forbidden_transport(*_args, **_kwargs):
+        called["value"] = True
+        raise AssertionError("transport must remain call0")
+
+    monkeypatch.setattr("urllib.request.urlopen", forbidden_transport)
+    with pytest.raises(CompShareLifecycleError) as failure:
+        UCloudCompShareClient(config(endpoint="https://api.compshare.cn"))
+    assert failure.value.code == "cloud_endpoint_not_allowed"
+    assert called["value"] is False
+
+
+def test_resume_after_guard_checkpoint_starts_once_without_rescheduling():
+    first_client = FakeClient(["Stopped"], hourly_price=3.3)
+    checkpoints = []
+
+    def crash_after_guard(lease):
+        checkpoints.append(lease.to_dict())
+        if lease.phase == "guard_accepted_before_start":
+            raise RuntimeError("simulated process crash")
+
+    with pytest.raises(RuntimeError, match="simulated process crash"):
+        ensure_running(
+            first_client,
+            config(settings_sha256="settings"),
+            ready,
+            checkpoint=crash_after_guard,
+        )
+    guarded = LifecycleLease.from_dict(checkpoints[-1])
+    assert first_client.scheduler_calls and first_client.start_calls == 0
+
+    resumed_client = FakeClient(["Stopped", "Starting", "Running"], hourly_price=3.3)
+    resumed_client.scheduler_stop_time = int(guarded.cost_guard["scheduler_stop_time"])
+    lease = ensure_running(
+        resumed_client,
+        config(settings_sha256="settings"),
+        ready,
+        resume_lease=guarded,
+        sleep=lambda _: None,
+        monotonic=clock(),
+    )
+    assert resumed_client.scheduler_calls == []
+    assert resumed_client.start_calls == 1
+    assert lease.current_state == "Running"
+
+
+def test_versioned_automatic_start_rejects_unqualified_billing_before_start():
+    client = FakeClient(["Stopped"])
+    with pytest.raises(CompShareLifecycleError) as failure:
+        ensure_running(client, config(settings_sha256="settings"), ready)
+    assert failure.value.code == "cloud_billing_unqualified"
+    assert client.start_calls == 0
 
 
 def clock():

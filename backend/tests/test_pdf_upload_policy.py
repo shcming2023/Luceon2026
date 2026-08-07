@@ -365,4 +365,4 @@ def test_large_pdf_remote_headroom_fails_closed(monkeypatch):
     }
     result = apply_pipeline_resource_gate(payload, rows)
     assert result["resource_gate"]["ok"] is False
-    assert result["resource_gate"]["required_headroom_bytes"] == 50 * GIB
+    assert result["resource_gate"]["required_headroom_bytes"] == 24 * GIB

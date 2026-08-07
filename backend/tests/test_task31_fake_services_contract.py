@@ -2,16 +2,50 @@ from __future__ import annotations
 
 import importlib.util
 import json
+from pathlib import Path
 import threading
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from http.server import ThreadingHTTPServer
-from pathlib import Path
+
+from app.services.compshare_lifecycle import CompShareConfig, UCloudCompShareClient, ensure_running
 
 
 FIXTURE = Path(__file__).parent / "uat" / "task31_fake_services.py"
+
+
+def test_gpu_auto_uat_pins_compshare_client_to_the_fake_origin():
+    compose = (Path(__file__).parents[2] / "docker-compose.gpu-auto-uat.yml").read_text(encoding="utf-8")
+    assert "COMPSHARE_ALLOWED_ENDPOINT_ORIGINS: fake-services:8443" in compose
+
+
+def test_fake_official_control_plane_records_guard_before_single_start(tmp_path, monkeypatch):
+    module = _module()
+    module.EVIDENCE_PATH = tmp_path / "events.jsonl"
+    module.STATE["instance"] = "Stopped"
+    module.STATE["scheduler_stop_time"] = 0
+    monkeypatch.delenv("COMPSHARE_ALLOWED_ENDPOINT_ORIGINS", raising=False)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), module.Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    config = CompShareConfig(
+        endpoint=f"http://127.0.0.1:{server.server_port}", public_key="fake-public", private_key="fake-private",
+        region="cn-test", zone="cn-test-01", project_id="project-test", uhost_id=module.UHOST_ID,
+        settings_sha256="settings", poll_seconds=0.001, operation_timeout_seconds=5,
+    )
+    try:
+        lease = ensure_running(UCloudCompShareClient(config), config, lambda: {"ready": True})
+        actions = [json.loads(line)["action"] for line in module.EVIDENCE_PATH.read_text().splitlines()]
+        assert lease.lifecycle_owned is True
+        assert actions[:4] == [
+            "DescribeCompShareInstance", "UpdateCompShareStopScheduler",
+            "DescribeCompShareInstance", "StartCompShareInstance",
+        ]
+        assert actions.count("StartCompShareInstance") == 1
+    finally:
+        server.shutdown(); server.server_close(); thread.join(timeout=2)
 
 
 def _module():
@@ -93,14 +127,42 @@ def test_fake_control_plane_strictly_rejects_get_and_wrong_scheduler_field(tmp_p
                 "SchedulerStopTime": str(int(time.time()) + 600),
             },
         ) == 200
+        assert module.STATE["scheduler_stop_time"] >= int(time.time()) + 299
     finally:
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
 
 
+def test_fake_describe_replays_task36_postpay_shape(tmp_path):
+    module = _module()
+    module.EVIDENCE_PATH = tmp_path / "events.jsonl"
+    module.STATE["instance"] = "Stopped"
+    server = ThreadingHTTPServer(("127.0.0.1", 0), module.Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base = f"http://127.0.0.1:{server.server_port}/"
+    common = {
+        "Action": "DescribeCompShareInstance", "PublicKey": "fake-public",
+        "Region": "cn-test", "Zone": "cn-test-01", "ProjectId": "org-test",
+        "Signature": "fake-signature", "UHostIds.0": module.UHOST_ID,
+    }
+    request = urllib.request.Request(
+        base, data=urllib.parse.urlencode(common).encode(),
+        headers={"Content-Type": "application/x-www-form-urlencoded"}, method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=2) as response:
+            row = json.loads(response.read())["UHostSet"][0]
+        assert row["ChargeType"] == "Postpay"
+        assert row["InstancePrice"] == 3.13
+    finally:
+        server.shutdown(); server.server_close(); thread.join(timeout=2)
+
+
 def test_fake_wrapper_inventory_requires_auth_and_explicit_complete_denominator(tmp_path):
     module = _module()
+    module.STATE["instance"] = "Running"
     module.EVIDENCE_PATH = tmp_path / "events.jsonl"
     module.STATE["jobs"] = {}
     module.STATE["mineru"] = {}
@@ -125,6 +187,7 @@ def test_fake_wrapper_inventory_requires_auth_and_explicit_complete_denominator(
 
 def test_fake_wrapper_inventory_paginates_to_explicit_eof_and_preserves_legacy_row_key(tmp_path):
     module = _module()
+    module.STATE["instance"] = "Running"
     module.EVIDENCE_PATH = tmp_path / "events.jsonl"
     module.STATE["jobs"] = {
         f"job-{index}": {"status": "succeeded"}
