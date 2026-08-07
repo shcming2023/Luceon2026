@@ -37,6 +37,10 @@ def consume_once(worker_id: str) -> dict | None:
                     lifecycle_lease = acquire_gpu_for_pipeline(db, pipeline_run)
                 except Exception as exc:
                     mark_lifecycle_failure(db, pipeline_run, exc)
+                    # A failed post-Start readiness gate (including disk) leaves
+                    # a durable owned lease; immediately reuse the same safe
+                    # stop authority instead of waiting for a process restart.
+                    reconcile_stale_lifecycle_leases(db)
                     return {"kind": "pipeline_run", "id": str(pipeline_run.id), "status": "gpu_lifecycle_failed"}
             snapshot = request.get("snapshot") if isinstance(request.get("snapshot"), list) else []
             material_ids = [str(row.get("material_id") or "") for row in snapshot if isinstance(row, dict)]

@@ -50,6 +50,7 @@ from app.services.material_task_queue import (
 from app.services.runtime_settings import pipeline_env
 from app.services.compshare_lifecycle import CompShareConfig
 from app.services.upload_policy import load_pdf_upload_policy
+from app.services.gpu_runtime_settings import GpuRuntimeSnapshot, load_snapshot as load_gpu_runtime_snapshot, required_gpu_disk_bytes
 
 
 INPUT_BUCKET = "eduassets-input"
@@ -1082,6 +1083,7 @@ def run_cloud_deferred_pipeline_preflight(
     snapshot: list[dict[str, Any]],
     *,
     reprocess_completed: bool = False,
+    gpu_settings: GpuRuntimeSnapshot | None = None,
 ) -> dict[str, Any]:
     """Plan exact inputs without assuming a stopped GPU wrapper is online.
 
@@ -1089,15 +1091,18 @@ def run_cloud_deferred_pipeline_preflight(
     frozen denominator and lifecycle configuration; SSH/wrapper/GPU/disk are
     deliberately reported as deferred and are revalidated after Running.
     """
-    config = CompShareConfig.from_env()
-    missing = config.missing_fields()
+    if gpu_settings is None:
+        return {"ready": False, "status": "GPU_SETTINGS_MISSING", "selected_count": len(snapshot)}
+    missing = [key for key in ("region", "zone", "project_id", "uhost_id", "ssh_host") if not str(getattr(gpu_settings, key, "")).strip()]
+    if gpu_settings.credential_status != "present":
+        missing.append("credentials")
     if missing:
         return {
             "ready": False,
             "status": "CLOUD_CONFIG_INCOMPLETE",
             "checked_at": datetime.utcnow().isoformat(),
             "selected_count": len(snapshot),
-            "cloud": {"configured": False, "missing_fields": missing, **config.public_identity()},
+            "cloud": {"configured": False, "missing_fields": missing, "uhost_id": gpu_settings.uhost_id, "region": gpu_settings.region, "zone": gpu_settings.zone},
         }
     if not snapshot or any(not row.get("input_sha256") or not row.get("input_object") for row in snapshot):
         return {
@@ -1105,7 +1110,7 @@ def run_cloud_deferred_pipeline_preflight(
             "status": "INPUT_SNAPSHOT_INCOMPLETE",
             "checked_at": datetime.utcnow().isoformat(),
             "selected_count": len(snapshot),
-            "cloud": {"configured": True, **config.public_identity()},
+            "cloud": {"configured": True, "uhost_id": gpu_settings.uhost_id, "region": gpu_settings.region, "zone": gpu_settings.zone},
         }
     identities = [str(row["input_sha256"]) for row in snapshot]
     if len(identities) != len(set(identities)):
@@ -1114,7 +1119,7 @@ def run_cloud_deferred_pipeline_preflight(
             "status": "DUPLICATE_INPUT_IDENTITY",
             "checked_at": datetime.utcnow().isoformat(),
             "selected_count": len(snapshot),
-            "cloud": {"configured": True, **config.public_identity()},
+            "cloud": {"configured": True, "uhost_id": gpu_settings.uhost_id, "region": gpu_settings.region, "zone": gpu_settings.zone},
         }
     return {
         "ready": True,
@@ -1124,7 +1129,7 @@ def run_cloud_deferred_pipeline_preflight(
         "gpu_ok": False,
         "staged_api_ok": False,
         "readiness_deferred_until_running": True,
-        "cloud": {"configured": True, "describe_first": True, **config.public_identity()},
+        "cloud": {"configured": True, "describe_first": True, "uhost_id": gpu_settings.uhost_id, "region": gpu_settings.region, "zone": gpu_settings.zone, "settings_sha256": gpu_settings.settings_sha256},
         "snapshot_sha256": hashlib.sha256(
             json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
         ).hexdigest(),
@@ -1135,6 +1140,7 @@ def run_cloud_deferred_pipeline_preflight(
 def apply_pipeline_resource_gate(
     payload: dict[str, Any],
     snapshot: list[dict[str, Any]] | None = None,
+    gpu_settings: GpuRuntimeSnapshot | None = None,
 ) -> dict[str, Any]:
     selected = payload.get("selected") if isinstance(payload.get("selected"), list) else []
     rows = list(snapshot or selected)
@@ -1156,10 +1162,14 @@ def apply_pipeline_resource_gate(
             or int(row.get("page_count") or 0) >= policy.large_pdf_page_threshold
         )
     )
+    gpu_settings = gpu_settings
+    configured_minimum = gpu_settings.min_free_disk_bytes if gpu_settings else policy.min_gpu_headroom_bytes
+    configured_expansion = gpu_settings.expansion_factor if gpu_settings else policy.expansion_factor
+    configured_reserve = gpu_settings.disk_reserve_bytes if gpu_settings else 0
     gate: dict[str, Any] = {
-        "applies": large_pdf_count > 0,
+        "applies": bool(rows),
         "ok": True,
-        "status": "not_applicable" if large_pdf_count == 0 else "ready",
+        "status": "not_applicable" if not rows else "ready",
         "large_pdf_count": large_pdf_count,
         "selected_input_bytes": total_input_bytes,
         "max_page_count": max_page_count,
@@ -1178,7 +1188,22 @@ def apply_pipeline_resource_gate(
         )
         payload["resource_gate"] = gate
         return payload
-    if large_pdf_count == 0:
+    if not rows:
+        payload["resource_gate"] = gate
+        return payload
+
+    # Resource measurement cannot replace an earlier readiness failure. In
+    # particular, manual lifecycle mode must preserve the actionable
+    # GPU_OFFLINE result instead of rewriting it as a zero-byte disk error.
+    if payload.get("ready") is False:
+        gate.update(
+            {
+                "applies": False,
+                "ok": False,
+                "status": "not_evaluated_upstream_blocked",
+                "reason": f"upstream preflight blocked: {payload.get('status') or 'unknown'}",
+            }
+        )
         payload["resource_gate"] = gate
         return payload
 
@@ -1190,10 +1215,10 @@ def apply_pipeline_resource_gate(
             {
                 "ok": True,
                 "status": "deferred_until_gpu_ready",
-                "required_headroom_bytes": max(
-                    policy.min_gpu_headroom_bytes,
-                    int(total_input_bytes * float(policy.expansion_factor)),
-                ),
+                "required_headroom_bytes": max(configured_minimum, int(total_input_bytes * configured_expansion + configured_reserve)),
+                "configured_minimum_bytes": configured_minimum,
+                "configured_reserve_bytes": configured_reserve,
+                "expansion_factor": configured_expansion,
                 "reason": "远端磁盘与 Wrapper 配额将在实例 Running 后由 Worker 重新核验",
             }
         )
@@ -1224,8 +1249,8 @@ def apply_pipeline_resource_gate(
             continue
         if factor > 0:
             historical_factors.append(factor)
-    expansion_factor = max([float(policy.expansion_factor), *historical_factors])
-    required = max(policy.min_gpu_headroom_bytes, int(total_input_bytes * expansion_factor))
+    expansion_factor = max([float(configured_expansion), *historical_factors])
+    required = max(configured_minimum, int(total_input_bytes * expansion_factor + configured_reserve))
     available_candidates = [value for value in (quota_available, disk_available) if value > 0]
     available = min(available_candidates) if len(available_candidates) == 2 else 0
     gate.update(
@@ -1237,6 +1262,8 @@ def apply_pipeline_resource_gate(
             "available_headroom_bytes": available,
             "required_headroom_bytes": required,
             "expansion_factor": expansion_factor,
+            "configured_minimum_bytes": configured_minimum,
+            "configured_reserve_bytes": configured_reserve,
         }
     )
     if artifact_limit <= 0:
@@ -1310,11 +1337,12 @@ def start_pipeline_run(
         if active.user_id == user_id and idempotency_key and active.idempotency_key == idempotency_key:
             return active
         raise MaterialTaskError("已有解析任务占用串行GPU队列")
-    cloud_lifecycle_enabled = os.getenv("COMPSHARE_LIFECYCLE_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
+    gpu_settings = load_gpu_runtime_snapshot(db)
+    cloud_lifecycle_enabled = gpu_settings.effective_automatic
     preflight = None
     if apply:
         preflight = (
-            run_cloud_deferred_pipeline_preflight(snapshot, reprocess_completed=reprocess_completed)
+            run_cloud_deferred_pipeline_preflight(snapshot, reprocess_completed=reprocess_completed, gpu_settings=gpu_settings)
             if cloud_lifecycle_enabled
             else run_pipeline_preflight(
                 limit,
@@ -1325,7 +1353,7 @@ def start_pipeline_run(
                 reprocess_completed=reprocess_completed,
             )
         )
-        preflight = apply_pipeline_resource_gate(preflight, snapshot)
+        preflight = apply_pipeline_resource_gate(preflight, snapshot, gpu_settings)
     if apply and not bool(preflight and preflight.get("ready")):
         raise PipelinePreflightError(preflight or {})
     run = PipelineRun(
@@ -1356,6 +1384,7 @@ def start_pipeline_run(
                 "material_ids": list(material_ids or []),
                 "input_objects": list(input_objects or []),
                 "reprocess_completed": reprocess_completed,
+                "gpu_runtime_snapshot": gpu_settings.public_dict(),
             },
             ensure_ascii=False,
         ),

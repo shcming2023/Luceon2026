@@ -116,7 +116,7 @@ def load_pdf_upload_policy() -> PdfUploadPolicy:
         large_pdf_page_threshold=large_pages,
         expansion_factor=_integer("LUCEON_LARGE_PDF_EXPANSION_FACTOR", 12, 2),
         min_local_temp_free_bytes=_integer("LUCEON_MIN_UPLOAD_TEMP_FREE_BYTES", 5 * GIB, GIB),
-        min_gpu_headroom_bytes=_integer("LUCEON_MIN_GPU_HEADROOM_BYTES", 50 * GIB, 4 * GIB),
+        min_gpu_headroom_bytes=_integer("LUCEON_MIN_GPU_HEADROOM_BYTES", 12 * GIB, 8 * GIB),
         default_stage_timeout_seconds=default_timeout,
         large_stage_timeout_seconds=large_timeout,
         upload_chunk_bytes=_integer("LUCEON_PDF_UPLOAD_CHUNK_BYTES", MIB, 64 * 1024),

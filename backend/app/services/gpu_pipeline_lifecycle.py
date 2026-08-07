@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any, Callable
 
@@ -22,10 +24,88 @@ from app.services.compshare_lifecycle import (
     ssh_readiness_probe,
     stop_when_safe,
 )
+from app.services.gpu_runtime_settings import (
+    PROJECT_SECRET_PATH,
+    GpuRuntimeSnapshot,
+    load_snapshot as load_gpu_runtime_snapshot,
+    required_gpu_disk_bytes,
+)
 
 
-def lifecycle_enabled() -> bool:
-    return os.getenv("COMPSHARE_LIFECYCLE_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
+def lifecycle_enabled(db: Session) -> bool:
+    return load_gpu_runtime_snapshot(db).effective_automatic
+
+
+def _frozen_snapshot(db: Session, run: PipelineRun, *, enforce_current: bool = True) -> GpuRuntimeSnapshot:
+    raw = run.request().get("gpu_runtime_snapshot")
+    if not isinstance(raw, dict):
+        raise CompShareLifecycleError("gpu_settings_snapshot_missing", "Pipeline run has no frozen GPU settings snapshot")
+    compatible = dict(raw)
+    compatible.setdefault("automation_blockers", ())
+    try:
+        frozen = GpuRuntimeSnapshot(**compatible)
+    except (TypeError, ValueError) as exc:
+        raise CompShareLifecycleError("gpu_settings_snapshot_invalid", "Pipeline GPU settings snapshot is invalid") from exc
+    if enforce_current:
+        current = load_gpu_runtime_snapshot(db)
+        if frozen.settings_sha256 != current.settings_sha256:
+            raise CompShareLifecycleError("gpu_settings_snapshot_drift", "GPU settings or credential generation changed after queueing")
+    return frozen
+
+
+def _legacy_snapshot(config: CompShareConfig) -> GpuRuntimeSnapshot:
+    """Read-only compatibility for leases created before settings snapshots.
+
+    This path cannot start a new lifecycle.  It exists so an already-owned
+    historical lease can still pass through the common fail-closed Stop gate.
+    Plain environment credentials remain guarded by the existing explicit
+    ``COMPSHARE_ALLOW_LEGACY_ENV`` opt-in.
+    """
+    enabled = os.getenv("COMPSHARE_LIFECYCLE_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
+    auto_stop = os.getenv("COMPSHARE_AUTO_STOP", "true").lower() in {"1", "true", "yes", "on"}
+    canonical = {
+        "schema_version": "luceon.gpu-runtime-setting/legacy-env-v1",
+        "version": 0,
+        "automatic_enabled": enabled,
+        "auto_stop": auto_stop,
+        "take_over_running": False,
+        "credential_provider": "legacy_environment",
+        "credential_status": "present" if not config.missing_fields() else "missing",
+        "credential_version": 0,
+        "endpoint": config.endpoint,
+        "region": config.region,
+        "zone": config.zone,
+        "project_id": config.project_id,
+        "uhost_id": config.uhost_id,
+        "ssh_host": config.ssh_host,
+        "ssh_port": config.ssh_port,
+        "budget_micro_cny": config.budget_micro_cny,
+        "min_free_disk_bytes": config.minimum_disk_bytes,
+        "disk_reserve_bytes": 0,
+        "expansion_factor": 12,
+        "stop_grace_seconds": max(0, int(os.getenv("COMPSHARE_STOP_GRACE_SECONDS", "60"))),
+        "kill_switch_active": False,
+        "effective_automatic": enabled,
+        "automation_blockers": (),
+    }
+    canonical["settings_sha256"] = hashlib.sha256(
+        json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return GpuRuntimeSnapshot(**canonical)
+
+
+def _config_for_run(db: Session, run: PipelineRun, *, enforce_current: bool = True) -> tuple[GpuRuntimeSnapshot, CompShareConfig]:
+    try:
+        snapshot = _frozen_snapshot(db, run, enforce_current=enforce_current)
+    except CompShareLifecycleError as exc:
+        if exc.code != "gpu_settings_snapshot_missing":
+            raise
+        config = CompShareConfig.from_env()
+        snapshot = _legacy_snapshot(config)
+    else:
+        config = CompShareConfig.from_runtime_snapshot(snapshot, project_secret_path=str(PROJECT_SECRET_PATH))
+    total_bytes = sum(max(0, int(row.get("size_bytes") or 0)) for row in run.request().get("snapshot", []) if isinstance(row, dict))
+    return snapshot, replace(config, minimum_disk_bytes=required_gpu_disk_bytes(snapshot, total_bytes))
 
 
 def _event(db: Session, run: PipelineRun, stage: str, message: str, *, level: str = "info", payload: dict | None = None) -> None:
@@ -77,9 +157,20 @@ def acquire_gpu_for_pipeline(
     client_factory: Callable[[CompShareConfig], Any] = UCloudCompShareClient,
     readiness_probe: Callable[[CompShareConfig, str], dict[str, Any]] = ssh_readiness_probe,
 ) -> LifecycleLease | None:
-    if not lifecycle_enabled():
-        return None
-    config = CompShareConfig.from_env()
+    try:
+        snapshot = _frozen_snapshot(db, run)
+    except CompShareLifecycleError as exc:
+        if exc.code != "gpu_settings_snapshot_missing" or os.getenv(
+            "COMPSHARE_LIFECYCLE_ENABLED", "false"
+        ).lower() not in {"1", "true", "yes", "on"}:
+            if exc.code == "gpu_settings_snapshot_missing":
+                return None
+            raise
+        snapshot, config = _config_for_run(db, run)
+    else:
+        if not snapshot.effective_automatic:
+            return None
+        snapshot, config = _config_for_run(db, run)
     missing = config.missing_fields()
     if missing:
         raise CompShareLifecycleError("cloud_config_incomplete", f"Compshare config missing: {', '.join(missing)}")
@@ -87,6 +178,17 @@ def acquire_gpu_for_pipeline(
     _event(db, run, "gpu_starting", "正在核验并按需启动 Compshare GPU 实例", payload={"cloud": config.public_identity()})
     db.commit()
     client = client_factory(config)
+    resume_lease: LifecycleLease | None = None
+    existing_lifecycle = run.summary().get("gpu_lifecycle")
+    if isinstance(existing_lifecycle, dict) and existing_lifecycle.get("settings_sha256") == snapshot.settings_sha256:
+        raw_lease = existing_lifecycle.get("lease")
+        if isinstance(raw_lease, dict):
+            try:
+                candidate = LifecycleLease.from_dict(raw_lease)
+            except CompShareLifecycleError:
+                candidate = None
+            if candidate and candidate.lease_id == f"pipeline-{run.id}-{run.idempotency_key[:16] if run.idempotency_key else 'unkeyed'}":
+                resume_lease = candidate
 
     def persist_lease(current: LifecycleLease) -> None:
         _merge_summary(
@@ -94,7 +196,7 @@ def acquire_gpu_for_pipeline(
             {
                 "gpu_lifecycle": {
                     "status": "ready" if current.phase == "ready" else "acquiring",
-                    "managed": True,
+                    "managed": True, "settings_sha256": snapshot.settings_sha256,
                     "lease": current.to_dict(),
                 }
             },
@@ -107,9 +209,10 @@ def acquire_gpu_for_pipeline(
         lambda: readiness_probe(config, os.getenv("GPU_WRAPPER_URL", "")),
         lease_id=f"pipeline-{run.id}-{run.idempotency_key[:16] if run.idempotency_key else 'unkeyed'}",
         checkpoint=persist_lease,
+        resume_lease=resume_lease,
     )
     run.current_stage = "gpu_ready"
-    _merge_summary(run, {"gpu_lifecycle": {"status": "ready", "managed": True, "lease": lease.to_dict()}})
+    _merge_summary(run, {"gpu_lifecycle": {"status": "ready", "managed": True, "settings_sha256": snapshot.settings_sha256, "lease": lease.to_dict()}})
     _event(
         db,
         run,
@@ -368,8 +471,8 @@ def release_gpu_after_pipeline(
 ) -> dict[str, Any]:
     if lease is None:
         return {"stopped": False, "status": "unmanaged"}
-    config = CompShareConfig.from_env()
-    auto_stop = os.getenv("COMPSHARE_AUTO_STOP", "true").lower() in {"1", "true", "yes", "on"}
+    snapshot, config = _config_for_run(db, run, enforce_current=False)
+    auto_stop = snapshot.auto_stop
     if not auto_stop:
         result = {"stopped": False, "status": "retained_running", "blockers": ["auto_stop_disabled"]}
     else:
@@ -379,7 +482,7 @@ def release_gpu_after_pipeline(
             .count()
         )
         remote = remote_jobs_probe(os.getenv("GPU_WRAPPER_URL", ""))
-        grace_seconds = max(0, int(os.getenv("COMPSHARE_STOP_GRACE_SECONDS", "60") or "60"))
+        grace_seconds = max(0, int(snapshot.stop_grace_seconds))
         if grace_seconds:
             sleep(grace_seconds)
         context = _safe_stop_context(
@@ -430,11 +533,6 @@ def reconcile_stale_lifecycle_leases(
     """Recover only leases whose accepted Start proves pipeline ownership."""
 
     result = {"examined": 0, "stopped": 0, "retained": 0, "invalid": 0}
-    if not lifecycle_enabled():
-        return result
-    config = CompShareConfig.from_env()
-    if config.missing_fields():
-        return result
     rows = db.query(PipelineRun).order_by(PipelineRun.id.desc()).limit(max(1, limit)).all()
     for run in rows:
         lifecycle = run.summary().get("gpu_lifecycle")
@@ -446,6 +544,13 @@ def reconcile_stale_lifecycle_leases(
             result["invalid"] += 1
             continue
         if lease.current_state == "Stopped" or not lease.lifecycle_owned or not lease.started_by_pipeline:
+            continue
+        try:
+            snapshot, config = _config_for_run(db, run, enforce_current=False)
+        except CompShareLifecycleError:
+            result["invalid"] += 1
+            continue
+        if not snapshot.effective_automatic:
             continue
         result["examined"] += 1
         active_other = (
@@ -478,7 +583,7 @@ def reconcile_stale_lifecycle_leases(
             )
             db.commit()
             continue
-        grace = max(0, int(os.getenv("COMPSHARE_STOP_GRACE_SECONDS", "60") or "60"))
+        grace = max(0, int(snapshot.stop_grace_seconds))
         grace_elapsed = (datetime.now(timezone.utc) - acquired.astimezone(timezone.utc)).total_seconds() >= grace
         context = _safe_stop_context(
             queue_empty=active_other == 0,

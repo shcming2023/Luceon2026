@@ -13,13 +13,14 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Protocol
 
-from app.services.compshare_credentials import CompShareCredentialError, load_runtime_credentials
+from app.services.compshare_credentials import CompShareCredentialError, load_project_credentials, load_runtime_credentials
 
 
 TERMINAL_STATES = {"Running", "Stopped"}
 TRANSITION_STATES = {"Starting", "Initializing", "Stopping", "Rebooting", "Install"}
 KNOWN_STATES = TERMINAL_STATES | TRANSITION_STATES
 OPERATION_LOCK_ERROR = "InstanceOperationInProgress"
+BILLING_NORMALIZATION_SCHEMA = "luceon.compshare-billing-normalization/v3"
 
 
 def _utc_now() -> str:
@@ -51,6 +52,10 @@ class CompShareConfig:
     operation_timeout_seconds: float = 900.0
     state_lag_grace_seconds: float = 60.0
     state_lag_max_observations: int = 3
+    # The scheduler control plane can be eventually consistent after a
+    # successful UpdateCompShareStopScheduler.  This is deliberately a small
+    # bounded read-only retry budget; it never authorizes another Update.
+    scheduler_guard_verify_max_observations: int = 3
     ssh_host: str = ""
     ssh_port: int = 22
     ssh_user: str = "root"
@@ -59,6 +64,12 @@ class CompShareConfig:
     remote_service_root: str = "/root/mineru-popo-service"
     credential_source: str = "legacy_environment"
     credentials_expires_at: str = ""
+    # Legacy environment callers retain the historical 50 GiB default.  The
+    # versioned runtime settings path supplies its own (currently 12 GiB)
+    # minimum explicitly via ``from_runtime_snapshot``.
+    minimum_disk_bytes: int = 50 * 1024**3
+    budget_micro_cny: int = 20_000_000
+    settings_sha256: str = ""
 
     @classmethod
     def from_env(cls) -> "CompShareConfig":
@@ -103,6 +114,35 @@ class CompShareConfig:
             remote_service_root=os.getenv("GPU_REMOTE_SERVICE_ROOT", "/root/mineru-popo-service"),
             credential_source=credential_source,
             credentials_expires_at=credentials_expires_at,
+        )
+
+    @classmethod
+    def from_runtime_snapshot(cls, snapshot: Any, *, project_secret_path: str) -> "CompShareConfig":
+        provider = str(snapshot.credential_provider)
+        try:
+            if provider == "project_secret_file":
+                credentials = load_project_credentials(project_secret_path)
+            elif provider == "macos_keychain_secret_file":
+                credential_file = os.getenv("COMPSHARE_CREDENTIALS_FILE", "").strip()
+                if not credential_file:
+                    raise CompShareCredentialError("credential_file_missing", "Keychain runtime credential file is missing")
+                credentials = load_runtime_credentials(credential_file)
+            else:
+                raise CompShareCredentialError("credential_provider_invalid", "Unsupported credential provider")
+        except CompShareCredentialError as exc:
+            raise CompShareLifecycleError(exc.code, str(exc)) from exc
+        return cls(
+            endpoint=str(snapshot.endpoint).rstrip("/"), public_key=credentials.public_key,
+            private_key=credentials.private_key, region=str(snapshot.region), zone=str(snapshot.zone),
+            project_id=str(snapshot.project_id), uhost_id=str(snapshot.uhost_id),
+            ssh_host=str(snapshot.ssh_host), ssh_port=int(snapshot.ssh_port),
+            ssh_user=os.getenv("GPU_SSH_USER", "root"),
+            ssh_key_path=os.getenv("GPU_SSH_KEY_PATH_IN_CONTAINER", "/root/.ssh/id_ed25519_trae_dev"),
+            ssh_known_hosts_path=os.getenv("GPU_SSH_KNOWN_HOSTS_PATH", "/root/.ssh/known_hosts"),
+            remote_service_root=os.getenv("GPU_REMOTE_SERVICE_ROOT", "/root/mineru-popo-service"),
+            credential_source=credentials.source, credentials_expires_at=credentials.expires_at,
+            minimum_disk_bytes=int(snapshot.min_free_disk_bytes), budget_micro_cny=int(snapshot.budget_micro_cny),
+            settings_sha256=str(snapshot.settings_sha256),
         )
 
     def missing_fields(self, *, require_credentials: bool = True) -> list[str]:
@@ -153,6 +193,19 @@ class UCloudCompShareClient:
         missing = config.missing_fields()
         if missing:
             raise CompShareLifecycleError("cloud_config_incomplete", f"Compshare config missing: {', '.join(missing)}")
+        allowed_origins = {
+            value.strip().lower()
+            for value in os.getenv("COMPSHARE_ALLOWED_ENDPOINT_ORIGINS", "").split(",")
+            if value.strip()
+        }
+        endpoint_parts = urllib.parse.urlsplit(config.endpoint)
+        endpoint_origin = endpoint_parts.netloc.lower()
+        if allowed_origins and endpoint_origin not in allowed_origins:
+            raise CompShareLifecycleError(
+                "cloud_endpoint_not_allowed",
+                "Compshare endpoint is not allowed by this runtime",
+                evidence={"endpoint_origin": endpoint_origin, "allowed_origin_count": len(allowed_origins)},
+            )
         self.config = config
         self.timeout_seconds = timeout_seconds
         self.last_sanitized_request: dict[str, Any] = {}
@@ -287,6 +340,84 @@ def exact_instance(payload: dict[str, Any], uhost_id: str) -> dict[str, Any]:
     return matches[0]
 
 
+def cap_derived_scheduler_stop(
+    instance: dict[str, Any],
+    *,
+    budget_micro_cny: int,
+    now_epoch: int | None = None,
+    safety_seconds: int = 1800,
+) -> dict[str, Any]:
+    """Derive a conservative scheduler deadline from qualified hourly billing.
+
+    A versioned automatic run must not treat the CNY 20 ceiling as prose.  We
+    qualify explicit hourly charge types plus the frozen Compshare ``Postpay``
+    hourly shape observed in Task36.  ``Postpay`` is accepted only under this
+    versioned provider contract and is rejected when an accompanying unit field
+    contradicts hourly billing.  Unknown types, ambiguous units, or missing
+    prices fail closed before a cloud Start.  The deadline leaves half
+    an hour for normal inventory verification and Stop, while remaining inside
+    the last authorised whole billing hour.
+    """
+    charge_type = str(instance.get("ChargeType") or "").strip().lower()
+    unit_fields = {
+        key: str(instance[key]).strip().lower()
+        for key in ("PriceUnit", "BillingUnit", "ChargeUnit", "Unit", "BillingCycle", "ChargeCycle", "Cycle")
+        if instance.get(key) not in (None, "")
+    }
+    hourly_units = {"hour", "hourly", "cny/hour", "cny/h", "rmb/hour", "rmb/h"}
+    explicit_hourly = charge_type in {"hour", "hourly"}
+    # The official 2026-08-04 Describe contract defines InstancePrice as the
+    # CNY/hour instance price for Postpay.  A normalized historical receipt is
+    # not evidence that the provider raw field was named Price, so Postpay must
+    # not fall back to that legacy field.
+    task36_postpay_hourly = (
+        charge_type == "postpay"
+        and isinstance(instance.get("InstancePrice"), (int, float))
+        and not isinstance(instance.get("InstancePrice"), bool)
+        and float(instance.get("InstancePrice")) > 0
+        and instance.get("Price") in (None, "")
+        and instance.get("DiscountPrice") in (None, "")
+        and all(
+        value in hourly_units for value in unit_fields.values()
+        )
+    )
+    normalization_method = (
+        "explicit_hour_charge_type" if explicit_hourly else
+        "compshare_postpay_instance_price_v1" if task36_postpay_hourly else ""
+    )
+    raw_price = instance.get("InstancePrice") if task36_postpay_hourly else instance.get("DiscountPrice", instance.get("Price"))
+    numeric_price = isinstance(raw_price, (int, float)) and not isinstance(raw_price, bool)
+    price_micro = int(round(float(raw_price) * 1_000_000)) if numeric_price else 0
+    if not normalization_method or price_micro <= 0:
+        raise CompShareLifecycleError(
+            "cloud_billing_unqualified",
+            "Automatic lifecycle requires an exact positive hourly price",
+            evidence={
+                "billing_normalization_schema": BILLING_NORMALIZATION_SCHEMA,
+                "charge_type": charge_type or "missing",
+                "price_present": raw_price is not None,
+                "unit_fields": unit_fields,
+            },
+        )
+    units = int(budget_micro_cny) // price_micro
+    if units < 1:
+        raise CompShareLifecycleError("cloud_budget_insufficient", "Per-run budget is below one billing unit")
+    now_value = int(time.time() if now_epoch is None else now_epoch)
+    runtime_seconds = units * 3600 - max(300, int(safety_seconds))
+    if runtime_seconds < 300:
+        raise CompShareLifecycleError("cloud_budget_insufficient", "Budget leaves no safe automatic lifecycle window")
+    return {
+        "scheduler_stop_time": now_value + runtime_seconds,
+        "billing_unit_seconds": 3600,
+        "authorized_units": units,
+        "unit_price_micro_cny": price_micro,
+        "budget_micro_cny": int(budget_micro_cny),
+        "normal_stop_reserve_seconds": max(300, int(safety_seconds)),
+        "billing_normalization_schema": BILLING_NORMALIZATION_SCHEMA,
+        "billing_normalization_method": normalization_method,
+    }
+
+
 @dataclass
 class LifecycleLease:
     lease_id: str
@@ -299,11 +430,12 @@ class LifecycleLease:
     timeline: list[dict[str, Any]] = field(default_factory=list)
     readiness: dict[str, Any] = field(default_factory=dict)
     phase: str = "described"
+    cost_guard: dict[str, Any] = field(default_factory=dict)
     updated_at: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         payload = {
-            "schema": "luceon.compshare-lifecycle-lease/v2",
+            "schema": "luceon.compshare-lifecycle-lease/v4",
             "lease_id": self.lease_id,
             "uhost_id": self.uhost_id,
             "prior_state": self.prior_state,
@@ -314,6 +446,7 @@ class LifecycleLease:
             "timeline": self.timeline,
             "readiness": self.readiness,
             "phase": self.phase,
+            "cost_guard": self.cost_guard,
             "updated_at": self.updated_at,
         }
         payload["lease_sha256"] = _canonical_sha(payload)
@@ -323,7 +456,7 @@ class LifecycleLease:
     def from_dict(cls, payload: dict[str, Any]) -> "LifecycleLease":
         raw = dict(payload or {})
         claimed = str(raw.pop("lease_sha256", ""))
-        if raw.get("schema") not in {"luceon.compshare-lifecycle-lease/v1", "luceon.compshare-lifecycle-lease/v2"} or not claimed or _canonical_sha(raw) != claimed:
+        if raw.get("schema") not in {"luceon.compshare-lifecycle-lease/v1", "luceon.compshare-lifecycle-lease/v2", "luceon.compshare-lifecycle-lease/v3", "luceon.compshare-lifecycle-lease/v4"} or not claimed or _canonical_sha(raw) != claimed:
             raise CompShareLifecycleError("lifecycle_lease_invalid", "Lifecycle lease hash or schema is invalid")
         return cls(
             lease_id=str(raw.get("lease_id") or ""),
@@ -336,6 +469,7 @@ class LifecycleLease:
             timeline=list(raw.get("timeline") or []),
             readiness=dict(raw.get("readiness") or {}),
             phase=str(raw.get("phase") or "described"),
+            cost_guard=dict(raw.get("cost_guard") or {}),
             updated_at=str(raw.get("updated_at") or ""),
         )
 
@@ -394,6 +528,68 @@ def _wait_for_state(
     raise CompShareLifecycleError("cloud_operation_timeout", f"Timed out waiting for {target}", evidence={"timeline": timeline})
 
 
+def _confirm_scheduler_guard(
+    client: CompShareClient,
+    config: CompShareConfig,
+    *,
+    scheduler_stop_time: int,
+    wall_time: Callable[[], float],
+    sleep: Callable[[float], None],
+    timeline: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Read back an already-accepted scheduler guard before Start.
+
+    The official scheduler response confirms only acceptance, not the stored
+    deadline.  A delayed Describe must therefore be tolerated briefly, while
+    a state/identity/deadline mismatch remains fail-closed.  This helper is
+    intentionally read-only so that retries cannot duplicate scheduler writes.
+    """
+    attempts = max(1, int(config.scheduler_guard_verify_max_observations))
+    last_reason = ""
+    for observation in range(1, attempts + 1):
+        verified = exact_instance(client.describe(), config.uhost_id)
+        state = str(verified.get("State") or "")
+        verified_deadline = verified.get("SchedulerStopTime")
+        deadline_valid = (
+            isinstance(verified_deadline, int)
+            and not isinstance(verified_deadline, bool)
+            and verified_deadline == scheduler_stop_time
+            and verified_deadline >= int(wall_time()) + 300
+        )
+        if state == "Stopped" and deadline_valid:
+            timeline.append(
+                _timeline(
+                    "guard_verification_describe",
+                    "Stopped",
+                    scheduler_stop_time=verified_deadline,
+                    observation=observation,
+                )
+            )
+            return verified
+        if state != "Stopped":
+            raise CompShareLifecycleError(
+                "cloud_scheduler_not_confirmed",
+                "Post-update Describe left the exact instance outside Stopped before Start",
+                evidence={"state": state, "observation": observation},
+            )
+        last_reason = "scheduler_stop_time_missing_or_drifted"
+        timeline.append(
+            _timeline(
+                "guard_verification_pending",
+                "Stopped",
+                observation=observation,
+                expected_scheduler_stop_time=scheduler_stop_time,
+            )
+        )
+        if observation < attempts:
+            sleep(config.poll_seconds)
+    raise CompShareLifecycleError(
+        "cloud_scheduler_not_confirmed",
+        "Post-update Describe did not confirm the exact active stop guard",
+        evidence={"reason": last_reason, "observations": attempts},
+    )
+
+
 def ensure_running(
     client: CompShareClient,
     config: CompShareConfig,
@@ -402,38 +598,114 @@ def ensure_running(
     lease_id: str = "",
     sleep: Callable[[float], None] = time.sleep,
     monotonic: Callable[[], float] = time.monotonic,
+    wall_time: Callable[[], float] = time.time,
     checkpoint: Callable[[LifecycleLease], None] | None = None,
+    resume_lease: LifecycleLease | None = None,
 ) -> LifecycleLease:
     timeline: list[dict[str, Any]] = []
     first = exact_instance(client.describe(), config.uhost_id)
     prior_state = str(first["State"])
     timeline.append(_timeline("describe", prior_state))
-    lease = LifecycleLease(
-        lease_id=lease_id or secrets.token_hex(16),
-        uhost_id=config.uhost_id,
-        prior_state=prior_state,
-        current_state=prior_state,
-        lifecycle_owned=False,
-        started_by_pipeline=False,
-        acquired_at=_utc_now(),
-        timeline=timeline,
-        phase="described",
-        updated_at=_utc_now(),
+    resumable_guard = bool(
+        resume_lease
+        and resume_lease.uhost_id == config.uhost_id
+        and resume_lease.prior_state == "Stopped"
+        and resume_lease.phase == "guard_accepted_before_start"
+        and resume_lease.cost_guard
+        and prior_state == "Stopped"
     )
+    if resumable_guard:
+        lease = resume_lease
+        timeline = lease.timeline
+        timeline.append(_timeline("resume_after_guard", prior_state))
+        lease.current_state = prior_state
+        lease.updated_at = _utc_now()
+    else:
+        lease = LifecycleLease(
+            lease_id=lease_id or secrets.token_hex(16),
+            uhost_id=config.uhost_id,
+            prior_state=prior_state,
+            current_state=prior_state,
+            lifecycle_owned=False,
+            started_by_pipeline=False,
+            acquired_at=_utc_now(),
+            timeline=timeline,
+            phase="described",
+            updated_at=_utc_now(),
+        )
     if checkpoint:
         checkpoint(lease)
 
     if prior_state == "Stopped":
+        cost_guard = None
+        guard_is_current = False
+        if config.settings_sha256:
+            if resumable_guard:
+                persisted_deadline = resume_lease.cost_guard.get("scheduler_stop_time")
+                cloud_deadline = first.get("SchedulerStopTime")
+                guard_is_current = (
+                    isinstance(persisted_deadline, int)
+                    and not isinstance(persisted_deadline, bool)
+                    and isinstance(cloud_deadline, int)
+                    and not isinstance(cloud_deadline, bool)
+                    and cloud_deadline == persisted_deadline
+                    and cloud_deadline >= int(wall_time()) + 300
+                )
+                if guard_is_current:
+                    cost_guard = dict(resume_lease.cost_guard)
+                    timeline.append(_timeline("resume_guard_verified", "Stopped", scheduler_stop_time=cloud_deadline))
+                else:
+                    timeline.append(_timeline("resume_guard_rearm_required", "Stopped"))
+            if not guard_is_current:
+                cost_guard = cap_derived_scheduler_stop(
+                    first,
+                    budget_micro_cny=config.budget_micro_cny,
+                    now_epoch=int(wall_time()),
+                )
         action_accepted = False
         operation_locked = False
         try:
+            if cost_guard is not None and not guard_is_current:
+                response = client.update_stop_scheduler(int(cost_guard["scheduler_stop_time"]))
+                if int(response.get("RetCode", -1)) != 0:
+                    raise CompShareLifecycleError(
+                        "cloud_scheduler_not_confirmed",
+                        "Compshare stop scheduler update was rejected",
+                    )
+                if str(response.get("Action") or "") != "UpdateCompShareStopSchedulerResponse":
+                    raise CompShareLifecycleError(
+                        "cloud_scheduler_not_confirmed",
+                        "Compshare stop scheduler returned an unexpected response identity",
+                    )
+                if str(response.get("UHostId") or "") != config.uhost_id:
+                    raise CompShareLifecycleError(
+                        "cloud_scheduler_identity_mismatch",
+                        "Compshare stop scheduler response did not match the exact instance",
+                    )
+                _confirm_scheduler_guard(
+                    client,
+                    config,
+                    scheduler_stop_time=int(cost_guard["scheduler_stop_time"]),
+                    wall_time=wall_time,
+                    sleep=sleep,
+                    timeline=timeline,
+                )
+                lease.cost_guard = dict(cost_guard)
+                lease.phase = "guard_accepted_before_start"
+                timeline.append(_timeline("guard_accepted_before_start", "Stopped", **cost_guard))
+                lease.updated_at = _utc_now()
+                if checkpoint:
+                    checkpoint(lease)
             client.start()
             action_accepted = True
             lease.lifecycle_owned = True
             lease.started_by_pipeline = True
             lease.current_state = "Starting"
             lease.phase = "start_accepted"
-            timeline.append(_timeline("start_requested", "Starting"))
+            timeline.append(_timeline("start_accepted", "Starting"))
+            lease.updated_at = _utc_now()
+            if checkpoint:
+                checkpoint(lease)
         except CompShareLifecycleError as exc:
             if exc.code != OPERATION_LOCK_ERROR:
                 raise
@@ -631,7 +903,7 @@ def ssh_readiness_probe(config: CompShareConfig, wrapper_url: str) -> dict[str, 
         disk_available_bytes = int(disk_fields[3]) * 1024
     except (IndexError, TypeError, ValueError):
         return {"ready": False, "error_domain": "disk", "reason": "disk_probe_invalid"}
-    minimum_disk_bytes = max(1, int(os.getenv("GPU_MIN_FREE_DISK_BYTES", str(50 * 1024**3))))
+    minimum_disk_bytes = max(1, int(config.minimum_disk_bytes))
     if disk_available_bytes < minimum_disk_bytes:
         return {
             "ready": False,
